@@ -1,0 +1,9 @@
+import '@tiptap/core'
+
+declare module '@tiptap/core' {
+  interface Storage {
+    inkWeight: { disabled: boolean }
+    paragraphSettle: { disabled: boolean }
+    colorBleed: { disabled: boolean }
+  }
+}

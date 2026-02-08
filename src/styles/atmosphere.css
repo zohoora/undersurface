@@ -1,0 +1,724 @@
+/* ── The Living Page ─────────────────────────────────────── */
+
+:root {
+  --bg-primary: #FAF8F5;
+  --bg-warm: #F5F0EA;
+  --text-primary: #2C2825;
+  --text-secondary: #6B6560;
+  --text-ghost: #A09A94;
+  --cursor-glow: rgba(210, 180, 140, 0.15);
+
+  /* Part colors */
+  --color-watcher: #6B8FA3;
+  --color-tender: #C4935A;
+  --color-still: #7A9E7E;
+  --color-spark: #B07A8A;
+  --color-weaver: #8E7BAF;
+
+  /* Atmosphere gradients — shift with emotion */
+  --atmo-1: #FAF8F5;
+  --atmo-2: #F5F0EA;
+  --atmo-3: #FBF7F2;
+}
+
+/* ── Breathing Background ───────────────────────────────── */
+
+.atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(
+    135deg,
+    var(--atmo-1) 0%,
+    var(--atmo-2) 50%,
+    var(--atmo-3) 100%
+  );
+  background-size: 600% 600%;
+  animation: atmosphere-breathe 18s ease-in-out infinite;
+  transition: --atmo-1 3s ease, --atmo-2 3s ease, --atmo-3 3s ease;
+}
+
+@keyframes atmosphere-breathe {
+  0% { background-position: 0% 50%; transform: scale(1); }
+  25% { background-position: 50% 0%; transform: scale(1.03); }
+  50% { background-position: 100% 50%; transform: scale(1); }
+  75% { background-position: 50% 100%; transform: scale(1.02); }
+  100% { background-position: 0% 50%; transform: scale(1); }
+}
+
+/* ── Typing Breath Layer ───────────────────────────────── */
+
+.typing-breath {
+  position: absolute;
+  inset: -15%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(210, 180, 140, 0.06) 0%,
+    transparent 65%
+  );
+  transform: scale(1);
+  opacity: 0.15;
+  transition: transform 0.5s ease-out, opacity 0.8s ease-out;
+  pointer-events: none;
+}
+
+/* ── Noise Texture Overlay ──────────────────────────────── */
+
+.atmosphere::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── Cursor Glow (desktop only, enhanced) ─────────────── */
+
+.cursor-glow {
+  display: none;
+}
+
+.cursor-glow-tint {
+  display: none;
+}
+
+/* ── Pause Ripple ──────────────────────────────────────── */
+
+.pause-ripple {
+  position: absolute;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 3;
+  animation: ripple-expand 2.2s ease-out forwards;
+}
+
+@keyframes ripple-expand {
+  0% {
+    width: 0;
+    height: 0;
+    border: 1.5px solid rgba(180, 160, 130, 0.25);
+    opacity: 1;
+  }
+  60% {
+    border: 1px solid rgba(180, 160, 130, 0.08);
+    opacity: 0.6;
+  }
+  100% {
+    width: 200px;
+    height: 200px;
+    border: 0.5px solid rgba(180, 160, 130, 0);
+    opacity: 0;
+  }
+}
+
+/* ── Editor Container ───────────────────────────────────── */
+
+.editor-container {
+  position: relative;
+  z-index: 2;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 80px 40px 200px;
+  min-height: 100vh;
+}
+
+/* ── TipTap Editor ──────────────────────────────────────── */
+
+.tiptap {
+  font-family: 'Spectral', Georgia, 'Times New Roman', serif;
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 1.85;
+  color: var(--text-primary);
+  outline: none;
+  caret-color: var(--text-secondary);
+}
+
+.tiptap p {
+  margin-bottom: 0.8em;
+  position: relative;
+  transition: opacity 2s ease;
+}
+
+/* ── Paragraph Settle (previous paragraphs dim) ────────── */
+
+.tiptap p.settled-paragraph {
+  opacity: 0.55;
+}
+
+/* ── Margin Trace Dots ─────────────────────────────────── */
+
+.margin-trace-dot {
+  display: none;
+}
+
+@keyframes trace-appear {
+  0% { opacity: 0; transform: translateY(-50%) scale(0); }
+  40% { opacity: 0.5; transform: translateY(-50%) scale(1.6); }
+  100% { opacity: 0.4; transform: translateY(-50%) scale(1); }
+}
+
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--text-ghost);
+  pointer-events: none;
+  height: 0;
+  font-style: italic;
+  font-weight: 300;
+}
+
+/* ── Part Thought ───────────────────────────────────────── */
+
+.part-thought {
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+  padding: 12px 16px;
+  margin: 8px 0 16px;
+  border-radius: 8px;
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+}
+
+.part-thought .part-name {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  opacity: 0.7;
+}
+
+.part-thought .part-content {
+  opacity: 0.85;
+}
+
+.part-thought:hover {
+  opacity: 1;
+}
+
+.part-thought:hover .part-content {
+  opacity: 1;
+}
+
+/* ── Handwriting Animation ──────────────────────────────── */
+
+.handwriting-char {
+  display: inline;
+  opacity: 0;
+  animation: char-appear 0.15s ease-out forwards;
+}
+
+@keyframes char-appear {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 0.85;
+    transform: translateY(0);
+  }
+}
+
+/* ── Thinking Out Loud Space ────────────────────────────── */
+
+.thinking-space {
+  overflow: hidden;
+  border-left: 2px solid;
+  margin: 4px 0 16px 0;
+  padding: 16px 20px;
+  border-radius: 0 8px 8px 0;
+}
+
+.thinking-space .thinking-input {
+  font-family: 'Spectral', Georgia, serif;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.7;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  outline: none;
+  width: 100%;
+  resize: none;
+  padding: 8px 0;
+  min-height: 40px;
+}
+
+.thinking-space .thinking-input::placeholder {
+  color: var(--text-ghost);
+  font-style: italic;
+}
+
+.thinking-reply {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* ── Interaction Trace ──────────────────────────────────── */
+
+.interaction-trace {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  display: inline-block;
+  margin: 0 2px;
+  opacity: 0.4;
+  vertical-align: middle;
+}
+
+/* ── Entry Sidebar ──────────────────────────────────────── */
+
+.entries-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 240px;
+  height: 100vh;
+  padding: 24px 16px;
+  z-index: 10;
+  font-family: 'Inter', sans-serif;
+  transform: translateX(-200px);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(
+    to right,
+    rgba(250, 248, 245, 0.95),
+    rgba(250, 248, 245, 0)
+  );
+  display: flex;
+  flex-direction: column;
+}
+
+.entries-sidebar:hover,
+.entries-sidebar:focus-within {
+  transform: translateX(0);
+}
+
+.entries-sidebar .sidebar-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-ghost);
+  margin-bottom: 16px;
+  padding-left: 8px;
+}
+
+.entries-sidebar .entry-item {
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: background 0.2s ease, color 0.2s ease;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entries-sidebar .entry-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-primary);
+}
+
+.entries-sidebar .entry-item.active {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.new-entry-btn {
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-ghost);
+  transition: color 0.2s ease;
+  border: none;
+  background: none;
+  text-align: left;
+  width: 100%;
+  font-family: 'Inter', sans-serif;
+}
+
+.new-entry-btn:hover {
+  color: var(--text-secondary);
+}
+
+/* ── Settings Panel ────────────────────────────────────── */
+
+.settings-panel {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.settings-gear-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-ghost);
+  transition: color 0.2s ease;
+  border: none;
+  background: none;
+  font-family: 'Inter', sans-serif;
+  width: 100%;
+}
+
+.settings-gear-btn:hover {
+  color: var(--text-secondary);
+}
+
+.settings-body {
+  padding: 4px 0 8px;
+}
+
+.settings-section {
+  margin-bottom: 12px;
+}
+
+.settings-section-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-ghost);
+  padding: 0 8px;
+  margin-bottom: 4px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  border-radius: 4px;
+}
+
+.settings-row:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.settings-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Toggle switch */
+.settings-toggle {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+}
+
+.settings-toggle[aria-checked="true"] {
+  background: var(--text-ghost);
+}
+
+.settings-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.2s ease;
+  pointer-events: none;
+}
+
+.settings-toggle-knob.on {
+  transform: translateX(12px);
+}
+
+/* Slider */
+.settings-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-slider-label {
+  font-size: 9px;
+  color: var(--text-ghost);
+  white-space: nowrap;
+}
+
+.settings-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 80px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.1);
+  outline: none;
+  cursor: pointer;
+}
+
+.settings-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-ghost);
+  cursor: pointer;
+}
+
+.settings-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-ghost);
+  cursor: pointer;
+  border: none;
+}
+
+/* ── Emotional Atmosphere Variants ──────────────────────── */
+
+.atmosphere[data-emotion="tender"] {
+  --atmo-1: #FAF5F0;
+  --atmo-2: #F5EDE5;
+  --atmo-3: #FBF3EC;
+}
+
+.atmosphere[data-emotion="anxious"] {
+  --atmo-1: #F5F5F8;
+  --atmo-2: #EDECF2;
+  --atmo-3: #F2F0F5;
+}
+
+.atmosphere[data-emotion="sad"] {
+  --atmo-1: #F2F4F8;
+  --atmo-2: #E8ECF2;
+  --atmo-3: #EEF0F5;
+}
+
+.atmosphere[data-emotion="angry"] {
+  --atmo-1: #FAF5F2;
+  --atmo-2: #F5ECE8;
+  --atmo-3: #F8F0EC;
+}
+
+.atmosphere[data-emotion="joyful"] {
+  --atmo-1: #FAF8F2;
+  --atmo-2: #F5F0E5;
+  --atmo-3: #FBF5EA;
+}
+
+.atmosphere[data-emotion="contemplative"] {
+  --atmo-1: #F5F5F2;
+  --atmo-2: #EEEEE8;
+  --atmo-3: #F2F2EC;
+}
+
+.atmosphere[data-emotion="fearful"] {
+  --atmo-1: #F5F2F5;
+  --atmo-2: #ECE8EE;
+  --atmo-3: #F0ECF2;
+}
+
+.atmosphere[data-emotion="hopeful"] {
+  --atmo-1: #F8FAF5;
+  --atmo-2: #F0F5EA;
+  --atmo-3: #F5F8F0;
+}
+
+.atmosphere[data-emotion="conflicted"] {
+  --atmo-1: #F8F5F2;
+  --atmo-2: #F2ECE8;
+  --atmo-3: #F5F0EC;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* ── Global Reset ───────────────────────────────────────── */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  overflow-x: hidden;
+  background: var(--bg-primary);
+}
+
+/* ── Emergence Animation ────────────────────────────────── */
+
+@keyframes color-bloom {
+  0% {
+    box-shadow: 0 0 0 0 var(--bloom-color);
+    opacity: 0;
+  }
+  30% {
+    box-shadow: 0 0 30px 10px var(--bloom-color);
+    opacity: 1;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    opacity: 1;
+  }
+}
+
+.part-thought.emerging {
+  animation: color-bloom 2s ease-out forwards;
+}
+
+/* ── Mobile Responsiveness ─────────────────────────────── */
+
+/* Sidebar toggle button (mobile only) */
+.sidebar-toggle {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* Editor: tighter padding, space for hamburger button */
+  .editor-container {
+    padding: 60px 20px 120px;
+    max-width: 100%;
+  }
+
+  .tiptap {
+    font-size: 17px;
+    line-height: 1.75;
+  }
+
+  /* Hide cursor glow entirely on mobile */
+  .cursor-glow {
+    display: none !important;
+  }
+
+  /* Sidebar: slide-in overlay triggered by toggle button */
+  .entries-sidebar {
+    width: 280px;
+    transform: translateX(-280px);
+    background: linear-gradient(
+      to right,
+      rgba(250, 248, 245, 0.98) 85%,
+      rgba(250, 248, 245, 0)
+    );
+    padding: 64px 16px 20px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .entries-sidebar:hover {
+    transform: translateX(-280px);
+  }
+
+  .entries-sidebar.open {
+    transform: translateX(0);
+  }
+
+  /* Sidebar toggle: visible on mobile */
+  .sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 11;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: none;
+    background: rgba(250, 248, 245, 0.8);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    cursor: pointer;
+    color: var(--text-ghost);
+    font-size: 18px;
+    transition: color 0.2s ease, background 0.2s ease;
+  }
+
+  .sidebar-toggle:active {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--text-secondary);
+  }
+
+  /* Sidebar backdrop overlay */
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9;
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  .sidebar-backdrop.visible {
+    display: block;
+  }
+
+  /* Part thoughts: full width on mobile */
+  .part-thought {
+    font-size: 13px;
+    padding: 10px 14px;
+    margin: 6px 0 12px;
+  }
+
+  /* Thinking space: tighter on mobile */
+  .thinking-space {
+    padding: 12px 16px;
+    margin: 4px 0 12px 0;
+  }
+
+  .thinking-space .thinking-input {
+    font-size: 15px;
+  }
+}
+
+/* Small phones */
+@media (max-width: 400px) {
+  .editor-container {
+    padding: 56px 16px 100px;
+  }
+
+  .tiptap {
+    font-size: 16px;
+  }
+}
