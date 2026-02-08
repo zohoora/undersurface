@@ -499,10 +499,17 @@ export function LivingEditor({
   }, [editor, onActivePartColorChange])
 
   return (
-    <div className="editor-container">
+    <div className="editor-container" id="editor">
       <EditorContent editor={editor} />
 
       <PauseRipple ripples={ripples} />
+
+      {/* Announce part thoughts to screen readers */}
+      <div aria-live="polite" className="sr-only">
+        {thoughts.filter((t) => t.isVisible && !t.isStreaming).map((t) => (
+          <span key={t.id}>{t.partName} says: {t.content}</span>
+        ))}
+      </div>
 
       <div style={{ position: 'relative' }}>
         {thoughts.map((thought) => (

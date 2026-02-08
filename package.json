@@ -1,12 +1,16 @@
 {
   "name": "undersurface",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "A diary app with IFS-inspired AI inner voices",
+  "author": "zohoora",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "preview": "vite preview",
     "postinstall": "mkdir -p public/dictionaries && cp node_modules/dictionary-en/index.aff public/dictionaries/en.aff && cp node_modules/dictionary-en/index.dic public/dictionaries/en.dic"
   },
@@ -15,9 +19,8 @@
     "@tiptap/pm": "^3.19.0",
     "@tiptap/react": "^3.19.0",
     "@tiptap/starter-kit": "^3.19.0",
-    "dexie": "^4.3.0",
-    "dexie-react-hooks": "^4.2.0",
     "dictionary-en": "^4.0.0",
+    "firebase": "^12.9.0",
     "framer-motion": "^12.33.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -37,6 +40,8 @@
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^4.0.18"
   }
 }

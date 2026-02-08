@@ -3,12 +3,16 @@ import { BreathingBackground } from './components/Atmosphere/BreathingBackground
 import { CursorGlow } from './components/Atmosphere/CursorGlow'
 import { LivingEditor } from './components/Editor/LivingEditor'
 import { EntriesList } from './components/Sidebar/EntriesList'
+import { LoginScreen } from './components/LoginScreen'
+import { Onboarding } from './components/Onboarding'
+import { useAuth } from './auth/useAuth'
 import { initializeDB, db, generateId } from './store/db'
 import { spellEngine } from './engine/spellEngine'
 import { useSettings } from './store/settings'
 import type { EmotionalTone } from './types'
 
 function App() {
+  const { user, loading } = useAuth()
   const [isReady, setIsReady] = useState(false)
   const [activeEntryId, setActiveEntryId] = useState<string>('')
   const [initialContent, setInitialContent] = useState('')
@@ -20,6 +24,8 @@ function App() {
 
   // Initialize DB and load or create first entry
   useEffect(() => {
+    if (!user) return
+
     const init = async () => {
       await initializeDB()
       spellEngine.init()
@@ -27,8 +33,9 @@ function App() {
       // Get most recent entry or create one
       const entries = await db.entries.orderBy('updatedAt').reverse().toArray()
       if (entries.length > 0) {
-        setActiveEntryId(entries[0].id)
-        setInitialContent(entries[0].content)
+        const entry = entries[0] as { id: string; content: string }
+        setActiveEntryId(entry.id)
+        setInitialContent(entry.content)
       } else {
         const id = generateId()
         await db.entries.add({
@@ -44,7 +51,7 @@ function App() {
       setIsReady(true)
     }
     init()
-  }, [])
+  }, [user])
 
   // Auto-save with debounce
   const handleContentChange = useCallback(
@@ -75,7 +82,7 @@ function App() {
       })
     }
 
-    const entry = await db.entries.get(id)
+    const entry = await db.entries.get(id) as { id: string; content: string } | undefined
     if (entry) {
       setActiveEntryId(id)
       setInitialContent(entry.content)
@@ -95,6 +102,35 @@ function App() {
     setActivePartColor(color)
   }, [])
 
+  // Loading state
+  if (loading) {
+    return (
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#FAF8F5',
+      }}>
+        <div style={{
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 13,
+          color: '#A09A94',
+          letterSpacing: '0.1em',
+        }}>
+          undersurface
+        </div>
+      </div>
+    )
+  }
+
+  // Auth gate
+  if (!user) {
+    return <LoginScreen />
+  }
+
+  // Initializing DB
   if (!isReady) {
     return (
       <div style={{
@@ -117,8 +153,14 @@ function App() {
     )
   }
 
+  // Onboarding check
+  if (!settings.openRouterApiKey && !settings.hasSeenOnboarding) {
+    return <Onboarding />
+  }
+
   return (
     <>
+      <a href="#editor" className="skip-to-content">Skip to editor</a>
       <BreathingBackground emotion={emotion} enabled={settings.breathingBackground} />
       <CursorGlow partTint={activePartColor} />
       <EntriesList

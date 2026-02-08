@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
 import { db, generateId } from '../../store/db'
 import { SettingsPanel } from './SettingsPanel'
 
@@ -7,6 +6,12 @@ interface Props {
   activeEntryId: string
   onSelectEntry: (id: string) => void
   onNewEntry: (id: string) => void
+}
+
+interface Entry {
+  id: string
+  plainText: string
+  updatedAt: number
 }
 
 function useIsMobile() {
@@ -27,12 +32,28 @@ function useIsMobile() {
 export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [entries, setEntries] = useState<Entry[]>([])
   const isMobile = useIsMobile()
 
-  const entries = useLiveQuery(
-    () => db.entries.orderBy('updatedAt').reverse().toArray(),
-    [],
-  )
+  const loadEntries = useCallback(async () => {
+    const data = await db.entries.orderBy('updatedAt').reverse().toArray()
+    setEntries(data as Entry[])
+  }, [])
+
+  // Initial load + periodic refresh
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      const data = await db.entries.orderBy('updatedAt').reverse().toArray()
+      if (!cancelled) setEntries(data as Entry[])
+    }
+    load()
+    const interval = setInterval(load, 3000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [])
 
   const handleNewEntry = async () => {
     const id = generateId()
@@ -44,6 +65,7 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
       updatedAt: Date.now(),
     })
     onNewEntry(id)
+    loadEntries()
     if (isMobile) setIsOpen(false)
   }
 
