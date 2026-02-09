@@ -26,14 +26,14 @@ export function LoginScreen() {
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      background: '#FAF8F5',
+      background: 'var(--bg-primary)',
       gap: 24,
     }}>
       <div style={{
         fontFamily: "'Spectral', serif",
         fontSize: 28,
         fontWeight: 400,
-        color: '#4A453F',
+        color: 'var(--text-primary)',
         letterSpacing: '0.02em',
       }}>
         UnderSurface
@@ -41,7 +41,7 @@ export function LoginScreen() {
       <div style={{
         fontFamily: "'Inter', sans-serif",
         fontSize: 13,
-        color: '#A09A94',
+        color: 'var(--text-ghost)',
         maxWidth: 280,
         textAlign: 'center',
         lineHeight: 1.5,
@@ -56,10 +56,10 @@ export function LoginScreen() {
           fontFamily: "'Inter', sans-serif",
           fontSize: 14,
           padding: '10px 24px',
-          border: '1px solid #D5D0CA',
+          border: '1px solid var(--border-subtle)',
           borderRadius: 8,
-          background: 'white',
-          color: '#4A453F',
+          background: 'var(--surface-primary)',
+          color: 'var(--text-primary)',
           cursor: isSigningIn ? 'wait' : 'pointer',
           display: 'flex',
           alignItems: 'center',
@@ -79,7 +79,7 @@ export function LoginScreen() {
         <div style={{
           fontFamily: "'Inter', sans-serif",
           fontSize: 12,
-          color: '#C4935A',
+          color: 'var(--color-tender)',
           maxWidth: 300,
           textAlign: 'center',
         }}>

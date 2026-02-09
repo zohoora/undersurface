@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { HandwritingText } from '../Editor/HandwritingText'
+import { useTheme } from '../../hooks/useTheme'
 
 interface Props {
   partName: string
@@ -14,6 +15,11 @@ interface Props {
   onClose: () => void
 }
 
+function boostAlpha(colorLight: string, isDark: boolean): string {
+  if (!isDark || colorLight.length < 8) return colorLight
+  return colorLight.slice(0, -2) + '30'
+}
+
 export function ThinkingSpace({
   partName,
   partColor,
@@ -25,6 +31,8 @@ export function ThinkingSpace({
   isReplyStreaming,
   onClose,
 }: Props) {
+  const theme = useTheme()
+  const bg = boostAlpha(colorLight, theme === 'dark')
   const [userInput, setUserInput] = useState('')
   const [hasResponded, setHasResponded] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -70,7 +78,7 @@ export function ThinkingSpace({
           className="thinking-space"
           style={{
             borderColor: partColor,
-            backgroundColor: colorLight,
+            backgroundColor: bg,
           }}
           initial={{ height: 0, opacity: 0, marginTop: 0, marginBottom: 0 }}
           animate={{ height: 'auto', opacity: 1, marginTop: 4, marginBottom: 16 }}

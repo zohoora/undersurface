@@ -47,6 +47,22 @@ export function AdminSettings() {
     }
   }
 
+  const handleSignalUpdate = async () => {
+    if (!config) return
+    setSaving(true)
+    setMessage(null)
+    try {
+      const updated = { ...config, buildVersion: Date.now().toString() }
+      const result = await adminFetch<{ config: GlobalConfig }>('updateConfig', { config: updated })
+      setConfig(result.config)
+      setMessage({ type: 'success', text: 'Update signaled — users will see a refresh prompt' })
+    } catch (e) {
+      setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Failed to signal' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) return <div style={{ fontSize: 13, color: '#A09A94', padding: 20 }}>Loading...</div>
   if (!config) return <div style={{ fontSize: 13, color: '#A09A94', padding: 20 }}>No config loaded</div>
 
@@ -209,22 +225,40 @@ export function AdminSettings() {
         )}
       </div>
 
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        style={{
-          padding: '10px 32px',
-          fontSize: 13,
-          fontFamily: "'Inter', sans-serif",
-          background: saving ? '#E8E4DF' : '#2D2B29',
-          color: saving ? '#A09A94' : '#FFFFFF',
-          border: 'none',
-          borderRadius: 6,
-          cursor: saving ? 'default' : 'pointer',
-        }}
-      >
-        {saving ? 'Saving...' : 'Save Settings'}
-      </button>
+      <div style={{ display: 'flex', gap: 12 }}>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{
+            padding: '10px 32px',
+            fontSize: 13,
+            fontFamily: "'Inter', sans-serif",
+            background: saving ? '#E8E4DF' : '#2D2B29',
+            color: saving ? '#A09A94' : '#FFFFFF',
+            border: 'none',
+            borderRadius: 6,
+            cursor: saving ? 'default' : 'pointer',
+          }}
+        >
+          {saving ? 'Saving...' : 'Save Settings'}
+        </button>
+        <button
+          onClick={handleSignalUpdate}
+          disabled={saving}
+          style={{
+            padding: '10px 24px',
+            fontSize: 13,
+            fontFamily: "'Inter', sans-serif",
+            background: 'none',
+            color: saving ? '#A09A94' : '#6B6560',
+            border: '1px solid #E8E4DF',
+            borderRadius: 6,
+            cursor: saving ? 'default' : 'pointer',
+          }}
+        >
+          Signal Update
+        </button>
+      </div>
     </div>
   )
 }

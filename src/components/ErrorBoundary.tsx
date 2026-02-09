@@ -30,9 +30,9 @@ export class ErrorBoundary extends Component<Props, State> {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#FAF8F5',
+          background: 'var(--bg-primary)',
           fontFamily: "'Spectral', serif",
-          color: '#4A453F',
+          color: 'var(--text-primary)',
           gap: 16,
         }}>
           <div style={{ fontSize: 18 }}>Something went wrong</div>
@@ -42,10 +42,10 @@ export class ErrorBoundary extends Component<Props, State> {
               fontFamily: "'Inter', sans-serif",
               fontSize: 13,
               padding: '8px 20px',
-              border: '1px solid #D5D0CA',
+              border: '1px solid var(--border-subtle)',
               borderRadius: 6,
-              background: 'white',
-              color: '#4A453F',
+              background: 'var(--surface-primary)',
+              color: 'var(--text-primary)',
               cursor: 'pointer',
             }}
           >

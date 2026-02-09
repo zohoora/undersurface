@@ -12,6 +12,7 @@ export interface GlobalConfig {
     type: 'info' | 'warning'
     dismissible: boolean
   } | null
+  buildVersion?: string
   updatedAt: number
   updatedBy: string
 }

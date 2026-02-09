@@ -11,7 +11,8 @@ import { initializeDB, db, generateId } from './store/db'
 import { spellEngine } from './engine/spellEngine'
 import { ReflectionEngine } from './engine/reflectionEngine'
 import { useSettings } from './store/settings'
-import { initGlobalConfig, useGlobalConfig } from './store/globalConfig'
+import { initGlobalConfig, useGlobalConfig, useNewVersionAvailable } from './store/globalConfig'
+import { useTheme } from './hooks/useTheme'
 import type { EmotionalTone, Part } from './types'
 
 const ADMIN_EMAILS = ['zohoora@gmail.com']
@@ -25,6 +26,8 @@ function App() {
   const [activePartColor, setActivePartColor] = useState<string | null>(null)
   const settings = useSettings()
   const globalConfig = useGlobalConfig()
+  const newVersionAvailable = useNewVersionAvailable()
+  useTheme()
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestContentRef = useRef({ html: '', text: '' })
   const reflectionEngineRef = useRef(new ReflectionEngine())
@@ -132,12 +135,12 @@ function App() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#FAF8F5',
+        background: 'var(--bg-primary)',
       }}>
         <div style={{
           fontFamily: "'Inter', sans-serif",
           fontSize: 13,
-          color: '#A09A94',
+          color: 'var(--text-ghost)',
           letterSpacing: '0.1em',
         }}>
           undersurface
@@ -168,12 +171,12 @@ function App() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#FAF8F5',
+        background: 'var(--bg-primary)',
       }}>
         <div style={{
           fontFamily: "'Inter', sans-serif",
           fontSize: 13,
-          color: '#A09A94',
+          color: 'var(--text-ghost)',
           letterSpacing: '0.1em',
         }}>
           undersurface
@@ -187,6 +190,31 @@ function App() {
   return (
     <>
       <AnnouncementBanner />
+      {newVersionAvailable && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 20,
+            right: 20,
+            zIndex: 9999,
+            padding: '10px 16px',
+            fontSize: 12,
+            fontFamily: "'Inter', sans-serif",
+            background: 'var(--surface-primary)',
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 8,
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px var(--overlay-medium)',
+          }}
+          onClick={() => window.location.reload()}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter') window.location.reload() }}
+        >
+          New version available — tap to refresh
+        </div>
+      )}
       <a href="#editor" className="skip-to-content">Skip to editor</a>
       <BreathingBackground emotion={emotion} enabled={settings.breathingBackground && visualEffectsEnabled} />
       <CursorGlow partTint={activePartColor} />

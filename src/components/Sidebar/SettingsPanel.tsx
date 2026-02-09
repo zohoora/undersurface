@@ -1,6 +1,7 @@
 import { useSettings, updateSettings } from '../../store/settings'
 import type { AppSettings } from '../../store/settings'
 import { useAuth } from '../../auth/useAuth'
+import { useTheme } from '../../hooks/useTheme'
 import { exportAllData } from '../../store/db'
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -51,6 +52,7 @@ interface SettingsPanelProps {
 export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
   const settings = useSettings()
   const { user, signOut } = useAuth()
+  const theme = useTheme()
   const set = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     updateSettings({ [key]: value })
   }
@@ -63,9 +65,9 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
         aria-label="Toggle settings"
         aria-expanded={isOpen}
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="8" cy="8" r="2.5" />
-          <path d="M8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.4 3.4l.85.85M11.75 11.75l.85.85M3.4 12.6l.85-.85M11.75 4.25l.85-.85" />
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+          <circle cx="12" cy="12" r="3" />
         </svg>
         <span>Settings</span>
       </button>
@@ -85,16 +87,16 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
                     referrerPolicy="no-referrer"
                   />
                 )}
-                <span style={{ fontSize: 11, color: '#4A453F', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {user.displayName || user.email}
                 </span>
                 <button
                   onClick={signOut}
                   style={{
                     fontSize: 10,
-                    color: '#A09A94',
+                    color: 'var(--text-ghost)',
                     background: 'none',
-                    border: '1px solid #E8E4DF',
+                    border: '1px solid var(--border-light)',
                     borderRadius: 4,
                     padding: '2px 8px',
                     cursor: 'pointer',
@@ -105,6 +107,22 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
               </div>
             </div>
           )}
+
+          {/* Appearance */}
+          <div className="settings-section">
+            <div className="settings-section-label">Appearance</div>
+            <SettingRow label="Theme">
+              <OptionGroup
+                value={settings.theme}
+                options={[
+                  { value: 'system', label: 'Auto' },
+                  { value: 'light', label: 'Light' },
+                  { value: 'dark', label: 'Dark' },
+                ]}
+                onChange={(v) => set('theme', v)}
+              />
+            </SettingRow>
+          </div>
 
           {/* Part Responsiveness */}
           <div className="settings-section">
@@ -151,9 +169,11 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
             <SettingRow label="Ink weight">
               <Toggle checked={settings.inkWeight} onChange={(v) => set('inkWeight', v)} />
             </SettingRow>
-            <SettingRow label="Color bleed">
-              <Toggle checked={settings.colorBleed} onChange={(v) => set('colorBleed', v)} />
-            </SettingRow>
+            {theme !== 'dark' && (
+              <SettingRow label="Color bleed">
+                <Toggle checked={settings.colorBleed} onChange={(v) => set('colorBleed', v)} />
+              </SettingRow>
+            )}
             <SettingRow label="Breathing background">
               <Toggle checked={settings.breathingBackground} onChange={(v) => set('breathingBackground', v)} />
             </SettingRow>
@@ -178,9 +198,9 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
               style={{
                 fontSize: 11,
                 fontFamily: "'Inter', sans-serif",
-                color: '#4A453F',
+                color: 'var(--text-primary)',
                 background: 'none',
-                border: '1px solid #D5D0CA',
+                border: '1px solid var(--border-subtle)',
                 borderRadius: 4,
                 padding: '6px 12px',
                 cursor: 'pointer',

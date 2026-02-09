@@ -22,6 +22,9 @@ export interface AppSettings {
   // Autocorrect
   autoCapitalize: boolean
   autocorrect: boolean
+
+  // Appearance
+  theme: 'light' | 'dark' | 'system'
 }
 
 const DEFAULTS: AppSettings = {
@@ -36,6 +39,7 @@ const DEFAULTS: AppSettings = {
   breathingBackground: true,
   autoCapitalize: true,
   autocorrect: true,
+  theme: 'system',
 }
 
 const STORAGE_KEY = 'undersurface:settings'

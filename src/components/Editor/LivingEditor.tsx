@@ -16,6 +16,7 @@ import { PartThoughtBubble } from './PartThoughtBubble'
 import { ThinkingSpace } from '../ThinkingOutLoud/ThinkingSpace'
 import { PauseRipple } from '../Atmosphere/PauseRipple'
 import { usePauseRipple } from '../Atmosphere/usePauseRipple'
+import { useTheme } from '../../hooks/useTheme'
 import { buildInteractionReply } from '../../ai/partPrompts'
 import { streamChatCompletion } from '../../ai/openrouter'
 import { db, generateId } from '../../store/db'
@@ -62,6 +63,7 @@ export function LivingEditor({
   onActivePartColorChange,
   settings,
 }: Props) {
+  const theme = useTheme()
   const pauseDetectorRef = useRef<PauseDetector | null>(null)
   const orchestratorRef = useRef<PartOrchestrator | null>(null)
   const emergenceRef = useRef<EmergenceEngine | null>(null)
@@ -71,6 +73,12 @@ export function LivingEditor({
   const currentThoughtRef = useRef<ActiveThought | null>(null)
   const emergenceCheckCountRef = useRef(0)
   const pendingBleedColorRef = useRef<string | null>(null)
+  const lastAutocorrectRef = useRef<{
+    original: string
+    correction: string
+    wordStart: number
+    delimiter: string
+  } | null>(null)
 
   // Typing intensity tracking (for breathing sync)
   const lastKeystrokeTimeRef = useRef(0)
@@ -105,7 +113,35 @@ export function LivingEditor({
       },
       handleKeyDown: (_view, event) => {
         if (event.metaKey || event.ctrlKey || event.altKey) return false
+
+        // Undo autocorrect on Backspace
+        if (event.key === 'Backspace' && editor && lastAutocorrectRef.current) {
+          const { original, correction, wordStart, delimiter } = lastAutocorrectRef.current
+          const cursor = editor.state.selection.from
+          const expectedEnd = wordStart + correction.length + delimiter.length
+          // Cursor must be right after "correction + delimiter"
+          if (cursor === expectedEnd) {
+            const docText = editor.state.doc.textBetween(wordStart, expectedEnd)
+            if (docText === correction + delimiter) {
+              event.preventDefault()
+              editor.view.dispatch(
+                editor.state.tr.replaceWith(
+                  wordStart,
+                  expectedEnd,
+                  editor.state.schema.text(original + delimiter),
+                ),
+              )
+              lastAutocorrectRef.current = null
+              return true
+            }
+          }
+          lastAutocorrectRef.current = null
+        }
+
         if (event.key.length === 1 || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'Enter') {
+          // Clear autocorrect undo on any non-backspace key
+          if (event.key !== 'Backspace') lastAutocorrectRef.current = null
+
           const text = editor?.getText() || ''
           const pos = editor?.state.selection.from || 0
           pauseDetectorRef.current?.recordKeystroke(event.key, text, pos)
@@ -184,6 +220,7 @@ export function LivingEditor({
                 const absOffset = $pos.start() + $pos.parentOffset
                 const wordStart = absOffset - word.length
                 const capturedEditor = editor
+                const delimiter = event.key
                 queueMicrotask(() => {
                   const currentState = capturedEditor.state
                   if (currentState.doc.textBetween(wordStart, absOffset) === word) {
@@ -194,6 +231,7 @@ export function LivingEditor({
                         currentState.schema.text(correction),
                       ),
                     )
+                    lastAutocorrectRef.current = { original: word, correction, wordStart, delimiter }
                   }
                 })
               }
@@ -237,13 +275,13 @@ export function LivingEditor({
     if (editor) {
       editor.storage.inkWeight.disabled = !settings.inkWeight
       editor.storage.paragraphSettle.disabled = !settings.paragraphFade
-      editor.storage.colorBleed.disabled = !settings.colorBleed
+      editor.storage.colorBleed.disabled = !settings.colorBleed || theme === 'dark'
       editor.storage.typewriterScroll.mode = settings.typewriterScroll
       // Force decoration refresh
       editor.view.dispatch(editor.state.tr)
     }
     pauseDetectorRef.current?.setSpeedMultiplier(settings.responseSpeed)
-  }, [editor, settings.inkWeight, settings.paragraphFade, settings.colorBleed, settings.typewriterScroll, settings.responseSpeed])
+  }, [editor, settings.inkWeight, settings.paragraphFade, settings.colorBleed, settings.typewriterScroll, settings.responseSpeed, theme])
 
   // Clean up faded thoughts periodically
   useEffect(() => {
@@ -527,6 +565,7 @@ export function LivingEditor({
             isStreaming={thought.isStreaming}
             isEmerging={thought.isEmerging}
             isVisible={thought.isVisible}
+            exitInstant={activeInteraction?.thoughtId === thought.id}
             onClick={() => handleThoughtClick(thought)}
           />
         ))}

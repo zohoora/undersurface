@@ -36,9 +36,11 @@ export function AnnouncementBanner() {
         fontSize: 13,
         fontFamily: "'Inter', sans-serif",
         textAlign: 'center',
-        background: isWarning ? '#FEF3C7' : '#EFF6FF',
-        color: isWarning ? '#92400E' : '#1E40AF',
-        borderBottom: `1px solid ${isWarning ? '#FDE68A' : '#BFDBFE'}`,
+        background: isWarning ? 'var(--banner-warning-bg)' : 'var(--banner-info-bg)',
+        color: isWarning ? 'var(--banner-warning-text)' : 'var(--banner-info-text)',
+        borderBottom: isWarning
+          ? '1px solid var(--banner-warning-border)'
+          : '1px solid var(--banner-info-border)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

@@ -22,7 +22,7 @@ export function Onboarding() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: '#FAF8F5',
+      background: 'var(--bg-primary)',
     }}>
       <div style={{
         maxWidth: 380,
@@ -35,14 +35,14 @@ export function Onboarding() {
         <div style={{
           fontFamily: "'Spectral', serif",
           fontSize: 24,
-          color: '#4A453F',
+          color: 'var(--text-primary)',
         }}>
           Welcome to UnderSurface
         </div>
         <div style={{
           fontFamily: "'Inter', sans-serif",
           fontSize: 13,
-          color: '#A09A94',
+          color: 'var(--text-ghost)',
           textAlign: 'center',
           lineHeight: 1.6,
         }}>
@@ -56,7 +56,7 @@ export function Onboarding() {
           style={{
             fontFamily: "'Inter', sans-serif",
             fontSize: 12,
-            color: '#7A9E7E',
+            color: 'var(--color-still)',
           }}
         >
           Get an API key from OpenRouter
@@ -69,12 +69,12 @@ export function Onboarding() {
           style={{
             width: '100%',
             padding: '10px 12px',
-            border: '1px solid #D5D0CA',
+            border: '1px solid var(--border-subtle)',
             borderRadius: 6,
             fontFamily: "'Inter', sans-serif",
             fontSize: 13,
-            background: 'white',
-            color: '#4A453F',
+            background: 'var(--surface-primary)',
+            color: 'var(--text-primary)',
             outline: 'none',
           }}
         />
@@ -86,10 +86,10 @@ export function Onboarding() {
             padding: '10px 20px',
             fontFamily: "'Inter', sans-serif",
             fontSize: 14,
-            border: '1px solid #D5D0CA',
+            border: '1px solid var(--border-subtle)',
             borderRadius: 8,
-            background: apiKey.trim() ? '#4A453F' : '#E8E4DF',
-            color: apiKey.trim() ? '#FAF8F5' : '#A09A94',
+            background: apiKey.trim() ? 'var(--text-primary)' : 'var(--border-light)',
+            color: apiKey.trim() ? 'var(--bg-primary)' : 'var(--text-ghost)',
             cursor: apiKey.trim() ? 'pointer' : 'default',
           }}
         >
@@ -100,7 +100,7 @@ export function Onboarding() {
           style={{
             fontFamily: "'Inter', sans-serif",
             fontSize: 12,
-            color: '#A09A94',
+            color: 'var(--text-ghost)',
             background: 'none',
             border: 'none',
             cursor: 'pointer',
