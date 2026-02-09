@@ -4,12 +4,12 @@ import { CursorGlow } from './components/Atmosphere/CursorGlow'
 import { LivingEditor } from './components/Editor/LivingEditor'
 import { EntriesList } from './components/Sidebar/EntriesList'
 import { LoginScreen } from './components/LoginScreen'
-import { Onboarding } from './components/Onboarding'
 import { useAuth } from './auth/useAuth'
 import { initializeDB, db, generateId } from './store/db'
 import { spellEngine } from './engine/spellEngine'
+import { ReflectionEngine } from './engine/reflectionEngine'
 import { useSettings } from './store/settings'
-import type { EmotionalTone } from './types'
+import type { EmotionalTone, Part } from './types'
 
 function App() {
   const { user, loading } = useAuth()
@@ -21,6 +21,7 @@ function App() {
   const settings = useSettings()
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestContentRef = useRef({ html: '', text: '' })
+  const reflectionEngineRef = useRef(new ReflectionEngine())
 
   // Initialize DB and load or create first entry
   useEffect(() => {
@@ -72,27 +73,40 @@ function App() {
     [activeEntryId],
   )
 
+  const triggerReflection = useCallback((entryIdToReflect: string) => {
+    db.parts.toArray()
+      .then((parts) => reflectionEngineRef.current.reflect(entryIdToReflect, parts as Part[]))
+      .catch((error) => console.error('Reflection error:', error))
+  }, [])
+
   const handleSelectEntry = useCallback(async (id: string) => {
     // Save current first
+    const outgoingEntryId = activeEntryId
     if (latestContentRef.current.html) {
-      await db.entries.update(activeEntryId, {
+      await db.entries.update(outgoingEntryId, {
         content: latestContentRef.current.html,
         plainText: latestContentRef.current.text,
         updatedAt: Date.now(),
       })
     }
 
+    // Trigger reflection on outgoing entry (async, non-blocking)
+    triggerReflection(outgoingEntryId)
+
     const entry = await db.entries.get(id) as { id: string; content: string } | undefined
     if (entry) {
       setActiveEntryId(id)
       setInitialContent(entry.content)
     }
-  }, [activeEntryId])
+  }, [activeEntryId, triggerReflection])
 
   const handleNewEntry = useCallback((id: string) => {
+    // Trigger reflection on outgoing entry (async, non-blocking)
+    triggerReflection(activeEntryId)
+
     setActiveEntryId(id)
     setInitialContent('')
-  }, [])
+  }, [activeEntryId, triggerReflection])
 
   const handleEmotionChange = useCallback((newEmotion: EmotionalTone) => {
     setEmotion(newEmotion)
@@ -151,11 +165,6 @@ function App() {
         </div>
       </div>
     )
-  }
-
-  // Onboarding check
-  if (!settings.openRouterApiKey && !settings.hasSeenOnboarding) {
-    return <Onboarding />
   }
 
   return (

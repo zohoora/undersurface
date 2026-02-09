@@ -1,4 +1,4 @@
-import type { Part } from '../types'
+import type { Part, PartMemory, UserProfile, EntrySummary } from '../types'
 
 const SHARED_INSTRUCTIONS = `You are a part of the writer's inner world, appearing in their diary as they write. Your responses appear inline on the page — like thoughts emerging from the paper itself.
 
@@ -120,12 +120,60 @@ export function buildPartMessages(
   part: Part,
   currentText: string,
   recentText: string,
-  memories: string[],
+  memories: PartMemory[],
+  profile?: UserProfile | null,
+  entrySummaries?: EntrySummary[],
 ): { role: 'system' | 'user'; content: string }[] {
   let systemContent = part.systemPrompt
 
-  if (memories.length > 0) {
-    systemContent += `\n\nYour memories from previous entries:\n${memories.map((m) => `- ${m}`).join('\n')}`
+  // Append learned specifics from part growth
+  if (part.systemPromptAddition) {
+    systemContent += `\n\n${part.systemPromptAddition}`
+  }
+
+  // User profile context (shared across all parts)
+  if (profile) {
+    const profileLines: string[] = []
+    if (profile.innerLandscape) profileLines.push(profile.innerLandscape)
+    if (profile.recurringThemes.length > 0) profileLines.push(`Recurring themes: ${profile.recurringThemes.join(', ')}`)
+    if (profileLines.length > 0) {
+      systemContent += `\n\nWhat you know about this writer:\n${profileLines.join('\n')}`
+    }
+  }
+
+  // Categorized memories
+  const reflections = memories.filter((m) => m.type === 'reflection').slice(-5)
+  const patterns = memories.filter((m) => m.type === 'pattern').slice(-5)
+  const interactions = memories.filter((m) => m.type === 'interaction').slice(-3)
+  const observations = memories.filter((m) => m.type === 'observation').slice(-3)
+  // Memories without a type are legacy interactions
+  const legacyMemories = memories.filter((m) => !m.type).slice(-3)
+
+  const memoryBlocks: string[] = []
+  if (reflections.length > 0) {
+    memoryBlocks.push(`What you have learned about this writer:\n${reflections.map((m) => `- ${m.content}`).join('\n')}`)
+  }
+  if (patterns.length > 0) {
+    memoryBlocks.push(`Patterns you have noticed:\n${patterns.map((m) => `- ${m.content}`).join('\n')}`)
+  }
+  const allInteractions = [...interactions, ...legacyMemories]
+  if (allInteractions.length > 0) {
+    memoryBlocks.push(`Past conversations:\n${allInteractions.map((m) => `- ${m.content}`).join('\n')}`)
+  }
+  if (observations.length > 0) {
+    memoryBlocks.push(`Recent observations:\n${observations.map((m) => `- ${m.content}`).join('\n')}`)
+  }
+
+  if (memoryBlocks.length > 0) {
+    systemContent += `\n\n${memoryBlocks.join('\n\n')}`
+  }
+
+  // Entry summaries for manager/weaver-role parts
+  if (entrySummaries && entrySummaries.length > 0 && (part.ifsRole === 'manager' || part.ifsRole === 'self')) {
+    const summaryLines = entrySummaries.map((s) =>
+      `- Themes: ${s.themes.join(', ')} | Arc: ${s.emotionalArc}`
+    ).join('\n')
+    systemContent += `\n\nRecent entry summaries:\n${summaryLines}`
   }
 
   return [
@@ -177,6 +225,117 @@ Only detect a new part if there is genuine evidence of an unrepresented inner vo
     {
       role: 'user',
       content: currentText,
+    },
+  ]
+}
+
+export function buildReflectionPrompt(
+  entryText: string,
+  thoughts: { partName: string; content: string }[],
+  interactions: { partName: string; opening: string; userResponse: string; reply: string }[],
+  profile: UserProfile | null,
+  recentSummaries: EntrySummary[],
+  parts: { id: string; name: string; ifsRole: string }[],
+): { role: 'system' | 'user'; content: string }[] {
+  const partList = parts.map((p) => `${p.name} (id: ${p.id}, role: ${p.ifsRole})`).join(', ')
+
+  let profileContext = ''
+  if (profile) {
+    profileContext = `\n\nCurrent writer profile:\n- Recurring themes: ${profile.recurringThemes.join(', ') || 'none yet'}\n- Emotional patterns: ${profile.emotionalPatterns.join(', ') || 'none yet'}\n- Inner landscape: ${profile.innerLandscape || 'not yet described'}`
+  }
+
+  let summaryContext = ''
+  if (recentSummaries.length > 0) {
+    summaryContext = `\n\nRecent entry summaries:\n${recentSummaries.map((s) => `- Themes: ${s.themes.join(', ')} | Arc: ${s.emotionalArc}`).join('\n')}`
+  }
+
+  let thoughtsContext = ''
+  if (thoughts.length > 0) {
+    thoughtsContext = `\n\nThoughts that appeared during writing:\n${thoughts.map((t) => `- ${t.partName}: "${t.content}"`).join('\n')}`
+  }
+
+  let interactionsContext = ''
+  if (interactions.length > 0) {
+    interactionsContext = `\n\nConversations during writing:\n${interactions.map((i) => `- ${i.partName} said: "${i.opening}" → Writer: "${i.userResponse}" → ${i.partName}: "${i.reply}"`).join('\n')}`
+  }
+
+  return [
+    {
+      role: 'system',
+      content: `You are an analytical observer of a diary writer's inner world. You analyze completed diary entries to extract insights for the writer's inner parts (psychological sub-personalities).
+
+Active parts: ${partList}${profileContext}${summaryContext}
+
+Respond with valid JSON only:
+{
+  "entrySummary": {
+    "themes": ["theme1", "theme2"],
+    "emotionalArc": "brief description of emotional journey in this entry",
+    "keyMoments": ["moment1", "moment2"]
+  },
+  "partMemories": {
+    "<partId>": "what this part learned about the writer from this entry (1 sentence)"
+  },
+  "profileUpdates": {
+    "recurringThemes": ["themes that appear across entries"],
+    "emotionalPatterns": ["patterns in how writer processes emotions"],
+    "avoidancePatterns": ["what writer tends to avoid or skip past"],
+    "growthSignals": ["signs of growth or shifts"],
+    "innerLandscape": "a brief poetic description of the writer's current inner world (1-2 sentences)"
+  },
+  "crossEntryPatterns": ["connections to past entry themes, if any"],
+  "partKeywordSuggestions": {
+    "<partId>": ["new_keyword1", "new_keyword2"]
+  }
+}
+
+Only include partMemories for parts that genuinely learned something from this entry. Only include partKeywordSuggestions if new keywords are clearly warranted. Keep everything concise.`,
+    },
+    {
+      role: 'user',
+      content: `Entry text:\n\n---\n${entryText}\n---${thoughtsContext}${interactionsContext}`,
+    },
+  ]
+}
+
+export function buildGrowthPrompt(
+  parts: { id: string; name: string; ifsRole: string; concern: string; memories: string[] }[],
+  profile: UserProfile | null,
+): { role: 'system' | 'user'; content: string }[] {
+  let profileContext = ''
+  if (profile) {
+    profileContext = `\n\nWriter profile:\n- Recurring themes: ${profile.recurringThemes.join(', ')}\n- Emotional patterns: ${profile.emotionalPatterns.join(', ')}\n- Avoidance patterns: ${profile.avoidancePatterns.join(', ')}\n- Inner landscape: ${profile.innerLandscape}`
+  }
+
+  const partsContext = parts.map((p) => {
+    let section = `${p.name} (id: ${p.id}, role: ${p.ifsRole}, concern: ${p.concern})`
+    if (p.memories.length > 0) {
+      section += `\nRecent memories:\n${p.memories.map((m) => `  - ${m}`).join('\n')}`
+    }
+    return section
+  }).join('\n\n')
+
+  return [
+    {
+      role: 'system',
+      content: `You evolve a diary writer's inner parts based on accumulated experience. Each part is a psychological sub-personality that has been observing and interacting with the writer over multiple entries.${profileContext}
+
+Respond with valid JSON only:
+{
+  "partGrowth": {
+    "<partId>": {
+      "promptAddition": "1-3 sentences of learned specifics about THIS writer that should be appended to the part's base prompt. Be specific to what the part has observed.",
+      "keywords": ["new_keyword1"],
+      "emotions": ["new_emotion"]
+    }
+  }
+}
+
+Only include growth for parts with enough accumulated experience. Keywords should be words the part should start responding to based on what it has learned. Emotions must be from: neutral, tender, anxious, angry, sad, joyful, contemplative, fearful, hopeful, conflicted.`,
+    },
+    {
+      role: 'user',
+      content: `Parts and their accumulated memories:\n\n${partsContext}`,
     },
   ]
 }

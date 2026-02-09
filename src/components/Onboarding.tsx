@@ -37,7 +37,7 @@ export function Onboarding() {
           fontSize: 24,
           color: '#4A453F',
         }}>
-          Welcome to Undersurface
+          Welcome to UnderSurface
         </div>
         <div style={{
           fontFamily: "'Inter', sans-serif",

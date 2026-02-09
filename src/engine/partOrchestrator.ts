@@ -1,8 +1,46 @@
-import type { Part, PauseEvent, PauseType, PartThought, EmotionalTone } from '../types'
+import type { Part, PauseEvent, PauseType, PartThought, EmotionalTone, IFSRole } from '../types'
 import { buildPartMessages } from '../ai/partPrompts'
 import { streamChatCompletion, analyzeEmotion } from '../ai/openrouter'
 import { db, generateId } from '../store/db'
-import { getSettings } from '../store/settings'
+
+const ROLE_PAUSE_AFFINITIES: Record<IFSRole, Record<PauseType, number>> = {
+  protector: {
+    short_pause: 5, sentence_complete: 10, cadence_slowdown: 20,
+    paragraph_break: 10, long_pause: 5, ellipsis: 15, question: 5, trailing_off: 25,
+  },
+  exile: {
+    short_pause: 5, sentence_complete: 10, cadence_slowdown: 15,
+    paragraph_break: 10, long_pause: 25, ellipsis: 20, question: 10, trailing_off: 15,
+  },
+  self: {
+    short_pause: 5, sentence_complete: 10, cadence_slowdown: 10,
+    paragraph_break: 15, long_pause: 25, ellipsis: 10, question: 20, trailing_off: 10,
+  },
+  firefighter: {
+    short_pause: 10, sentence_complete: 15, cadence_slowdown: 5,
+    paragraph_break: 15, long_pause: 10, ellipsis: 5, question: 20, trailing_off: 5,
+  },
+  manager: {
+    short_pause: 5, sentence_complete: 15, cadence_slowdown: 10,
+    paragraph_break: 25, long_pause: 15, ellipsis: 10, question: 10, trailing_off: 10,
+  },
+}
+
+const ROLE_KEYWORDS: Record<IFSRole, string[]> = {
+  protector: ['avoid', 'ignore', 'pretend', 'fine', 'okay', 'whatever', 'anyway', 'but', 'should', 'just', 'never mind'],
+  exile: ['hurt', 'miss', 'wish', 'love', 'feel', 'heart', 'pain', 'alone', 'cry', 'soft', 'remember', 'lost', 'need', 'warm'],
+  self: ['wonder', 'what if', 'maybe', 'breathe', 'moment', 'notice', 'space', 'quiet', 'sit with', 'here', 'presence'],
+  firefighter: ['do', 'change', 'act', 'move', 'enough', 'tired of', 'want', 'go', 'make', 'try', 'decide', 'fight', 'ready'],
+  manager: ['again', 'always', 'every time', 'pattern', 'same', 'remind', 'before', 'back then', 'cycle', 'repeat', 'used to'],
+}
+
+const ROLE_EMOTIONS: Record<IFSRole, EmotionalTone[]> = {
+  protector: ['anxious', 'conflicted', 'neutral'],
+  exile: ['sad', 'tender', 'hopeful', 'fearful'],
+  self: ['contemplative', 'neutral', 'tender'],
+  firefighter: ['angry', 'conflicted', 'hopeful', 'joyful'],
+  manager: ['contemplative', 'sad', 'conflicted'],
+}
 
 interface OrchestratorCallbacks {
   onThoughtStart: (partId: string, partName: string, partColor: string) => void
@@ -53,7 +91,6 @@ export class PartOrchestrator {
     if (this.isGenerating) return
     if (this.parts.length === 0) return
     if (event.currentText.trim().length < 20) return
-    if (!getSettings().openRouterApiKey) return
 
     // Check emotion periodically
     if (Date.now() - this.lastEmotionCheck > this.EMOTION_CHECK_INTERVAL) {
@@ -106,100 +143,51 @@ export class PartOrchestrator {
   }
 
   private pauseTypeAffinity(part: Part, pauseType: PauseType): number {
-    const affinities: Record<string, Record<PauseType, number>> = {
-      watcher: {
-        short_pause: 5,
-        sentence_complete: 10,
-        cadence_slowdown: 20,
-        paragraph_break: 10,
-        long_pause: 5,
-        ellipsis: 15,
-        question: 5,
-        trailing_off: 25,
-      },
-      tender: {
-        short_pause: 5,
-        sentence_complete: 10,
-        cadence_slowdown: 15,
-        paragraph_break: 10,
-        long_pause: 25,
-        ellipsis: 20,
-        question: 10,
-        trailing_off: 15,
-      },
-      still: {
-        short_pause: 5,
-        sentence_complete: 10,
-        cadence_slowdown: 10,
-        paragraph_break: 15,
-        long_pause: 25,
-        ellipsis: 10,
-        question: 20,
-        trailing_off: 10,
-      },
-      spark: {
-        short_pause: 10,
-        sentence_complete: 15,
-        cadence_slowdown: 5,
-        paragraph_break: 15,
-        long_pause: 10,
-        ellipsis: 5,
-        question: 20,
-        trailing_off: 5,
-      },
-      weaver: {
-        short_pause: 5,
-        sentence_complete: 15,
-        cadence_slowdown: 10,
-        paragraph_break: 25,
-        long_pause: 15,
-        ellipsis: 10,
-        question: 10,
-        trailing_off: 10,
-      },
-    }
-
-    return affinities[part.id]?.[pauseType] ?? 10
+    return ROLE_PAUSE_AFFINITIES[part.ifsRole]?.[pauseType] ?? 10
   }
 
   private contentRelevance(part: Part, text: string): number {
-    const keywords: Record<string, string[]> = {
-      watcher: ['avoid', 'ignore', 'pretend', 'fine', 'okay', 'whatever', 'anyway', 'but', 'should', 'just', 'never mind'],
-      tender: ['hurt', 'miss', 'wish', 'love', 'feel', 'heart', 'pain', 'alone', 'cry', 'soft', 'remember', 'lost', 'need', 'warm'],
-      still: ['wonder', 'what if', 'maybe', 'breathe', 'moment', 'notice', 'space', 'quiet', 'sit with', 'here', 'presence'],
-      spark: ['do', 'change', 'act', 'move', 'enough', 'tired of', 'want', 'go', 'make', 'try', 'decide', 'fight', 'ready'],
-      weaver: ['again', 'always', 'every time', 'pattern', 'same', 'remind', 'before', 'back then', 'cycle', 'repeat', 'used to'],
-    }
+    // Merge role keywords + concern words + learned keywords
+    const roleKw = ROLE_KEYWORDS[part.ifsRole] || []
+    const concernKw = part.concern.toLowerCase().split(/[,.\s]+/).filter((w) => w.length > 3)
+    const learnedKw = part.learnedKeywords || []
+    const allKeywords = [...new Set([...roleKw, ...concernKw, ...learnedKw])]
 
-    const partKeywords = keywords[part.id] || []
     let relevance = 0
-    for (const keyword of partKeywords) {
+    for (const keyword of allKeywords) {
       if (text.includes(keyword)) relevance += 8
     }
     return Math.min(relevance, 30)
   }
 
   private emotionMatch(part: Part, emotion: EmotionalTone): number {
-    const affinities: Record<string, EmotionalTone[]> = {
-      watcher: ['anxious', 'conflicted', 'neutral'],
-      tender: ['sad', 'tender', 'hopeful', 'fearful'],
-      still: ['contemplative', 'neutral', 'tender'],
-      spark: ['angry', 'conflicted', 'hopeful', 'joyful'],
-      weaver: ['contemplative', 'sad', 'conflicted'],
-    }
-
-    const partAffinities = affinities[part.id] || []
-    return partAffinities.includes(emotion) ? 15 : 0
+    const roleEmotions = ROLE_EMOTIONS[part.ifsRole] || []
+    const learnedEmotions = part.learnedEmotions || []
+    const allEmotions = [...new Set([...roleEmotions, ...learnedEmotions])]
+    return allEmotions.includes(emotion) ? 15 : 0
   }
 
   private async generateThought(part: Part, event: PauseEvent): Promise<void> {
-    const memories = part.memories.map((m) => m.content).slice(-5)
+    // Load fresh memories from db instead of stale in-memory cache
+    const allMemories = await db.memories.where('partId').equals(part.id).toArray() as import('../types').PartMemory[]
+
+    // Load user profile
+    const profile = await db.userProfile.get('current') as import('../types').UserProfile | undefined
+
+    // Load entry summaries for manager/self-role parts
+    let entrySummaries: import('../types').EntrySummary[] | undefined
+    if (part.ifsRole === 'manager' || part.ifsRole === 'self') {
+      const allSummaries = await db.entrySummaries.orderBy('timestamp').reverse().toArray() as import('../types').EntrySummary[]
+      entrySummaries = allSummaries.slice(0, 5)
+    }
 
     const messages = buildPartMessages(
       part,
       event.currentText,
       event.recentText,
-      memories,
+      allMemories,
+      profile,
+      entrySummaries,
     )
 
     this.callbacks.onThoughtStart(part.id, part.name, part.color)
@@ -235,6 +223,20 @@ export class PartOrchestrator {
             anchorOffset: thought.anchorOffset,
             timestamp: thought.timestamp,
           })
+
+          // Create observation memory from inline thought
+          const trimmed = text.trim()
+          if (trimmed.length > 20) {
+            const contextSnippet = event.recentText.slice(-100).trim()
+            db.memories.add({
+              id: generateId(),
+              partId: part.id,
+              entryId: this.entryId,
+              content: `Noticed: "${contextSnippet}" → Responded: "${trimmed}"`,
+              type: 'observation',
+              timestamp: Date.now(),
+            })
+          }
 
           this.callbacks.onThoughtComplete(thought)
         },

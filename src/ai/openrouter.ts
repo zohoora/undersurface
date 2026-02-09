@@ -1,6 +1,5 @@
 import { getSettings } from '../store/settings'
-
-const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
+import { getAuth } from 'firebase/auth'
 
 interface Message {
   role: 'system' | 'user' | 'assistant'
@@ -13,35 +12,37 @@ interface StreamCallbacks {
   onError: (error: Error) => void
 }
 
-function getApiKey(): string {
-  const key = getSettings().openRouterApiKey
-  if (!key) throw new Error('OpenRouter API key not configured. Add your key in Settings → AI.')
-  return key
+async function getAuthToken(): Promise<string> {
+  const user = getAuth().currentUser
+  if (!user) throw new Error('Not authenticated')
+  return user.getIdToken()
 }
 
 function getModel(): string {
-  return getSettings().openRouterModel || 'anthropic/claude-sonnet-4'
+  return getSettings().openRouterModel || 'google/gemini-3-flash-preview'
 }
 
-export async function chatCompletion(messages: Message[]): Promise<string> {
-  const apiKey = getApiKey()
+export async function chatCompletion(
+  messages: Message[],
+  timeoutMs: number = 10000,
+  maxTokens: number = 150,
+): Promise<string> {
+  const token = await getAuthToken()
   const model = getModel()
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 10000)
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+    const response = await fetch('/api/chat', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://undersurface.app',
-        'X-Title': 'Undersurface',
       },
       body: JSON.stringify({
         model,
         messages,
-        max_tokens: 150,
+        max_tokens: maxTokens,
         temperature: 0.9,
       }),
       signal: controller.signal,
@@ -49,7 +50,7 @@ export async function chatCompletion(messages: Message[]): Promise<string> {
 
     if (!response.ok) {
       const body = await response.text().catch(() => '')
-      throw new Error(`OpenRouter API error: ${response.status}${body ? ` — ${body}` : ''}`)
+      throw new Error(`API error: ${response.status}${body ? ` — ${body}` : ''}`)
     }
 
     const data = await response.json()
@@ -65,20 +66,18 @@ export async function streamChatCompletion(
   maxTokens: number = 150,
 ): Promise<void> {
   try {
-    const apiKey = getApiKey()
+    const token = await getAuthToken()
     const model = getModel()
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 30000)
 
     let response: Response
     try {
-      response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+      response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://undersurface.app',
-          'X-Title': 'Undersurface',
         },
         body: JSON.stringify({
           model,
@@ -97,7 +96,7 @@ export async function streamChatCompletion(
     if (!response.ok) {
       clearTimeout(timeout)
       const body = await response.text().catch(() => '')
-      throw new Error(`OpenRouter API error: ${response.status}${body ? ` — ${body}` : ''}`)
+      throw new Error(`API error: ${response.status}${body ? ` — ${body}` : ''}`)
     }
 
     const reader = response.body?.getReader()

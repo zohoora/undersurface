@@ -1,6 +1,6 @@
 {
-  "name": "Undersurface",
-  "short_name": "Undersurface",
+  "name": "UnderSurface",
+  "short_name": "UnderSurface",
   "description": "A diary with inner voices",
   "start_url": "/",
   "display": "standalone",

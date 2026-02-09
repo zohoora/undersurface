@@ -475,6 +475,7 @@ export function LivingEditor({
               partId: activeInteraction.partId,
               entryId: entryId,
               content: `Writer said: "${response}" → You replied: "${fullReply}"`,
+              type: 'interaction',
               timestamp: Date.now(),
             })
           },

@@ -12,13 +12,21 @@ export interface Part {
   isSeeded: boolean
   createdAt: number
   memories: PartMemory[]
+  learnedKeywords?: string[]
+  learnedEmotions?: EmotionalTone[]
+  systemPromptAddition?: string
+  growthVersion?: number
+  lastGrowthAt?: number
 }
+
+export type MemoryType = 'observation' | 'interaction' | 'reflection' | 'pattern'
 
 export interface PartMemory {
   id: string
   partId: string
   entryId: string
   content: string
+  type?: MemoryType
   timestamp: number
 }
 
@@ -90,4 +98,23 @@ export interface AtmosphereState {
   tone: EmotionalTone
   intensity: number
   gradientColors: [string, string, string]
+}
+
+export interface EntrySummary {
+  id: string
+  entryId: string
+  themes: string[]
+  emotionalArc: string
+  keyMoments: string[]
+  timestamp: number
+}
+
+export interface UserProfile {
+  id: string // always 'current'
+  recurringThemes: string[]
+  emotionalPatterns: string[]
+  avoidancePatterns: string[]
+  growthSignals: string[]
+  innerLandscape: string
+  lastUpdated: number
 }

@@ -36,7 +36,7 @@ export function LoginScreen() {
         color: '#4A453F',
         letterSpacing: '0.02em',
       }}>
-        Undersurface
+        UnderSurface
       </div>
       <div style={{
         fontFamily: "'Inter', sans-serif",

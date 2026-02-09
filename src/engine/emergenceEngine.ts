@@ -2,7 +2,6 @@ import type { Part } from '../types'
 import { buildEmergenceAnalysis } from '../ai/partPrompts'
 import { chatCompletion } from '../ai/openrouter'
 import { db, generateId } from '../store/db'
-import { getSettings } from '../store/settings'
 
 interface EmergenceResult {
   detected: boolean
@@ -21,8 +20,6 @@ export class EmergenceEngine {
     currentText: string,
     existingParts: Part[],
   ): Promise<EmergenceResult> {
-    if (!getSettings().openRouterApiKey) return { detected: false }
-
     const now = Date.now()
 
     if (now - this.lastCheck < this.CHECK_INTERVAL) {

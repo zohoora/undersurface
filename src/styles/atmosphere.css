@@ -138,6 +138,10 @@
   caret-color: var(--text-secondary);
 }
 
+.tiptap:focus-visible {
+  outline: none;
+}
+
 .tiptap p {
   margin-bottom: 0.8em;
   position: relative;

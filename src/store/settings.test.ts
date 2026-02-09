@@ -26,7 +26,7 @@ describe('settings', () => {
     updateSettings({ responseSpeed: 1.0 })
     const s = getSettings()
     expect(s.openRouterApiKey).toBe('')
-    expect(s.openRouterModel).toBe('anthropic/claude-sonnet-4')
+    expect(s.openRouterModel).toBe('google/gemini-3-flash-preview')
     expect(s.hasSeenOnboarding).toBe(false)
     expect(s.autocorrect).toBe(true)
   })

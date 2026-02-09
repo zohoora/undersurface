@@ -22,7 +22,7 @@ export interface AppSettings {
 
 const DEFAULTS: AppSettings = {
   openRouterApiKey: '',
-  openRouterModel: 'anthropic/claude-sonnet-4',
+  openRouterModel: 'google/gemini-3-flash-preview',
   hasSeenOnboarding: false,
   responseSpeed: 1.0,
   paragraphFade: true,
