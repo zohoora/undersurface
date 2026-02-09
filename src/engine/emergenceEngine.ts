@@ -58,7 +58,7 @@ export class EmergenceEngine {
         id: newPartId,
         name: parsed.name,
         color: parsed.color,
-        colorLight: parsed.color + '20',
+        colorLight: parsed.color + '25',
         ifsRole: parsed.ifsRole,
         voiceDescription: parsed.voice,
         concern: parsed.concern,

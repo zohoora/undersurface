@@ -9,11 +9,11 @@
   --cursor-glow: rgba(210, 180, 140, 0.15);
 
   /* Part colors */
-  --color-watcher: #6B8FA3;
-  --color-tender: #C4935A;
-  --color-still: #7A9E7E;
-  --color-spark: #B07A8A;
-  --color-weaver: #8E7BAF;
+  --color-watcher: #5A7F94;
+  --color-tender: #B58548;
+  --color-still: #628E66;
+  --color-spark: #A06A7A;
+  --color-weaver: #7E6BA0;
 
   /* Atmosphere gradients — shift with emotion */
   --atmo-1: #FAF8F5;
@@ -250,11 +250,11 @@
   letter-spacing: 0.05em;
   text-transform: uppercase;
   margin-bottom: 4px;
-  opacity: 0.7;
+  opacity: 0.88;
 }
 
 .part-thought .part-content {
-  opacity: 0.85;
+  opacity: 0.95;
 }
 
 .part-thought:hover {

@@ -207,7 +207,7 @@ export function LivingEditor({
           }
 
           // Autocorrect on word boundary
-          if (settings.autocorrect && getGlobalConfig()?.features?.autocorrectEnabled !== false && editor && /[\s,.'!?;:\-)]/.test(event.key)) {
+          if (settings.autocorrect && getGlobalConfig()?.features?.autocorrectEnabled !== false && editor && /[\s,.!?;:\-)]/.test(event.key)) {
             const $pos = editor.state.selection.$from
             const textBefore = $pos.parent.textBetween(0, $pos.parentOffset)
             const match = textBefore.match(/([a-zA-Z']+)$/)
@@ -333,7 +333,7 @@ export function LivingEditor({
           partId,
           partName,
           partColor,
-          partColorLight: part?.colorLight || partColor + '20',
+          partColorLight: part?.colorLight || partColor + '25',
           content: '',
           isStreaming: true,
           isEmerging: false,
