@@ -91,19 +91,7 @@ export function AdminUserDetail({ uid, onBack }: Props) {
       {tab === 'entries' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {data.entries.map((entry) => (
-            <div key={entry.id} style={{
-              background: '#FFFFFF',
-              borderRadius: 8,
-              padding: '14px 20px',
-              border: '1px solid #E8E4DF',
-            }}>
-              <div style={{ fontSize: 11, color: '#C4BEB8', marginBottom: 6 }}>
-                {new Date(entry.createdAt).toLocaleDateString()} &middot; {new Date(entry.updatedAt).toLocaleTimeString()}
-              </div>
-              <div style={{ fontSize: 13, color: '#6B6560', lineHeight: 1.6 }}>
-                {entry.plainText.slice(0, 300)}{entry.plainText.length > 300 ? '...' : ''}
-              </div>
-            </div>
+            <EntryCard key={entry.id} entry={entry} />
           ))}
           {data.entries.length === 0 && <div style={{ fontSize: 13, color: '#A09A94' }}>No entries</div>}
         </div>
@@ -172,6 +160,36 @@ export function AdminUserDetail({ uid, onBack }: Props) {
       )}
       {tab === 'profile' && !data.userProfile && (
         <div style={{ fontSize: 13, color: '#A09A94' }}>No profile data yet</div>
+      )}
+    </div>
+  )
+}
+
+function EntryCard({ entry }: { entry: { id: string; plainText: string; createdAt: number; updatedAt: number } }) {
+  const [expanded, setExpanded] = useState(false)
+  const truncated = entry.plainText.length > 300
+
+  return (
+    <div
+      onClick={truncated ? () => setExpanded((e) => !e) : undefined}
+      style={{
+        background: '#FFFFFF',
+        borderRadius: 8,
+        padding: '14px 20px',
+        border: '1px solid #E8E4DF',
+        cursor: truncated ? 'pointer' : 'default',
+      }}
+    >
+      <div style={{ fontSize: 11, color: '#C4BEB8', marginBottom: 6 }}>
+        {new Date(entry.createdAt).toLocaleDateString()} &middot; {new Date(entry.updatedAt).toLocaleTimeString()}
+      </div>
+      <div style={{ fontSize: 13, color: '#6B6560', lineHeight: 1.6, whiteSpace: expanded ? 'pre-wrap' : undefined }}>
+        {expanded ? entry.plainText : entry.plainText.slice(0, 300)}{!expanded && truncated ? '...' : ''}
+      </div>
+      {truncated && (
+        <div style={{ fontSize: 11, color: '#A09A94', marginTop: 6 }}>
+          {expanded ? 'Click to collapse' : 'Click to expand'}
+        </div>
       )}
     </div>
   )

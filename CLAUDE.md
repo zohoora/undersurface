@@ -114,7 +114,9 @@ Admin visits /admin → App.tsx checks ADMIN_EMAILS → renders AdminDashboard
 | `src/admin/AdminUsers.tsx` | User table with drill-down |
 | `src/admin/AdminUserDetail.tsx` | Full user data view (entries, parts, thoughts, profile) |
 | `src/admin/AdminInsights.tsx` | LLM-generated narrative analysis of app usage |
-| `src/admin/AdminSettings.tsx` | Form for GlobalConfig (model, speed, feature flags, announcements) |
+| `src/admin/AdminSettings.tsx` | Form for GlobalConfig (model, speed, feature flags, announcements, version signal) |
+| `src/hooks/useTheme.ts` | Theme resolution hook (light/dark/system) + media query listener, applies `data-theme` on `<html>` |
+| `src/extensions/colorBleed.ts` | TipTap extension — tints recent text with part color; disabled in dark mode, returns `DecorationSet.empty` |
 | `src/components/AnnouncementBanner.tsx` | Fixed banner from global config, dismissible via sessionStorage |
 | `functions/src/index.ts` | Cloud Functions — `chat` (OpenRouter proxy) + `adminApi` (admin backend) |
 | `firebase.json` | Hosting config + rewrites: `/api/chat` → `chat`, `/api/admin` → `adminApi` |
@@ -124,7 +126,7 @@ Admin visits /admin → App.tsx checks ADMIN_EMAILS → renders AdminDashboard
 
 - **Firestore**: User data under `users/{uid}/` — entries, parts, memories, thoughts, interactions, entrySummaries, userProfile
 - **Firestore**: Global config at `appConfig/global` — readable by all authenticated users, writable only via `adminApi` Cloud Function (Admin SDK bypasses rules)
-- **localStorage**: Device-specific settings (model choice, visual effect toggles, response speed)
+- **localStorage**: Device-specific settings (theme, model choice, visual effect toggles, response speed)
 - **Google Secret Manager**: The OpenRouter API key (`OPENROUTER_API_KEY`)
 
 ### Auth
@@ -186,6 +188,29 @@ Flags are read via `getGlobalConfig()` (synchronous in-memory cache). All flags 
 
 When `config.announcement` is set (via admin Settings tab), `AnnouncementBanner` renders a fixed banner at the top of the viewport. Supports `info` and `warning` types. Dismissible announcements are tracked per-message in sessionStorage.
 
+#### Version signal (update notification)
+
+`globalConfig.ts` tracks `buildVersion` from `appConfig/global`. On first snapshot, it captures the initial version. If a subsequent snapshot has a different `buildVersion`, `hasNewVersion` flips to `true` and a refresh banner appears in `App.tsx`. Admins bump the version via "Signal Update" button in `AdminSettings.tsx` (sets `buildVersion` to ISO timestamp). No polling — purely reactive via Firestore `onSnapshot`.
+
+### Dark mode / theme system
+
+The app supports light, dark, and system-follow themes via `[data-theme="dark"]` CSS attribute on `<html>`.
+
+#### How it works
+
+1. **CSS variable architecture** — All colors are defined as CSS custom properties in `atmosphere.css` `:root`. The `[data-theme="dark"]` block overrides every variable with warm dark equivalents (deep charcoals, not blue-blacks).
+2. **Semantic overlay variables** — `--overlay-subtle`, `--overlay-light`, `--overlay-medium`, `--surface-primary`, `--border-subtle`, `--border-light`, `--sidebar-bg`, `--banner-*` variables ensure overlays, surfaces, and borders adapt to the theme.
+3. **Emotion dark variants** — Each of the 9 emotions has a `[data-theme="dark"] .atmosphere[data-emotion="..."]` override with subtle warm shifts around the dark base.
+4. **Theme hook** — `useTheme()` in `src/hooks/useTheme.ts` resolves the setting (`light`/`dark`/`system`) to an actual theme, listens to `prefers-color-scheme` media query for `system` mode, and sets `data-theme` on `<html>`.
+5. **Settings** — `theme: 'light' | 'dark' | 'system'` in `AppSettings`, default `'system'`. Toggle is in SettingsPanel under "Appearance".
+6. **Inline styles** — Components with React inline styles (LoginScreen, Onboarding, ErrorBoundary, AnnouncementBanner, SettingsPanel, App loading states) use `var(--bg-primary)` etc. instead of hardcoded hex.
+7. **Color bleed** — Disabled in dark mode. `LivingEditor.tsx` passes `disabled: true` to the colorBleed extension when `theme === 'dark'`. The extension returns `DecorationSet.empty` when disabled, clearing all existing tint decorations.
+8. **Part colors** — `colorLight` alpha is boosted from `'25'` to `'30'` in dark mode via `boostAlpha()` helper in `PartThoughtBubble.tsx` and `ThinkingSpace.tsx`.
+
+#### Adding new themed components
+
+Use CSS `var()` references for all colors. For React inline styles: `style={{ background: 'var(--bg-primary)' }}`. For CSS: just use the variable. The `[data-theme="dark"]` block in `atmosphere.css` handles the rest.
+
 ### Adaptive parts system
 
 Parts learn and evolve through five layers:
@@ -197,6 +222,14 @@ Parts learn and evolve through five layers:
 5. **Part growth** — Every 5 entry summaries, `partGrowthEngine.ts` runs a single AI call that evolves parts: updates `systemPromptAddition`, `learnedKeywords`, `learnedEmotions`. Cost: ~1 API call per 5 entries.
 
 Key types: `PartMemory.type` (`'observation' | 'interaction' | 'reflection' | 'pattern'`), `EntrySummary`, `UserProfile`, `Part.learnedKeywords`, `Part.systemPromptAddition`.
+
+**Language matching**: `SHARED_INSTRUCTIONS` in `partPrompts.ts` includes "Always respond in the same language the writer is using." — all parts (seeded and emerged) inherit this.
+
+### Autocorrect
+
+`spellEngine.ts` provides Damerau-Levenshtein + Typo.js autocorrection. Corrections trigger on word-boundary characters (space, comma, period, etc.) but **not** on apostrophe — apostrophes are part of words (e.g., "didn't").
+
+**Undo on Backspace**: `LivingEditor.tsx` tracks the last autocorrection in `lastAutocorrectRef`. If the user presses Backspace immediately after a correction (cursor is right after the corrected word + delimiter), the correction reverts to the original text. The ref is cleared on any other keypress (single-shot undo).
 
 ### Environment variables
 
@@ -224,7 +257,8 @@ These are public Firebase client config values (security is via Firestore rules 
 - **useMemo over useEffect+setState** — for derived state, to avoid cascading renders
 - **Settings are reactive** — `useSettings()` hook via `useSyncExternalStore`, `getSettings()` for non-React code
 - **Global config is reactive** — `useGlobalConfig()` hook via `useSyncExternalStore`, `getGlobalConfig()` for non-React code (synchronous, reads in-memory cache)
-- **Admin components use inline styles** — consistent with the warm muted palette (Inter font, #FAF8F5 bg, #A09A94 subtle, #2D2B29 text)
+- **Colors via CSS variables** — all colors in `atmosphere.css` use `var()` references; inline styles use `var(--bg-primary)` etc. Never hardcode hex values for themed colors
+- **Admin components use inline styles** — consistent with the warm muted palette (Inter font, #FAF8F5 bg, #A09A94 subtle, #2D2B29 text); admin stays light-only
 
 ## Common Tasks
 
@@ -275,6 +309,16 @@ Then build and deploy both frontend and function.
 1. Edit `firestore.rules`
 2. Deploy: `firebase deploy --only firestore:rules`
 
+### Signaling a new version to users
+
+After deploying, users with the old version see a "New version available — tap to refresh" banner:
+
+1. Visit `undersurface.me/admin` → Settings tab
+2. Click "Signal Update" — this sets `buildVersion` to the current timestamp in `appConfig/global`
+3. All connected clients detect the version change via `onSnapshot` and show the refresh banner
+
+No code changes needed — this is a Firestore-based mechanism.
+
 ### Toggling features without deploying
 
 Visit `undersurface.me/admin` → Settings tab:
@@ -315,3 +359,9 @@ If the app needs to work on a new domain:
 - **Feature flags default to enabled**: `getGlobalConfig()` returns `null` before the `appConfig/global` doc exists. All flag checks use `=== false` so `null`/`undefined` are treated as enabled. The doc is created on first save in admin Settings.
 - **Admin API timeout**: `generateInsights` calls OpenRouter and can take 10-30s. The `adminApi` function has a 120s timeout to accommodate this.
 - **firebase.json `firestore` section**: Required for `firebase deploy --only firestore:rules` to work. Contains `"rules": "firestore.rules"`.
+- **Autocorrect apostrophe**: Apostrophe (`'`) is NOT a word boundary for autocorrect. It was removed from the trigger regex in `LivingEditor.tsx` because contractions like "didn't" were being mangled ("didn'" → autocorrect on "didn" → "din'").
+- **Autocorrect undo is single-shot**: `lastAutocorrectRef` is cleared on any keypress other than Backspace. Only the most recent correction can be undone, and only immediately after it happens.
+- **Color bleed + dark mode**: The colorBleed extension must return `DecorationSet.empty` when disabled (not preserve existing decorations via mapping). Otherwise, switching to dark mode leaves stale colored text in the editor.
+- **Part colorLight alpha differs by theme**: Light mode uses `'25'` alpha, dark mode uses `'30'` (via `boostAlpha` helper). Without the boost, part thought backgrounds are nearly invisible on dark backgrounds.
+- **PWA temporarily disabled**: `VitePWA` import and plugin are commented out in `vite.config.ts`. Re-enable when ready for production PWA.
+- **Sidebar backdrop-filter**: The sidebar uses `backdrop-filter: blur(16px)` for readability over editor text. The gradient is solid for 80% of its width to prevent text showing through.
