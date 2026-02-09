@@ -53,7 +53,7 @@ export const ColorBleed = Extension.create({
             decorations = decorations.map(tr.mapping, newState.doc)
 
             if (storage.disabled) {
-              return { decorations, tintRgb: null, wordsRemaining: 0 }
+              return { decorations: DecorationSet.empty, tintRgb: null, wordsRemaining: 0 }
             }
 
             const meta = tr.getMeta(colorBleedKey)
