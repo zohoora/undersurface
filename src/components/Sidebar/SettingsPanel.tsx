@@ -25,6 +25,24 @@ function SettingRow({ label, children }: { label: string; children: React.ReactN
   )
 }
 
+function OptionGroup<T extends string>({
+  value, options, onChange,
+}: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void }) {
+  return (
+    <div className="settings-option-group">
+      {options.map(opt => (
+        <button
+          key={opt.value}
+          className={`settings-option ${value === opt.value ? 'active' : ''}`}
+          onClick={() => onChange(opt.value)}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 interface SettingsPanelProps {
   isOpen: boolean
   onToggle: () => void
@@ -105,6 +123,22 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
                 />
                 <span className="settings-slider-label">Faster</span>
               </div>
+            </SettingRow>
+          </div>
+
+          {/* Editor */}
+          <div className="settings-section">
+            <div className="settings-section-label">Editor</div>
+            <SettingRow label="Auto-scroll">
+              <OptionGroup
+                value={settings.typewriterScroll}
+                options={[
+                  { value: 'off', label: 'Off' },
+                  { value: 'comfortable', label: 'Comfortable' },
+                  { value: 'typewriter', label: 'Typewriter' },
+                ]}
+                onChange={(v) => set('typewriterScroll', v)}
+              />
             </SettingRow>
           </div>
 

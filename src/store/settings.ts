@@ -15,6 +15,9 @@ export interface AppSettings {
   colorBleed: boolean
   breathingBackground: boolean
 
+  // Editor
+  typewriterScroll: 'off' | 'comfortable' | 'typewriter'
+
   // Autocorrect
   autoCapitalize: boolean
   autocorrect: boolean
@@ -25,6 +28,7 @@ const DEFAULTS: AppSettings = {
   openRouterModel: 'google/gemini-3-flash-preview',
   hasSeenOnboarding: false,
   responseSpeed: 1.0,
+  typewriterScroll: 'typewriter',
   paragraphFade: true,
   inkWeight: true,
   colorBleed: true,

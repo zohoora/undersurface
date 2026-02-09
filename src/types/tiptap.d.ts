@@ -5,5 +5,6 @@ declare module '@tiptap/core' {
     inkWeight: { disabled: boolean }
     paragraphSettle: { disabled: boolean }
     colorBleed: { disabled: boolean }
+    typewriterScroll: { mode: 'off' | 'comfortable' | 'typewriter' }
   }
 }

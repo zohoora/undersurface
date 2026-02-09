@@ -595,6 +595,40 @@
   border: 0;
 }
 
+/* ── Typewriter Scroll ─────────────────────────────────── */
+
+.editor-container.typewriter-active {
+  padding-bottom: 50vh;
+}
+
+/* ── Option Group (3-way selector) ────────────────────── */
+
+.settings-option-group {
+  display: flex;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  padding: 2px;
+}
+
+.settings-option {
+  font-size: 10px;
+  padding: 3px 8px;
+  border: none;
+  background: none;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--text-ghost);
+  font-family: 'Inter', sans-serif;
+  transition: all 0.15s ease;
+}
+
+.settings-option.active {
+  background: white;
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
 /* ── Scrollbar ──────────────────────────────────────────── */
 
 ::-webkit-scrollbar {
@@ -737,6 +771,11 @@ body {
 
   .sidebar-backdrop.visible {
     display: block;
+  }
+
+  /* Typewriter mode bottom padding on mobile */
+  .editor-container.typewriter-active {
+    padding-bottom: 50vh;
   }
 
   /* Part thoughts: full width on mobile */

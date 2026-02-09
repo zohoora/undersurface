@@ -6,6 +6,7 @@ import { InkWeight } from '../../extensions/inkWeight'
 import { ParagraphSettle } from '../../extensions/paragraphSettle'
 import { MarginTraces, marginTracesKey } from '../../extensions/marginTraces'
 import { ColorBleed, colorBleedKey } from '../../extensions/colorBleed'
+import { TypewriterScroll } from '../../extensions/typewriterScroll'
 import { spellEngine } from '../../engine/spellEngine'
 import { PauseDetector } from '../../engine/pauseDetector'
 import { PartOrchestrator } from '../../engine/partOrchestrator'
@@ -93,6 +94,7 @@ export function LivingEditor({
       ParagraphSettle,
       MarginTraces,
       ColorBleed,
+      TypewriterScroll,
     ],
     content: initialContent || '',
     editorProps: {
@@ -235,11 +237,12 @@ export function LivingEditor({
       editor.storage.inkWeight.disabled = !settings.inkWeight
       editor.storage.paragraphSettle.disabled = !settings.paragraphFade
       editor.storage.colorBleed.disabled = !settings.colorBleed
+      editor.storage.typewriterScroll.mode = settings.typewriterScroll
       // Force decoration refresh
       editor.view.dispatch(editor.state.tr)
     }
     pauseDetectorRef.current?.setSpeedMultiplier(settings.responseSpeed)
-  }, [editor, settings.inkWeight, settings.paragraphFade, settings.colorBleed, settings.responseSpeed])
+  }, [editor, settings.inkWeight, settings.paragraphFade, settings.colorBleed, settings.typewriterScroll, settings.responseSpeed])
 
   // Clean up faded thoughts periodically
   useEffect(() => {
@@ -500,7 +503,7 @@ export function LivingEditor({
   }, [editor, onActivePartColorChange])
 
   return (
-    <div className="editor-container" id="editor">
+    <div className={`editor-container${settings.typewriterScroll === 'typewriter' ? ' typewriter-active' : ''}`} id="editor">
       <EditorContent editor={editor} />
 
       <PauseRipple ripples={ripples} />
