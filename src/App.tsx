@@ -4,12 +4,17 @@ import { CursorGlow } from './components/Atmosphere/CursorGlow'
 import { LivingEditor } from './components/Editor/LivingEditor'
 import { EntriesList } from './components/Sidebar/EntriesList'
 import { LoginScreen } from './components/LoginScreen'
+import { AnnouncementBanner } from './components/AnnouncementBanner'
+import { AdminDashboard } from './admin/AdminDashboard'
 import { useAuth } from './auth/useAuth'
 import { initializeDB, db, generateId } from './store/db'
 import { spellEngine } from './engine/spellEngine'
 import { ReflectionEngine } from './engine/reflectionEngine'
 import { useSettings } from './store/settings'
+import { initGlobalConfig, useGlobalConfig } from './store/globalConfig'
 import type { EmotionalTone, Part } from './types'
+
+const ADMIN_EMAILS = ['zohoora@gmail.com']
 
 function App() {
   const { user, loading } = useAuth()
@@ -19,6 +24,7 @@ function App() {
   const [emotion, setEmotion] = useState<EmotionalTone>('neutral')
   const [activePartColor, setActivePartColor] = useState<string | null>(null)
   const settings = useSettings()
+  const globalConfig = useGlobalConfig()
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestContentRef = useRef({ html: '', text: '' })
   const reflectionEngineRef = useRef(new ReflectionEngine())
@@ -28,6 +34,7 @@ function App() {
     if (!user) return
 
     const init = async () => {
+      initGlobalConfig()
       await initializeDB()
       spellEngine.init()
 
@@ -144,6 +151,14 @@ function App() {
     return <LoginScreen />
   }
 
+  // Admin routing — before DB init so admin page stays lightweight
+  if (window.location.pathname.startsWith('/admin')) {
+    if (ADMIN_EMAILS.includes(user.email || '')) {
+      return <AdminDashboard />
+    }
+    window.history.replaceState(null, '', '/')
+  }
+
   // Initializing DB
   if (!isReady) {
     return (
@@ -167,10 +182,13 @@ function App() {
     )
   }
 
+  const visualEffectsEnabled = globalConfig?.features?.visualEffectsEnabled !== false
+
   return (
     <>
+      <AnnouncementBanner />
       <a href="#editor" className="skip-to-content">Skip to editor</a>
-      <BreathingBackground emotion={emotion} enabled={settings.breathingBackground} />
+      <BreathingBackground emotion={emotion} enabled={settings.breathingBackground && visualEffectsEnabled} />
       <CursorGlow partTint={activePartColor} />
       <EntriesList
         activeEntryId={activeEntryId}

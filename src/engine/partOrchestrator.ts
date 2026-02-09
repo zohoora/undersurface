@@ -2,6 +2,7 @@ import type { Part, PauseEvent, PauseType, PartThought, EmotionalTone, IFSRole }
 import { buildPartMessages } from '../ai/partPrompts'
 import { streamChatCompletion, analyzeEmotion } from '../ai/openrouter'
 import { db, generateId } from '../store/db'
+import { getGlobalConfig } from '../store/globalConfig'
 
 const ROLE_PAUSE_AFFINITIES: Record<IFSRole, Record<PauseType, number>> = {
   protector: {
@@ -88,6 +89,7 @@ export class PartOrchestrator {
   }
 
   async handlePause(event: PauseEvent): Promise<void> {
+    if (getGlobalConfig()?.features?.partsEnabled === false) return
     if (this.isGenerating) return
     if (this.parts.length === 0) return
     if (event.currentText.trim().length < 20) return

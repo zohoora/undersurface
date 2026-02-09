@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { getGlobalConfig } from './globalConfig'
 
 export interface AppSettings {
   // AI
@@ -42,11 +43,35 @@ const STORAGE_KEY = 'undersurface:settings'
 let cache: AppSettings | null = null
 const listeners = new Set<() => void>()
 
+function getGlobalDefaults(): Partial<AppSettings> {
+  const config = getGlobalConfig()
+  if (!config) return {}
+  const overrides: Partial<AppSettings> = {}
+  if (config.defaultModel) overrides.openRouterModel = config.defaultModel
+  if (config.defaultResponseSpeed) overrides.responseSpeed = config.defaultResponseSpeed
+  if (config.defaultTypewriterScroll) overrides.typewriterScroll = config.defaultTypewriterScroll
+  if (config.features) {
+    if (config.features.visualEffectsEnabled === false) {
+      overrides.paragraphFade = false
+      overrides.inkWeight = false
+      overrides.colorBleed = false
+      overrides.breathingBackground = false
+    }
+    if (config.features.autocorrectEnabled === false) {
+      overrides.autocorrect = false
+    }
+  }
+  return overrides
+}
+
 function load(): AppSettings {
   if (cache) return cache
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    cache = raw ? { ...DEFAULTS, ...JSON.parse(raw) } : { ...DEFAULTS }
+    const globalDefaults = getGlobalDefaults()
+    cache = raw
+      ? { ...DEFAULTS, ...globalDefaults, ...JSON.parse(raw) }
+      : { ...DEFAULTS, ...globalDefaults }
   } catch {
     cache = { ...DEFAULTS }
   }
@@ -59,6 +84,11 @@ function notify() {
 
 export function getSettings(): AppSettings {
   return load()
+}
+
+export function invalidateSettingsCache() {
+  cache = null
+  notify()
 }
 
 export function updateSettings(partial: Partial<AppSettings>) {

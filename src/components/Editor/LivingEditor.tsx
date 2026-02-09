@@ -19,6 +19,7 @@ import { usePauseRipple } from '../Atmosphere/usePauseRipple'
 import { buildInteractionReply } from '../../ai/partPrompts'
 import { streamChatCompletion } from '../../ai/openrouter'
 import { db, generateId } from '../../store/db'
+import { getGlobalConfig } from '../../store/globalConfig'
 import type { EmotionalTone, Part, PartThought } from '../../types'
 
 interface ActiveThought {
@@ -170,7 +171,7 @@ export function LivingEditor({
           }
 
           // Autocorrect on word boundary
-          if (settings.autocorrect && editor && /[\s,.'!?;:\-)]/.test(event.key)) {
+          if (settings.autocorrect && getGlobalConfig()?.features?.autocorrectEnabled !== false && editor && /[\s,.'!?;:\-)]/.test(event.key)) {
             const $pos = editor.state.selection.$from
             const textBefore = $pos.parent.textBetween(0, $pos.parentOffset)
             const match = textBefore.match(/([a-zA-Z']+)$/)

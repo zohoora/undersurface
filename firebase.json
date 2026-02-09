@@ -1,4 +1,7 @@
 {
+  "firestore": {
+    "rules": "firestore.rules"
+  },
   "functions": [
     {
       "source": "functions",
@@ -13,6 +16,10 @@
       {
         "source": "/api/chat",
         "function": "chat"
+      },
+      {
+        "source": "/api/admin",
+        "function": "adminApi"
       },
       {
         "source": "**",

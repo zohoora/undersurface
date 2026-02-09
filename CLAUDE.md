@@ -16,7 +16,7 @@ npm run preview          # Preview production build locally
 
 ## Deploying Changes
 
-The app runs on Firebase. There are two deployable units:
+The app runs on Firebase. There are three deployable units:
 
 ### 1. Frontend (Firebase Hosting)
 
@@ -27,16 +27,24 @@ npm run build
 firebase deploy --only hosting
 ```
 
-### 2. Cloud Function (Firebase Functions)
+### 2. Cloud Functions (Firebase Functions)
 
-A single Cloud Function (`chat`) that proxies AI requests to OpenRouter. Located in `functions/`.
+Two Cloud Functions in `functions/src/index.ts`:
+- **`chat`** — proxies AI requests to OpenRouter (256MiB, 30s timeout)
+- **`adminApi`** — admin dashboard backend with 6 actions (512MiB, 120s timeout)
 
 ```bash
 cd functions && npx tsc && cd ..
 firebase deploy --only functions
 ```
 
-### Deploy both at once
+### 3. Firestore Rules
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+### Deploy everything at once
 
 ```bash
 npm run build && cd functions && npx tsc && cd .. && firebase deploy
@@ -65,11 +73,22 @@ npm run build && cd functions && npx tsc && cd .. && firebase deploy
 ```
 User types → PauseDetector → PartOrchestrator → openrouter.ts
   → fetch('/api/chat', { auth: Firebase ID token })
-  → Firebase Hosting rewrite → Cloud Function
+  → Firebase Hosting rewrite → Cloud Function (chat)
   → Cloud Function verifies auth token
   → Cloud Function reads API key from Google Secret Manager
   → Proxies to OpenRouter API
   → Streams SSE response back to browser
+```
+
+### Request flow for admin dashboard
+
+```
+Admin visits /admin → App.tsx checks ADMIN_EMAILS → renders AdminDashboard
+  → adminApi.ts: fetch('/api/admin', { action, auth token })
+  → Firebase Hosting rewrite → Cloud Function (adminApi)
+  → Cloud Function verifies token + checks email against ADMIN_EMAILS
+  → Uses Firebase Admin SDK to query across all users (bypasses Firestore rules)
+  → Returns aggregated data / LLM insights / config updates
 ```
 
 ### Key files
@@ -85,15 +104,26 @@ User types → PauseDetector → PartOrchestrator → openrouter.ts
 | `src/engine/partGrowthEngine.ts` | Periodic part evolution — updates prompts, keywords, emotions every 5 entries |
 | `src/engine/spellEngine.ts` | Autocorrect (Damerau-Levenshtein + Typo.js) |
 | `src/store/db.ts` | Firestore wrapper — mimics Dexie.js API surface |
-| `src/store/settings.ts` | User settings in localStorage |
+| `src/store/settings.ts` | User settings in localStorage (3-tier cascade: hardcoded < globalConfig < localStorage) |
+| `src/store/globalConfig.ts` | Real-time listener on `appConfig/global` Firestore doc, provides `useGlobalConfig()` hook |
 | `src/firebase.ts` | Firebase/Firestore initialization with offline persistence |
-| `functions/src/index.ts` | Cloud Function — the OpenRouter proxy |
-| `firebase.json` | Hosting config + `/api/chat` rewrite to Cloud Function |
-| `firestore.rules` | Security rules — users can only access their own data |
+| `src/admin/adminTypes.ts` | TypeScript types for admin API responses + `GlobalConfig` |
+| `src/admin/adminApi.ts` | Client-side admin API caller (`adminFetch(action, params)`) |
+| `src/admin/AdminDashboard.tsx` | Admin shell with tab navigation (Overview, Users, Insights, Settings) |
+| `src/admin/AdminOverview.tsx` | Metric cards + recent activity feed |
+| `src/admin/AdminUsers.tsx` | User table with drill-down |
+| `src/admin/AdminUserDetail.tsx` | Full user data view (entries, parts, thoughts, profile) |
+| `src/admin/AdminInsights.tsx` | LLM-generated narrative analysis of app usage |
+| `src/admin/AdminSettings.tsx` | Form for GlobalConfig (model, speed, feature flags, announcements) |
+| `src/components/AnnouncementBanner.tsx` | Fixed banner from global config, dismissible via sessionStorage |
+| `functions/src/index.ts` | Cloud Functions — `chat` (OpenRouter proxy) + `adminApi` (admin backend) |
+| `firebase.json` | Hosting config + rewrites: `/api/chat` → `chat`, `/api/admin` → `adminApi` |
+| `firestore.rules` | Security rules — users read/write own data; `appConfig` readable by all authenticated users |
 
 ### Data storage
 
-- **Firestore**: All user data under `users/{uid}/` — entries, parts, memories, thoughts, interactions, entrySummaries, userProfile
+- **Firestore**: User data under `users/{uid}/` — entries, parts, memories, thoughts, interactions, entrySummaries, userProfile
+- **Firestore**: Global config at `appConfig/global` — readable by all authenticated users, writable only via `adminApi` Cloud Function (Admin SDK bypasses rules)
 - **localStorage**: Device-specific settings (model choice, visual effect toggles, response speed)
 - **Google Secret Manager**: The OpenRouter API key (`OPENROUTER_API_KEY`)
 
@@ -103,7 +133,58 @@ Firebase Authentication with Google Sign-In only. The auth flow:
 - `src/auth/AuthContext.tsx` provides user state
 - `src/auth/useAuth.ts` is the hook components use
 - `App.tsx` gates the entire app behind auth — unauthenticated users see `LoginScreen`
-- The Cloud Function verifies Firebase ID tokens on every request
+- The Cloud Functions verify Firebase ID tokens on every request
+- `adminApi` additionally checks email against `ADMIN_EMAILS` allowlist (hardcoded in both `functions/src/index.ts` and `src/App.tsx`)
+
+### Admin dashboard
+
+Available at `/admin` for admin users only (currently `zohoora@gmail.com`). Two-layer access control:
+
+1. **Frontend** — `App.tsx` checks `ADMIN_EMAILS` before rendering `AdminDashboard`; non-admins are redirected to `/`
+2. **Backend** — `adminApi` Cloud Function verifies email from the Firebase ID token; returns 403 for non-admins
+
+The admin route is checked before DB initialization, so the admin page doesn't load TipTap, spell engine, or other diary components.
+
+#### Admin API actions
+
+| Action | Input | Returns |
+|--------|-------|---------|
+| `getOverview` | — | userCount, totalEntries, totalThoughts, totalInteractions, recentActivity[] |
+| `getUserList` | — | users[] with counts, words, lastActive |
+| `getUserDetail` | `{ uid }` | Full user data: entries, parts, thoughts, interactions, memories, profile, summaries |
+| `getConfig` | — | Current GlobalConfig from `appConfig/global` |
+| `updateConfig` | `{ config }` | Merged config (sets updatedAt + updatedBy) |
+| `generateInsights` | — | LLM narrative + highlights from entry summaries and user profiles |
+
+### Global config and feature flags
+
+`appConfig/global` is a Firestore document that provides app-wide defaults and feature flags. It is:
+- Listened to in real-time via `onSnapshot` in `src/store/globalConfig.ts`
+- Readable by all authenticated users (for announcements + defaults)
+- Writable only through the admin Cloud Function (Admin SDK)
+
+#### Settings cascade
+
+User settings follow a 3-tier priority:
+```
+user localStorage > appConfig/global defaults > hardcoded DEFAULTS
+```
+
+When globalConfig updates, `invalidateSettingsCache()` is called so new defaults propagate. Existing users keep their localStorage values for any settings they've explicitly changed.
+
+#### Feature flags
+
+| Flag | Where checked | Effect when `false` |
+|------|---------------|---------------------|
+| `features.partsEnabled` | `partOrchestrator.ts` top of `handlePause` | No AI thoughts generated |
+| `features.visualEffectsEnabled` | `App.tsx` — `BreathingBackground` enabled prop | Static background |
+| `features.autocorrectEnabled` | `LivingEditor.tsx` autocorrect block | Skip correction |
+
+Flags are read via `getGlobalConfig()` (synchronous in-memory cache). All flags default to enabled when config is `null` (not yet loaded or document doesn't exist) — the checks use `=== false` so `undefined`/`null` are treated as enabled.
+
+#### Announcements
+
+When `config.announcement` is set (via admin Settings tab), `AnnouncementBanner` renders a fixed banner at the top of the viewport. Supports `info` and `warning` types. Dismissible announcements are tracked per-message in sessionStorage.
 
 ### Adaptive parts system
 
@@ -142,17 +223,23 @@ These are public Firebase client config values (security is via Firestore rules 
 - **Functional components** — class components only for ErrorBoundary
 - **useMemo over useEffect+setState** — for derived state, to avoid cascading renders
 - **Settings are reactive** — `useSettings()` hook via `useSyncExternalStore`, `getSettings()` for non-React code
+- **Global config is reactive** — `useGlobalConfig()` hook via `useSyncExternalStore`, `getGlobalConfig()` for non-React code (synchronous, reads in-memory cache)
+- **Admin components use inline styles** — consistent with the warm muted palette (Inter font, #FAF8F5 bg, #A09A94 subtle, #2D2B29 text)
 
 ## Common Tasks
 
-### Changing the AI model
+### Changing the default AI model
 
-Update in two places:
+Option A — via admin dashboard (no redeploy):
+1. Visit `undersurface.me/admin` → Settings tab
+2. Change "Default Model" and save
+3. Takes effect for new users / users who haven't overridden the model in localStorage
+
+Option B — via code (affects hardcoded fallback):
 1. `src/store/settings.ts` → `DEFAULTS.openRouterModel`
 2. `src/ai/openrouter.ts` → the `getModel()` fallback
-3. `functions/src/index.ts` → the `model ||` fallback
-
-Then build and deploy both frontend and function.
+3. `functions/src/index.ts` → the `model ||` fallback in `chat` function
+4. Build and deploy both frontend and function
 
 ### Updating the OpenRouter API key
 
@@ -161,6 +248,14 @@ echo "sk-or-v1-new-key-here" | firebase functions:secrets:set OPENROUTER_API_KEY
 cd functions && npx tsc && cd ..
 firebase deploy --only functions
 ```
+
+### Adding a new admin user
+
+Update `ADMIN_EMAILS` in two places:
+1. `src/App.tsx` — frontend routing gate
+2. `functions/src/index.ts` — backend auth check
+
+Then build and deploy both frontend and function.
 
 ### Adding a new seeded part
 
@@ -179,6 +274,16 @@ firebase deploy --only functions
 
 1. Edit `firestore.rules`
 2. Deploy: `firebase deploy --only firestore:rules`
+
+### Toggling features without deploying
+
+Visit `undersurface.me/admin` → Settings tab:
+- Toggle `partsEnabled` to disable/enable AI thoughts
+- Toggle `visualEffectsEnabled` to disable/enable breathing background
+- Toggle `autocorrectEnabled` to disable/enable spell correction
+- Set an announcement message to show a banner to all users
+
+Changes propagate in real-time via Firestore `onSnapshot`.
 
 ### Adding a new authorized domain
 
@@ -207,3 +312,6 @@ If the app needs to work on a new domain:
 - **Cloud Function streaming**: Requires `X-Accel-Buffering: no` and `Cache-Control: no-cache, no-transform` headers to prevent CDN buffering of SSE
 - **Cloudflare DNS proxy**: Must be OFF (DNS only / gray cloud) for the A record pointing to Firebase Hosting — proxied mode breaks SSL provisioning
 - **CI build**: Uses dummy `VITE_FIREBASE_*` env vars since Firebase config is public and only needed at runtime
+- **Feature flags default to enabled**: `getGlobalConfig()` returns `null` before the `appConfig/global` doc exists. All flag checks use `=== false` so `null`/`undefined` are treated as enabled. The doc is created on first save in admin Settings.
+- **Admin API timeout**: `generateInsights` calls OpenRouter and can take 10-30s. The `adminApi` function has a 120s timeout to accommodate this.
+- **firebase.json `firestore` section**: Required for `firebase deploy --only firestore:rules` to work. Contains `"rules": "firestore.rules"`.
