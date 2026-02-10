@@ -3,6 +3,8 @@ import type { AppSettings } from '../../store/settings'
 import { useAuth } from '../../auth/useAuth'
 import { useTheme } from '../../hooks/useTheme'
 import { exportAllData } from '../../store/db'
+import { useGlobalConfig } from '../../store/globalConfig'
+import { useGroundingMode, activateGrounding, deactivateGrounding } from '../../hooks/useGroundingMode'
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -53,6 +55,8 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
   const settings = useSettings()
   const { user, signOut } = useAuth()
   const theme = useTheme()
+  const globalConfig = useGlobalConfig()
+  const groundingActive = useGroundingMode()
   const set = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     updateSettings({ [key]: value })
   }
@@ -189,6 +193,19 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
               <Toggle checked={settings.autocorrect} onChange={(v) => set('autocorrect', v)} />
             </SettingRow>
           </div>
+
+          {/* Grounding */}
+          {globalConfig?.features?.emergencyGrounding === true && (
+            <div className="settings-section">
+              <div className="settings-section-label">Grounding</div>
+              <SettingRow label="Grounding mode">
+                <Toggle
+                  checked={groundingActive}
+                  onChange={(v) => v ? activateGrounding() : deactivateGrounding()}
+                />
+              </SettingRow>
+            </div>
+          )}
 
           {/* Data */}
           <div className="settings-section">

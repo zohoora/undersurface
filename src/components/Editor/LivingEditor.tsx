@@ -11,6 +11,8 @@ import { spellEngine } from '../../engine/spellEngine'
 import { PauseDetector } from '../../engine/pauseDetector'
 import { PartOrchestrator } from '../../engine/partOrchestrator'
 import { EmergenceEngine } from '../../engine/emergenceEngine'
+import { BlankPageEngine } from '../../engine/blankPageEngine'
+import { recordFlowKeystroke } from '../../hooks/useFlowState'
 import type { AppSettings } from '../../store/settings'
 import { PartThoughtBubble } from './PartThoughtBubble'
 import { ThinkingSpace } from '../ThinkingOutLoud/ThinkingSpace'
@@ -33,6 +35,14 @@ interface ActiveThought {
   isStreaming: boolean
   isEmerging: boolean
   isVisible: boolean
+  isEcho?: boolean
+  isSilence?: boolean
+  isBlankPage?: boolean
+  isQuote?: boolean
+  isDisagreement?: boolean
+  quotedText?: string
+  echoDate?: number
+  isReturning?: boolean
 }
 
 interface ActiveInteraction {
@@ -53,6 +63,7 @@ interface Props {
   onEmotionChange: (emotion: EmotionalTone) => void
   onActivePartColorChange: (color: string | null) => void
   settings: AppSettings
+  intention?: string
 }
 
 export function LivingEditor({
@@ -62,6 +73,7 @@ export function LivingEditor({
   onEmotionChange,
   onActivePartColorChange,
   settings,
+  intention,
 }: Props) {
   const theme = useTheme()
   const pauseDetectorRef = useRef<PauseDetector | null>(null)
@@ -73,6 +85,10 @@ export function LivingEditor({
   const currentThoughtRef = useRef<ActiveThought | null>(null)
   const emergenceCheckCountRef = useRef(0)
   const pendingBleedColorRef = useRef<string | null>(null)
+  const blankPageRef = useRef(new BlankPageEngine())
+  const blankPageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const intentionRef = useRef(intention || '')
+
   const lastAutocorrectRef = useRef<{
     original: string
     correction: string
@@ -145,6 +161,7 @@ export function LivingEditor({
           const text = editor?.getText() || ''
           const pos = editor?.state.selection.from || 0
           pauseDetectorRef.current?.recordKeystroke(event.key, text, pos)
+          recordFlowKeystroke()
 
           // Track typing intensity for breathing sync
           // eslint-disable-next-line react-hooks/purity -- Date.now() is in an event handler, not during render
@@ -297,6 +314,65 @@ export function LivingEditor({
     return () => clearInterval(interval)
   }, [])
 
+  // Blank page detection
+  useEffect(() => {
+    const checkBlankPage = () => {
+      if (!editor) return
+      const text = editor.getText().trim()
+      if (text.length > 0) {
+        // Not blank, clear timer
+        if (blankPageTimerRef.current) {
+          clearTimeout(blankPageTimerRef.current)
+          blankPageTimerRef.current = null
+        }
+        return
+      }
+      // Page is blank — start timer if not already running
+      if (blankPageTimerRef.current) return
+      if (!blankPageRef.current.shouldSpeak()) return
+
+      const config = getGlobalConfig()
+      const delay = (config?.partIntelligence?.blankPageDelaySeconds ?? 30) * 1000
+
+      blankPageTimerRef.current = setTimeout(async () => {
+        blankPageTimerRef.current = null
+        if (!editor || editor.getText().trim().length > 0) return
+        const parts = orchestratorRef.current?.['parts'] as Part[] | undefined
+        if (!parts || parts.length === 0) return
+        const result = await blankPageRef.current.speak(parts)
+        if (result) {
+          const newThought: ActiveThought = {
+            id: generateId(),
+            partId: result.partId,
+            partName: result.partName,
+            partColor: result.partColor,
+            partColorLight: result.partColorLight,
+            content: result.content,
+            isStreaming: false,
+            isEmerging: false,
+            isVisible: true,
+          }
+          setThoughts((prev) => [...prev, newThought])
+        }
+      }, delay)
+    }
+
+    // Check on mount
+    checkBlankPage()
+
+    return () => {
+      if (blankPageTimerRef.current) {
+        clearTimeout(blankPageTimerRef.current)
+      }
+    }
+  }, [editor, entryId])
+
+  // Sync intention to orchestrator
+  useEffect(() => {
+    intentionRef.current = intention || ''
+    orchestratorRef.current?.setIntention(intentionRef.current)
+  }, [intention])
+
   // Trigger ripple at cursor position
   const triggerRipple = useCallback(() => {
     if (!editor) return
@@ -331,6 +407,8 @@ export function LivingEditor({
 
   // Initialize engines
   useEffect(() => {
+    blankPageRef.current.reset()
+
     const orchestrator = new PartOrchestrator({
       onThoughtStart: (partId, partName, partColor) => {
         const part = orchestrator['parts'].find((p: Part) => p.id === partId)
@@ -388,6 +466,57 @@ export function LivingEditor({
           currentThoughtRef.current = null
         }
         onActivePartColorChange(null)
+      },
+      onEcho: (echo) => {
+        const newThought: ActiveThought = {
+          id: generateId(),
+          partId: echo.partId,
+          partName: echo.partName,
+          partColor: echo.partColor,
+          partColorLight: echo.partColorLight,
+          content: echo.text,
+          isStreaming: false,
+          isEmerging: false,
+          isVisible: true,
+          isEcho: true,
+          quotedText: echo.text,
+          echoDate: echo.date,
+        }
+        setThoughts((prev) => [...prev, newThought])
+      },
+      onSilence: (partId, partName, partColor, partColorLight) => {
+        const newThought: ActiveThought = {
+          id: generateId(),
+          partId,
+          partName,
+          partColor,
+          partColorLight: partColorLight,
+          content: '',
+          isStreaming: false,
+          isEmerging: false,
+          isVisible: true,
+          isSilence: true,
+        }
+        setThoughts((prev) => [...prev, newThought])
+        onActivePartColorChange(partColor)
+      },
+      onDisagreementComplete: (thought) => {
+        const parts = orchestrator['parts'] as Part[]
+        const part = parts.find((p: Part) => p.id === thought.partId)
+        const newThought: ActiveThought = {
+          id: thought.id,
+          partId: thought.partId,
+          partName: part?.name || 'Unknown',
+          partColor: part?.color || '#A09A94',
+          partColorLight: part?.colorLight || '#A09A9425',
+          content: thought.content,
+          isStreaming: false,
+          isEmerging: false,
+          isVisible: true,
+          isDisagreement: true,
+        }
+        setThoughts((prev) => [...prev, newThought])
+        addMarginTrace(part?.color || '#A09A94')
       },
     })
 
@@ -573,6 +702,14 @@ export function LivingEditor({
             isVisible={thought.isVisible}
             exitInstant={activeInteraction?.thoughtId === thought.id}
             onClick={() => handleThoughtClick(thought)}
+            isEcho={thought.isEcho}
+            isSilence={thought.isSilence}
+            isBlankPage={thought.isBlankPage}
+            isQuote={thought.isQuote}
+            isDisagreement={thought.isDisagreement}
+            quotedText={thought.quotedText}
+            echoDate={thought.echoDate}
+            isReturning={thought.isReturning}
           />
         ))}
 

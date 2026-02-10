@@ -113,6 +113,10 @@ export const db = {
   interactions: createCollectionProxy('interactions'),
   entrySummaries: createCollectionProxy('entrySummaries'),
   userProfile: createCollectionProxy('userProfile'),
+  fossils: createCollectionProxy('fossils'),
+  letters: createCollectionProxy('letters'),
+  sessionLog: createCollectionProxy('sessionLog'),
+  innerWeather: createCollectionProxy('innerWeather'),
 }
 
 export async function initializeDB() {

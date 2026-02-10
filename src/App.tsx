@@ -13,7 +13,19 @@ import { ReflectionEngine } from './engine/reflectionEngine'
 import { useSettings } from './store/settings'
 import { initGlobalConfig, useGlobalConfig, useNewVersionAvailable } from './store/globalConfig'
 import { useTheme } from './hooks/useTheme'
-import type { EmotionalTone, Part } from './types'
+import { useTimeAwarePalette } from './hooks/useTimeAwarePalette'
+import { useSeasonalPalette } from './hooks/useSeasonalPalette'
+import { useFlowState } from './hooks/useFlowState'
+import { useHandwritingMode } from './hooks/useHandwritingMode'
+import { useGroundingMode } from './hooks/useGroundingMode'
+import { InnerWeather } from './components/InnerWeather'
+import { WeatherEngine } from './engine/weatherEngine'
+import { RitualEngine } from './engine/ritualEngine'
+import { FossilEngine } from './engine/fossilEngine'
+import { IntentionInput } from './components/Editor/IntentionInput'
+import { ExplorationCard } from './components/Editor/ExplorationCard'
+import { ExplorationEngine } from './engine/explorationEngine'
+import type { EmotionalTone, Part, GuidedExploration, InnerWeather as InnerWeatherType } from './types'
 
 const ADMIN_EMAILS = ['zohoora@gmail.com']
 
@@ -28,9 +40,22 @@ function App() {
   const globalConfig = useGlobalConfig()
   const newVersionAvailable = useNewVersionAvailable()
   useTheme()
+  useTimeAwarePalette()
+  useSeasonalPalette()
+  useFlowState()
+  useHandwritingMode()
+  useGroundingMode()
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestContentRef = useRef({ html: '', text: '' })
   const reflectionEngineRef = useRef(new ReflectionEngine())
+  const weatherEngineRef = useRef(new WeatherEngine())
+  const ritualEngineRef = useRef(new RitualEngine())
+  const fossilEngineRef = useRef(new FossilEngine())
+  const explorationEngineRef = useRef(new ExplorationEngine())
+  const [weather, setWeather] = useState<InnerWeatherType | null>(null)
+  const [fossilThought, setFossilThought] = useState<{ partName: string; partColor: string; colorLight: string; content: string } | null>(null)
+  const [intention, setIntention] = useState('')
+  const [explorations, setExplorations] = useState<GuidedExploration[]>([])
 
   // Initialize DB and load or create first entry
   useEffect(() => {
@@ -63,6 +88,17 @@ function App() {
     }
     init()
   }, [user])
+
+  // Log session start/end
+  useEffect(() => {
+    if (!isReady) return
+    const ritualEngine = ritualEngineRef.current
+    return () => {
+      const text = latestContentRef.current.text
+      const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0
+      ritualEngine.logSession(wordCount).catch(console.error)
+    }
+  }, [isReady])
 
   // Auto-save with debounce
   const handleContentChange = useCallback(
@@ -103,10 +139,33 @@ function App() {
     // Trigger reflection on outgoing entry (async, non-blocking)
     triggerReflection(outgoingEntryId)
 
-    const entry = await db.entries.get(id) as { id: string; content: string } | undefined
+    const entry = await db.entries.get(id) as { id: string; content: string; intention?: string } | undefined
     if (entry) {
       setActiveEntryId(id)
       setInitialContent(entry.content)
+      setIntention(entry.intention || '')
+      setExplorations([])
+
+      // Fossil check for old entries
+      setFossilThought(null)
+      const entryCreatedAt = (entry as { createdAt?: number }).createdAt
+      if (entryCreatedAt) {
+        db.parts.toArray().then(async (parts) => {
+          const fossil = await fossilEngineRef.current.checkForFossil(id, entryCreatedAt, parts as Part[])
+          if (fossil) {
+            const part = (parts as Part[]).find(p => p.id === fossil.partId)
+            if (part) {
+              setFossilThought({
+                partName: part.name,
+                partColor: part.color,
+                colorLight: part.colorLight,
+                content: fossil.commentary,
+              })
+              setTimeout(() => setFossilThought(null), 30000)
+            }
+          }
+        }).catch(console.error)
+      }
     }
   }, [activeEntryId, triggerReflection])
 
@@ -116,10 +175,43 @@ function App() {
 
     setActiveEntryId(id)
     setInitialContent('')
+    setIntention('')
+    setExplorations([])
+
+    // Generate explorations for new blank entry
+    const engine = explorationEngineRef.current
+    engine.reset()
+    if (engine.shouldSuggest()) {
+      engine.generateExplorations()
+        .then((results) => { if (results.length > 0) setExplorations(results) })
+        .catch(console.error)
+    }
   }, [activeEntryId, triggerReflection])
+
+  const handleIntentionChange = useCallback((newIntention: string) => {
+    setIntention(newIntention)
+    if (activeEntryId) {
+      db.entries.update(activeEntryId, { intention: newIntention })
+    }
+  }, [activeEntryId])
+
+  const handleSelectExploration = useCallback((exploration: GuidedExploration) => {
+    handleIntentionChange(exploration.prompt)
+    setExplorations([])
+  }, [handleIntentionChange])
+
+  const handleDismissExplorations = useCallback(() => {
+    setExplorations([])
+  }, [])
 
   const handleEmotionChange = useCallback((newEmotion: EmotionalTone) => {
     setEmotion(newEmotion)
+    weatherEngineRef.current.recordEmotion(newEmotion)
+    const w = weatherEngineRef.current.getWeather()
+    if (w) setWeather(w)
+    if (weatherEngineRef.current.shouldPersist()) {
+      weatherEngineRef.current.persist().catch(console.error)
+    }
   }, [])
 
   const handleActivePartColorChange = useCallback((color: string | null) => {
@@ -223,6 +315,59 @@ function App() {
         onSelectEntry={handleSelectEntry}
         onNewEntry={handleNewEntry}
       />
+      <div style={{
+        position: 'fixed',
+        bottom: 20,
+        left: 16,
+        zIndex: 10,
+      }}>
+        <InnerWeather weather={weather} />
+      </div>
+      {fossilThought && (
+        <div style={{
+          position: 'relative',
+          zIndex: 2,
+          maxWidth: 680,
+          margin: '0 auto',
+          padding: '0 40px',
+        }}>
+          <div
+            className="part-thought fossil-thought"
+            style={{
+              backgroundColor: fossilThought.colorLight,
+              borderLeft: `2px dotted ${fossilThought.partColor}`,
+              cursor: 'pointer',
+            }}
+            onClick={() => setFossilThought(null)}
+          >
+            <div className="fossil-label">from the archive</div>
+            <div className="part-name" style={{ color: fossilThought.partColor }}>
+              {fossilThought.partName}
+            </div>
+            <div className="part-content" style={{ color: fossilThought.partColor }}>
+              {fossilThought.content}
+            </div>
+          </div>
+        </div>
+      )}
+      {explorations.length > 0 && (
+        <ExplorationCard
+          explorations={explorations}
+          onSelect={handleSelectExploration}
+          onDismiss={handleDismissExplorations}
+        />
+      )}
+      {globalConfig?.features?.intentionsEnabled === true && (
+        <div style={{
+          position: 'relative',
+          zIndex: 2,
+          maxWidth: 680,
+          margin: '0 auto',
+          padding: '0 40px',
+        }}>
+          <IntentionInput value={intention} onChange={handleIntentionChange} />
+        </div>
+      )}
       <LivingEditor
         key={activeEntryId}
         entryId={activeEntryId}
@@ -231,6 +376,7 @@ function App() {
         onEmotionChange={handleEmotionChange}
         onActivePartColorChange={handleActivePartColorChange}
         settings={settings}
+        intention={intention}
       />
     </>
   )

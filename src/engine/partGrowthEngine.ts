@@ -2,6 +2,7 @@ import type { Part, PartMemory, UserProfile, EmotionalTone } from '../types'
 import { buildGrowthPrompt } from '../ai/partPrompts'
 import { chatCompletion } from '../ai/openrouter'
 import { db } from '../store/db'
+import { getGlobalConfig } from '../store/globalConfig'
 
 const VALID_EMOTIONS: EmotionalTone[] = [
   'neutral', 'tender', 'anxious', 'angry', 'sad',
@@ -68,6 +69,17 @@ export class PartGrowthEngine {
           updates.learnedEmotions = [...new Set([...existing, ...newEm])]
         }
 
+        if (Array.isArray(growth.catchphrases)) {
+          const existing = part.catchphrases || []
+          const maxPhrases = getGlobalConfig()?.partIntelligence?.catchphraseMaxPerPart ?? 3
+          const newPhrases = growth.catchphrases.filter(
+            (c): c is string => typeof c === 'string' && c.trim().length > 0
+          )
+          // Keep most recent up to max
+          const merged = [...new Set([...newPhrases, ...existing])].slice(0, maxPhrases)
+          updates.catchphrases = merged
+        }
+
         await db.parts.update(partId, updates)
       }
     } catch (error) {
@@ -80,6 +92,7 @@ export class PartGrowthEngine {
       promptAddition?: string
       keywords?: string[]
       emotions?: string[]
+      catchphrases?: string[]
     }>
   } | null {
     try {

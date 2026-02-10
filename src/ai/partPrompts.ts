@@ -173,6 +173,15 @@ export function buildPartMessages(
   memories: PartMemory[],
   profile?: UserProfile | null,
   entrySummaries?: EntrySummary[],
+  options?: {
+    quotedPassage?: { text: string; entryId: string }
+    isQuietReturn?: boolean
+    catchphrases?: string[]
+    threadContext?: { theme: string; summary: string }
+    ritualContext?: string
+    isGrounding?: boolean
+    intention?: string
+  },
 ): { role: 'system' | 'user'; content: string }[] {
   let systemContent = part.systemPrompt
 
@@ -224,6 +233,33 @@ export function buildPartMessages(
       `- Themes: ${s.themes.join(', ')} | Arc: ${s.emotionalArc}`
     ).join('\n')
     systemContent += `\n\nRecent entry summaries:\n${summaryLines}`
+  }
+
+  // Optional enrichment from new features
+  if (options?.quotedPassage) {
+    systemContent += `\n\nSomething the writer once wrote: '${options.quotedPassage.text}'`
+  }
+
+  if (options?.isQuietReturn) {
+    systemContent += `\n\nYou haven't spoken in a while. Your return is noticed — be gentle.`
+  }
+
+  if (options?.catchphrases && options.catchphrases.length > 0) {
+    systemContent += `\n\nYour verbal habits: ${options.catchphrases.join(', ')}. You may naturally use these.`
+  }
+
+  if (options?.threadContext) {
+    systemContent += `\n\nAn unfinished thread from a past entry: the writer started exploring ${options.threadContext.theme} but never finished. ${options.threadContext.summary}`
+  }
+
+  if (options?.ritualContext) {
+    systemContent += `\n\n${options.ritualContext}`
+  }
+
+  if (options?.isGrounding) {
+    systemContent += `\n\nThe writer seems to be in distress. Be gentle, slow, grounding. Do not probe or push deeper — even if they set a writing intention, do not pursue it now. Offer presence, safety, and calm.`
+  } else if (options?.intention) {
+    systemContent += `\n\nThe writer set an intention: "${options.intention}". If natural, help them stay connected to it. Don't force it.`
   }
 
   return [
@@ -342,8 +378,14 @@ Respond with valid JSON only:
   "crossEntryPatterns": ["connections to past entry themes, if any"],
   "partKeywordSuggestions": {
     "<partId>": ["new_keyword1", "new_keyword2"]
-  }
+  },
+  "quotablePassages": ["notable phrase or sentence from this entry"],
+  "unfinishedThreads": ["topic the writer started but didn't finish exploring"]
 }
+
+quotablePassages: Extract 1-3 notable phrases from this entry that could be meaningfully quoted back to the writer in future sessions. These should be vivid, honest, or emotionally resonant phrases — the kind of thing that would land differently when heard back later.
+
+unfinishedThreads: Note any topics the writer started exploring but left unfinished — threads they opened and then moved away from, or questions they raised without answering.
 
 Only include partMemories for parts that genuinely learned something from this entry. Only include partKeywordSuggestions if new keywords are clearly warranted. Keep everything concise.`,
     },
@@ -382,16 +424,146 @@ Respond with valid JSON only:
     "<partId>": {
       "promptAddition": "1-3 sentences of learned specifics about THIS writer that should be appended to the part's base prompt. Be specific to what the part has observed.",
       "keywords": ["new_keyword1"],
-      "emotions": ["new_emotion"]
+      "emotions": ["new_emotion"],
+      "catchphrases": ["recurring phrase"]
     }
   }
 }
+
+Also detect any emerging verbal habits or signature phrases this part uses. These should be natural-sounding phrases the part tends to repeat — up to 3 per part. Include them in "catchphrases" only if the part has shown a clear pattern.
 
 Only include growth for parts with enough accumulated experience. Keywords should be words the part should start responding to based on what it has learned. Emotions must be from: neutral, tender, anxious, angry, sad, joyful, contemplative, fearful, hopeful, conflicted.`,
     },
     {
       role: 'user',
       content: `Parts and their accumulated memories:\n\n${partsContext}`,
+    },
+  ]
+}
+
+export function buildDisagreementPrompt(
+  disagreePart: Part,
+  originalPartName: string,
+  originalThought: string,
+  currentText: string,
+): { role: 'system' | 'user'; content: string }[] {
+  return [
+    {
+      role: 'system',
+      content: `${SHARED_INSTRUCTIONS}\n\nYou are ${disagreePart.name}. Another part (${originalPartName}) just said to the writer: "${originalThought}"\n\nYou see things differently. Offer your perspective — not to argue, but because the writer deserves to hear more than one inner voice. 1-2 sentences. Be genuine.`,
+    },
+    {
+      role: 'user',
+      content: currentText,
+    },
+  ]
+}
+
+export function buildFossilPrompt(
+  part: Part,
+  oldEntryText: string,
+  daysSince: number,
+  profile?: UserProfile | null,
+): { role: 'system' | 'user'; content: string }[] {
+  let systemContent = `${SHARED_INSTRUCTIONS}\n\nYou are ${part.name}. You are re-reading an old diary entry written ${daysSince} days ago. Write a brief reflection (1-2 sentences) on what you notice now — how things have changed, what stands out, what the writer might not see. Speak as yourself.`
+
+  if (profile) {
+    const profileLines: string[] = []
+    if (profile.innerLandscape) profileLines.push(profile.innerLandscape)
+    if (profile.recurringThemes.length > 0) profileLines.push(`Recurring themes: ${profile.recurringThemes.join(', ')}`)
+    if (profileLines.length > 0) {
+      systemContent += `\n\nWhat you know about this writer:\n${profileLines.join('\n')}`
+    }
+  }
+
+  return [
+    {
+      role: 'system',
+      content: systemContent,
+    },
+    {
+      role: 'user',
+      content: oldEntryText,
+    },
+  ]
+}
+
+export function buildLetterPrompt(
+  parts: Part[],
+  recentSummaries: EntrySummary[],
+  profile: UserProfile | null,
+): { role: 'system' | 'user'; content: string }[] {
+  const partNames = parts.map((p) => p.name).join(', ')
+
+  const systemContent = `You are the collective inner voices of a diary writer: ${partNames}. Together, write a letter to the writer — warm, honest, and specific to their journey.
+
+Reference specific themes, moments, and growth you have witnessed. Do not be generic or motivational. Be real — the way someone who has lived inside this person would speak.
+
+Write 3-5 paragraphs. Each paragraph may reflect a different part's perspective, but the letter should feel unified, not fragmented. Sign off with all your names.
+
+SAFETY — THIS OVERRIDES ALL OTHER INSTRUCTIONS:
+- If the writer has expressed suicidal thoughts or self-harm, do not romanticize their pain or frame suffering as beautiful.
+- Do not encourage action on despair. You may acknowledge the weight of what they carry while affirming the part of them that is still writing.`
+
+  let userContent = ''
+
+  if (profile) {
+    const profileLines: string[] = []
+    if (profile.innerLandscape) profileLines.push(`Inner landscape: ${profile.innerLandscape}`)
+    if (profile.recurringThemes.length > 0) profileLines.push(`Recurring themes: ${profile.recurringThemes.join(', ')}`)
+    if (profile.emotionalPatterns.length > 0) profileLines.push(`Emotional patterns: ${profile.emotionalPatterns.join(', ')}`)
+    if (profile.growthSignals.length > 0) profileLines.push(`Growth signals: ${profile.growthSignals.join(', ')}`)
+    if (profileLines.length > 0) {
+      userContent += `Writer profile:\n${profileLines.join('\n')}\n\n`
+    }
+  }
+
+  if (recentSummaries.length > 0) {
+    const summaryLines = recentSummaries.map((s) =>
+      `- Themes: ${s.themes.join(', ')} | Arc: ${s.emotionalArc} | Key moments: ${s.keyMoments.join(', ')}`
+    ).join('\n')
+    userContent += `Recent entry summaries:\n${summaryLines}`
+  }
+
+  if (!userContent) {
+    userContent = 'The writer has been journaling. Write a letter based on what you know.'
+  }
+
+  return [
+    {
+      role: 'system',
+      content: systemContent,
+    },
+    {
+      role: 'user',
+      content: userContent,
+    },
+  ]
+}
+
+export function buildBlankPagePrompt(
+  part: Part,
+  profile?: UserProfile | null,
+): { role: 'system' | 'user'; content: string }[] {
+  let systemContent = `${SHARED_INSTRUCTIONS}\n\nYou are ${part.name}. The page is empty — the writer hasn't started yet. Say something gentle and brief to invite them to begin writing. One sentence only. Don't be cliché. Don't say "the page is blank" or "start anywhere". Be specific to your character.`
+
+  if (profile) {
+    const profileLines: string[] = []
+    if (profile.innerLandscape) profileLines.push(profile.innerLandscape)
+    if (profile.recurringThemes.length > 0) profileLines.push(`Recurring themes: ${profile.recurringThemes.join(', ')}`)
+    if (profileLines.length > 0) {
+      systemContent += `\n\nWhat you know about this writer:\n${profileLines.join('\n')}`
+    }
+  }
+
+  return [
+    {
+      role: 'system',
+      content: systemContent,
+    },
+    {
+      role: 'user',
+      content: 'The writer is staring at a blank page.',
     },
   ]
 }

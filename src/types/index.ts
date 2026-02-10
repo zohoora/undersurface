@@ -17,6 +17,9 @@ export interface Part {
   systemPromptAddition?: string
   growthVersion?: number
   lastGrowthAt?: number
+  lastActiveAt?: number
+  catchphrases?: string[]
+  quietSince?: number
 }
 
 export type MemoryType = 'observation' | 'interaction' | 'reflection' | 'pattern'
@@ -49,6 +52,14 @@ export interface PartThought {
   anchorOffset: number
   timestamp: number
   isNew: boolean
+  isEcho?: boolean
+  isSilence?: boolean
+  isBlankPage?: boolean
+  isQuote?: boolean
+  isDisagreement?: boolean
+  quotedText?: string
+  quotedEntryId?: string
+  respondingToPartId?: string
 }
 
 export interface ThinkingOutLoudInteraction {
@@ -117,4 +128,55 @@ export interface UserProfile {
   growthSignals: string[]
   innerLandscape: string
   lastUpdated: number
+}
+
+export interface InnerWeather {
+  id: string
+  dominantEmotion: string
+  secondaryEmotion?: string
+  intensity: number
+  trend: 'rising' | 'falling' | 'steady'
+  updatedAt: number
+}
+
+export interface PartLetter {
+  id: string
+  partIds: string[]
+  content: string
+  triggerType: 'milestone' | 'pattern' | 'growth'
+  createdAt: number
+  isRead: boolean
+}
+
+export interface SessionRitual {
+  id: string
+  pattern: string
+  description: string
+  detectedAt: number
+  sessionCount: number
+}
+
+export interface EntryFossil {
+  id: string
+  entryId: string
+  partId: string
+  commentary: string
+  createdAt: number
+}
+
+export interface SessionLog {
+  id: string
+  startedAt: number
+  endedAt?: number
+  duration?: number
+  wordCount: number
+  timeOfDay: string
+  dayOfWeek: number
+}
+
+export interface GuidedExploration {
+  id: string
+  prompt: string
+  source: 'theme' | 'thread' | 'pattern' | 'avoidance'
+  sourceDetail?: string
 }

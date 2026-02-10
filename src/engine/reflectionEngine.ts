@@ -2,11 +2,14 @@ import type { Part, PartMemory, EntrySummary, UserProfile } from '../types'
 import { buildReflectionPrompt } from '../ai/partPrompts'
 import { chatCompletion } from '../ai/openrouter'
 import { db, generateId } from '../store/db'
+import { LetterEngine } from './letterEngine'
 
 interface ReflectionResult {
   entrySummary?: EntrySummary
   memoriesCreated: number
   profileUpdated: boolean
+  quotablePassages?: string[]
+  unfinishedThreads?: string[]
 }
 
 const MEMORY_CAPS: Record<string, number> = {
@@ -22,7 +25,7 @@ export class ReflectionEngine {
 
     try {
       // 1. Load entry
-      const entry = await db.entries.get(entryId) as { plainText: string } | undefined
+      const entry = await db.entries.get(entryId) as { plainText: string; intention?: string } | undefined
       if (!entry || entry.plainText.trim().length < 100) return result
 
       // 2. Load thoughts + interactions for this entry
@@ -59,8 +62,12 @@ export class ReflectionEngine {
         ifsRole: p.ifsRole,
       }))
 
+      const entryTextForReflection = entry.intention
+        ? `[Writer's intention: "${entry.intention}"]\n\n${entry.plainText}`
+        : entry.plainText
+
       const messages = buildReflectionPrompt(
-        entry.plainText,
+        entryTextForReflection,
         thoughtsForPrompt,
         interactionsForPrompt,
         profile ?? null,
@@ -175,6 +182,36 @@ export class ReflectionEngine {
       // 8f. Prune old memories per part
       await this.pruneMemories(parts)
 
+      // 8g. Store quotable passages in entry summary
+      if (parsed.quotablePassages && Array.isArray(parsed.quotablePassages) && result.entrySummary) {
+        // We'll add quotable passages to the entry summary's keyMoments
+        // (reusing existing field to avoid a schema change)
+        const validPassages = parsed.quotablePassages.filter(
+          (p): p is string => typeof p === 'string' && p.trim().length > 10
+        )
+        if (validPassages.length > 0 && result.entrySummary) {
+          const updatedMoments = [...result.entrySummary.keyMoments, ...validPassages.map(p => `[quotable] ${p}`)]
+          await db.entrySummaries.update(result.entrySummary.id, { keyMoments: updatedMoments })
+          result.entrySummary.keyMoments = updatedMoments
+        }
+      }
+
+      // 8h. Store unfinished threads in entry summary
+      if (parsed.unfinishedThreads && Array.isArray(parsed.unfinishedThreads) && result.entrySummary) {
+        const validThreads = parsed.unfinishedThreads.filter(
+          (t): t is string => typeof t === 'string' && t.trim().length > 5
+        )
+        if (validThreads.length > 0) {
+          const updatedMoments = [...(result.entrySummary.keyMoments || []), ...validThreads.map(t => `[thread] ${t}`)]
+          await db.entrySummaries.update(result.entrySummary.id, { keyMoments: updatedMoments })
+          result.entrySummary.keyMoments = updatedMoments
+        }
+      }
+
+      // Set new fields on result
+      if (parsed.quotablePassages) result.quotablePassages = parsed.quotablePassages
+      if (parsed.unfinishedThreads) result.unfinishedThreads = parsed.unfinishedThreads
+
       // 9. Check if it's time for part growth
       const summaryCount = allSummaries.length + 1 // +1 for the one we just created
       if (summaryCount % 5 === 0) {
@@ -182,6 +219,15 @@ export class ReflectionEngine {
         const { PartGrowthEngine } = await import('./partGrowthEngine')
         const growthEngine = new PartGrowthEngine()
         await growthEngine.growParts(parts, profile ?? null)
+      }
+
+      // 10. Check if it's time for a letter
+      try {
+        const totalEntries = await db.entries.count()
+        const letterEngine = new LetterEngine()
+        await letterEngine.checkForLetter(totalEntries, parts)
+      } catch (error) {
+        console.error('Letter check error:', error)
       }
 
       return result
@@ -201,6 +247,8 @@ export class ReflectionEngine {
     }
     crossEntryPatterns?: string[]
     partKeywordSuggestions?: Record<string, string[]>
+    quotablePassages?: string[]
+    unfinishedThreads?: string[]
   } | null {
     try {
       // Extract JSON from potential markdown code blocks

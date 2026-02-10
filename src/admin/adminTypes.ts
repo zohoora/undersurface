@@ -6,6 +6,29 @@ export interface GlobalConfig {
     partsEnabled: boolean
     visualEffectsEnabled: boolean
     autocorrectEnabled: boolean
+    // Atmosphere
+    timeAwareAtmosphere?: boolean
+    seasonalShifts?: boolean
+    flowStateVisuals?: boolean
+    handwritingMode?: boolean
+    // Part Intelligence
+    partsQuoting?: boolean
+    partsDisagreeing?: boolean
+    partQuietReturn?: boolean
+    partCatchphrases?: boolean
+    silenceAsResponse?: boolean
+    blankPageSpeaks?: boolean
+    // Memory/Engagement
+    echoes?: boolean
+    innerWeather?: boolean
+    entryFossils?: boolean
+    lettersFromParts?: boolean
+    ritualsNotStreaks?: boolean
+    unfinishedThreads?: boolean
+    // Safety & Guidance
+    emergencyGrounding?: boolean
+    intentionsEnabled?: boolean
+    guidedExplorations?: boolean
   }
   announcement: {
     message: string
@@ -15,6 +38,60 @@ export interface GlobalConfig {
   buildVersion?: string
   updatedAt: number
   updatedBy: string
+
+  // Tuning sections
+  atmosphere?: {
+    timeShiftIntensity?: number
+    morningHue?: number
+    afternoonHue?: number
+    eveningHue?: number
+    nightHue?: number
+    seasonalIntensity?: number
+    seasonOverride?: 'spring' | 'summer' | 'autumn' | 'winter' | 'auto'
+    flowThresholdSeconds?: number
+    flowGlowIntensity?: number
+    handwritingFont?: string
+    handwritingEffectBoost?: number
+  }
+
+  partIntelligence?: {
+    quoteMinAge?: number
+    quoteChance?: number
+    disagreeChance?: number
+    disagreeMinParts?: number
+    quietThresholdDays?: number
+    returnBonusMultiplier?: number
+    catchphraseMaxPerPart?: number
+    silenceFlowThreshold?: number
+    silenceChance?: number
+    blankPageDelaySeconds?: number
+  }
+
+  engagement?: {
+    echoMaxAge?: number
+    echoChance?: number
+    echoMaxPerSession?: number
+    weatherUpdateInterval?: number
+    fossilMinAge?: number
+    fossilChance?: number
+    letterTriggerEntries?: number
+    letterMinParts?: number
+    ritualDetectionWindow?: number
+    threadMaxAge?: number
+    threadChance?: number
+  }
+
+  grounding?: {
+    autoExitMinutes?: number
+    selfRoleScoreBonus?: number
+    otherRolePenalty?: number
+    intensityThreshold?: number
+  }
+
+  explorations?: {
+    maxPrompts?: number
+    triggerOnNewEntry?: boolean
+  }
 }
 
 export interface AdminOverviewResponse {

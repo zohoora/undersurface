@@ -3,6 +3,20 @@ import { buildPartMessages } from '../ai/partPrompts'
 import { streamChatCompletion, analyzeEmotion } from '../ai/openrouter'
 import { db, generateId } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
+import { activateGrounding, isGroundingActive } from '../hooks/useGroundingMode'
+import { QuoteEngine } from './quoteEngine'
+import { DisagreementEngine } from './disagreementEngine'
+import { QuietTracker } from './quietTracker'
+import { EchoEngine } from './echoEngine'
+import { ThreadEngine } from './threadEngine'
+import { RitualEngine } from './ritualEngine'
+
+const DISTRESS_KEYWORDS = [
+  'scared', 'terrified', 'panic', "can't breathe", 'shaking', 'spiraling',
+  'drowning', 'overwhelmed', 'trapped', 'suffocating', 'falling apart',
+  "can't stop", 'numb', 'frozen', 'dizzy', 'hyperventilating', 'dissociating',
+  'losing it', "can't think", 'shutdown', 'shutting down',
+]
 
 const ROLE_PAUSE_AFFINITIES: Record<IFSRole, Record<PauseType, number>> = {
   protector: {
@@ -49,6 +63,11 @@ interface OrchestratorCallbacks {
   onThoughtComplete: (thought: PartThought) => void
   onEmotionDetected: (tone: EmotionalTone) => void
   onError: (error: Error) => void
+  onDisagreementStart?: (partId: string, partName: string, partColor: string) => void
+  onDisagreementToken?: (token: string) => void
+  onDisagreementComplete?: (thought: PartThought) => void
+  onEcho?: (echo: { text: string, entryId: string, date: number, partId: string, partName: string, partColor: string, partColorLight: string }) => void
+  onSilence?: (partId: string, partName: string, partColor: string, partColorLight: string) => void
 }
 
 export class PartOrchestrator {
@@ -58,7 +77,15 @@ export class PartOrchestrator {
   private currentEmotion: EmotionalTone = 'neutral'
   private isGenerating: boolean = false
   private entryId: string = ''
+  private intention: string = ''
   private callbacks: OrchestratorCallbacks
+
+  private quoteEngine = new QuoteEngine()
+  private disagreementEngine = new DisagreementEngine()
+  private quietTracker = new QuietTracker()
+  private echoEngine = new EchoEngine()
+  private threadEngine = new ThreadEngine()
+  private ritualEngine = new RitualEngine()
 
   private readonly MAX_RECENT_SPEAKERS = 3
   private readonly EMOTION_CHECK_INTERVAL = 30000
@@ -84,6 +111,10 @@ export class PartOrchestrator {
     this.entryId = id
   }
 
+  setIntention(v: string) {
+    this.intention = v
+  }
+
   isCurrentlyGenerating(): boolean {
     return this.isGenerating
   }
@@ -97,6 +128,39 @@ export class PartOrchestrator {
     // Check emotion periodically
     if (Date.now() - this.lastEmotionCheck > this.EMOTION_CHECK_INTERVAL) {
       this.checkEmotion(event.currentText)
+    }
+
+    // Distress detection for emergency grounding
+    this.checkDistress(event.currentText)
+
+    // Echo check (before regular thought)
+    const echo = await this.echoEngine.findEcho(event.currentText)
+    if (echo) {
+      // Find a relevant part for this echo
+      const echoPart = this.parts[Math.floor(Math.random() * this.parts.length)]
+      this.callbacks.onEcho?.({
+        text: echo.text,
+        entryId: echo.entryId,
+        date: echo.date,
+        partId: echoPart.id,
+        partName: echoPart.name,
+        partColor: echoPart.color,
+        partColorLight: echoPart.colorLight,
+      })
+      return
+    }
+
+    // Silence as response (requires flow state check)
+    const config = getGlobalConfig()
+    if (config?.features?.silenceAsResponse === true) {
+      const silenceChance = config.partIntelligence?.silenceChance ?? 0.2
+      if (event.duration > (config.partIntelligence?.silenceFlowThreshold ?? 120) * 1000) {
+        if (Math.random() < silenceChance) {
+          const silencePart = this.parts[Math.floor(Math.random() * this.parts.length)]
+          this.callbacks.onSilence?.(silencePart.id, silencePart.name, silencePart.color, silencePart.colorLight)
+          return
+        }
+      }
     }
 
     const selectedPart = this.selectPart(event)
@@ -141,6 +205,26 @@ export class PartOrchestrator {
     // Add some randomness for organic feel
     score += Math.random() * 15
 
+    // Grounding mode: strongly favor self-role parts
+    if (isGroundingActive()) {
+      const config = getGlobalConfig()
+      if (part.ifsRole === 'self') {
+        score += config?.grounding?.selfRoleScoreBonus ?? 40
+      } else {
+        score -= config?.grounding?.otherRolePenalty ?? 30
+      }
+    }
+
+    // Quiet return bonus/penalty
+    const quietParts = this.quietTracker.getQuietParts(this.parts)
+    if (quietParts?.some(qp => qp.id === part.id)) {
+      // Quiet parts score near zero unless they have strong content match
+      if (score < 30) score -= 40
+    }
+    if (this.quietTracker.isReturning(part)) {
+      score *= this.quietTracker.getReturnBonus()
+    }
+
     return score
   }
 
@@ -183,6 +267,10 @@ export class PartOrchestrator {
       entrySummaries = allSummaries.slice(0, 5)
     }
 
+    const quote = await this.quoteEngine.findQuote(event.currentText)
+    const thread = await this.threadEngine.findUnfinishedThread(event.currentText)
+    const rituals = await this.ritualEngine.detectRituals()
+
     const messages = buildPartMessages(
       part,
       event.currentText,
@@ -190,6 +278,15 @@ export class PartOrchestrator {
       allMemories,
       profile,
       entrySummaries,
+      {
+        quotedPassage: quote ?? undefined,
+        isQuietReturn: this.quietTracker.isReturning(part),
+        catchphrases: part.catchphrases,
+        threadContext: thread ?? undefined,
+        ritualContext: rituals.length > 0 ? rituals[0].description : undefined,
+        isGrounding: isGroundingActive() || undefined,
+        intention: this.intention || undefined,
+      },
     )
 
     this.callbacks.onThoughtStart(part.id, part.name, part.color)
@@ -241,6 +338,40 @@ export class PartOrchestrator {
           }
 
           this.callbacks.onThoughtComplete(thought)
+
+          // Track activity for quiet return system
+          this.quietTracker.updateLastActive(part.id)
+
+          // Disagreement check — another part may push back
+          const disagreePart = this.disagreementEngine.shouldDisagree(part, this.parts)
+          if (disagreePart) {
+            // Generate disagreement after a brief delay
+            setTimeout(async () => {
+              try {
+                const disagreeText = await this.disagreementEngine.generateDisagreement(
+                  disagreePart, thought.content, event.currentText,
+                )
+                if (disagreeText) {
+                  const disagreementThought: PartThought = {
+                    id: generateId(),
+                    partId: disagreePart.id,
+                    entryId: this.entryId,
+                    content: disagreeText,
+                    anchorText: event.recentText.slice(-50),
+                    anchorOffset: event.cursorPosition,
+                    timestamp: Date.now(),
+                    isNew: true,
+                    isDisagreement: true,
+                    respondingToPartId: part.id,
+                  }
+                  db.thoughts.add({ ...disagreementThought, isNew: undefined })
+                  this.callbacks.onDisagreementComplete?.(disagreementThought)
+                }
+              } catch (e) {
+                console.error('Disagreement error:', e)
+              }
+            }, 2000)
+          }
         },
         onError: (error) => {
           this.callbacks.onError(error)
@@ -260,6 +391,30 @@ export class PartOrchestrator {
       }
     } catch {
       // Emotion check is non-critical; silently continue
+    }
+  }
+
+  resetSession() {
+    this.echoEngine.reset()
+  }
+
+  private checkDistress(text: string): void {
+    const config = getGlobalConfig()
+    if (config?.features?.emergencyGrounding !== true) return
+    if (isGroundingActive()) return
+
+    const tail = text.slice(-500).toLowerCase()
+    let hits = 0
+    for (const kw of DISTRESS_KEYWORDS) {
+      if (tail.includes(kw)) hits++
+    }
+    if (this.currentEmotion === 'anxious' || this.currentEmotion === 'fearful') {
+      hits++
+    }
+
+    const threshold = config.grounding?.intensityThreshold ?? 3
+    if (hits >= threshold) {
+      activateGrounding()
     }
   }
 

@@ -647,6 +647,37 @@
   --atmo-1: #1C1A17;  --atmo-2: #221E1A;  --atmo-3: #1F1C19;
 }
 
+/* ── Emergency Grounding ──────────────────────────────── */
+
+[data-grounding="true"] .atmosphere {
+  --atmo-1: #F0F2F0;
+  --atmo-2: #E8ECE8;
+  --atmo-3: #EEF0EE;
+  animation-duration: 30s;
+}
+
+[data-grounding="true"] .atmosphere[data-emotion] {
+  --atmo-1: #F0F2F0;
+  --atmo-2: #E8ECE8;
+  --atmo-3: #EEF0EE;
+}
+
+[data-theme="dark"][data-grounding="true"] .atmosphere,
+[data-theme="dark"][data-grounding="true"] .atmosphere[data-emotion] {
+  --atmo-1: #171A17;
+  --atmo-2: #1C201C;
+  --atmo-3: #191C19;
+  animation-duration: 30s;
+}
+
+[data-grounding="true"] .part-thought {
+  filter: saturate(0.6);
+}
+
+[data-grounding="true"][data-flow="true"] .editor-container {
+  box-shadow: none;
+}
+
 /* ── Focus Styles ──────────────────────────────────────── */
 
 *:focus-visible {
@@ -780,6 +811,191 @@ body {
   animation: color-bloom 2s ease-out forwards;
 }
 
+/* ── Flow State ────────────────────────────────────────── */
+
+[data-flow="true"] .tiptap {
+  transition: box-shadow 2s ease;
+}
+
+[data-flow="true"] .editor-container {
+  box-shadow: 0 0 calc(var(--flow-intensity, 0) * 40px) rgba(210, 180, 140, calc(var(--flow-intensity, 0) * 0.12));
+}
+
+[data-theme="dark"][data-flow="true"] .editor-container {
+  box-shadow: 0 0 calc(var(--flow-intensity, 0) * 40px) rgba(180, 150, 100, calc(var(--flow-intensity, 0) * 0.08));
+}
+
+/* Flow state speeds up breathing slightly */
+[data-flow="true"] .atmosphere {
+  animation-duration: 12s;
+}
+
+/* ── Handwriting Mode ──────────────────────────────────── */
+
+[data-handwriting="true"] .tiptap {
+  font-family: var(--handwriting-font, 'Caveat'), cursive;
+  font-size: 1.3em;
+  line-height: 1.8;
+}
+
+[data-handwriting="true"] .tiptap p {
+  margin-bottom: 0.6em;
+}
+
+/* ── Echo Thought (past entry fragment) ────────────────── */
+
+.part-thought.echo-thought {
+  font-style: italic;
+  opacity: 0.75;
+  border-left-style: dashed;
+}
+
+.part-thought.echo-thought .echo-date {
+  font-size: 10px;
+  color: var(--text-ghost);
+  margin-top: 4px;
+  font-style: normal;
+}
+
+/* ── Silence Thought (witnessing presence) ─────────────── */
+
+.part-thought.silence-thought {
+  padding: 8px 16px;
+  min-height: 0;
+}
+
+.part-thought.silence-thought .part-content {
+  font-style: italic;
+  opacity: 0.6;
+}
+
+.silence-dot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.4;
+  animation: silence-pulse 2s ease-in-out infinite;
+}
+
+@keyframes silence-pulse {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.6; }
+}
+
+/* ── Fossil Thought (commentary on old entry) ──────────── */
+
+.part-thought.fossil-thought {
+  border-left-style: dotted;
+  opacity: 0.8;
+}
+
+.part-thought.fossil-thought .fossil-label {
+  font-size: 10px;
+  color: var(--text-ghost);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+/* ── Quote Thought (quoting past writing) ──────────────── */
+
+.part-thought.quote-thought .quoted-text {
+  font-style: italic;
+  opacity: 0.7;
+  font-size: 12px;
+  padding: 4px 0 6px;
+  border-bottom: 1px solid var(--overlay-subtle);
+  margin-bottom: 6px;
+}
+
+/* ── Disagreement Thought ──────────────────────────────── */
+
+.part-thought.disagreement-thought {
+  border-left-width: 3px;
+  border-left-style: double;
+}
+
+/* ── Blank Page Thought ────────────────────────────────── */
+
+.part-thought.blank-page-thought {
+  text-align: center;
+  border-left: none;
+  background: var(--overlay-subtle);
+}
+
+/* ── Letter Entry (read-only) ──────────────────────────── */
+
+.letter-entry {
+  font-family: 'Spectral', Georgia, serif;
+  font-size: 17px;
+  line-height: 1.85;
+  color: var(--text-primary);
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 60px 40px;
+}
+
+.letter-entry .letter-header {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-ghost);
+  margin-bottom: 24px;
+}
+
+.letter-entry .letter-body {
+  white-space: pre-wrap;
+}
+
+.letter-entry .letter-body p {
+  margin-bottom: 1em;
+}
+
+/* ── Inner Weather (sidebar) ───────────────────────────── */
+
+.inner-weather {
+  padding: 12px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.weather-blob {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 1.5s ease, opacity 1.5s ease;
+}
+
+.weather-label {
+  font-size: 11px;
+  color: var(--text-ghost);
+  text-transform: capitalize;
+}
+
+.weather-trend {
+  font-size: 10px;
+  color: var(--text-ghost);
+  opacity: 0.7;
+}
+
+/* ── Part Return Animation ─────────────────────────────── */
+
+.part-thought.returning-thought {
+  animation: part-return 1.5s ease-out;
+}
+
+@keyframes part-return {
+  0% { opacity: 0; transform: translateY(8px); }
+  40% { opacity: 0.3; }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
 /* ── Mobile Responsiveness ─────────────────────────────── */
 
 /* Sidebar toggle button (mobile only) */
@@ -886,6 +1102,31 @@ body {
 
   .thinking-space .thinking-input {
     font-size: 15px;
+  }
+
+  /* Flow state: reduced on mobile */
+  [data-flow="true"] .editor-container {
+    box-shadow: 0 0 calc(var(--flow-intensity, 0) * 20px) rgba(210, 180, 140, calc(var(--flow-intensity, 0) * 0.08));
+  }
+
+  /* Handwriting: adjusted for mobile */
+  [data-handwriting="true"] .tiptap {
+    font-size: 1.15em;
+  }
+
+  /* Inner weather: compact */
+  .inner-weather {
+    padding: 8px;
+  }
+
+  .weather-blob {
+    width: 24px;
+    height: 24px;
+  }
+
+  /* Letter entry: full width */
+  .letter-entry {
+    padding: 40px 20px;
   }
 }
 
