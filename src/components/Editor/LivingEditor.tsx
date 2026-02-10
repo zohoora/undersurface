@@ -22,7 +22,7 @@ import { useTheme } from '../../hooks/useTheme'
 import { buildInteractionReply } from '../../ai/partPrompts'
 import { streamChatCompletion } from '../../ai/openrouter'
 import { db, generateId } from '../../store/db'
-import { getGlobalConfig } from '../../store/globalConfig'
+import { getGlobalConfig, useGlobalConfig } from '../../store/globalConfig'
 import type { EmotionalTone, Part, PartThought } from '../../types'
 
 interface ActiveThought {
@@ -76,6 +76,7 @@ export function LivingEditor({
   intention,
 }: Props) {
   const theme = useTheme()
+  const globalConfig = useGlobalConfig()
   const pauseDetectorRef = useRef<PauseDetector | null>(null)
   const orchestratorRef = useRef<PartOrchestrator | null>(null)
   const emergenceRef = useRef<EmergenceEngine | null>(null)
@@ -296,15 +297,16 @@ export function LivingEditor({
   // Sync settings into extensions and pause detector
   useEffect(() => {
     if (editor) {
-      editor.storage.inkWeight.disabled = !settings.inkWeight
-      editor.storage.paragraphSettle.disabled = !settings.paragraphFade
-      editor.storage.colorBleed.disabled = !settings.colorBleed || theme === 'dark'
+      const vfx = globalConfig?.features?.visualEffectsEnabled !== false
+      editor.storage.inkWeight.disabled = !(vfx && globalConfig?.features?.inkWeight !== false)
+      editor.storage.paragraphSettle.disabled = !(vfx && globalConfig?.features?.paragraphFade !== false)
+      editor.storage.colorBleed.disabled = !(vfx && globalConfig?.features?.colorBleed !== false) || theme === 'dark'
       editor.storage.typewriterScroll.mode = settings.typewriterScroll
       // Force decoration refresh
       editor.view.dispatch(editor.state.tr)
     }
     pauseDetectorRef.current?.setSpeedMultiplier(settings.responseSpeed)
-  }, [editor, settings.inkWeight, settings.paragraphFade, settings.colorBleed, settings.typewriterScroll, settings.responseSpeed, theme])
+  }, [editor, globalConfig, settings.typewriterScroll, settings.responseSpeed, theme])
 
   // Clean up faded thoughts periodically
   useEffect(() => {
@@ -423,24 +425,30 @@ export function LivingEditor({
           isEmerging: false,
           isVisible: true,
         }
+        // Buffer: don't add to visible thoughts yet — wait for first token
         currentThoughtRef.current = newThought
-        setThoughts((prev) => [...prev, newThought])
 
-        // Cursor glow absorbs part color
+        // Subtle visual hints that something is coming
         onActivePartColorChange(partColor)
-
-        // Add margin trace
         addMarginTrace(partColor)
       },
       onThoughtToken: (token) => {
         const current = currentThoughtRef.current
         if (!current) return
+        const wasEmpty = current.content.length === 0
         current.content += token
-        const id = current.id
-        const content = current.content
-        setThoughts((prev) =>
-          prev.map((t) => (t.id === id ? { ...t, content } : t)),
-        )
+
+        if (wasEmpty) {
+          // First token arrived — now show the thought bubble with content
+          const snapshot = { ...current, content: current.content }
+          setThoughts((prev) => [...prev, snapshot])
+        } else {
+          const id = current.id
+          const content = current.content
+          setThoughts((prev) =>
+            prev.map((t) => (t.id === id ? { ...t, content } : t)),
+          )
+        }
       },
       onThoughtComplete: (thought: PartThought) => {
         const current = currentThoughtRef.current
@@ -462,6 +470,7 @@ export function LivingEditor({
         const current = currentThoughtRef.current
         if (current) {
           const id = current.id
+          // Remove from state if it was added (first token may not have arrived)
           setThoughts((prev) => prev.filter((t) => t.id !== id))
           currentThoughtRef.current = null
         }

@@ -254,22 +254,18 @@ export class PartOrchestrator {
   }
 
   private async generateThought(part: Part, event: PauseEvent): Promise<void> {
-    // Load fresh memories from db instead of stale in-memory cache
-    const allMemories = await db.memories.where('partId').equals(part.id).toArray() as import('../types').PartMemory[]
-
-    // Load user profile
-    const profile = await db.userProfile.get('current') as import('../types').UserProfile | undefined
-
-    // Load entry summaries for manager/self-role parts
-    let entrySummaries: import('../types').EntrySummary[] | undefined
-    if (part.ifsRole === 'manager' || part.ifsRole === 'self') {
-      const allSummaries = await db.entrySummaries.orderBy('timestamp').reverse().toArray() as import('../types').EntrySummary[]
-      entrySummaries = allSummaries.slice(0, 5)
-    }
-
-    const quote = await this.quoteEngine.findQuote(event.currentText)
-    const thread = await this.threadEngine.findUnfinishedThread(event.currentText)
-    const rituals = await this.ritualEngine.detectRituals()
+    // Parallel DB reads — all independent, no need to be sequential
+    const [allMemories, profile, summariesRaw, quote, thread, rituals] = await Promise.all([
+      db.memories.where('partId').equals(part.id).toArray() as Promise<import('../types').PartMemory[]>,
+      db.userProfile.get('current') as Promise<import('../types').UserProfile | undefined>,
+      (part.ifsRole === 'manager' || part.ifsRole === 'self')
+        ? db.entrySummaries.orderBy('timestamp').reverse().toArray() as Promise<import('../types').EntrySummary[]>
+        : Promise.resolve(undefined),
+      this.quoteEngine.findQuote(event.currentText),
+      this.threadEngine.findUnfinishedThread(event.currentText),
+      this.ritualEngine.detectRituals(),
+    ])
+    const entrySummaries = summariesRaw?.slice(0, 5)
 
     const messages = buildPartMessages(
       part,

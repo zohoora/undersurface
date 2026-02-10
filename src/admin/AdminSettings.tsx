@@ -258,16 +258,49 @@ export function AdminSettings() {
           onChange={(v) => setFeature('partsEnabled', v)}
         />
         <ToggleRow
-          label="Visual Effects"
-          checked={config.features.visualEffectsEnabled}
-          onChange={(v) => setFeature('visualEffectsEnabled', v)}
-        />
-        <ToggleRow
           label="Autocorrect"
           checked={config.features.autocorrectEnabled}
           onChange={(v) => setFeature('autocorrectEnabled', v)}
         />
       </div>
+
+      {/* Visual Effects */}
+      <CollapsibleSection
+        title="Visual Effects"
+        isExpanded={!!expanded.visualEffects}
+        onToggle={() => toggle('visualEffects')}
+        style={sectionStyle}
+      >
+        <ToggleRow
+          label="Master Switch (all effects)"
+          checked={config.features.visualEffectsEnabled}
+          onChange={(v) => setFeature('visualEffectsEnabled', v)}
+        />
+        {config.features.visualEffectsEnabled && (
+          <>
+            <ToggleRow
+              label="Paragraph Fade"
+              checked={config.features.paragraphFade !== false}
+              onChange={(v) => setFeature('paragraphFade', v)}
+            />
+            <ToggleRow
+              label="Ink Weight"
+              checked={config.features.inkWeight !== false}
+              onChange={(v) => setFeature('inkWeight', v)}
+            />
+            <ToggleRow
+              label="Color Bleed"
+              checked={config.features.colorBleed !== false}
+              onChange={(v) => setFeature('colorBleed', v)}
+            />
+            <ToggleRow
+              label="Breathing Background"
+              checked={config.features.breathingBackground !== false}
+              onChange={(v) => setFeature('breathingBackground', v)}
+            />
+          </>
+        )}
+      </CollapsibleSection>
 
       {/* Atmosphere Features */}
       <CollapsibleSection

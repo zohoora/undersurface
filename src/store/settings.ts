@@ -10,12 +10,6 @@ export interface AppSettings {
   // Part responsiveness (0.5 = slower, 2.0 = faster)
   responseSpeed: number
 
-  // Visual effects
-  paragraphFade: boolean
-  inkWeight: boolean
-  colorBleed: boolean
-  breathingBackground: boolean
-
   // Editor
   typewriterScroll: 'off' | 'comfortable' | 'typewriter'
 
@@ -33,10 +27,6 @@ const DEFAULTS: AppSettings = {
   hasSeenOnboarding: false,
   responseSpeed: 1.0,
   typewriterScroll: 'typewriter',
-  paragraphFade: true,
-  inkWeight: true,
-  colorBleed: true,
-  breathingBackground: true,
   autoCapitalize: true,
   autocorrect: true,
   theme: 'system',
@@ -55,12 +45,6 @@ function getGlobalDefaults(): Partial<AppSettings> {
   if (config.defaultResponseSpeed) overrides.responseSpeed = config.defaultResponseSpeed
   if (config.defaultTypewriterScroll) overrides.typewriterScroll = config.defaultTypewriterScroll
   if (config.features) {
-    if (config.features.visualEffectsEnabled === false) {
-      overrides.paragraphFade = false
-      overrides.inkWeight = false
-      overrides.colorBleed = false
-      overrides.breathingBackground = false
-    }
     if (config.features.autocorrectEnabled === false) {
       overrides.autocorrect = false
     }

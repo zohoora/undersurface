@@ -25,6 +25,11 @@ export interface GlobalConfig {
     lettersFromParts?: boolean
     ritualsNotStreaks?: boolean
     unfinishedThreads?: boolean
+    // Visual Effects (individual)
+    paragraphFade?: boolean
+    inkWeight?: boolean
+    colorBleed?: boolean
+    breathingBackground?: boolean
     // Safety & Guidance
     emergencyGrounding?: boolean
     intentionsEnabled?: boolean

@@ -308,7 +308,7 @@ function App() {
         </div>
       )}
       <a href="#editor" className="skip-to-content">Skip to editor</a>
-      <BreathingBackground emotion={emotion} enabled={settings.breathingBackground && visualEffectsEnabled} />
+      <BreathingBackground emotion={emotion} enabled={visualEffectsEnabled && globalConfig?.features?.breathingBackground !== false} />
       <CursorGlow partTint={activePartColor} />
       <EntriesList
         activeEntryId={activeEntryId}
