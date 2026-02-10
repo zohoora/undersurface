@@ -1,22 +1,23 @@
 # UnderSurface
 
-A diary app where inner voices respond as you write. Built with IFS (Internal Family Systems) principles — as you pause, slow down, or trail off, different parts of your inner world emerge on the page.
+A diary app where inner voices encourage and guide your writing. Built with IFS (Internal Family Systems) principles — as you pause, slow down, or trail off, different parts of your inner world emerge on the page, nudging you to go deeper, keep going, or find what you haven't said yet.
 
 **Live at [undersurface.me](https://undersurface.me)**
 
 ## How It Works
 
-You write in a rich text editor. As you pause, the app detects writing patterns (pauses, trailing off, questions, paragraph breaks) and selects an inner "part" to respond. Each part has a distinct voice, concern, and personality:
+You write in a rich text editor. As you pause, the app detects writing patterns (pauses, trailing off, questions, paragraph breaks) and selects an inner "part" to encourage your writing. Each part has a distinct voice, concern, and personality:
 
-- **The Watcher** — notices what you avoid
-- **The Tender** — holds your softness
-- **The Still** — sits with what's present
-- **The Spark** — wants to move, to act
-- **The Weaver** — sees patterns across time
+- **The Watcher** — notices what you dropped and guides you back to it
+- **The Tender** — encourages you to put feelings into words
+- **The Still** — asks questions that open up the next sentence
+- **The Spark** — pushes you to keep writing, bolder and more honestly
+- **The Weaver** — connects patterns and encourages you to explore them
+- **The Open** — celebrates what's good and encourages you to stay with it
 
 New parts can also emerge organically from your writing.
 
-Parts learn over time through observation memories, reflection, and periodic growth cycles. They adapt their language, keywords, and emotional vocabulary based on what the user writes.
+Parts learn over time through observation memories, reflection, and periodic growth cycles. They adapt their language, keywords, and emotional vocabulary based on what the user writes. All parts — seeded and emerged — share the same `SHARED_INSTRUCTIONS` that define their writing-companion purpose.
 
 ## Tech Stack
 
@@ -41,7 +42,7 @@ undersurface/
 ├── src/
 │   ├── ai/                        # AI integration
 │   │   ├── openrouter.ts          # API client — calls /api/chat with Firebase auth token
-│   │   └── partPrompts.ts         # System prompts for all 5 seeded parts + emergence/reflection/growth
+│   │   └── partPrompts.ts         # System prompts for all 6 seeded parts + exported SHARED_INSTRUCTIONS + emergence/reflection/growth
 │   ├── admin/                     # Admin dashboard (only loaded for admin users)
 │   │   ├── adminTypes.ts          # TypeScript types for admin API responses + GlobalConfig
 │   │   ├── adminApi.ts            # Client-side admin API caller (adminFetch)

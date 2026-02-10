@@ -2,7 +2,7 @@
 
 ## What is this project?
 
-A diary app where IFS-inspired AI inner voices respond as the user writes. The user types in a rich text editor; when they pause, slow down, or trail off, an AI "part" speaks on the page. Live at [undersurface.me](https://undersurface.me).
+A diary app where IFS-inspired AI inner voices encourage and guide the user's writing. The user types in a rich text editor; when they pause, slow down, or trail off, an AI "part" speaks on the page — nudging them to go deeper, keep going, or find what they haven't said yet. Live at [undersurface.me](https://undersurface.me).
 
 ## Quick Reference
 
@@ -96,10 +96,10 @@ Admin visits /admin → App.tsx checks ADMIN_EMAILS → renders AdminDashboard
 | File | Purpose |
 |------|---------|
 | `src/ai/openrouter.ts` | Client-side API calls (sends to `/api/chat` with Firebase auth token) |
-| `src/ai/partPrompts.ts` | System prompts for all 5 seeded parts + emergence, reflection, growth prompts |
+| `src/ai/partPrompts.ts` | System prompts for all 6 seeded parts + exported SHARED_INSTRUCTIONS + emergence, reflection, growth prompts |
 | `src/engine/partOrchestrator.ts` | Selects which part responds based on pause type, emotion, content (role-based scoring) |
 | `src/engine/pauseDetector.ts` | Detects writing pauses from keystroke timing |
-| `src/engine/emergenceEngine.ts` | Detects new parts emerging from writing |
+| `src/engine/emergenceEngine.ts` | Detects new parts emerging from writing (imports `SHARED_INSTRUCTIONS` from partPrompts) |
 | `src/engine/reflectionEngine.ts` | Entry reflection — creates memories, summaries, profile updates on entry switch |
 | `src/engine/partGrowthEngine.ts` | Periodic part evolution — updates prompts, keywords, emotions every 5 entries |
 | `src/engine/spellEngine.ts` | Autocorrect (Damerau-Levenshtein + Typo.js) |
@@ -223,7 +223,7 @@ Parts learn and evolve through five layers:
 
 Key types: `PartMemory.type` (`'observation' | 'interaction' | 'reflection' | 'pattern'`), `EntrySummary`, `UserProfile`, `Part.learnedKeywords`, `Part.systemPromptAddition`.
 
-**Language matching**: `SHARED_INSTRUCTIONS` in `partPrompts.ts` includes "Always respond in the same language the writer is using." — all parts (seeded and emerged) inherit this.
+**Shared instructions**: `SHARED_INSTRUCTIONS` is exported from `partPrompts.ts` and used by both seeded part prompts and `emergenceEngine.ts` for emerged parts. It defines the writing-companion purpose ("encourage and guide the writing"), critical rules, and safety guardrails. All parts (seeded and emerged) inherit the same base instructions from this single source of truth.
 
 ### Autocorrect
 

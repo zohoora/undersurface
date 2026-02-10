@@ -68,14 +68,20 @@ function getGlobalDefaults(): Partial<AppSettings> {
   return overrides
 }
 
+// Settings that should always come from globalConfig, never from localStorage
+const ADMIN_CONTROLLED_KEYS: (keyof AppSettings)[] = ['openRouterModel']
+
 function load(): AppSettings {
   if (cache) return cache
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     const globalDefaults = getGlobalDefaults()
-    cache = raw
-      ? { ...DEFAULTS, ...globalDefaults, ...JSON.parse(raw) }
-      : { ...DEFAULTS, ...globalDefaults }
+    const local = raw ? JSON.parse(raw) : {}
+    // Remove admin-controlled keys from localStorage so globalConfig always wins
+    for (const key of ADMIN_CONTROLLED_KEYS) {
+      delete local[key]
+    }
+    cache = { ...DEFAULTS, ...globalDefaults, ...local }
   } catch {
     cache = { ...DEFAULTS }
   }

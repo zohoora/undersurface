@@ -212,22 +212,28 @@ export function LivingEditor({
             const textBefore = $pos.parent.textBetween(0, $pos.parentOffset)
             const match = textBefore.match(/([a-zA-Z']+)$/)
             if (match) {
-              const word = match[1]
+              // Strip leading/trailing apostrophes — they're not part of the word
+              // (e.g., 'old should check "old", not "'old")
+              const raw = match[1]
+              const leadingApostrophes = raw.length - raw.replace(/^'+/, '').length
+              const word = raw.replace(/^'+|'+$/g, '')
               const isSentenceStart = match.index === 0
                 || /[.!?]\s+$/.test(textBefore.slice(0, match.index))
               const correction = spellEngine.suggest(word, isSentenceStart)
               if (correction) {
                 const absOffset = $pos.start() + $pos.parentOffset
-                const wordStart = absOffset - word.length
+                const trailingApostrophes = raw.length - raw.replace(/'+$/, '').length
+                const wordStart = absOffset - raw.length + leadingApostrophes
+                const wordEnd = absOffset - trailingApostrophes
                 const capturedEditor = editor
                 const delimiter = event.key
                 queueMicrotask(() => {
                   const currentState = capturedEditor.state
-                  if (currentState.doc.textBetween(wordStart, absOffset) === word) {
+                  if (currentState.doc.textBetween(wordStart, wordEnd) === word) {
                     capturedEditor.view.dispatch(
                       currentState.tr.replaceWith(
                         wordStart,
-                        absOffset,
+                        wordEnd,
                         currentState.schema.text(correction),
                       ),
                     )

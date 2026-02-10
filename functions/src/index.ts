@@ -37,6 +37,8 @@ export const chat = onRequest(
     }
 
     const { messages, model, max_tokens, temperature, stream } = req.body
+    const resolvedModel = model || 'google/gemini-3-flash-preview'
+    console.log(`model=${resolvedModel} stream=${!!stream} max_tokens=${max_tokens || 150}`)
 
     const openRouterResponse = await fetch(
       'https://openrouter.ai/api/v1/chat/completions',
@@ -49,7 +51,7 @@ export const chat = onRequest(
           'X-Title': 'UnderSurface',
         },
         body: JSON.stringify({
-          model: model || 'google/gemini-3-flash-preview',
+          model: resolvedModel,
           messages,
           max_tokens: max_tokens || 150,
           temperature: temperature ?? 0.9,
