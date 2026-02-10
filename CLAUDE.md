@@ -96,8 +96,8 @@ Admin visits /admin → App.tsx checks ADMIN_EMAILS → renders AdminDashboard
 | File | Purpose |
 |------|---------|
 | `src/ai/openrouter.ts` | Client-side API calls (sends to `/api/chat` with Firebase auth token) |
-| `src/ai/partPrompts.ts` | System prompts for all 6 seeded parts + exported SHARED_INSTRUCTIONS + emergence, reflection, growth prompts |
-| `src/engine/partOrchestrator.ts` | Selects which part responds based on pause type, emotion, content (role-based scoring) |
+| `src/ai/partPrompts.ts` | System prompts for all 6 seeded parts + exported SHARED_INSTRUCTIONS + emergence, reflection, growth, grounding, intention prompts |
+| `src/engine/partOrchestrator.ts` | Selects which part responds based on pause type, emotion, content (role-based scoring); distress detection triggers grounding; passes intention to prompts |
 | `src/engine/pauseDetector.ts` | Detects writing pauses from keystroke timing |
 | `src/engine/emergenceEngine.ts` | Detects new parts emerging from writing (imports `SHARED_INSTRUCTIONS` from partPrompts) |
 | `src/engine/reflectionEngine.ts` | Entry reflection — creates memories, summaries, profile updates on entry switch |
@@ -116,6 +116,11 @@ Admin visits /admin → App.tsx checks ADMIN_EMAILS → renders AdminDashboard
 | `src/admin/AdminInsights.tsx` | LLM-generated narrative analysis of app usage |
 | `src/admin/AdminSettings.tsx` | Form for GlobalConfig (model, speed, feature flags, announcements, version signal) |
 | `src/hooks/useTheme.ts` | Theme resolution hook (light/dark/system) + media query listener, applies `data-theme` on `<html>` |
+| `src/hooks/useGroundingMode.ts` | Grounding state via `useSyncExternalStore`, sets `data-grounding` on `<html>`, auto-exit timer |
+| `src/hooks/useFlowState.ts` | Flow state detection from keystroke timing, sets `data-flow` + `--flow-intensity` on `<html>` |
+| `src/engine/explorationEngine.ts` | AI-generated personalized writing prompts from user profile + recent summaries |
+| `src/components/Editor/IntentionInput.tsx` | Subtle per-entry intention input (ghost button → inline edit, 120 char max) |
+| `src/components/Editor/ExplorationCard.tsx` | Clickable exploration prompt card with dismiss button |
 | `src/extensions/colorBleed.ts` | TipTap extension — tints recent text with part color; disabled in dark mode, returns `DecorationSet.empty` |
 | `src/components/AnnouncementBanner.tsx` | Fixed banner from global config, dismissible via sessionStorage |
 | `functions/src/index.ts` | Cloud Functions — `chat` (OpenRouter proxy) + `adminApi` (admin backend) |
@@ -176,13 +181,18 @@ When globalConfig updates, `invalidateSettingsCache()` is called so new defaults
 
 #### Feature flags
 
-| Flag | Where checked | Effect when `false` |
-|------|---------------|---------------------|
-| `features.partsEnabled` | `partOrchestrator.ts` top of `handlePause` | No AI thoughts generated |
-| `features.visualEffectsEnabled` | `App.tsx` — `BreathingBackground` enabled prop | Static background |
-| `features.autocorrectEnabled` | `LivingEditor.tsx` autocorrect block | Skip correction |
+| Flag | Where checked | Default | Effect when off |
+|------|---------------|---------|-----------------|
+| `features.partsEnabled` | `partOrchestrator.ts` top of `handlePause` | enabled | No AI thoughts generated |
+| `features.visualEffectsEnabled` | `App.tsx` — `BreathingBackground` enabled prop | enabled | Static background |
+| `features.autocorrectEnabled` | `LivingEditor.tsx` autocorrect block | enabled | Skip correction |
+| `features.emergencyGrounding` | `partOrchestrator.ts` `checkDistress()` | **disabled** | No distress detection, no grounding toggle in settings |
+| `features.intentionsEnabled` | `App.tsx` — `IntentionInput` render guard | **disabled** | No intention input above editor |
+| `features.guidedExplorations` | `explorationEngine.ts` `shouldSuggest()` | **disabled** | No AI writing prompts on new entries |
 
-Flags are read via `getGlobalConfig()` (synchronous in-memory cache). All flags default to enabled when config is `null` (not yet loaded or document doesn't exist) — the checks use `=== false` so `undefined`/`null` are treated as enabled.
+**Core flags** (partsEnabled, visualEffects, autocorrect) default to **enabled** — checks use `=== false` so `undefined`/`null` are treated as enabled.
+
+**Experimental flags** (emergencyGrounding, intentions, explorations) default to **disabled** — checks use `=== true` so they must be explicitly enabled in admin Settings.
 
 #### Announcements
 
@@ -224,6 +234,62 @@ Parts learn and evolve through five layers:
 Key types: `PartMemory.type` (`'observation' | 'interaction' | 'reflection' | 'pattern'`), `EntrySummary`, `UserProfile`, `Part.learnedKeywords`, `Part.systemPromptAddition`.
 
 **Shared instructions**: `SHARED_INSTRUCTIONS` is exported from `partPrompts.ts` and used by both seeded part prompts and `emergenceEngine.ts` for emerged parts. It defines the writing-companion purpose ("encourage and guide the writing"), critical rules, and safety guardrails. All parts (seeded and emerged) inherit the same base instructions from this single source of truth.
+
+### Emergency grounding
+
+When the writer is in distress, the app shifts to a calming mode. Controlled by `features.emergencyGrounding`.
+
+#### How it works
+
+1. **Distress detection** — `partOrchestrator.ts` scans the last 500 characters for distress keywords (scared, terrified, panic, spiraling, etc.) on every pause. Adds +1 if current emotion is `anxious` or `fearful`. If hits >= `intensityThreshold` (default 3), activates grounding.
+2. **Grounding state** — `useGroundingMode.ts` uses module-level state + `useSyncExternalStore` (same pattern as `useFlowState`). Sets `data-grounding="true"` on `<html>`. Exposes `activateGrounding()`, `deactivateGrounding()`, `isGroundingActive()` for non-React code.
+3. **Auto-exit** — Timer deactivates grounding after `autoExitMinutes` (default 5). Re-triggering resets the timer.
+4. **Atmosphere** — `atmosphere.css` `[data-grounding="true"]` rules: desaturated greens, nearly 2x slower breathing, overrides emotional atmosphere. Thoughts get `filter: saturate(0.6)`. Flow glow suppressed. Dark mode variant included.
+5. **Part scoring** — Self-role parts (The Still, The Open) get `+selfRoleScoreBonus` (default 40), all other roles get `-otherRolePenalty` (default 30). Strongly favors calming voices.
+6. **Prompt override** — When grounding is active, `buildPartMessages` appends a grounding instruction that overrides the intention: "Be gentle, slow, grounding. Do not probe or push deeper."
+7. **Manual toggle** — SettingsPanel shows a "Grounding mode" toggle when the feature is enabled.
+
+#### Tuning (admin Settings → Safety & Wellbeing)
+
+`GlobalConfig.grounding`: `autoExitMinutes`, `selfRoleScoreBonus`, `otherRolePenalty`, `intensityThreshold`.
+
+### Intentions
+
+Per-entry writing intentions that persist and influence AI responses. Controlled by `features.intentionsEnabled`.
+
+#### How it works
+
+1. **UI** — `IntentionInput.tsx` renders above the editor: ghost "+ set an intention" button → expands to text input (120 char max) → collapses on blur.
+2. **Persistence** — Intention is stored as an `intention` field on the entry document via `db.entries.update`. Loaded in `handleSelectEntry`, cleared on `handleNewEntry`.
+3. **Prompt injection** — `buildPartMessages` appends: `The writer set an intention: "{intention}". If natural, help them stay connected to it. Don't force it.` This is skipped when grounding is active.
+4. **Orchestrator** — `LivingEditor` syncs the intention to `orchestratorRef.current.setIntention()` via a `useEffect`. The orchestrator passes it to `buildPartMessages` options.
+5. **Reflection** — `reflectionEngine.ts` prepends `[Writer's intention: "..."]` to the entry text when running reflection, so summaries and memories capture the intended direction.
+
+### Guided explorations
+
+AI-generated personalized writing prompts on new blank entries. Controlled by `features.guidedExplorations`. Connects to Intentions: selecting an exploration sets it as the entry's intention.
+
+#### How it works
+
+1. **Engine** — `explorationEngine.ts` loads user profile + recent entry summaries, calls `chatCompletion` with a prompt asking for N personalized writing prompts, parses JSON response into `GuidedExploration[]`.
+2. **Trigger** — `App.tsx` `handleNewEntry` calls `engine.reset()` then `generateExplorations()` if the feature is enabled and grounding is not active. Single-shot guard prevents duplicate suggestions.
+3. **UI** — `ExplorationCard.tsx` renders 2-3 prompts as clickable items in a subtle card with Spectral font and "where to begin" header. Dismiss button (×) clears the card.
+4. **Selection** — Clicking a prompt calls `handleSelectExploration` which sets the prompt as the intention and dismisses the card.
+5. **Suppression** — Explorations don't generate during grounding mode. Cleared on entry switch.
+
+#### Feature interconnections
+
+| Scenario | Behavior |
+|----------|----------|
+| User selects exploration | Prompt becomes entry intention |
+| Grounding activates | Explorations suppressed, intention not pursued in prompts |
+| Grounding deactivates | Normal behavior resumes |
+| Entry switch | Intention loads from entry, explorations reset |
+| New entry (blank) | Explorations generate, intention starts empty |
+
+#### Tuning (admin Settings → Writing Guidance)
+
+`GlobalConfig.explorations`: `maxPrompts` (default 3), `triggerOnNewEntry` (default true).
 
 ### Autocorrect
 
@@ -325,6 +391,9 @@ Visit `undersurface.me/admin` → Settings tab:
 - Toggle `partsEnabled` to disable/enable AI thoughts
 - Toggle `visualEffectsEnabled` to disable/enable breathing background
 - Toggle `autocorrectEnabled` to disable/enable spell correction
+- Toggle `emergencyGrounding` to enable distress detection + grounding mode (Safety & Wellbeing section)
+- Toggle `intentionsEnabled` to enable per-entry writing intentions (Writing Guidance section)
+- Toggle `guidedExplorations` to enable AI writing prompts on new entries (Writing Guidance section)
 - Set an announcement message to show a banner to all users
 
 Changes propagate in real-time via Firestore `onSnapshot`.
@@ -365,3 +434,8 @@ If the app needs to work on a new domain:
 - **Part colorLight alpha differs by theme**: Light mode uses `'25'` alpha, dark mode uses `'30'` (via `boostAlpha` helper). Without the boost, part thought backgrounds are nearly invisible on dark backgrounds.
 - **PWA temporarily disabled**: `VitePWA` import and plugin are commented out in `vite.config.ts`. Re-enable when ready for production PWA.
 - **Sidebar backdrop-filter**: The sidebar uses `backdrop-filter: blur(16px)` for readability over editor text. The gradient is solid for 80% of its width to prevent text showing through.
+- **Experimental features default to disabled**: Features like `emergencyGrounding`, `intentionsEnabled`, `guidedExplorations` use `=== true` checks. This is the opposite of core flags. If you add a new experimental feature, use `=== true` (disabled by default).
+- **Grounding CSS overrides emotion atmosphere**: `[data-grounding="true"] .atmosphere[data-emotion]` forces calm greens regardless of the current emotion. Both light and dark variants are needed.
+- **Intention field on entry documents**: The `intention` field is stored directly on entry documents via `db.entries.update`. It's not in the `DiaryEntry` TypeScript interface — accessed via cast (e.g., `as { intention?: string }`). This follows the existing pattern for `createdAt` access.
+- **Grounding suppresses intention in prompts**: When `isGrounding` is true in `buildPartMessages`, the grounding instruction is appended instead of the intention instruction. This is intentional — during distress, parts should not push the writer toward their intention.
+- **Exploration engine single-shot guard**: `ExplorationEngine.hasSuggested` prevents duplicate API calls per entry. Must call `reset()` before `shouldSuggest()` on entry switch.
