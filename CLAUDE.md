@@ -117,30 +117,31 @@ User opens Settings → Delete Account / Contact form
 | `src/engine/spellEngine.ts` | Autocorrect (Damerau-Levenshtein + Typo.js) |
 | `src/engine/weatherEngine.ts` | Inner weather tracking from emotional tone shifts |
 | `src/engine/ritualEngine.ts` | Session logging for ritual detection (writing habits) |
-| `src/engine/fossilEngine.ts` | Resurfaces old entry commentary when revisiting past entries |
-| `src/engine/explorationEngine.ts` | AI-generated personalized writing prompts from user profile + recent summaries |
+| `src/engine/fossilEngine.ts` | Resurfaces old entry commentary when revisiting past entries. Lazy-loaded on first entry switch |
+| `src/engine/explorationEngine.ts` | AI-generated personalized writing prompts from user profile + recent summaries. Lazy-loaded on first new entry |
 | `src/store/db.ts` | Firestore wrapper — mimics Dexie.js API surface; 12 collection proxies + Markdown data export |
 | `src/store/settings.ts` | User settings in localStorage (3-tier cascade: hardcoded < globalConfig < localStorage) |
 | `src/store/globalConfig.ts` | Real-time listener on `appConfig/global` Firestore doc, provides `useGlobalConfig()` hook |
 | `src/firebase.ts` | Firebase/Firestore initialization with offline persistence |
 | `src/auth/authContext.ts` | Auth context type: `signIn` (Google), `signInWithEmail`, `signUpWithEmail`, `resetPassword`, `signOut` |
-| `src/auth/AuthContext.tsx` | Auth provider — Google + Email/Password + password reset via `sendPasswordResetEmail` |
+| `src/services/analytics.ts` | Firebase Analytics wrapper — lazy-initializes on first `trackEvent()`, guards SSR/test; also exports `setAnalyticsUser`/`clearAnalyticsUser` |
+| `src/auth/AuthContext.tsx` | Auth provider — Google + Email/Password + password reset; sets Sentry user context + analytics user on auth state change |
 | `src/auth/useAuth.ts` | Hook for consuming auth context |
 | `src/api/accountApi.ts` | Client-side account API caller for `deleteAccount` and `submitContact` actions |
 | `src/components/LoginScreen.tsx` | Landing page + auth: artistic design with Spectral serif poetry, breathing circle animation, email/password form (sign-in, sign-up, password reset modes), Google sign-in alternative |
 | `src/components/Onboarding.tsx` | Post-signup consent flow (terms acceptance) |
 | `src/components/CrisisResources.tsx` | Crisis resource links shown during grounding mode |
-| `src/components/DeleteAccountModal.tsx` | Account deletion confirmation modal |
+| `src/components/DeleteAccountModal.tsx` | Account deletion confirmation modal. Lazy-loaded from SettingsPanel — default export |
 | `src/components/PolicyContent.tsx` | Privacy policy and disclaimer content |
-| `src/components/PolicyModal.tsx` | Modal wrapper for policy content |
+| `src/components/PolicyModal.tsx` | Modal wrapper for policy content — default export |
 | `src/components/InnerWeather.tsx` | Inner weather display widget |
 | `src/components/SessionClosing.tsx` | Session closing overlay — shows The Weaver's closing thought with fade-in/out animation |
 | `src/components/AnnouncementBanner.tsx` | Fixed banner from global config, dismissible via sessionStorage |
-| `src/components/Editor/LivingEditor.tsx` | TipTap-based rich text editor with part thoughts, autocorrect, color bleed |
+| `src/components/Editor/LivingEditor.tsx` | TipTap-based rich text editor with part thoughts, autocorrect, color bleed. Lazy-loaded via `React.lazy` — default export |
 | `src/components/Editor/IntentionInput.tsx` | Subtle per-entry intention input (ghost button → inline edit, 120 char max) |
 | `src/components/Editor/ExplorationCard.tsx` | Clickable exploration prompt card with dismiss button |
 | `src/components/Sidebar/EntriesList.tsx` | Entry list sidebar |
-| `src/components/Sidebar/SettingsPanel.tsx` | User settings panel (appearance, model, speed, data export, contact form, delete account) |
+| `src/components/Sidebar/SettingsPanel.tsx` | User settings panel (appearance, model, speed, data export, contact form, delete account). Opens as a slide-up overlay above the gear button |
 | `src/admin/adminTypes.ts` | TypeScript types for admin API responses + `GlobalConfig` |
 | `src/admin/adminApi.ts` | Client-side admin API caller (`adminFetch(action, params)`) |
 | `src/admin/AdminDashboard.tsx` | Admin shell with tab navigation (Overview, Users, Analytics, Messages, Insights, Settings). Lazy-loaded via `React.lazy` — default export. |
@@ -161,7 +162,7 @@ User opens Settings → Delete Account / Contact form
 | `functions/src/index.ts` | Cloud Functions — `chat` (OpenRouter proxy) + `accountApi` (user self-service) + `adminApi` (admin backend) |
 | `firebase.json` | Hosting config + rewrites: `/api/chat` → `chat`, `/api/admin` → `adminApi`, `/api/account` → `accountApi` |
 | `firestore.rules` | Security rules — users read/write own data; `appConfig` readable by all authenticated; `contactMessages` deny-all (written via Admin SDK only) |
-| `vite.config.ts` | Vite + React + Tailwind CSS v4 + VitePWA (precaching + Google Fonts caching) |
+| `vite.config.ts` | Vite + React + Tailwind CSS v4 + VitePWA + Sentry source map upload; `manualChunks` splits TipTap/ProseMirror into `editor` chunk and Sentry into `sentry` chunk |
 | `public/robots.txt` | SEO: allows all except `/admin`, references sitemap |
 | `public/sitemap.xml` | SEO: single URL entry for `https://undersurface.me/` |
 | `public/og-image.png` | 1200x630 Open Graph image (warm background, Spectral title, Inter tagline) |
@@ -184,6 +185,8 @@ Firebase Authentication with Google Sign-In and Email/Password. The auth flow:
 - The `LoginScreen` serves as both landing page and auth form: email/password with sign-in, sign-up, and password reset modes; Google sign-in as alternative
 - The Cloud Functions verify Firebase ID tokens on every request
 - `adminApi` additionally checks email against `ADMIN_EMAILS` allowlist (hardcoded in both `functions/src/index.ts` and `src/App.tsx`)
+- On auth state change, `AuthContext.tsx` sets Sentry user context (`Sentry.setUser`) and Firebase Analytics user ID (`setAnalyticsUser`); clears both on sign-out
+- `signIn`, `signInWithEmail`, and `signUpWithEmail` fire analytics events (`sign_in`/`sign_up`) after successful auth
 
 ### URL routing
 
@@ -360,15 +363,99 @@ AI-generated personalized writing prompts on new blank entries. Controlled by `f
 
 ### Session closing
 
-A warm closing ritual when the user taps "done for now" at the bottom of the editor.
+A warm closing ritual when the user taps "close session" in the toolbar above the editor.
 
 #### How it works
 
-1. **Trigger** — A subtle "done for now" text button sits at bottom-center of the screen (CSS class `session-close-trigger`). On mobile (≤768px), it shifts up to `bottom: 56px` with a larger tap target.
+1. **Trigger** — A subtle "close session" text button sits in the toolbar row above the editor, right-aligned next to the intention input (CSS class `session-close-trigger`). It shares a flex row with `IntentionInput` — when intentions are disabled, the button still appears top-right of the editor area.
 2. **Save + AI call** — `handleSessionClose` in `App.tsx` saves the current entry, then sends the last ~600 characters to The Weaver via `chatCompletion` with a special closing prompt (max 80 tokens, 15s timeout).
 3. **Overlay** — `SessionClosing.tsx` renders a full-screen overlay: backdrop fades in (0.5s), breathing dots pulse while loading, then the phrase floats in with a subtle upward animation. "— The Weaver" attribution appears below in purple (`--color-weaver`).
 4. **Dismiss** — User taps anywhere to fade out (0.5s) and return to the editor.
 5. **Fallback** — If the AI call fails, the fallback phrase is: "You showed up today. That matters."
+
+### Bundle splitting
+
+The frontend uses code splitting to reduce the initial bundle size. The main chunk is ~224KB gzipped (down from ~397KB before splitting).
+
+#### Lazy-loaded components (React.lazy)
+
+| Component | Loaded when | Chunk |
+|-----------|------------|-------|
+| `LivingEditor` | After auth + DB init + consent | `LivingEditor` (~53KB) |
+| `AdminDashboard` | `/admin` route | admin chunk |
+| `DeleteAccountModal` | Settings → "Delete account" click | included in main (small) |
+| `PolicyModal` | Settings → "Privacy & Terms" click | not split (statically imported by LoginScreen/Onboarding) |
+
+`LivingEditor` wraps in `<Suspense fallback={<EditorSkeleton />}>` — a lightweight placeholder matching the editor layout.
+
+#### Lazy-loaded engines (dynamic import)
+
+| Engine | Loaded when | Why lazy |
+|--------|------------|----------|
+| `FossilEngine` | First entry switch (revisiting old entry) | Only needed for past entries, not new ones |
+| `ExplorationEngine` | First new entry with feature enabled | Experimental feature, often disabled |
+
+Both use `await import('./engine/...')` at their call sites in `App.tsx`. Refs are `useRef<... | null>(null)`.
+
+#### manualChunks
+
+`vite.config.ts` groups dependencies:
+- `@tiptap/*` + `prosemirror-*` → `editor` chunk (~119KB gzipped)
+- `@sentry/*` → `sentry` chunk (~30KB gzipped)
+
+### Firebase Analytics
+
+Product analytics via Firebase Analytics, lazy-initialized on first event.
+
+#### Service module
+
+`src/services/analytics.ts` wraps Firebase Analytics:
+- `trackEvent(name, params?)` — logs a custom event; lazy-initializes analytics on first call
+- `setAnalyticsUser(uid)` — sets user ID after auth
+- `clearAnalyticsUser()` — clears user ID on sign-out
+- Guards against SSR (`typeof window === 'undefined'`) and missing analytics config
+
+#### Event catalog
+
+| Event | File | Trigger | Params |
+|-------|------|---------|--------|
+| `app_launch` | `App.tsx` | After `isReady` set to true | — |
+| `sign_in` | `AuthContext.tsx` | After successful auth | `method: 'google' \| 'email'` |
+| `sign_up` | `AuthContext.tsx` | After `createUserWithEmailAndPassword` | — |
+| `onboarding_complete` | `App.tsx` | `handleOnboardingComplete` | — |
+| `new_entry` | `App.tsx` | `handleNewEntry` | — |
+| `entry_switch` | `App.tsx` | `handleSelectEntry` | `entry_age_days` |
+| `session_close` | `App.tsx` | `handleSessionClose` | `word_count` |
+| `export_data` | `SettingsPanel.tsx` | Export button click | — |
+| `part_thought` | `partOrchestrator.ts` | After thought generated | `part_name`, `emotion`, `pause_type` |
+| `thinking_out_loud` | `LivingEditor.tsx` | User responds to TOL | `part_name`, `status` |
+| `grounding_activated` | `useGroundingMode.ts` | `activateGrounding()` | `trigger: 'auto' \| 'manual'` |
+| `exploration_shown` | `App.tsx` | Explorations generated | `count` |
+| `exploration_selected` | `App.tsx` | `handleSelectExploration` | `source` |
+| `intention_set` | `App.tsx` | `handleIntentionChange` (non-empty) | — |
+| `emotion_shift` | `App.tsx` | `handleEmotionChange` | `from`, `to` |
+| `fossil_shown` | `App.tsx` | Fossil thought rendered | `part_name` |
+
+#### Setup note
+
+Firebase Analytics must be enabled in Firebase Console → Project Settings → Integrations → Google Analytics. Events may take up to 24h to appear in the console.
+
+### Sentry (frontend error monitoring)
+
+Catches unhandled exceptions, API failures, and React render errors in production.
+
+#### Configuration
+
+- **Init**: `src/main.tsx` — `Sentry.init()` before `ReactDOM.createRoot()`, production-only
+- **User context**: `src/auth/AuthContext.tsx` — sets `Sentry.setUser({ id, email })` on auth, clears on sign-out
+- **Error boundary**: `src/components/ErrorBoundary.tsx` — `Sentry.captureException()` in `componentDidCatch`
+- **Source maps**: `@sentry/vite-plugin` uploads source maps during `npm run build` (requires `SENTRY_AUTH_TOKEN`)
+
+#### Sample rates
+
+- `tracesSampleRate: 0.1` — 10% of transactions for performance monitoring
+- `replaysSessionSampleRate: 0` — no session replay by default
+- `replaysOnErrorSampleRate: 0.1` — 10% of error sessions get replay
 
 ### Data export
 
@@ -393,9 +480,18 @@ VITE_FIREBASE_PROJECT_ID
 VITE_FIREBASE_STORAGE_BUCKET
 VITE_FIREBASE_MESSAGING_SENDER_ID
 VITE_FIREBASE_APP_ID
+VITE_SENTRY_DSN                    # Sentry DSN for error reporting (client-side, VITE_ prefixed)
 ```
 
-These are public Firebase client config values (security is via Firestore rules + auth, not config secrecy).
+Build-time only (not `VITE_` prefixed, not bundled into client):
+
+```
+SENTRY_AUTH_TOKEN                  # For Sentry source map uploads during build
+SENTRY_ORG                         # Sentry organization slug
+SENTRY_PROJECT                     # Sentry project slug
+```
+
+The `VITE_FIREBASE_*` values are public Firebase client config (security is via Firestore rules + auth, not config secrecy). The `VITE_SENTRY_DSN` is also safe to expose — Sentry DSNs are public by design.
 
 ## Code Conventions
 
@@ -525,10 +621,19 @@ If the app needs to work on a new domain:
 - **Intention field on entry documents**: The `intention` field is stored directly on entry documents via `db.entries.update`. It's not in the `DiaryEntry` TypeScript interface — accessed via cast (e.g., `as { intention?: string }`). This follows the existing pattern for `createdAt` access.
 - **Grounding suppresses intention in prompts**: When `isGrounding` is true in `buildPartMessages`, the grounding instruction is appended instead of the intention instruction. This is intentional — during distress, parts should not push the writer toward their intention.
 - **Exploration engine single-shot guard**: `ExplorationEngine.hasSuggested` prevents duplicate API calls per entry. Must call `reset()` before `shouldSuggest()` on entry switch.
-- **Admin dashboard is lazy-loaded**: `AdminDashboard` uses `React.lazy()` + `Suspense` in `App.tsx`. It must use a default export. All admin components (AdminOverview, AdminUsers, AdminAnalytics, AdminMessages, AdminInsights, AdminSettings, adminApi, adminTypes) are bundled into a separate chunk.
+- **Admin dashboard is lazy-loaded**: `AdminDashboard` uses `React.lazy()` + `Suspense` in `App.tsx` (same pattern as `LivingEditor`). It must use a default export. All admin components (AdminOverview, AdminUsers, AdminAnalytics, AdminMessages, AdminInsights, AdminSettings, adminApi, adminTypes) are bundled into a separate chunk.
 - **contactMessages Firestore rules**: `contactMessages` has `allow read, write: if false` in client rules. It's a top-level collection (not under `users/{uid}/`) written by `accountApi` Cloud Function via Admin SDK and read by `adminApi` Cloud Function.
 - **Account deletion deletes 12 collections**: The `deleteAccount` action in `accountApi` must delete all subcollections under `users/{uid}/`. If a new collection is added to `db.ts`, it must also be added to the deletion list in `functions/src/index.ts`.
 - **Analytics iterates all users**: `handleGetAnalytics` in `functions/src/index.ts` reads entries/parts/thoughts for every user. Fine at small scale but may need optimization (aggregation docs, Cloud Scheduler) as user count grows.
 - **Session closing uses The Weaver specifically**: The closing prompt is hardcoded to The Weaver's voice (pattern-seeing, warm, connecting). The part ID isn't used — it's a standalone `chatCompletion` call with a Weaver-flavored system prompt in `App.tsx`.
-- **Session closing button mobile positioning**: On mobile (≤768px), the "done for now" button sits at `bottom: 56px` to clear the InnerWeather widget at `bottom: 20px` and iOS Safari's bottom chrome. Styled via `.session-close-trigger` class in `atmosphere.css`.
+- **Session closing button is in the toolbar**: The "close session" button is in the flex row above the editor (not fixed at the bottom). It shares a row with `IntentionInput`. Styled via `.session-close-trigger` class in `atmosphere.css`.
 - **Data export is Markdown, not JSON**: `exportAllData()` produces a `.md` file with human-readable diary content. Part UUIDs are resolved to names via a lookup map built from the parts collection.
+- **React.lazy requires default exports**: `LivingEditor`, `AdminDashboard`, `DeleteAccountModal`, and `PolicyModal` all use `React.lazy()` for code splitting. Each must have a default export. `PolicyModal` is also imported directly (not lazy) by `LoginScreen` and `Onboarding` — this is fine; Vite won't split it into a separate chunk since it's statically imported elsewhere.
+- **Sentry is production-only**: `Sentry.init()` in `main.tsx` has `enabled: import.meta.env.PROD`. No error reporting in dev. To test Sentry locally, temporarily change to `enabled: true`.
+- **Analytics lazy-initializes**: `src/services/analytics.ts` calls `getAnalytics()` on the first `trackEvent()`, not at module import. This avoids blocking startup. Uses `getApp()` from `firebase/app` (not a direct import of the app instance from `firebase.ts`).
+- **FossilEngine and ExplorationEngine are lazy-loaded**: Both engines are initialized via dynamic `import()` at their call sites in `App.tsx` (not eagerly imported). Their refs are `useRef<... | null>(null)` and null-checked before use.
+- **Settings panel is a slide-up overlay**: `.settings-body` uses `position: absolute; bottom: calc(100% + 4px)` to float above the gear button. It has `max-height: 65vh` with overflow scroll and a slide-up animation. The gear button gets an `.active` class when open.
+- **manualChunks splits editor and Sentry**: `vite.config.ts` groups `@tiptap` + `prosemirror` into an `editor` chunk (~119KB) and `@sentry` into a `sentry` chunk (~30KB). The main chunk is ~224KB gzipped (down from ~397KB).
+- **Sentry source map upload needs env vars**: `sentryVitePlugin` in `vite.config.ts` reads `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` from `process.env` (not `import.meta.env`). The plugin is disabled when `SENTRY_AUTH_TOKEN` is missing (e.g., local dev, CI without secrets).
+- **ErrorBoundary captures to Sentry**: `componentDidCatch` in `ErrorBoundary.tsx` calls `Sentry.captureException(error)` to report React render errors. This is the only class component in the codebase.
+- **Grounding activation trigger parameter**: `activateGrounding()` accepts an optional `trigger: 'auto' | 'manual'` parameter for analytics tracking. The orchestrator passes `'auto'`, the settings toggle passes `'manual'`.
