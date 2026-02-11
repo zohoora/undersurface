@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation, getLanguageCode } from '../i18n'
 
 interface CrisisResourcesProps {
   visible: boolean
@@ -12,6 +13,8 @@ export function CrisisResources({ visible }: CrisisResourcesProps) {
 
 function CrisisResourcesCard() {
   const [dismissed, setDismissed] = useState(false)
+  const t = useTranslation()
+  const isEnglish = getLanguageCode() === 'en'
 
   if (dismissed) return null
 
@@ -59,49 +62,53 @@ function CrisisResourcesCard() {
         color: 'var(--text-primary)',
         marginBottom: 14,
       }}>
-        You don't have to do this alone
+        {t['crisis.title']}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-          <strong>988 Suicide &amp; Crisis Lifeline</strong>
-          <br />
-          Call or text{' '}
-          <a
-            href="tel:988"
-            style={{ color: 'var(--color-still)', textDecoration: 'underline', textUnderlineOffset: 3 }}
-          >
-            988
-          </a>
-        </div>
+        {isEnglish && (
+          <>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              <strong>{t['crisis.988.name']}</strong>
+              <br />
+              {t['crisis.988.action']}{' '}
+              <a
+                href="tel:988"
+                style={{ color: 'var(--color-still)', textDecoration: 'underline', textUnderlineOffset: 3 }}
+              >
+                988
+              </a>
+            </div>
 
-        <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-          <strong>Crisis Text Line</strong>
-          <br />
-          Text HOME to{' '}
-          <a
-            href="sms:741741&body=HOME"
-            style={{ color: 'var(--color-still)', textDecoration: 'underline', textUnderlineOffset: 3 }}
-          >
-            741741
-          </a>
-        </div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              <strong>{t['crisis.textLine.name']}</strong>
+              <br />
+              {t['crisis.textLine.action']}{' '}
+              <a
+                href="sms:741741&body=HOME"
+                style={{ color: 'var(--color-still)', textDecoration: 'underline', textUnderlineOffset: 3 }}
+              >
+                741741
+              </a>
+            </div>
+          </>
+        )}
 
         <div style={{
-          fontSize: 12,
-          color: 'var(--text-ghost)',
+          fontSize: isEnglish ? 12 : 13,
+          color: isEnglish ? 'var(--text-ghost)' : 'var(--text-secondary)',
           lineHeight: 1.5,
-          paddingTop: 4,
-          borderTop: '1px solid var(--border-light)',
+          paddingTop: isEnglish ? 4 : 0,
+          borderTop: isEnglish ? '1px solid var(--border-light)' : 'none',
         }}>
-          Outside the US?{' '}
+          {isEnglish ? t['crisis.international'] : t['crisis.internationalOnly']}{' '}
           <a
             href="https://findahelpline.com"
             target="_blank"
             rel="noopener noreferrer"
             style={{ color: 'var(--color-still)', textDecoration: 'underline', textUnderlineOffset: 3 }}
           >
-            findahelpline.com
+            {t['crisis.findHelpline']}
           </a>
         </div>
       </div>
@@ -121,7 +128,7 @@ function CrisisResourcesCard() {
           cursor: 'pointer',
         }}
       >
-        I'm okay
+        {t['crisis.dismiss']}
       </button>
     </div>
   )

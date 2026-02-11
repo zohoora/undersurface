@@ -1,0 +1,183 @@
+const en = {
+  // Login screen
+  'login.tagline': 'Write freely. When you pause,\nan inner voice stirs —\nnot to judge, but to sit beside you\nin the words.',
+  'login.email': 'Email',
+  'login.password': 'Password',
+  'login.signIn': 'Sign in',
+  'login.signUp': 'Create account',
+  'login.reset': 'Send reset link',
+  'login.pleaseWait': 'Please wait...',
+  'login.forgotPassword': 'Forgot password?',
+  'login.alreadyHaveAccount': 'Already have an account? Sign in',
+  'login.backToSignIn': 'Back to sign in',
+  'login.or': 'or',
+  'login.signInWithGoogle': 'Sign in with Google',
+  'login.privacyPolicy': 'Privacy Policy',
+  'login.disclaimer': 'Disclaimer',
+  'login.resetSuccess': 'Password reset email sent. Check your inbox.',
+
+  // Onboarding
+  'onboarding.welcome': 'Welcome to UnderSurface',
+  'onboarding.step1.body': 'This is a diary — but not just a diary. As you write, inner voices will appear on the page. They notice what you\'re writing about, and they respond — gently, honestly, sometimes in ways you don\'t expect.',
+  'onboarding.step1.button': 'How does it work?',
+  'onboarding.step2.title': 'Your inner voices',
+  'onboarding.step2.body1': 'As you write, different voices may appear — The Watcher, The Tender One, The Still Point, and others. Each notices different things: patterns in your words, emotions beneath the surface, what you might be avoiding.',
+  'onboarding.step2.body2': 'They learn from your writing and evolve over time. They\'re not therapists — they\'re companions to the writing process.',
+  'onboarding.step2.button': 'One more thing',
+  'onboarding.step3.title': 'Before you begin',
+  'onboarding.step3.body': 'UnderSurface is a writing tool, not a therapeutic service. The inner voices are AI writing companions — they\'re not therapists, and they can\'t replace professional care.',
+  'onboarding.step3.disclaimer': 'I understand this is not a therapeutic service',
+  'onboarding.step3.privacy': 'I\'ve read and accept the',
+  'onboarding.step3.privacyLink': 'Privacy Policy',
+  'onboarding.step3.begin': 'Begin writing',
+  'onboarding.step3.starting': 'Starting...',
+  'onboarding.back': 'Back',
+
+  // Settings panel
+  'settings.title': 'Settings',
+  'settings.account': 'Account',
+  'settings.signOut': 'Sign out',
+  'settings.language': 'Language',
+  'settings.appearance': 'Appearance',
+  'settings.theme': 'Theme',
+  'settings.themeAuto': 'Auto',
+  'settings.themeLight': 'Light',
+  'settings.themeDark': 'Dark',
+  'settings.responsiveness': 'Responsiveness',
+  'settings.responseSpeed': 'Response speed',
+  'settings.slower': 'Slower',
+  'settings.faster': 'Faster',
+  'settings.editor': 'Editor',
+  'settings.autoScroll': 'Auto-scroll',
+  'settings.scrollOff': 'Off',
+  'settings.scrollComfortable': 'Comfortable',
+  'settings.scrollTypewriter': 'Typewriter',
+  'settings.autocorrect': 'Autocorrect',
+  'settings.contactUs': 'Contact Us',
+  'settings.contactPlaceholder': 'Your message...',
+  'settings.contactSent': 'Message sent — thank you!',
+  'settings.contactSend': 'Send',
+  'settings.contactSending': 'Sending...',
+  'settings.data': 'Data',
+  'settings.exportAll': 'Export all data',
+  'settings.privacyTerms': 'Privacy & Terms',
+  'settings.deleteAccount': 'Delete account',
+
+  // Entries list / sidebar
+  'entries.title': 'Entries',
+  'entries.new': '+ New entry',
+  'entries.today': 'Today',
+  'entries.yesterday': 'Yesterday',
+  'entries.empty': 'Empty entry',
+
+  // Editor
+  'editor.placeholder': 'Begin writing...',
+
+  // Intention input
+  'intention.set': '+ set an intention',
+  'intention.placeholder': 'What do you want to explore today?',
+
+  // Exploration card
+  'exploration.header': 'where to begin',
+
+  // Session closing
+  'session.end': 'end session',
+  'session.tapToClose': 'tap anywhere to close',
+  'session.fallback': 'You showed up today. That matters.',
+  'session.attribution': 'The Weaver',
+
+  // Emotions (for InnerWeather display)
+  'emotion.tender': 'tender',
+  'emotion.anxious': 'anxious',
+  'emotion.sad': 'sad',
+  'emotion.angry': 'angry',
+  'emotion.joyful': 'joyful',
+  'emotion.contemplative': 'contemplative',
+  'emotion.fearful': 'fearful',
+  'emotion.hopeful': 'hopeful',
+  'emotion.neutral': 'neutral',
+  'emotion.conflicted': 'conflicted',
+
+  // Weather trends
+  'weather.rising': 'rising',
+  'weather.falling': 'falling',
+  'weather.steady': 'steady',
+
+  // Crisis resources
+  'crisis.title': 'You don\'t have to do this alone',
+  'crisis.988.name': '988 Suicide & Crisis Lifeline',
+  'crisis.988.action': 'Call or text',
+  'crisis.textLine.name': 'Crisis Text Line',
+  'crisis.textLine.action': 'Text HOME to',
+  'crisis.international': 'Outside the US?',
+  'crisis.internationalOnly': 'Find a helpline in your country',
+  'crisis.findHelpline': 'findahelpline.com',
+  'crisis.dismiss': 'I\'m okay',
+
+  // Delete account modal
+  'delete.title': 'Delete your account',
+  'delete.warning': 'This will permanently delete all your data — diary entries, inner voices, memories, thoughts, and everything else. This cannot be undone.',
+  'delete.exportFirst': 'Save your writing first via <strong>Export all data</strong> in Settings.',
+  'delete.confirmPrompt': 'Type <strong>delete</strong> to confirm',
+  'delete.cancel': 'Cancel',
+  'delete.confirm': 'Delete everything',
+  'delete.deleting': 'Deleting...',
+
+  // Error boundary
+  'error.title': 'Something went wrong',
+  'error.reload': 'Reload',
+
+  // App-level strings
+  'app.subtitle': 'A diary where inner voices respond as you write',
+  'app.newVersion': 'New version available — tap to refresh',
+  'app.skipToEditor': 'Skip to editor',
+  'app.fossilLabel': 'from the archive',
+  'app.initError': 'Something went wrong',
+  'app.tryAgain': 'Try again',
+
+  // Seeded part display names
+  'part.watcher': 'The Watcher',
+  'part.tender': 'The Tender',
+  'part.still': 'The Still',
+  'part.spark': 'The Spark',
+  'part.weaver': 'The Weaver',
+  'part.open': 'The Open',
+
+  // Export headers
+  'export.title': 'UnderSurface — Journal Export',
+  'export.exportedOn': 'Exported on',
+  'export.aboutYou': 'About You',
+  'export.recurringThemes': 'Recurring Themes',
+  'export.emotionalPatterns': 'Emotional Patterns',
+  'export.growthSignals': 'Growth Signals',
+  'export.avoidancePatterns': 'Avoidance Patterns',
+  'export.innerVoices': 'Your Inner Voices',
+  'export.role': 'Role',
+  'export.concern': 'Concern',
+  'export.growth': 'Growth',
+  'export.keyReflections': 'Key reflections',
+  'export.journal': 'Journal',
+  'export.emptyEntry': 'Empty entry',
+  'export.intention': 'Intention',
+  'export.respondingTo': 'responding to',
+  'export.conversationWith': 'Conversation with',
+  'export.you': 'You',
+  'export.reflection': 'Reflection',
+  'export.themes': 'Themes',
+  'export.emotionalArc': 'Emotional arc',
+  'export.keyMoments': 'Key moments',
+  'export.reflectedOn': 'reflected on this entry',
+  'export.letters': 'Letters from Your Voices',
+  'export.letterFrom': 'Letter from',
+  'export.sessions': 'Writing Sessions',
+  'export.date': 'Date',
+  'export.time': 'Time',
+  'export.duration': 'Duration',
+  'export.words': 'Words',
+  'export.unknownVoice': 'Unknown Voice',
+} as const
+
+export type TranslationKey = keyof typeof en
+export type TranslationStrings = typeof en
+
+export default en

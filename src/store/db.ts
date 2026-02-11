@@ -16,6 +16,7 @@ import type { DocumentData } from 'firebase/firestore'
 import { firestore } from '../firebase'
 import { getAuth } from 'firebase/auth'
 import { SEEDED_PARTS } from '../ai/partPrompts'
+import { t, getLanguageCode, getPartDisplayName } from '../i18n'
 
 function getUid(): string {
   const user = getAuth().currentUser
@@ -147,13 +148,13 @@ export function generateId(): string {
 // ── Markdown export helpers ──
 
 function fmtDate(ts: number): string {
-  return new Date(ts).toLocaleDateString('en-US', {
+  return new Date(ts).toLocaleDateString(getLanguageCode(), {
     year: 'numeric', month: 'long', day: 'numeric',
   })
 }
 
 function fmtTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString('en-US', {
+  return new Date(ts).toLocaleTimeString(getLanguageCode(), {
     hour: 'numeric', minute: '2-digit',
   })
 }
@@ -189,10 +190,14 @@ function buildMarkdownExport(collections: Record<string, DocumentData[]>): strin
   const letters = collections.letters ?? []
   const sessions = (collections.sessionLog ?? []).sort((a, b) => (a.startedAt as number) - (b.startedAt as number))
 
-  // Part name lookup
-  const partName = new Map<string, string>()
-  for (const p of parts) partName.set(p.id as string, p.name as string)
-  const pn = (id: string) => partName.get(id) ?? 'Unknown Voice'
+  // Part name lookup (uses translated display names for seeded parts)
+  const partLookup = new Map<string, DocumentData>()
+  for (const p of parts) partLookup.set(p.id as string, p)
+  const pn = (id: string) => {
+    const p = partLookup.get(id)
+    if (!p) return t('export.unknownVoice')
+    return getPartDisplayName({ id: p.id as string, name: p.name as string, isSeeded: p.isSeeded as boolean | undefined })
+  }
 
   // Index by entryId
   const thoughtsByEntry = groupBy(thoughts, (t) => t.entryId as string)
@@ -205,8 +210,8 @@ function buildMarkdownExport(collections: Record<string, DocumentData[]>): strin
   const ln = (s = '') => lines.push(s)
 
   // ── Header ──
-  ln('# UnderSurface — Journal Export')
-  ln(`*Exported on ${fmtDate(Date.now())}*`)
+  ln(`# ${t('export.title')}`)
+  ln(`*${t('export.exportedOn')} ${fmtDate(Date.now())}*`)
   ln()
 
   // ── User Profile ──
@@ -214,17 +219,17 @@ function buildMarkdownExport(collections: Record<string, DocumentData[]>): strin
   if (profile) {
     ln('---')
     ln()
-    ln('## About You')
+    ln(`## ${t('export.aboutYou')}`)
     ln()
     if (profile.innerLandscape) {
       ln(`> ${(profile.innerLandscape as string).replace(/\n/g, '\n> ')}`)
       ln()
     }
     const fields: [string, string][] = [
-      ['Recurring Themes', 'recurringThemes'],
-      ['Emotional Patterns', 'emotionalPatterns'],
-      ['Growth Signals', 'growthSignals'],
-      ['Avoidance Patterns', 'avoidancePatterns'],
+      [t('export.recurringThemes'), 'recurringThemes'],
+      [t('export.emotionalPatterns'), 'emotionalPatterns'],
+      [t('export.growthSignals'), 'growthSignals'],
+      [t('export.avoidancePatterns'), 'avoidancePatterns'],
     ]
     for (const [label, key] of fields) {
       const arr = profile[key] as string[] | undefined
@@ -237,20 +242,21 @@ function buildMarkdownExport(collections: Record<string, DocumentData[]>): strin
   if (parts.length) {
     ln('---')
     ln()
-    ln('## Your Inner Voices')
+    ln(`## ${t('export.innerVoices')}`)
     ln()
     for (const p of parts) {
-      ln(`### ${p.name}`)
-      ln(`*Role: ${p.ifsRole}*`)
+      const displayName = getPartDisplayName({ id: p.id as string, name: p.name as string, isSeeded: p.isSeeded as boolean | undefined })
+      ln(`### ${displayName}`)
+      ln(`*${t('export.role')}: ${p.ifsRole}*`)
       ln()
       if (p.voiceDescription) ln((p.voiceDescription as string))
-      if (p.concern) ln(`\n**Concern:** ${p.concern}`)
-      if (p.systemPromptAddition) ln(`\n**Growth:** ${p.systemPromptAddition}`)
+      if (p.concern) ln(`\n**${t('export.concern')}:** ${p.concern}`)
+      if (p.systemPromptAddition) ln(`\n**${t('export.growth')}:** ${p.systemPromptAddition}`)
       const pMems = memoriesByPart.get(p.id as string) ?? []
       const reflections = pMems.filter((m) => m.type === 'reflection' || m.type === 'pattern')
       if (reflections.length) {
         ln()
-        ln('**Key reflections:**')
+        ln(`**${t('export.keyReflections')}:**`)
         for (const m of reflections.slice(-5)) {
           ln(`- ${(m.content as string).replace(/\n/g, ' ')}`)
         }
@@ -263,7 +269,7 @@ function buildMarkdownExport(collections: Record<string, DocumentData[]>): strin
   if (entries.length) {
     ln('---')
     ln()
-    ln('## Journal')
+    ln(`## ${t('export.journal')}`)
     ln()
 
     const byDate = groupBy(entries, (e) => fmtDate(e.createdAt as number))
@@ -279,18 +285,18 @@ function buildMarkdownExport(collections: Record<string, DocumentData[]>): strin
 
         ln(`#### ${fmtTime(entry.createdAt as number)}`)
         ln()
-        if (intention) ln(`*Intention: ${intention}*\n`)
-        ln(text || '*Empty entry*')
+        if (intention) ln(`*${t('export.intention')}: ${intention}*\n`)
+        ln(text || `*${t('export.emptyEntry')}*`)
         ln()
 
         // Thoughts from inner voices
         const eThoughts = (thoughtsByEntry.get(eid) ?? [])
           .sort((a, b) => (a.timestamp as number) - (b.timestamp as number))
         if (eThoughts.length) {
-          for (const t of eThoughts) {
-            const anchor = t.anchorText as string
-            const prefix = anchor ? ` *(responding to: "${anchor}")*` : ''
-            ln(`> **${pn(t.partId as string)}:**${prefix} ${t.content}`)
+          for (const th of eThoughts) {
+            const anchor = th.anchorText as string
+            const prefix = anchor ? ` *(${t('export.respondingTo')}: "${anchor}")*` : ''
+            ln(`> **${pn(th.partId as string)}:**${prefix} ${th.content}`)
             ln()
           }
         }
@@ -299,9 +305,9 @@ function buildMarkdownExport(collections: Record<string, DocumentData[]>): strin
         const eInteractions = (interactionsByEntry.get(eid) ?? [])
           .sort((a, b) => (a.timestamp as number) - (b.timestamp as number))
         for (const ix of eInteractions) {
-          ln(`**Conversation with ${pn(ix.partId as string)}:**`)
+          ln(`**${t('export.conversationWith')} ${pn(ix.partId as string)}:**`)
           if (ix.partOpening) ln(`> *${pn(ix.partId as string)}:* ${ix.partOpening}`)
-          if (ix.userResponse) ln(`>\n> *You:* ${ix.userResponse}`)
+          if (ix.userResponse) ln(`>\n> *${t('export.you')}:* ${ix.userResponse}`)
           if (ix.partReply) ln(`>\n> *${pn(ix.partId as string)}:* ${ix.partReply}`)
           ln()
         }
@@ -314,10 +320,10 @@ function buildMarkdownExport(collections: Record<string, DocumentData[]>): strin
           const arc = s.emotionalArc as string | undefined
           const moments = s.keyMoments as string[] | undefined
           if (themes?.length || arc || moments?.length) {
-            ln('**Reflection:**')
-            if (themes?.length) ln(`- Themes: ${themes.join(', ')}`)
-            if (arc) ln(`- Emotional arc: ${arc}`)
-            if (moments?.length) ln(`- Key moments: ${moments.join('; ')}`)
+            ln(`**${t('export.reflection')}:**`)
+            if (themes?.length) ln(`- ${t('export.themes')}: ${themes.join(', ')}`)
+            if (arc) ln(`- ${t('export.emotionalArc')}: ${arc}`)
+            if (moments?.length) ln(`- ${t('export.keyMoments')}: ${moments.join('; ')}`)
             ln()
           }
         }
@@ -325,7 +331,7 @@ function buildMarkdownExport(collections: Record<string, DocumentData[]>): strin
         // Fossils (voice commentary on past entries)
         const eFossils = fossilsByEntry.get(eid) ?? []
         for (const f of eFossils) {
-          ln(`> **${pn(f.partId as string)}** reflected on this entry: ${f.commentary}`)
+          ln(`> **${pn(f.partId as string)}** ${t('export.reflectedOn')}: ${f.commentary}`)
           ln()
         }
 
@@ -337,12 +343,12 @@ function buildMarkdownExport(collections: Record<string, DocumentData[]>): strin
 
   // ── Letters ──
   if (letters.length) {
-    ln('## Letters from Your Voices')
+    ln(`## ${t('export.letters')}`)
     ln()
     const sorted = [...letters].sort((a, b) => (a.createdAt as number) - (b.createdAt as number))
     for (const l of sorted) {
       const names = (l.partIds as string[]).map(pn).join(' & ')
-      ln(`### Letter from ${names}`)
+      ln(`### ${t('export.letterFrom')} ${names}`)
       ln(`*${fmtDate(l.createdAt as number)} — ${l.triggerType}*`)
       ln()
       ln(l.content as string)
@@ -354,9 +360,9 @@ function buildMarkdownExport(collections: Record<string, DocumentData[]>): strin
 
   // ── Writing Sessions ──
   if (sessions.length) {
-    ln('## Writing Sessions')
+    ln(`## ${t('export.sessions')}`)
     ln()
-    ln('| Date | Time | Duration | Words |')
+    ln(`| ${t('export.date')} | ${t('export.time')} | ${t('export.duration')} | ${t('export.words')} |`)
     ln('|------|------|----------|-------|')
     for (const s of sessions) {
       const dur = s.duration ? fmtDuration(s.duration as number) : '—'

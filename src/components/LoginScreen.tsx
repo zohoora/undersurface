@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useAuth } from '../auth/useAuth'
 import PolicyModal from './PolicyModal'
+import { useTranslation, SUPPORTED_LANGUAGES } from '../i18n'
+import { getSettings, updateSettings } from '../store/settings'
 
 const FORM_WIDTH = 280
 
@@ -34,6 +36,7 @@ function cleanFirebaseError(err: unknown): string {
 
 export function LoginScreen() {
   const { signIn, signInWithEmail, signUpWithEmail, resetPassword } = useAuth()
+  const t = useTranslation()
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [isSigningIn, setIsSigningIn] = useState(false)
@@ -63,7 +66,7 @@ export function LoginScreen() {
     try {
       if (mode === 'reset') {
         await resetPassword(email)
-        setSuccess('Password reset email sent. Check your inbox.')
+        setSuccess(t['login.resetSuccess'])
         setMode('signin')
       } else if (mode === 'signup') {
         await signUpWithEmail(email, password)
@@ -143,21 +146,38 @@ export function LoginScreen() {
           textAlign: 'center',
           lineHeight: 1.7,
           marginBottom: 24,
+          whiteSpace: 'pre-line',
         }}>
-          Write freely. When you pause,
-          <br />
-          an inner voice stirs &mdash;
-          <br />
-          not to judge, but to sit beside you
-          <br />
-          in the words.
+          {t['login.tagline']}
         </div>
+
+        {/* Language selector */}
+        <select
+          value={getSettings().language}
+          onChange={(e) => updateSettings({ language: e.target.value })}
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 12,
+            color: 'var(--text-ghost)',
+            background: 'none',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 6,
+            padding: '4px 8px',
+            cursor: 'pointer',
+            outline: 'none',
+            marginBottom: 8,
+          }}
+        >
+          {SUPPORTED_LANGUAGES.map((lang) => (
+            <option key={lang.code} value={lang.code}>{lang.nativeName}</option>
+          ))}
+        </select>
 
         {/* Auth form */}
         <form onSubmit={handleEmailSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <input
             type="email"
-            placeholder="Email"
+            placeholder={t['login.email']}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -166,7 +186,7 @@ export function LoginScreen() {
           {mode !== 'reset' && (
             <input
               type="password"
-              placeholder="Password"
+              placeholder={t['login.password']}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -190,7 +210,7 @@ export function LoginScreen() {
               width: FORM_WIDTH,
             }}
           >
-            {isSigningIn ? 'Please wait...' : mode === 'reset' ? 'Send reset link' : mode === 'signup' ? 'Create account' : 'Sign in'}
+            {isSigningIn ? t['login.pleaseWait'] : mode === 'reset' ? t['login.reset'] : mode === 'signup' ? t['login.signUp'] : t['login.signIn']}
           </button>
           <div style={{
             display: 'flex',
@@ -200,21 +220,21 @@ export function LoginScreen() {
             {mode === 'signin' && (
               <>
                 <button type="button" onClick={() => switchMode('signup')} style={{ ...policyLinkStyle, fontSize: 12, textDecoration: 'none' }}>
-                  Create account
+                  {t['login.signUp']}
                 </button>
                 <button type="button" onClick={() => switchMode('reset')} style={{ ...policyLinkStyle, fontSize: 12, textDecoration: 'none' }}>
-                  Forgot password?
+                  {t['login.forgotPassword']}
                 </button>
               </>
             )}
             {mode === 'signup' && (
               <button type="button" onClick={() => switchMode('signin')} style={{ ...policyLinkStyle, fontSize: 12, textDecoration: 'none', width: '100%', textAlign: 'center' }}>
-                Already have an account? Sign in
+                {t['login.alreadyHaveAccount']}
               </button>
             )}
             {mode === 'reset' && (
               <button type="button" onClick={() => switchMode('signin')} style={{ ...policyLinkStyle, fontSize: 12, textDecoration: 'none' }}>
-                Back to sign in
+                {t['login.backToSignIn']}
               </button>
             )}
           </div>
@@ -225,7 +245,7 @@ export function LoginScreen() {
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: FORM_WIDTH, margin: '4px 0' }}>
               <div style={{ flex: 1, height: 1, background: 'var(--border-subtle)' }} />
-              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: 'var(--text-ghost)' }}>or</span>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: 'var(--text-ghost)' }}>{t['login.or']}</span>
               <div style={{ flex: 1, height: 1, background: 'var(--border-subtle)' }} />
             </div>
 
@@ -255,7 +275,7 @@ export function LoginScreen() {
                 <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
                 <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
               </svg>
-              Sign in with Google
+              {t['login.signInWithGoogle']}
             </button>
           </>
         )}
@@ -287,10 +307,10 @@ export function LoginScreen() {
         {/* Policy links */}
         <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
           <button onClick={() => setPolicyOpen('privacy')} style={policyLinkStyle}>
-            Privacy Policy
+            {t['login.privacyPolicy']}
           </button>
           <button onClick={() => setPolicyOpen('disclaimer')} style={policyLinkStyle}>
-            Disclaimer
+            {t['login.disclaimer']}
           </button>
         </div>
         <PolicyModal

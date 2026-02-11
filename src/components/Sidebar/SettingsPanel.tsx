@@ -6,6 +6,7 @@ import { useTheme } from '../../hooks/useTheme'
 import { exportAllData } from '../../store/db'
 import { submitContactMessage } from '../../api/accountApi'
 import { trackEvent } from '../../services/analytics'
+import { useTranslation, SUPPORTED_LANGUAGES } from '../../i18n'
 
 const PolicyModal = lazy(() => import('../PolicyModal'))
 const DeleteAccountModal = lazy(() => import('../DeleteAccountModal'))
@@ -69,6 +70,7 @@ interface SettingsPanelProps {
 export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
   const settings = useSettings()
   const { user, signOut } = useAuth()
+  const t = useTranslation()
   useTheme()
   const [policyOpen, setPolicyOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -99,7 +101,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
           <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
           <circle cx="12" cy="12" r="3" />
         </svg>
-        <span>Settings</span>
+        <span>{t['settings.title']}</span>
       </button>
 
       {isOpen && (
@@ -107,7 +109,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
           {/* Account */}
           {user && (
             <div className="settings-section">
-              <div className="settings-section-label">Account</div>
+              <div className="settings-section-label">{t['settings.account']}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
                 {user.photoURL && (
                   <img
@@ -132,22 +134,48 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
                     cursor: 'pointer',
                   }}
                 >
-                  Sign out
+                  {t['settings.signOut']}
                 </button>
               </div>
             </div>
           )}
 
+          {/* Language */}
+          <div className="settings-section">
+            <div className="settings-section-label">{t['settings.language']}</div>
+            <SettingRow label={t['settings.language']}>
+              <select
+                value={settings.language}
+                onChange={(e) => set('language', e.target.value)}
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 11,
+                  color: 'var(--text-primary)',
+                  background: 'var(--surface-primary)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 4,
+                  padding: '3px 6px',
+                  cursor: 'pointer',
+                  outline: 'none',
+                }}
+              >
+                {SUPPORTED_LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>{lang.nativeName}</option>
+                ))}
+              </select>
+            </SettingRow>
+          </div>
+
           {/* Appearance */}
           <div className="settings-section">
-            <div className="settings-section-label">Appearance</div>
-            <SettingRow label="Theme">
+            <div className="settings-section-label">{t['settings.appearance']}</div>
+            <SettingRow label={t['settings.theme']}>
               <OptionGroup
                 value={settings.theme}
                 options={[
-                  { value: 'system', label: 'Auto' },
-                  { value: 'light', label: 'Light' },
-                  { value: 'dark', label: 'Dark' },
+                  { value: 'system', label: t['settings.themeAuto'] },
+                  { value: 'light', label: t['settings.themeLight'] },
+                  { value: 'dark', label: t['settings.themeDark'] },
                 ]}
                 onChange={(v) => set('theme', v)}
               />
@@ -156,10 +184,10 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
 
           {/* Part Responsiveness */}
           <div className="settings-section">
-            <div className="settings-section-label">Responsiveness</div>
-            <SettingRow label="Response speed">
+            <div className="settings-section-label">{t['settings.responsiveness']}</div>
+            <SettingRow label={t['settings.responseSpeed']}>
               <div className="settings-slider-row">
-                <span className="settings-slider-label">Slower</span>
+                <span className="settings-slider-label">{t['settings.slower']}</span>
                 <input
                   type="range"
                   className="settings-slider"
@@ -169,41 +197,40 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
                   value={settings.responseSpeed}
                   onChange={(e) => set('responseSpeed', parseFloat(e.target.value))}
                 />
-                <span className="settings-slider-label">Faster</span>
+                <span className="settings-slider-label">{t['settings.faster']}</span>
               </div>
             </SettingRow>
           </div>
 
           {/* Editor */}
           <div className="settings-section">
-            <div className="settings-section-label">Editor</div>
-            <SettingRow label="Auto-scroll">
+            <div className="settings-section-label">{t['settings.editor']}</div>
+            <SettingRow label={t['settings.autoScroll']}>
               <OptionGroup
                 value={settings.typewriterScroll}
                 options={[
-                  { value: 'off', label: 'Off' },
-                  { value: 'comfortable', label: 'Comfortable' },
-                  { value: 'typewriter', label: 'Typewriter' },
+                  { value: 'off', label: t['settings.scrollOff'] },
+                  { value: 'comfortable', label: t['settings.scrollComfortable'] },
+                  { value: 'typewriter', label: t['settings.scrollTypewriter'] },
                 ]}
                 onChange={(v) => set('typewriterScroll', v)}
               />
             </SettingRow>
           </div>
 
-          {/* Autocorrect */}
-          <div className="settings-section">
-            <div className="settings-section-label">Autocorrect</div>
-            <SettingRow label="Auto-capitalize">
-              <Toggle checked={settings.autoCapitalize} onChange={(v) => set('autoCapitalize', v)} />
-            </SettingRow>
-            <SettingRow label="Autocorrect">
-              <Toggle checked={settings.autocorrect} onChange={(v) => set('autocorrect', v)} />
-            </SettingRow>
-          </div>
+          {/* Autocorrect — only for English */}
+          {settings.language === 'en' && (
+            <div className="settings-section">
+              <div className="settings-section-label">{t['settings.autocorrect']}</div>
+              <SettingRow label={t['settings.autocorrect']}>
+                <Toggle checked={settings.autocorrect} onChange={(v) => { set('autocorrect', v); set('autoCapitalize', v) }} />
+              </SettingRow>
+            </div>
+          )}
 
           {/* Contact Us */}
           <div className="settings-section">
-            <div className="settings-section-label">Contact Us</div>
+            <div className="settings-section-label">{t['settings.contactUs']}</div>
             {contactSent ? (
               <div style={{
                 fontSize: 12,
@@ -211,7 +238,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
                 lineHeight: 1.5,
                 padding: '8px 0',
               }}>
-                Message sent — thank you!
+                {t['settings.contactSent']}
               </div>
             ) : (
               <>
@@ -222,7 +249,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
                     setContactError(null)
                   }}
                   disabled={contactSending}
-                  placeholder="Your message..."
+                  placeholder={t['settings.contactPlaceholder']}
                   rows={3}
                   style={{
                     width: '100%',
@@ -277,7 +304,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
                     opacity: contactSending ? 0.6 : 1,
                   }}
                 >
-                  {contactSending ? 'Sending...' : 'Send'}
+                  {contactSending ? t['settings.contactSending'] : t['settings.contactSend']}
                 </button>
               </>
             )}
@@ -285,18 +312,18 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
 
           {/* Data */}
           <div className="settings-section">
-            <div className="settings-section-label">Data</div>
+            <div className="settings-section-label">{t['settings.data']}</div>
             <button
               onClick={() => { trackEvent('export_data'); exportAllData() }}
               style={{ ...dataButtonBase, color: 'var(--text-primary)', marginBottom: 6 }}
             >
-              Export all data
+              {t['settings.exportAll']}
             </button>
             <button
               onClick={() => setPolicyOpen(true)}
               style={{ ...dataButtonBase, color: 'var(--text-secondary)', marginBottom: 6 }}
             >
-              Privacy &amp; Terms
+              {t['settings.privacyTerms']}
             </button>
             <button
               onClick={() => setDeleteOpen(true)}
@@ -306,7 +333,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
                 borderColor: 'var(--color-tender)',
               }}
             >
-              Delete account
+              {t['settings.deleteAccount']}
             </button>
           </div>
           <Suspense fallback={null}>

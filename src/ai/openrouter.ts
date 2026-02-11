@@ -146,16 +146,41 @@ export async function streamChatCompletion(
   }
 }
 
-export async function analyzeEmotion(text: string): Promise<string> {
+export async function analyzeEmotionAndDistress(text: string): Promise<{ emotion: string; distressLevel: number }> {
   const response = await chatCompletion([
     {
       role: 'system',
-      content: `You analyze the emotional tone of diary writing. Respond with ONLY one word from this list: neutral, tender, anxious, angry, sad, joyful, contemplative, fearful, hopeful, conflicted. Nothing else.`,
+      content: `You analyze the emotional tone and distress level of diary writing. This writing may be in any language. Respond with valid JSON only, no other text:
+{"emotion": "<one of: neutral, tender, anxious, angry, sad, joyful, contemplative, fearful, hopeful, conflicted>", "distress": <0-3>}
+
+Distress scale:
+0 = no distress
+1 = mild distress (worry, unease)
+2 = moderate distress (panic, overwhelm, acute fear)
+3 = severe distress (suicidal ideation, self-harm references, crisis)`,
     },
     {
       role: 'user',
       content: text.slice(-500),
     },
   ])
-  return response.trim().toLowerCase()
+
+  try {
+    const jsonMatch = response.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]) as { emotion?: string; distress?: number }
+      return {
+        emotion: typeof parsed.emotion === 'string' ? parsed.emotion.trim().toLowerCase() : 'neutral',
+        distressLevel: typeof parsed.distress === 'number' ? Math.min(3, Math.max(0, Math.round(parsed.distress))) : 0,
+      }
+    }
+  } catch {
+    // Parse failure — fall back to extracting emotion word
+  }
+
+  // Fallback: try to extract just an emotion word
+  const lower = response.trim().toLowerCase()
+  const validEmotions = ['neutral', 'tender', 'anxious', 'angry', 'sad', 'joyful', 'contemplative', 'fearful', 'hopeful', 'conflicted']
+  const found = validEmotions.find((e) => lower.includes(e))
+  return { emotion: found ?? 'neutral', distressLevel: 0 }
 }

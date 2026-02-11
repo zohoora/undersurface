@@ -28,7 +28,9 @@ import { Onboarding } from './components/Onboarding'
 import { CrisisResources } from './components/CrisisResources'
 import { SessionClosing } from './components/SessionClosing'
 import { chatCompletion } from './ai/openrouter'
+import { languageDirective } from './ai/partPrompts'
 import { trackEvent } from './services/analytics'
+import { t, useTranslation } from './i18n'
 import type { EmotionalTone, Part, GuidedExploration, InnerWeather as InnerWeatherType } from './types'
 
 const ADMIN_EMAILS = ['zohoora@gmail.com']
@@ -77,7 +79,7 @@ function SplashScreen() {
         color: 'var(--text-ghost)',
         letterSpacing: '0.02em',
       }}>
-        A diary where inner voices respond as you write
+        {t('app.subtitle')}
       </div>
     </div>
   )
@@ -85,6 +87,7 @@ function SplashScreen() {
 
 function App() {
   const { user, loading } = useAuth()
+  const tr = useTranslation()
   const [isReady, setIsReady] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
   const [hasConsent, setHasConsent] = useState<boolean | null>(null)
@@ -320,20 +323,32 @@ function App() {
       const phrase = await chatCompletion([
         {
           role: 'system',
-          content: `You are The Weaver — a warm, pattern-seeing inner voice. The writer is finishing their session. Offer one brief, warm closing thought (1-2 sentences). Be soothing and loving. Reference something specific from what they wrote — a thread, an image, a feeling. Don't summarize. Don't give advice. Just leave them with something gentle to carry. Speak directly to them. No quotes around your words.`,
+          content: `You are The Weaver — a warm, pattern-seeing inner voice. The writer is finishing their session. Offer one brief, warm closing thought (1-2 sentences). Be soothing and loving. Reference something specific from what they wrote — a thread, an image, a feeling. Don't summarize. Don't give advice. Just leave them with something gentle to carry. Speak directly to them. No quotes around your words.${languageDirective()}`,
         },
         { role: 'user', content: snippet },
       ], 15000, 80)
       setClosingPhrase(phrase.trim())
     } catch {
-      setClosingPhrase('You showed up today. That matters.')
+      setClosingPhrase(tr['session.fallback'])
     }
-  }, [activeEntryId])
+  }, [activeEntryId, tr])
 
   const handleDismissClosing = useCallback(() => {
     setClosingLoading(false)
     setClosingPhrase(null)
-  }, [])
+
+    // Start a fresh entry after session ends
+    const id = generateId()
+    db.entries.add({
+      id,
+      content: '',
+      plainText: '',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }).then(() => {
+      handleNewEntry(id)
+    }).catch(console.error)
+  }, [handleNewEntry])
 
   const prevEmotionRef = useRef(emotion)
   const handleEmotionChange = useCallback((newEmotion: EmotionalTone) => {
@@ -406,7 +421,7 @@ function App() {
           fontSize: 24,
           color: 'var(--text-primary)',
         }}>
-          Something went wrong
+          {tr['error.title']}
         </div>
         <div style={{
           fontFamily: "'Inter', sans-serif",
@@ -430,7 +445,7 @@ function App() {
             cursor: 'pointer',
           }}
         >
-          Try again
+          {tr['app.tryAgain']}
         </button>
       </div>
     )
@@ -468,10 +483,10 @@ function App() {
           tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter') window.location.reload() }}
         >
-          New version available — tap to refresh
+          {tr['app.newVersion']}
         </div>
       )}
-      <a href="#editor" className="skip-to-content">Skip to editor</a>
+      <a href="#editor" className="skip-to-content">{tr['app.skipToEditor']}</a>
       <BreathingBackground emotion={emotion} enabled={visualEffectsEnabled && globalConfig?.features?.breathingBackground !== false} />
       <CursorGlow partTint={activePartColor} />
       <EntriesList
@@ -505,7 +520,7 @@ function App() {
             }}
             onClick={() => setFossilThought(null)}
           >
-            <div className="fossil-label">from the archive</div>
+            <div className="fossil-label">{tr['app.fossilLabel']}</div>
             <div className="part-name" style={{ color: fossilThought.partColor }}>
               {fossilThought.partName}
             </div>
@@ -542,7 +557,7 @@ function App() {
           className="session-close-trigger"
           onClick={handleSessionClose}
         >
-          close session
+          {tr['session.end']}
         </button>
       </div>
       <Suspense fallback={<EditorSkeleton />}>

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from '../../i18n'
 
 interface Props {
   value: string
@@ -6,6 +7,7 @@ interface Props {
 }
 
 export function IntentionInput({ value, onChange }: Props) {
+  const t = useTranslation()
   const [editing, setEditing] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -33,7 +35,7 @@ export function IntentionInput({ value, onChange }: Props) {
         onMouseEnter={(e) => { e.currentTarget.style.opacity = '1' }}
         onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7' }}
       >
-        + set an intention
+        {t['intention.set']}
       </button>
     )
   }
@@ -71,7 +73,7 @@ export function IntentionInput({ value, onChange }: Props) {
           setEditing(false)
         }
       }}
-      placeholder="What do you want to explore today?"
+      placeholder={t['intention.placeholder']}
       maxLength={120}
       style={{
         width: '100%',

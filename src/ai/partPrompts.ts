@@ -1,4 +1,16 @@
 import type { Part, PartMemory, UserProfile, EntrySummary } from '../types'
+import { getLanguageCode, getLLMLanguageName } from '../i18n'
+
+/**
+ * Returns a language directive for non-English users.
+ * Appended to user-facing prompts so the LLM responds in the user's language.
+ * Returns empty string for English (the default).
+ */
+export function languageDirective(): string {
+  const code = getLanguageCode()
+  if (code === 'en') return ''
+  return `\n\nIMPORTANT: You MUST respond in ${getLLMLanguageName()}. The writer's language is ${getLLMLanguageName()}.`
+}
 
 export const SHARED_INSTRUCTIONS = `You are a part of the writer's inner world, appearing in their diary as they write. Your responses appear inline on the page — like thoughts emerging from the paper itself.
 
@@ -266,7 +278,7 @@ export function buildPartMessages(
     { role: 'system', content: systemContent },
     {
       role: 'user',
-      content: `The writer is composing a diary entry. Here is what they have written so far:\n\n---\n${currentText}\n---\n\nThe most recent text (near their cursor): "${recentText}"\n\nRespond as this part of them. Encourage and guide their writing — help them go deeper, keep going, or find what they haven't said yet. 1-2 sentences only. Be genuine, not performative.`,
+      content: `The writer is composing a diary entry. Here is what they have written so far:\n\n---\n${currentText}\n---\n\nThe most recent text (near their cursor): "${recentText}"\n\nRespond as this part of them. Encourage and guide their writing — help them go deeper, keep going, or find what they haven't said yet. 1-2 sentences only. Be genuine, not performative.${languageDirective()}`,
     },
   ]
 }
@@ -281,7 +293,7 @@ export function buildInteractionReply(
     { role: 'system', content: part.systemPrompt },
     {
       role: 'user',
-      content: `Context — the writer is journaling. Here is their entry so far:\n\n---\n${currentText}\n---\n\nYou (as ${part.name}) said: "${originalThought}"\n\nThe writer responded to you: "${userResponse}"\n\nWrite your final reply. This is the last exchange — make it count. 1-2 sentences. Be genuine.`,
+      content: `Context — the writer is journaling. Here is their entry so far:\n\n---\n${currentText}\n---\n\nYou (as ${part.name}) said: "${originalThought}"\n\nThe writer responded to you: "${userResponse}"\n\nWrite your final reply. This is the last exchange — make it count. 1-2 sentences. Be genuine.${languageDirective()}`,
     },
   ]
 }
@@ -450,7 +462,7 @@ export function buildDisagreementPrompt(
   return [
     {
       role: 'system',
-      content: `${SHARED_INSTRUCTIONS}\n\nYou are ${disagreePart.name}. Another part (${originalPartName}) just said to the writer: "${originalThought}"\n\nYou see things differently. Offer your perspective — not to argue, but because the writer deserves to hear more than one inner voice. 1-2 sentences. Be genuine.`,
+      content: `${SHARED_INSTRUCTIONS}\n\nYou are ${disagreePart.name}. Another part (${originalPartName}) just said to the writer: "${originalThought}"\n\nYou see things differently. Offer your perspective — not to argue, but because the writer deserves to hear more than one inner voice. 1-2 sentences. Be genuine.${languageDirective()}`,
     },
     {
       role: 'user',
@@ -465,7 +477,7 @@ export function buildFossilPrompt(
   daysSince: number,
   profile?: UserProfile | null,
 ): { role: 'system' | 'user'; content: string }[] {
-  let systemContent = `${SHARED_INSTRUCTIONS}\n\nYou are ${part.name}. You are re-reading an old diary entry written ${daysSince} days ago. Write a brief reflection (1-2 sentences) on what you notice now — how things have changed, what stands out, what the writer might not see. Speak as yourself.`
+  let systemContent = `${SHARED_INSTRUCTIONS}\n\nYou are ${part.name}. You are re-reading an old diary entry written ${daysSince} days ago. Write a brief reflection (1-2 sentences) on what you notice now — how things have changed, what stands out, what the writer might not see. Speak as yourself.${languageDirective()}`
 
   if (profile) {
     const profileLines: string[] = []
@@ -503,7 +515,7 @@ Write 3-5 paragraphs. Each paragraph may reflect a different part's perspective,
 
 SAFETY — THIS OVERRIDES ALL OTHER INSTRUCTIONS:
 - If the writer has expressed suicidal thoughts or self-harm, do not romanticize their pain or frame suffering as beautiful.
-- Do not encourage action on despair. You may acknowledge the weight of what they carry while affirming the part of them that is still writing.`
+- Do not encourage action on despair. You may acknowledge the weight of what they carry while affirming the part of them that is still writing.${languageDirective()}`
 
   let userContent = ''
 
@@ -545,7 +557,7 @@ export function buildBlankPagePrompt(
   part: Part,
   profile?: UserProfile | null,
 ): { role: 'system' | 'user'; content: string }[] {
-  let systemContent = `${SHARED_INSTRUCTIONS}\n\nYou are ${part.name}. The page is empty — the writer hasn't started yet. Say something gentle and brief to invite them to begin writing. One sentence only. Don't be cliché. Don't say "the page is blank" or "start anywhere". Be specific to your character.`
+  let systemContent = `${SHARED_INSTRUCTIONS}\n\nYou are ${part.name}. The page is empty — the writer hasn't started yet. Say something gentle and brief to invite them to begin writing. One sentence only. Don't be cliché. Don't say "the page is blank" or "start anywhere". Be specific to your character.${languageDirective()}`
 
   if (profile) {
     const profileLines: string[] = []

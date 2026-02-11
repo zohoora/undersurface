@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { db, generateId } from '../../store/db'
 import { SettingsPanel } from './SettingsPanel'
+import { useTranslation, getLanguageCode } from '../../i18n'
 
 interface Props {
   activeEntryId: string
@@ -34,6 +35,7 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [entries, setEntries] = useState<Entry[]>([])
   const isMobile = useIsMobile()
+  const t = useTranslation()
 
   const loadEntries = useCallback(async () => {
     const data = await db.entries.orderBy('updatedAt').reverse().toArray()
@@ -86,13 +88,13 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
     yesterday.setDate(yesterday.getDate() - 1)
     const isYesterday = d.toDateString() === yesterday.toDateString()
 
-    if (isToday) return 'Today'
-    if (isYesterday) return 'Yesterday'
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    if (isToday) return t['entries.today']
+    if (isYesterday) return t['entries.yesterday']
+    return d.toLocaleDateString(getLanguageCode(), { month: 'short', day: 'numeric' })
   }
 
   const getPreview = (plainText: string) => {
-    if (!plainText) return 'Empty entry'
+    if (!plainText) return t['entries.empty']
     return plainText.slice(0, 40) + (plainText.length > 40 ? '...' : '')
   }
 
@@ -121,10 +123,10 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
         className={`entries-sidebar ${isMobile && isOpen ? 'open' : ''}`}
         onMouseLeave={() => setSettingsOpen(false)}
       >
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-          <div className="sidebar-label">Entries</div>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', opacity: settingsOpen ? 0.15 : 1, transition: 'opacity 0.25s ease', pointerEvents: settingsOpen ? 'none' : 'auto' }}>
+          <div className="sidebar-label">{t['entries.title']}</div>
           <button className="new-entry-btn" onClick={handleNewEntry}>
-            + New entry
+            {t['entries.new']}
           </button>
           <div style={{ marginTop: 8 }}>
             {entries?.map((entry) => (

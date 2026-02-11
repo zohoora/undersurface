@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { deleteAccount } from '../api/accountApi'
 import { clearSettings } from '../store/settings'
 import { getAuth, signOut } from 'firebase/auth'
+import { useTranslation } from '../i18n'
 
 interface DeleteAccountModalProps {
   isOpen: boolean
@@ -15,6 +16,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
 }
 
 function DeleteAccountModalContent({ onClose }: { onClose: () => void }) {
+  const t = useTranslation()
   const [confirmation, setConfirmation] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -72,7 +74,7 @@ function DeleteAccountModalContent({ onClose }: { onClose: () => void }) {
           color: 'var(--text-primary)',
           marginBottom: 12,
         }}>
-          Delete your account
+          {t['delete.title']}
         </div>
 
         <div style={{
@@ -81,8 +83,7 @@ function DeleteAccountModalContent({ onClose }: { onClose: () => void }) {
           lineHeight: 1.6,
           marginBottom: 16,
         }}>
-          This will permanently delete all your data — diary entries, inner voices, memories,
-          thoughts, and everything else. This cannot be undone.
+          {t['delete.warning']}
         </div>
 
         <div style={{
@@ -94,7 +95,7 @@ function DeleteAccountModalContent({ onClose }: { onClose: () => void }) {
           background: 'var(--overlay-subtle)',
           borderRadius: 6,
         }}>
-          Save your writing first via <strong>Export all data</strong> in Settings.
+          {t['delete.exportFirst']}
         </div>
 
         <div style={{
@@ -102,7 +103,7 @@ function DeleteAccountModalContent({ onClose }: { onClose: () => void }) {
           color: 'var(--text-secondary)',
           marginBottom: 8,
         }}>
-          Type <strong>delete</strong> to confirm
+          {t['delete.confirmPrompt']}
         </div>
 
         <input
@@ -153,7 +154,7 @@ function DeleteAccountModalContent({ onClose }: { onClose: () => void }) {
               opacity: deleting ? 0.5 : 1,
             }}
           >
-            Cancel
+            {t['delete.cancel']}
           </button>
           <button
             onClick={handleDelete}
@@ -172,7 +173,7 @@ function DeleteAccountModalContent({ onClose }: { onClose: () => void }) {
               opacity: deleting ? 0.6 : 1,
             }}
           >
-            {deleting ? 'Deleting...' : 'Delete everything'}
+            {deleting ? t['delete.deleting'] : t['delete.confirm']}
           </button>
         </div>
       </div>

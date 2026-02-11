@@ -1,5 +1,7 @@
 import { useGlobalConfig } from '../store/globalConfig'
 import type { InnerWeather as InnerWeatherType } from '../types'
+import { useTranslation } from '../i18n'
+import type { TranslationKey } from '../i18n'
 
 const EMOTION_COLORS: Record<string, string> = {
   tender: '#B58548',
@@ -26,6 +28,7 @@ interface InnerWeatherProps {
 
 export function InnerWeather({ weather }: InnerWeatherProps) {
   const config = useGlobalConfig()
+  const t = useTranslation()
 
   if (config?.features.innerWeather !== true) return null
   if (!weather) return null
@@ -77,7 +80,7 @@ export function InnerWeather({ weather }: InnerWeatherProps) {
             lineHeight: 1.2,
           }}
         >
-          {weather.dominantEmotion}
+          {t[`emotion.${weather.dominantEmotion}` as TranslationKey] ?? weather.dominantEmotion}
         </span>
         <span
           style={{
@@ -86,10 +89,10 @@ export function InnerWeather({ weather }: InnerWeatherProps) {
             lineHeight: 1.2,
           }}
         >
-          {trendArrow} {weather.trend}
+          {trendArrow} {t[`weather.${weather.trend}` as TranslationKey] ?? weather.trend}
           {weather.secondaryEmotion && (
             <span style={{ marginLeft: 4 }}>
-              / {weather.secondaryEmotion}
+              / {t[`emotion.${weather.secondaryEmotion}` as TranslationKey] ?? weather.secondaryEmotion}
             </span>
           )}
         </span>

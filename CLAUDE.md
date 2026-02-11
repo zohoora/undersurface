@@ -107,9 +107,9 @@ User opens Settings → Delete Account / Contact form
 
 | File | Purpose |
 |------|---------|
-| `src/ai/openrouter.ts` | Client-side API calls (sends to `/api/chat` with Firebase auth token) |
-| `src/ai/partPrompts.ts` | System prompts for all 6 seeded parts + exported SHARED_INSTRUCTIONS + emergence, reflection, growth, grounding, intention prompts |
-| `src/engine/partOrchestrator.ts` | Selects which part responds based on pause type, emotion, content (role-based scoring); distress detection triggers grounding; passes intention to prompts |
+| `src/ai/openrouter.ts` | Client-side API calls (sends to `/api/chat` with Firebase auth token); `analyzeEmotionAndDistress()` for combined emotion + distress LLM check |
+| `src/ai/partPrompts.ts` | System prompts for all 6 seeded parts + exported SHARED_INSTRUCTIONS + emergence, reflection, growth, grounding, intention prompts + `languageDirective()` for i18n |
+| `src/engine/partOrchestrator.ts` | Selects which part responds based on pause type, emotion, content (role-based scoring); LLM-based distress detection triggers grounding; passes intention to prompts |
 | `src/engine/pauseDetector.ts` | Detects writing pauses from keystroke timing |
 | `src/engine/emergenceEngine.ts` | Detects new parts emerging from writing (imports `SHARED_INSTRUCTIONS` from partPrompts) |
 | `src/engine/reflectionEngine.ts` | Entry reflection — creates memories, summaries, profile updates on entry switch |
@@ -119,8 +119,12 @@ User opens Settings → Delete Account / Contact form
 | `src/engine/ritualEngine.ts` | Session logging for ritual detection (writing habits) |
 | `src/engine/fossilEngine.ts` | Resurfaces old entry commentary when revisiting past entries. Lazy-loaded on first entry switch |
 | `src/engine/explorationEngine.ts` | AI-generated personalized writing prompts from user profile + recent summaries. Lazy-loaded on first new entry |
-| `src/store/db.ts` | Firestore wrapper — mimics Dexie.js API surface; 12 collection proxies + Markdown data export |
-| `src/store/settings.ts` | User settings in localStorage (3-tier cascade: hardcoded < globalConfig < localStorage) |
+| `src/store/db.ts` | Firestore wrapper — mimics Dexie.js API surface; 12 collection proxies + translated Markdown data export |
+| `src/store/settings.ts` | User settings in localStorage (3-tier cascade: hardcoded < globalConfig < localStorage); includes `language` setting |
+| `src/i18n/index.ts` | Translation system — `t()` for non-React, `useTranslation()` hook for React, `getLanguageCode()`, `getLLMLanguageName()`, `getPartDisplayName()`, `languageDirective()` re-export |
+| `src/i18n/languages.ts` | Language metadata (17 supported languages) + `detectBrowserLanguage()` |
+| `src/i18n/translations/en.ts` | English translations (~145 keys) — source of truth for `TranslationKey` and `TranslationStrings` types |
+| `src/i18n/translations/*.ts` | 16 non-English translation files (es, fr, de, pt, it, ru, zh, ja, ko, tr, nl, vi, hi, id, th, pl) |
 | `src/store/globalConfig.ts` | Real-time listener on `appConfig/global` Firestore doc, provides `useGlobalConfig()` hook |
 | `src/firebase.ts` | Firebase/Firestore initialization with offline persistence |
 | `src/auth/authContext.ts` | Auth context type: `signIn` (Google), `signInWithEmail`, `signUpWithEmail`, `resetPassword`, `signOut` |
@@ -172,7 +176,7 @@ User opens Settings → Delete Account / Contact form
 - **Firestore**: User data under `users/{uid}/` — 12 subcollections: entries, parts, memories, thoughts, interactions, entrySummaries, userProfile, fossils, letters, sessionLog, innerWeather, consent
 - **Firestore**: Global config at `appConfig/global` — readable by all authenticated users, writable only via `adminApi` Cloud Function (Admin SDK bypasses rules)
 - **Firestore**: Contact messages at top-level `contactMessages` — deny-all in client rules, written by `accountApi` Cloud Function via Admin SDK, read by `adminApi`
-- **localStorage**: Device-specific settings (theme, model choice, visual effect toggles, response speed)
+- **localStorage**: Device-specific settings (theme, model choice, visual effect toggles, response speed, language)
 - **Google Secret Manager**: The OpenRouter API key (`OPENROUTER_API_KEY`)
 
 ### Auth
@@ -298,13 +302,42 @@ Key types: `PartMemory.type` (`'observation' | 'interaction' | 'reflection' | 'p
 
 **Shared instructions**: `SHARED_INSTRUCTIONS` is exported from `partPrompts.ts` and used by both seeded part prompts and `emergenceEngine.ts` for emerged parts. It defines the writing-companion purpose ("encourage and guide the writing"), critical rules, and safety guardrails. All parts (seeded and emerged) inherit the same base instructions from this single source of truth.
 
+### Internationalization (i18n)
+
+17 LTR languages supported: English, Spanish, French, German, Portuguese, Italian, Russian, Chinese (Simplified), Japanese, Korean, Turkish, Dutch, Vietnamese, Hindi, Indonesian, Thai, Polish. RTL languages (Arabic, Farsi, Hebrew) deferred. Admin dashboard stays English-only. Privacy Policy stays English.
+
+#### Architecture
+
+1. **Translation system** — Lightweight, no library. Flat key-value objects per language in `src/i18n/translations/*.ts`. English is the fallback. TypeScript enforces key completeness via `TranslationKey` type derived from `en.ts`.
+2. **`t(key)`** — Non-React synchronous function. Safe in class components (e.g., ErrorBoundary) and non-React code (e.g., `db.ts` export).
+3. **`useTranslation()`** — React hook via `useSyncExternalStore` (same pattern as `useSettings()`). Reactive to language changes.
+4. **Eager loading** — All 17 translation files loaded via `import.meta.glob({ eager: true })` (~60-80KB total). No dynamic loading needed.
+5. **AI prompts** — System prompts stay English (best instruction-following). `languageDirective()` appends `"You MUST respond in {language}"` to 7 user-facing prompt builders. Internal prompts (reflection, growth, emotion analysis) stay English-only.
+6. **Distress detection** — LLM-based via `analyzeEmotionAndDistress()`, replacing English keyword array. Works in any language. Zero additional API calls (combined with emotion check).
+7. **Autocorrect** — Hidden from Settings for non-English. Autocorrect code path and "i"→"I" fix skipped when `getLanguageCode() !== 'en'`.
+8. **Crisis resources** — English shows US resources (988, Crisis Text Line) + findahelpline.com. Non-English shows only findahelpline.com with translated labels.
+9. **Seeded part names** — Translated display names via `getPartDisplayName()`. Emerged part names stay in their original language (LLM-generated).
+10. **Data export** — Section headers translated, dates localized via `getLanguageCode()` in `toLocaleDateString()`.
+
+#### Adding a new translation key
+
+1. Add the key + English text to `src/i18n/translations/en.ts`
+2. Add translations to all 16 other language files (same key, translated value)
+3. Use `t('key.name')` in non-React code or `tr['key.name']` with `const tr = useTranslation()` in React
+
+#### Adding a new language
+
+1. Add entry to `SUPPORTED_LANGUAGES` array in `src/i18n/languages.ts`
+2. Create `src/i18n/translations/{code}.ts` with all keys from `en.ts`
+3. No other changes needed — the `import.meta.glob` pattern auto-discovers new files
+
 ### Emergency grounding
 
 When the writer is in distress, the app shifts to a calming mode. Controlled by `features.emergencyGrounding`.
 
 #### How it works
 
-1. **Distress detection** — `partOrchestrator.ts` scans the last 500 characters for distress keywords (scared, terrified, panic, spiraling, etc.) on every pause. Adds +1 if current emotion is `anxious` or `fearful`. If hits >= `intensityThreshold` (default 3), activates grounding.
+1. **Distress detection** — `partOrchestrator.ts` uses LLM-based analysis via `analyzeEmotionAndDistress()` (combined with the emotion check every 30s, zero additional API calls). Returns a distress level 0-3 (none/mild/moderate/severe). Works in any language since the LLM reads text directly. If level >= `intensityThreshold` (default 2), activates grounding.
 2. **Grounding state** — `useGroundingMode.ts` uses module-level state + `useSyncExternalStore` (same pattern as `useFlowState`). Sets `data-grounding="true"` on `<html>`. Exposes `activateGrounding()`, `deactivateGrounding()`, `isGroundingActive()` for non-React code.
 3. **Auto-exit** — Timer deactivates grounding after `autoExitMinutes` (default 5). Re-triggering resets the timer.
 4. **Atmosphere** — `atmosphere.css` `[data-grounding="true"]` rules: desaturated greens, nearly 2x slower breathing, overrides emotional atmosphere. Thoughts get `filter: saturate(0.6)`. Flow glow suppressed. Dark mode variant included.
@@ -637,3 +670,12 @@ If the app needs to work on a new domain:
 - **Sentry source map upload needs env vars**: `sentryVitePlugin` in `vite.config.ts` reads `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` from `process.env` (not `import.meta.env`). The plugin is disabled when `SENTRY_AUTH_TOKEN` is missing (e.g., local dev, CI without secrets).
 - **ErrorBoundary captures to Sentry**: `componentDidCatch` in `ErrorBoundary.tsx` calls `Sentry.captureException(error)` to report React render errors. This is the only class component in the codebase.
 - **Grounding activation trigger parameter**: `activateGrounding()` accepts an optional `trigger: 'auto' | 'manual'` parameter for analytics tracking. The orchestrator passes `'auto'`, the settings toggle passes `'manual'`.
+- **i18n `t` function shadows loop variables**: The `t()` function is imported from `../i18n` in `db.ts`. Any `for (const t of ...)` loops in that file must use a different variable name (e.g., `th`) to avoid shadowing.
+- **Translation cache invalidation has two paths**: `invalidateTranslationCache()` is called both from `invalidateSettingsCache()` (for globalConfig changes) and directly from `updateSettings()` (for explicit language changes). Both use lazy `import()` to avoid circular dependencies with `settings.ts`.
+- **Autocorrect hidden for non-English**: The SettingsPanel conditionally renders the Autocorrect section only when `settings.language === 'en'`. The LivingEditor also guards autocorrect and "i"→"I" fixes with `getLanguageCode() === 'en'`.
+- **Emotion analysis returns English keywords**: `analyzeEmotionAndDistress()` always returns English emotion words (from the fixed list). The `isValidEmotion()` check is English-based. UI layer translates for display via `t('emotion.${emotion}')`.
+- **Seeded part names are translated, emerged are not**: `getPartDisplayName()` checks `isSeeded` flag and maps seeded IDs to `part.*` translation keys. Emerged parts use their original LLM-generated name.
+- **"delete" confirmation stays English**: The DeleteAccountModal confirmation word is always "delete" regardless of language — the instruction text is translated but `confirmation.toLowerCase() === 'delete'` is hardcoded.
+- **Language default is browser-detected**: `detectBrowserLanguage()` checks `navigator.language` against supported codes. Falls back to `'en'`. Only runs once as the default for `DEFAULTS.language`.
+- **languageDirective() is not injected into reflection/growth prompts**: Internal metadata prompts stay English because their output feeds back into English-keyed orchestrator logic (`ROLE_KEYWORDS`, `isValidEmotion()`).
+- **Distress detection is now LLM-based**: `DISTRESS_KEYWORDS` array was removed. Distress is assessed via `analyzeEmotionAndDistress()` returning a 0-3 level, piggybacking on the 30s emotion check. Default threshold changed from 3 (keyword hits) to 2 (moderate distress level).

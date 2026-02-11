@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { db } from '../store/db'
 import PolicyModal from './PolicyModal'
+import { useTranslation } from '../i18n'
 
 const headingStyle = {
   fontFamily: "'Spectral', serif",
@@ -60,6 +61,7 @@ interface OnboardingProps {
 }
 
 export function Onboarding({ onComplete }: OnboardingProps) {
+  const t = useTranslation()
   const [step, setStep] = useState(1)
   const [disclaimerChecked, setDisclaimerChecked] = useState(false)
   const [privacyChecked, setPrivacyChecked] = useState(false)
@@ -105,45 +107,39 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       }}>
         {step === 1 && (
           <>
-            <div style={headingStyle}>Welcome to UnderSurface</div>
+            <div style={headingStyle}>{t['onboarding.welcome']}</div>
             <div style={{ ...bodyStyle, maxWidth: 340 }}>
-              This is a diary — but not just a diary. As you write, inner voices will appear on
-              the page. They notice what you're writing about, and they respond — gently, honestly,
-              sometimes in ways you don't expect.
+              {t['onboarding.step1.body']}
             </div>
             <button onClick={() => setStep(2)} style={primaryButtonStyle}>
-              How does it work?
+              {t['onboarding.step1.button']}
             </button>
           </>
         )}
 
         {step === 2 && (
           <>
-            <div style={headingStyle}>Your inner voices</div>
+            <div style={headingStyle}>{t['onboarding.step2.title']}</div>
             <div style={bodyStyle}>
-              As you write, different voices may appear — The Watcher, The Tender One, The Still
-              Point, and others. Each notices different things: patterns in your words, emotions
-              beneath the surface, what you might be avoiding.
+              {t['onboarding.step2.body1']}
             </div>
             <div style={bodyStyle}>
-              They learn from your writing and evolve over time. They're not therapists — they're
-              companions to the writing process.
+              {t['onboarding.step2.body2']}
             </div>
             <button onClick={() => setStep(3)} style={primaryButtonStyle}>
-              One more thing
+              {t['onboarding.step2.button']}
             </button>
             <button onClick={() => setStep(1)} style={backButtonStyle}>
-              Back
+              {t['onboarding.back']}
             </button>
           </>
         )}
 
         {step === 3 && (
           <>
-            <div style={headingStyle}>Before you begin</div>
+            <div style={headingStyle}>{t['onboarding.step3.title']}</div>
             <div style={bodyStyle}>
-              UnderSurface is a writing tool, not a therapeutic service. The inner voices are AI
-              writing companions — they're not therapists, and they can't replace professional care.
+              {t['onboarding.step3.body']}
             </div>
 
             <div style={{
@@ -160,7 +156,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                   onChange={(e) => setDisclaimerChecked(e.target.checked)}
                   style={checkboxStyle}
                 />
-                I understand this is not a therapeutic service
+                {t['onboarding.step3.disclaimer']}
               </label>
               <label style={checkboxLabelStyle}>
                 <input
@@ -170,7 +166,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                   style={checkboxStyle}
                 />
                 <span>
-                  I've read and accept the{' '}
+                  {t['onboarding.step3.privacy']}{' '}
                   <button
                     onClick={(e) => { e.preventDefault(); setPolicyOpen(true) }}
                     style={{
@@ -185,7 +181,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                       padding: 0,
                     }}
                   >
-                    Privacy Policy
+                    {t['onboarding.step3.privacyLink']}
                   </button>
                 </span>
               </label>
@@ -202,10 +198,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                 opacity: saving ? 0.6 : 1,
               }}
             >
-              {saving ? 'Starting...' : 'Begin writing'}
+              {saving ? t['onboarding.step3.starting'] : t['onboarding.step3.begin']}
             </button>
             <button onClick={() => setStep(2)} style={backButtonStyle}>
-              Back
+              {t['onboarding.back']}
             </button>
           </>
         )}

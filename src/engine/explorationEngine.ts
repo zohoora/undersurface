@@ -3,6 +3,7 @@ import { chatCompletion } from '../ai/openrouter'
 import { db, generateId } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { isGroundingActive } from '../hooks/useGroundingMode'
+import { languageDirective } from '../ai/partPrompts'
 
 export class ExplorationEngine {
   private hasSuggested = false
@@ -68,7 +69,7 @@ Sources:
 - "theme": inspired by a recurring theme
 - "thread": inspired by an unfinished thread from a past entry
 - "pattern": inspired by an emotional or behavioral pattern
-- "avoidance": gently approaching something the writer tends to skip past`,
+- "avoidance": gently approaching something the writer tends to skip past${languageDirective()}`,
         },
         {
           role: 'user',

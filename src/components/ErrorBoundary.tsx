@@ -1,6 +1,7 @@
 import { Component } from 'react'
 import type { ReactNode, ErrorInfo } from 'react'
 import * as Sentry from '@sentry/react'
+import { t } from '../i18n'
 
 interface Props {
   children: ReactNode
@@ -37,7 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
           color: 'var(--text-primary)',
           gap: 16,
         }}>
-          <div style={{ fontSize: 18 }}>Something went wrong</div>
+          <div style={{ fontSize: 18 }}>{t('error.title')}</div>
           <button
             onClick={() => window.location.reload()}
             style={{
@@ -51,7 +52,7 @@ export class ErrorBoundary extends Component<Props, State> {
               cursor: 'pointer',
             }}
           >
-            Reload
+            {t('error.reload')}
           </button>
         </div>
       )

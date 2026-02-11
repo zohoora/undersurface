@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from '../i18n'
 
 interface Props {
   phrase: string | null
@@ -7,6 +8,7 @@ interface Props {
 }
 
 export function SessionClosing({ phrase, loading, onClose }: Props) {
+  const t = useTranslation()
   const [visible, setVisible] = useState(false)
   const [textVisible, setTextVisible] = useState(false)
 
@@ -84,7 +86,7 @@ export function SessionClosing({ phrase, loading, onClose }: Props) {
             opacity: 0.6,
             letterSpacing: '0.05em',
           }}>
-            — The Weaver
+            — {t['session.attribution']}
           </div>
           <div style={{
             marginTop: 40,
@@ -94,7 +96,7 @@ export function SessionClosing({ phrase, loading, onClose }: Props) {
             opacity: textVisible ? 0.4 : 0,
             transition: 'opacity 1.2s ease 1s',
           }}>
-            tap anywhere to close
+            {t['session.tapToClose']}
           </div>
         </div>
       )}

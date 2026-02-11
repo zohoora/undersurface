@@ -1,6 +1,6 @@
 import type { Part, PauseEvent, PauseType, PartThought, EmotionalTone, IFSRole } from '../types'
 import { buildPartMessages } from '../ai/partPrompts'
-import { streamChatCompletion, analyzeEmotion } from '../ai/openrouter'
+import { streamChatCompletion, analyzeEmotionAndDistress } from '../ai/openrouter'
 import { db, generateId } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { activateGrounding, isGroundingActive } from '../hooks/useGroundingMode'
@@ -11,13 +11,6 @@ import { QuietTracker } from './quietTracker'
 import { EchoEngine } from './echoEngine'
 import { ThreadEngine } from './threadEngine'
 import { RitualEngine } from './ritualEngine'
-
-const DISTRESS_KEYWORDS = [
-  'scared', 'terrified', 'panic', "can't breathe", 'shaking', 'spiraling',
-  'drowning', 'overwhelmed', 'trapped', 'suffocating', 'falling apart',
-  "can't stop", 'numb', 'frozen', 'dizzy', 'hyperventilating', 'dissociating',
-  'losing it', "can't think", 'shutdown', 'shutting down',
-]
 
 const ROLE_PAUSE_AFFINITIES: Record<IFSRole, Record<PauseType, number>> = {
   protector: {
@@ -126,13 +119,10 @@ export class PartOrchestrator {
     if (this.parts.length === 0) return
     if (event.currentText.trim().length < 20) return
 
-    // Check emotion periodically
+    // Check emotion + distress periodically (combined LLM call, works in any language)
     if (Date.now() - this.lastEmotionCheck > this.EMOTION_CHECK_INTERVAL) {
-      this.checkEmotion(event.currentText)
+      this.checkEmotionAndDistress(event.currentText)
     }
-
-    // Distress detection for emergency grounding
-    this.checkDistress(event.currentText)
 
     // Echo check (before regular thought)
     const echo = await this.echoEngine.findEcho(event.currentText)
@@ -379,41 +369,36 @@ export class PartOrchestrator {
     )
   }
 
-  private async checkEmotion(text: string) {
+  private async checkEmotionAndDistress(text: string) {
     this.lastEmotionCheck = Date.now()
     try {
-      const emotion = await analyzeEmotion(text)
+      const { emotion, distressLevel } = await analyzeEmotionAndDistress(text)
       if (this.isValidEmotion(emotion)) {
         this.currentEmotion = emotion as EmotionalTone
         this.callbacks.onEmotionDetected(this.currentEmotion)
       }
+
+      // Handle distress result
+      this.handleDistressResult(distressLevel)
     } catch {
-      // Emotion check is non-critical; silently continue
+      // Emotion/distress check is non-critical; silently continue
+    }
+  }
+
+  private handleDistressResult(level: number): void {
+    const config = getGlobalConfig()
+    if (config?.features?.emergencyGrounding !== true) return
+    if (isGroundingActive()) return
+
+    // Default threshold is 2 (moderate distress) — configurable via admin
+    const threshold = config.grounding?.intensityThreshold ?? 2
+    if (level >= threshold) {
+      activateGrounding()
     }
   }
 
   resetSession() {
     this.echoEngine.reset()
-  }
-
-  private checkDistress(text: string): void {
-    const config = getGlobalConfig()
-    if (config?.features?.emergencyGrounding !== true) return
-    if (isGroundingActive()) return
-
-    const tail = text.slice(-500).toLowerCase()
-    let hits = 0
-    for (const kw of DISTRESS_KEYWORDS) {
-      if (tail.includes(kw)) hits++
-    }
-    if (this.currentEmotion === 'anxious' || this.currentEmotion === 'fearful') {
-      hits++
-    }
-
-    const threshold = config.grounding?.intensityThreshold ?? 3
-    if (hits >= threshold) {
-      activateGrounding()
-    }
   }
 
   private isValidEmotion(tone: string): tone is EmotionalTone {

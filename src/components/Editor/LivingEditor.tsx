@@ -24,6 +24,7 @@ import { streamChatCompletion } from '../../ai/openrouter'
 import { db, generateId } from '../../store/db'
 import { getGlobalConfig, useGlobalConfig } from '../../store/globalConfig'
 import { trackEvent } from '../../services/analytics'
+import { t, getLanguageCode } from '../../i18n'
 import type { EmotionalTone, Part, PartThought } from '../../types'
 
 interface ActiveThought {
@@ -115,7 +116,7 @@ export default function LivingEditor({
         horizontalRule: false,
       }),
       Placeholder.configure({
-        placeholder: 'Begin writing...',
+        placeholder: () => t('editor.placeholder'),
       }),
       InkWeight,
       ParagraphSettle,
@@ -214,8 +215,8 @@ export default function LivingEditor({
               }
             }
 
-            // Fix standalone "i" to "I" when followed by space/punctuation
-            if (/[\s,.'!?;:]/.test(event.key) && from >= 1) {
+            // Fix standalone "i" to "I" when followed by space/punctuation (English only)
+            if (getLanguageCode() === 'en' && /[\s,.'!?;:]/.test(event.key) && from >= 1) {
               const lookback = editor.state.doc.textBetween(Math.max(0, from - 2), from)
               if (/(?:^|\s)i$/.test(lookback)) {
                 editor.view.dispatch(
@@ -225,8 +226,8 @@ export default function LivingEditor({
             }
           }
 
-          // Autocorrect on word boundary
-          if (settings.autocorrect && getGlobalConfig()?.features?.autocorrectEnabled !== false && editor && /[\s,.!?;:\-)]/.test(event.key)) {
+          // Autocorrect on word boundary (English only — Typo.js is English dictionary)
+          if (getLanguageCode() === 'en' && settings.autocorrect && getGlobalConfig()?.features?.autocorrectEnabled !== false && editor && /[\s,.!?;:\-)]/.test(event.key)) {
             const $pos = editor.state.selection.$from
             const textBefore = $pos.parent.textBetween(0, $pos.parentOffset)
             const match = textBefore.match(/([a-zA-Z']+)$/)

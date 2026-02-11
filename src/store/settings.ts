@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { getGlobalConfig } from './globalConfig'
+import { detectBrowserLanguage } from '../i18n/languages'
 
 export interface AppSettings {
   // AI
@@ -17,6 +18,9 @@ export interface AppSettings {
 
   // Appearance
   theme: 'light' | 'dark' | 'system'
+
+  // Language
+  language: string
 }
 
 const DEFAULTS: AppSettings = {
@@ -26,6 +30,7 @@ const DEFAULTS: AppSettings = {
   autoCapitalize: true,
   autocorrect: true,
   theme: 'system',
+  language: detectBrowserLanguage(),
 }
 
 const STORAGE_KEY = 'undersurface:settings'
@@ -78,6 +83,8 @@ export function getSettings(): AppSettings {
 
 export function invalidateSettingsCache() {
   cache = null
+  // Lazy import to avoid circular dependency — only called on globalConfig update
+  import('../i18n/index').then((m) => m.invalidateTranslationCache()).catch(() => {})
   notify()
 }
 
@@ -85,6 +92,9 @@ export function updateSettings(partial: Partial<AppSettings>) {
   const next = { ...load(), ...partial }
   cache = next
   localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+  if ('language' in partial) {
+    import('../i18n/index').then((m) => m.invalidateTranslationCache()).catch(() => {})
+  }
   notify()
 }
 

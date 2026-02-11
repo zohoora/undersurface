@@ -1,4 +1,5 @@
 import type { GuidedExploration } from '../../types'
+import { useTranslation } from '../../i18n'
 
 interface Props {
   explorations: GuidedExploration[]
@@ -7,6 +8,7 @@ interface Props {
 }
 
 export function ExplorationCard({ explorations, onSelect, onDismiss }: Props) {
+  const t = useTranslation()
   if (explorations.length === 0) return null
 
   return (
@@ -34,7 +36,7 @@ export function ExplorationCard({ explorations, onSelect, onDismiss }: Props) {
             color: 'var(--text-ghost)',
             fontStyle: 'italic',
           }}>
-            where to begin
+            {t['exploration.header']}
           </span>
           <button
             onClick={onDismiss}
