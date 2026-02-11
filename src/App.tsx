@@ -1,12 +1,13 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import { BreathingBackground } from './components/Atmosphere/BreathingBackground'
 import { CursorGlow } from './components/Atmosphere/CursorGlow'
 import { LivingEditor } from './components/Editor/LivingEditor'
 import { EntriesList } from './components/Sidebar/EntriesList'
 import { LoginScreen } from './components/LoginScreen'
 import { AnnouncementBanner } from './components/AnnouncementBanner'
-import { AdminDashboard } from './admin/AdminDashboard'
 import { useAuth } from './auth/useAuth'
+
+const AdminDashboard = lazy(() => import('./admin/AdminDashboard'))
 import { initializeDB, db, generateId } from './store/db'
 import { spellEngine } from './engine/spellEngine'
 import { ReflectionEngine } from './engine/reflectionEngine'
@@ -25,13 +26,51 @@ import { FossilEngine } from './engine/fossilEngine'
 import { IntentionInput } from './components/Editor/IntentionInput'
 import { ExplorationCard } from './components/Editor/ExplorationCard'
 import { ExplorationEngine } from './engine/explorationEngine'
+import { Onboarding } from './components/Onboarding'
+import { CrisisResources } from './components/CrisisResources'
 import type { EmotionalTone, Part, GuidedExploration, InnerWeather as InnerWeatherType } from './types'
 
 const ADMIN_EMAILS = ['zohoora@gmail.com']
 
+function SplashScreen() {
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'var(--bg-primary)',
+      gap: 12,
+      animation: 'splashFadeIn 0.6s ease-out',
+    }}>
+      <style>{`@keyframes splashFadeIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
+      <div style={{
+        fontFamily: "'Spectral', serif",
+        fontSize: 28,
+        fontWeight: 400,
+        color: 'var(--text-primary)',
+        letterSpacing: '0.02em',
+      }}>
+        UnderSurface
+      </div>
+      <div style={{
+        fontFamily: "'Inter', sans-serif",
+        fontSize: 13,
+        color: 'var(--text-ghost)',
+        letterSpacing: '0.02em',
+      }}>
+        A diary where inner voices respond as you write
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const { user, loading } = useAuth()
   const [isReady, setIsReady] = useState(false)
+  const [hasConsent, setHasConsent] = useState<boolean | null>(null)
   const [activeEntryId, setActiveEntryId] = useState<string>('')
   const [initialContent, setInitialContent] = useState('')
   const [emotion, setEmotion] = useState<EmotionalTone>('neutral')
@@ -44,7 +83,7 @@ function App() {
   useSeasonalPalette()
   useFlowState()
   useHandwritingMode()
-  useGroundingMode()
+  const isGrounding = useGroundingMode()
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestContentRef = useRef({ html: '', text: '' })
   const reflectionEngineRef = useRef(new ReflectionEngine())
@@ -64,6 +103,15 @@ function App() {
     const init = async () => {
       initGlobalConfig()
       await initializeDB()
+
+      // Check consent before proceeding
+      const consentDoc = await db.consent.get('terms')
+      if (!consentDoc || (consentDoc as { acceptedVersion?: string }).acceptedVersion !== '1.0') {
+        setHasConsent(false)
+        return
+      }
+      setHasConsent(true)
+
       spellEngine.init()
 
       // Get most recent entry or create one
@@ -220,25 +268,7 @@ function App() {
 
   // Loading state
   if (loading) {
-    return (
-      <div style={{
-        position: 'fixed',
-        inset: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--bg-primary)',
-      }}>
-        <div style={{
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 13,
-          color: 'var(--text-ghost)',
-          letterSpacing: '0.1em',
-        }}>
-          undersurface
-        </div>
-      </div>
-    )
+    return <SplashScreen />
   }
 
   // Auth gate
@@ -249,32 +279,42 @@ function App() {
   // Admin routing — before DB init so admin page stays lightweight
   if (window.location.pathname.startsWith('/admin')) {
     if (ADMIN_EMAILS.includes(user.email || '')) {
-      return <AdminDashboard />
+      return <Suspense fallback={<SplashScreen />}><AdminDashboard /></Suspense>
     }
     window.history.replaceState(null, '', '/')
   }
 
+  // Consent gate — show onboarding if user hasn't accepted terms
+  if (hasConsent === false) {
+    const handleOnboardingComplete = async () => {
+      setHasConsent(true)
+      spellEngine.init()
+
+      const entries = await db.entries.orderBy('updatedAt').reverse().toArray()
+      if (entries.length > 0) {
+        const entry = entries[0] as { id: string; content: string }
+        setActiveEntryId(entry.id)
+        setInitialContent(entry.content)
+      } else {
+        const id = generateId()
+        await db.entries.add({
+          id,
+          content: '',
+          plainText: '',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        })
+        setActiveEntryId(id)
+        setInitialContent('')
+      }
+      setIsReady(true)
+    }
+    return <Onboarding onComplete={handleOnboardingComplete} />
+  }
+
   // Initializing DB
   if (!isReady) {
-    return (
-      <div style={{
-        position: 'fixed',
-        inset: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--bg-primary)',
-      }}>
-        <div style={{
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 13,
-          color: 'var(--text-ghost)',
-          letterSpacing: '0.1em',
-        }}>
-          undersurface
-        </div>
-      </div>
-    )
+    return <SplashScreen />
   }
 
   const visualEffectsEnabled = globalConfig?.features?.visualEffectsEnabled !== false
@@ -323,6 +363,7 @@ function App() {
       }}>
         <InnerWeather weather={weather} />
       </div>
+      <CrisisResources visible={isGrounding} />
       {fossilThought && (
         <div style={{
           position: 'relative',

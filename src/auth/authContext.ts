@@ -5,6 +5,7 @@ export interface AuthContextValue {
   user: User | null
   loading: boolean
   signIn: () => Promise<void>
+  signInWithApple: () => Promise<void>
   signOut: () => Promise<void>
 }
 

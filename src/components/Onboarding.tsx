@@ -1,18 +1,38 @@
 import { useState } from 'react'
 import { updateSettings } from '../store/settings'
+import { db } from '../store/db'
+import { PolicyModal } from './PolicyModal'
 
-export function Onboarding() {
-  const [apiKey, setApiKey] = useState('')
+interface OnboardingProps {
+  onComplete: () => void
+}
 
-  const handleSave = () => {
-    updateSettings({
-      openRouterApiKey: apiKey.trim(),
-      hasSeenOnboarding: true,
-    })
-  }
+export function Onboarding({ onComplete }: OnboardingProps) {
+  const [step, setStep] = useState(1)
+  const [disclaimerChecked, setDisclaimerChecked] = useState(false)
+  const [privacyChecked, setPrivacyChecked] = useState(false)
+  const [policyOpen, setPolicyOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
 
-  const handleSkip = () => {
-    updateSettings({ hasSeenOnboarding: true })
+  const canFinish = disclaimerChecked && privacyChecked
+
+  const handleComplete = async () => {
+    if (!canFinish || saving) return
+    setSaving(true)
+    try {
+      updateSettings({ hasSeenOnboarding: true })
+      await db.consent.add({
+        id: 'terms',
+        acceptedAt: Date.now(),
+        acceptedVersion: '1.0',
+        disclaimerAccepted: true,
+        privacyAccepted: true,
+      })
+      onComplete()
+    } catch (err) {
+      console.error('Failed to save consent:', err)
+      setSaving(false)
+    }
   }
 
   return (
@@ -25,92 +45,253 @@ export function Onboarding() {
       background: 'var(--bg-primary)',
     }}>
       <div style={{
-        maxWidth: 380,
+        maxWidth: 420,
         padding: 32,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 16,
+        gap: 20,
       }}>
-        <div style={{
-          fontFamily: "'Spectral', serif",
-          fontSize: 24,
-          color: 'var(--text-primary)',
-        }}>
-          Welcome to UnderSurface
+        {step === 1 && (
+          <>
+            <div style={{
+              fontFamily: "'Spectral', serif",
+              fontSize: 24,
+              color: 'var(--text-primary)',
+            }}>
+              Welcome to UnderSurface
+            </div>
+            <div style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              color: 'var(--text-secondary)',
+              textAlign: 'center',
+              lineHeight: 1.7,
+              maxWidth: 340,
+            }}>
+              This is a diary — but not just a diary. As you write, inner voices will appear on
+              the page. They notice what you're writing about, and they respond — gently, honestly,
+              sometimes in ways you don't expect.
+            </div>
+            <button
+              onClick={() => setStep(2)}
+              style={{
+                width: '100%',
+                padding: '10px 20px',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 14,
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 8,
+                background: 'var(--text-primary)',
+                color: 'var(--bg-primary)',
+                cursor: 'pointer',
+              }}
+            >
+              How does it work?
+            </button>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <div style={{
+              fontFamily: "'Spectral', serif",
+              fontSize: 24,
+              color: 'var(--text-primary)',
+            }}>
+              Your inner voices
+            </div>
+            <div style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              color: 'var(--text-secondary)',
+              textAlign: 'center',
+              lineHeight: 1.7,
+              maxWidth: 360,
+            }}>
+              As you write, different voices may appear — The Watcher, The Tender One, The Still
+              Point, and others. Each notices different things: patterns in your words, emotions
+              beneath the surface, what you might be avoiding.
+            </div>
+            <div style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              color: 'var(--text-secondary)',
+              textAlign: 'center',
+              lineHeight: 1.7,
+              maxWidth: 360,
+            }}>
+              They learn from your writing and evolve over time. They're not therapists — they're
+              companions to the writing process.
+            </div>
+            <button
+              onClick={() => setStep(3)}
+              style={{
+                width: '100%',
+                padding: '10px 20px',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 14,
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 8,
+                background: 'var(--text-primary)',
+                color: 'var(--bg-primary)',
+                cursor: 'pointer',
+              }}
+            >
+              One more thing
+            </button>
+            <button
+              onClick={() => setStep(1)}
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 12,
+                color: 'var(--text-ghost)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              Back
+            </button>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <div style={{
+              fontFamily: "'Spectral', serif",
+              fontSize: 24,
+              color: 'var(--text-primary)',
+            }}>
+              Before you begin
+            </div>
+            <div style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              color: 'var(--text-secondary)',
+              textAlign: 'center',
+              lineHeight: 1.7,
+              maxWidth: 360,
+            }}>
+              UnderSurface is a writing tool, not a therapeutic service. The inner voices are AI
+              writing companions — they're not therapists, and they can't replace professional care.
+            </div>
+
+            <div style={{
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              padding: '4px 0',
+            }}>
+              <label style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                cursor: 'pointer',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                color: 'var(--text-secondary)',
+                lineHeight: 1.5,
+              }}>
+                <input
+                  type="checkbox"
+                  checked={disclaimerChecked}
+                  onChange={(e) => setDisclaimerChecked(e.target.checked)}
+                  style={{ marginTop: 3, flexShrink: 0, accentColor: 'var(--color-still)' }}
+                />
+                I understand this is not a therapeutic service
+              </label>
+              <label style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                cursor: 'pointer',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                color: 'var(--text-secondary)',
+                lineHeight: 1.5,
+              }}>
+                <input
+                  type="checkbox"
+                  checked={privacyChecked}
+                  onChange={(e) => setPrivacyChecked(e.target.checked)}
+                  style={{ marginTop: 3, flexShrink: 0, accentColor: 'var(--color-still)' }}
+                />
+                <span>
+                  I've read and accept the{' '}
+                  <button
+                    onClick={(e) => { e.preventDefault(); setPolicyOpen(true) }}
+                    style={{
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 13,
+                      color: 'var(--color-still)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      textUnderlineOffset: 3,
+                      padding: 0,
+                    }}
+                  >
+                    Privacy Policy
+                  </button>
+                </span>
+              </label>
+            </div>
+
+            <button
+              onClick={handleComplete}
+              disabled={!canFinish || saving}
+              style={{
+                width: '100%',
+                padding: '10px 20px',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 14,
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 8,
+                background: canFinish ? 'var(--text-primary)' : 'var(--border-light)',
+                color: canFinish ? 'var(--bg-primary)' : 'var(--text-ghost)',
+                cursor: canFinish ? 'pointer' : 'default',
+                opacity: saving ? 0.6 : 1,
+              }}
+            >
+              {saving ? 'Starting...' : 'Begin writing'}
+            </button>
+            <button
+              onClick={() => setStep(2)}
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 12,
+                color: 'var(--text-ghost)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              Back
+            </button>
+          </>
+        )}
+
+        {/* Step indicator */}
+        <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+          {[1, 2, 3].map((s) => (
+            <div
+              key={s}
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: s === step ? 'var(--text-secondary)' : 'var(--border-subtle)',
+                transition: 'background 0.3s ease',
+              }}
+            />
+          ))}
         </div>
-        <div style={{
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 13,
-          color: 'var(--text-ghost)',
-          textAlign: 'center',
-          lineHeight: 1.6,
-        }}>
-          To enable AI inner voices, enter your OpenRouter API key.
-          The app works without one — AI features will stay dormant.
-        </div>
-        <a
-          href="https://openrouter.ai/keys"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 12,
-            color: 'var(--color-still)',
-          }}
-        >
-          Get an API key from OpenRouter
-        </a>
-        <input
-          type="password"
-          placeholder="sk-or-v1-..."
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '10px 12px',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 6,
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 13,
-            background: 'var(--surface-primary)',
-            color: 'var(--text-primary)',
-            outline: 'none',
-          }}
-        />
-        <button
-          onClick={handleSave}
-          disabled={!apiKey.trim()}
-          style={{
-            width: '100%',
-            padding: '10px 20px',
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 14,
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 8,
-            background: apiKey.trim() ? 'var(--text-primary)' : 'var(--border-light)',
-            color: apiKey.trim() ? 'var(--bg-primary)' : 'var(--text-ghost)',
-            cursor: apiKey.trim() ? 'pointer' : 'default',
-          }}
-        >
-          Save & Begin
-        </button>
-        <button
-          onClick={handleSkip}
-          style={{
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 12,
-            color: 'var(--text-ghost)',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            textDecoration: 'underline',
-            textUnderlineOffset: 3,
-          }}
-        >
-          Skip for now
-        </button>
       </div>
+
+      <PolicyModal isOpen={policyOpen} onClose={() => setPolicyOpen(false)} />
     </div>
   )
 }

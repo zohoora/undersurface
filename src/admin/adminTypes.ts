@@ -210,6 +210,15 @@ export interface AdminInsightsResponse {
   highlights: string[]
 }
 
+export interface ContactMessage {
+  id: string
+  uid: string
+  email: string
+  displayName: string
+  message: string
+  createdAt: number
+}
+
 export type AdminAction =
   | 'getOverview'
   | 'getUserList'
@@ -217,3 +226,4 @@ export type AdminAction =
   | 'getConfig'
   | 'updateConfig'
   | 'generateInsights'
+  | 'getContactMessages'

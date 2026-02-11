@@ -92,6 +92,12 @@ export function updateSettings(partial: Partial<AppSettings>) {
   notify()
 }
 
+export function clearSettings() {
+  localStorage.removeItem(STORAGE_KEY)
+  cache = null
+  notify()
+}
+
 function subscribe(callback: () => void) {
   listeners.add(callback)
   return () => { listeners.delete(callback) }

@@ -117,6 +117,7 @@ export const db = {
   letters: createCollectionProxy('letters'),
   sessionLog: createCollectionProxy('sessionLog'),
   innerWeather: createCollectionProxy('innerWeather'),
+  consent: createCollectionProxy('consent'),
 }
 
 export async function initializeDB() {
@@ -144,7 +145,7 @@ export function generateId(): string {
 }
 
 export async function exportAllData() {
-  const [entries, parts, memories, thoughts, interactions, entrySummaries, userProfile] = await Promise.all([
+  const [entries, parts, memories, thoughts, interactions, entrySummaries, userProfile, fossils, letters, sessionLog, innerWeather, consent] = await Promise.all([
     db.entries.toArray(),
     db.parts.toArray(),
     db.memories.toArray(),
@@ -152,9 +153,14 @@ export async function exportAllData() {
     db.interactions.toArray(),
     db.entrySummaries.toArray(),
     db.userProfile.toArray(),
+    db.fossils.toArray(),
+    db.letters.toArray(),
+    db.sessionLog.toArray(),
+    db.innerWeather.toArray(),
+    db.consent.toArray(),
   ])
 
-  const data = { entries, parts, memories, thoughts, interactions, entrySummaries, userProfile, exportedAt: new Date().toISOString() }
+  const data = { entries, parts, memories, thoughts, interactions, entrySummaries, userProfile, fossils, letters, sessionLog, innerWeather, consent, exportedAt: new Date().toISOString() }
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

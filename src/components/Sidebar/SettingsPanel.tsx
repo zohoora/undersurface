@@ -1,8 +1,12 @@
+import { useState, useEffect } from 'react'
 import { useSettings, updateSettings } from '../../store/settings'
 import type { AppSettings } from '../../store/settings'
 import { useAuth } from '../../auth/useAuth'
 import { useTheme } from '../../hooks/useTheme'
 import { exportAllData } from '../../store/db'
+import { submitContactMessage } from '../../api/accountApi'
+import { PolicyModal } from '../PolicyModal'
+import { DeleteAccountModal } from '../DeleteAccountModal'
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -52,7 +56,19 @@ interface SettingsPanelProps {
 export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
   const settings = useSettings()
   const { user, signOut } = useAuth()
-  const theme = useTheme()
+  useTheme()
+  const [policyOpen, setPolicyOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [contactMessage, setContactMessage] = useState('')
+  const [contactSending, setContactSending] = useState(false)
+  const [contactSent, setContactSent] = useState(false)
+  const [contactError, setContactError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!contactSent) return
+    const timer = setTimeout(() => setContactSent(false), 3000)
+    return () => clearTimeout(timer)
+  }, [contactSent])
   const set = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     updateSettings({ [key]: value })
   }
@@ -171,6 +187,88 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
             </SettingRow>
           </div>
 
+          {/* Contact Us */}
+          <div className="settings-section">
+            <div className="settings-section-label">Contact Us</div>
+            {contactSent ? (
+              <div style={{
+                fontSize: 12,
+                color: 'var(--color-still)',
+                lineHeight: 1.5,
+                padding: '8px 0',
+              }}>
+                Message sent — thank you!
+              </div>
+            ) : (
+              <>
+                <textarea
+                  value={contactMessage}
+                  onChange={(e) => {
+                    setContactMessage(e.target.value)
+                    setContactError(null)
+                  }}
+                  disabled={contactSending}
+                  placeholder="Your message..."
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 6,
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                    background: 'var(--surface-primary)',
+                    color: 'var(--text-primary)',
+                    outline: 'none',
+                    resize: 'vertical',
+                    marginBottom: 6,
+                  }}
+                />
+                {contactError && (
+                  <div style={{
+                    fontSize: 11,
+                    color: 'var(--color-tender)',
+                    marginBottom: 6,
+                  }}>
+                    {contactError}
+                  </div>
+                )}
+                <button
+                  onClick={async () => {
+                    if (!contactMessage.trim() || contactSending) return
+                    setContactSending(true)
+                    setContactError(null)
+                    try {
+                      await submitContactMessage(contactMessage)
+                      setContactSent(true)
+                      setContactMessage('')
+                    } catch (err) {
+                      setContactError(err instanceof Error ? err.message : 'Failed to send')
+                    } finally {
+                      setContactSending(false)
+                    }
+                  }}
+                  disabled={!contactMessage.trim() || contactSending}
+                  style={{
+                    fontSize: 11,
+                    fontFamily: "'Inter', sans-serif",
+                    color: contactMessage.trim() ? 'var(--bg-primary)' : 'var(--text-ghost)',
+                    background: contactMessage.trim() ? 'var(--text-primary)' : 'var(--border-light)',
+                    border: 'none',
+                    borderRadius: 4,
+                    padding: '6px 12px',
+                    cursor: contactMessage.trim() && !contactSending ? 'pointer' : 'default',
+                    width: '100%',
+                    opacity: contactSending ? 0.6 : 1,
+                  }}
+                >
+                  {contactSending ? 'Sending...' : 'Send'}
+                </button>
+              </>
+            )}
+          </div>
+
           {/* Data */}
           <div className="settings-section">
             <div className="settings-section-label">Data</div>
@@ -186,11 +284,47 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
                 padding: '6px 12px',
                 cursor: 'pointer',
                 width: '100%',
+                marginBottom: 6,
               }}
             >
               Export all data
             </button>
+            <button
+              onClick={() => setPolicyOpen(true)}
+              style={{
+                fontSize: 11,
+                fontFamily: "'Inter', sans-serif",
+                color: 'var(--text-secondary)',
+                background: 'none',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 4,
+                padding: '6px 12px',
+                cursor: 'pointer',
+                width: '100%',
+                marginBottom: 6,
+              }}
+            >
+              Privacy &amp; Terms
+            </button>
+            <button
+              onClick={() => setDeleteOpen(true)}
+              style={{
+                fontSize: 11,
+                fontFamily: "'Inter', sans-serif",
+                color: 'var(--color-tender)',
+                background: 'none',
+                border: '1px solid var(--color-tender)',
+                borderRadius: 4,
+                padding: '6px 12px',
+                cursor: 'pointer',
+                width: '100%',
+              }}
+            >
+              Delete account
+            </button>
           </div>
+          <PolicyModal isOpen={policyOpen} onClose={() => setPolicyOpen(false)} />
+          <DeleteAccountModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} />
         </div>
       )}
     </div>

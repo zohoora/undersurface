@@ -410,6 +410,102 @@ Respond in JSON: { "narrative": "...", "highlights": ["...", "..."] }`
   }
 }
 
+// ─── Account API (user self-service) ─────────────────────
+
+async function deleteCollection(uid: string, collName: string) {
+  const db = getFirestore()
+  const collRef = db.collection('users').doc(uid).collection(collName)
+  let snap = await collRef.limit(500).get()
+  while (snap.docs.length > 0) {
+    const batch = db.batch()
+    snap.docs.forEach((d) => batch.delete(d.ref))
+    await batch.commit()
+    snap = await collRef.limit(500).get()
+  }
+}
+
+export const accountApi = onRequest(
+  {
+    cors: true,
+    memory: '256MiB',
+    timeoutSeconds: 60,
+    region: 'us-central1',
+  },
+  async (req, res) => {
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' })
+      return
+    }
+
+    const authHeader = req.headers.authorization
+    if (!authHeader?.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Missing auth token' })
+      return
+    }
+
+    let uid: string
+    try {
+      const decoded = await getAuth().verifyIdToken(authHeader.split('Bearer ')[1])
+      uid = decoded.uid
+    } catch {
+      res.status(401).json({ error: 'Invalid auth token' })
+      return
+    }
+
+    const { action, ...params } = req.body
+
+    try {
+      switch (action) {
+        case 'deleteAccount': {
+          const collections = [
+            'entries', 'parts', 'memories', 'thoughts', 'interactions',
+            'entrySummaries', 'userProfile', 'fossils', 'letters',
+            'sessionLog', 'innerWeather', 'consent',
+          ]
+          for (const coll of collections) {
+            await deleteCollection(uid, coll)
+          }
+          await getFirestore().collection('users').doc(uid).delete()
+          await getAuth().deleteUser(uid)
+          res.json({ success: true })
+          return
+        }
+        case 'submitContact': {
+          const message = params.message
+          if (!message || typeof message !== 'string' || message.trim().length === 0) {
+            res.status(400).json({ error: 'Message is required' })
+            return
+          }
+          if (message.length > 5000) {
+            res.status(400).json({ error: 'Message too long (max 5000 characters)' })
+            return
+          }
+          const userRecord = await getAuth().getUser(uid)
+          await getFirestore().collection('contactMessages').add({
+            uid,
+            email: userRecord.email || '',
+            displayName: userRecord.displayName || '',
+            message: message.trim(),
+            createdAt: Date.now(),
+          })
+          res.json({ success: true })
+          return
+        }
+        default:
+          res.status(400).json({ error: `Unknown action: ${action}` })
+      }
+    } catch (error) {
+      console.error('Account API error:', error)
+      res.status(500).json({
+        error: 'Request failed',
+        details: error instanceof Error ? error.message : String(error),
+      })
+    }
+  },
+)
+
+// ─── Admin API ────────────────────────────────────────────────
+
 export const adminApi = onRequest(
   {
     secrets: [openRouterKey],
@@ -460,6 +556,16 @@ export const adminApi = onRequest(
         case 'generateInsights':
           res.json(await handleGenerateInsights(openRouterKey.value()))
           return
+        case 'getContactMessages': {
+          const snap = await getFirestore()
+            .collection('contactMessages')
+            .orderBy('createdAt', 'desc')
+            .limit(100)
+            .get()
+          const messages = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+          res.json({ messages })
+          return
+        }
         default:
           res.status(400).json({ error: `Unknown action: ${action}` })
       }

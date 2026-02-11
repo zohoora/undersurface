@@ -432,7 +432,7 @@ If the app needs to work on a new domain:
 - **Autocorrect undo is single-shot**: `lastAutocorrectRef` is cleared on any keypress other than Backspace. Only the most recent correction can be undone, and only immediately after it happens.
 - **Color bleed + dark mode**: The colorBleed extension must return `DecorationSet.empty` when disabled (not preserve existing decorations via mapping). Otherwise, switching to dark mode leaves stale colored text in the editor.
 - **Part colorLight alpha differs by theme**: Light mode uses `'25'` alpha, dark mode uses `'30'` (via `boostAlpha` helper). Without the boost, part thought backgrounds are nearly invisible on dark backgrounds.
-- **PWA temporarily disabled**: `VitePWA` import and plugin are commented out in `vite.config.ts`. Re-enable when ready for production PWA.
+- **PWA enabled**: `VitePWA` plugin in `vite.config.ts` caches static assets and Google Fonts. API calls (`/api/chat`) are NOT cached — they go through Firebase Hosting rewrites to Cloud Functions.
 - **Sidebar backdrop-filter**: The sidebar uses `backdrop-filter: blur(16px)` for readability over editor text. The gradient is solid for 80% of its width to prevent text showing through.
 - **Experimental features default to disabled**: Features like `emergencyGrounding`, `intentionsEnabled`, `guidedExplorations` use `=== true` checks. This is the opposite of core flags. If you add a new experimental feature, use `=== true` (disabled by default).
 - **Grounding CSS overrides emotion atmosphere**: `[data-grounding="true"] .atmosphere[data-emotion]` forces calm greens regardless of the current emotion. Both light and dark variants are needed.

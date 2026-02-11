@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth'
 import type { User } from 'firebase/auth'
-import { auth, googleProvider } from '../firebase'
+import { auth, googleProvider, appleProvider } from '../firebase'
 import { AuthContext } from './authContext'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -21,12 +21,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signInWithPopup(auth, googleProvider)
   }
 
+  const signInWithApple = async () => {
+    await signInWithPopup(auth, appleProvider)
+  }
+
   const signOut = async () => {
     await firebaseSignOut(auth)
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signInWithApple, signOut }}>
       {children}
     </AuthContext.Provider>
   )

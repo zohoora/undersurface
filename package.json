@@ -2,7 +2,7 @@
   "name": "undersurface",
   "private": true,
   "version": "1.0.0",
-  "description": "A diary app with IFS-inspired AI inner voices",
+  "description": "A diary app where inner voices respond as you write",
   "author": "zohoora",
   "type": "module",
   "scripts": {

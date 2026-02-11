@@ -4,17 +4,19 @@ import { AdminOverview } from './AdminOverview'
 import { AdminUsers } from './AdminUsers'
 import { AdminInsights } from './AdminInsights'
 import { AdminSettings } from './AdminSettings'
+import { AdminMessages } from './AdminMessages'
 
-type Tab = 'overview' | 'users' | 'insights' | 'settings'
+type Tab = 'overview' | 'users' | 'messages' | 'insights' | 'settings'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'users', label: 'Users' },
+  { id: 'messages', label: 'Messages' },
   { id: 'insights', label: 'Insights' },
   { id: 'settings', label: 'Settings' },
 ]
 
-export function AdminDashboard() {
+export default function AdminDashboard() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<Tab>('overview')
 
@@ -84,6 +86,7 @@ export function AdminDashboard() {
       <main style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>
         {activeTab === 'overview' && <AdminOverview />}
         {activeTab === 'users' && <AdminUsers />}
+        {activeTab === 'messages' && <AdminMessages />}
         {activeTab === 'insights' && <AdminInsights />}
         {activeTab === 'settings' && <AdminSettings />}
       </main>

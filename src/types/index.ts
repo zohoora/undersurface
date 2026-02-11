@@ -180,3 +180,11 @@ export interface GuidedExploration {
   source: 'theme' | 'thread' | 'pattern' | 'avoidance'
   sourceDetail?: string
 }
+
+export interface ConsentRecord {
+  id: string
+  acceptedAt: number
+  acceptedVersion: string
+  disclaimerAccepted: boolean
+  privacyAccepted: boolean
+}

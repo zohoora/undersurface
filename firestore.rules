@@ -9,5 +9,9 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow write: if false;
     }
+
+    match /contactMessages/{msgId} {
+      allow read, write: if false;
+    }
   }
 }
