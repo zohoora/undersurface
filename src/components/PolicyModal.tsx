@@ -1,6 +1,18 @@
 import { useEffect, useRef } from 'react'
 import { PolicyContent } from './PolicyContent'
 
+const navButtonStyle = {
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 12,
+  fontWeight: 500,
+  color: 'var(--text-secondary)',
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+  textDecoration: 'underline',
+  textUnderlineOffset: 3,
+} as const
+
 interface PolicyModalProps {
   isOpen: boolean
   onClose: () => void
@@ -67,33 +79,13 @@ export function PolicyModal({ isOpen, onClose, initialSection }: PolicyModalProp
           <div style={{ display: 'flex', gap: 16 }}>
             <button
               onClick={() => privacyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-              style={{
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 12,
-                fontWeight: 500,
-                color: 'var(--text-secondary)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                textDecoration: 'underline',
-                textUnderlineOffset: 3,
-              }}
+              style={navButtonStyle}
             >
               Privacy Policy
             </button>
             <button
               onClick={() => disclaimerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-              style={{
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 12,
-                fontWeight: 500,
-                color: 'var(--text-secondary)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                textDecoration: 'underline',
-                textUnderlineOffset: 3,
-              }}
+              style={navButtonStyle}
             >
               Disclaimer
             </button>

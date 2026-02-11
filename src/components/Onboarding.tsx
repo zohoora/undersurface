@@ -3,6 +3,59 @@ import { updateSettings } from '../store/settings'
 import { db } from '../store/db'
 import { PolicyModal } from './PolicyModal'
 
+const headingStyle = {
+  fontFamily: "'Spectral', serif",
+  fontSize: 24,
+  color: 'var(--text-primary)',
+} as const
+
+const bodyStyle = {
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 13,
+  color: 'var(--text-secondary)',
+  textAlign: 'center',
+  lineHeight: 1.7,
+  maxWidth: 360,
+} as const
+
+const primaryButtonStyle = {
+  width: '100%',
+  padding: '10px 20px',
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 14,
+  border: '1px solid var(--border-subtle)',
+  borderRadius: 8,
+  background: 'var(--text-primary)',
+  color: 'var(--bg-primary)',
+  cursor: 'pointer',
+} as const
+
+const backButtonStyle = {
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 12,
+  color: 'var(--text-ghost)',
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+} as const
+
+const checkboxLabelStyle = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: 10,
+  cursor: 'pointer',
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 13,
+  color: 'var(--text-secondary)',
+  lineHeight: 1.5,
+} as const
+
+const checkboxStyle = {
+  marginTop: 3,
+  flexShrink: 0,
+  accentColor: 'var(--color-still)',
+} as const
+
 interface OnboardingProps {
   onComplete: () => void
 }
@@ -54,39 +107,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       }}>
         {step === 1 && (
           <>
-            <div style={{
-              fontFamily: "'Spectral', serif",
-              fontSize: 24,
-              color: 'var(--text-primary)',
-            }}>
-              Welcome to UnderSurface
-            </div>
-            <div style={{
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 13,
-              color: 'var(--text-secondary)',
-              textAlign: 'center',
-              lineHeight: 1.7,
-              maxWidth: 340,
-            }}>
+            <div style={headingStyle}>Welcome to UnderSurface</div>
+            <div style={{ ...bodyStyle, maxWidth: 340 }}>
               This is a diary — but not just a diary. As you write, inner voices will appear on
               the page. They notice what you're writing about, and they respond — gently, honestly,
               sometimes in ways you don't expect.
             </div>
-            <button
-              onClick={() => setStep(2)}
-              style={{
-                width: '100%',
-                padding: '10px 20px',
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 14,
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 8,
-                background: 'var(--text-primary)',
-                color: 'var(--bg-primary)',
-                cursor: 'pointer',
-              }}
-            >
+            <button onClick={() => setStep(2)} style={primaryButtonStyle}>
               How does it work?
             </button>
           </>
@@ -94,63 +121,20 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
         {step === 2 && (
           <>
-            <div style={{
-              fontFamily: "'Spectral', serif",
-              fontSize: 24,
-              color: 'var(--text-primary)',
-            }}>
-              Your inner voices
-            </div>
-            <div style={{
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 13,
-              color: 'var(--text-secondary)',
-              textAlign: 'center',
-              lineHeight: 1.7,
-              maxWidth: 360,
-            }}>
+            <div style={headingStyle}>Your inner voices</div>
+            <div style={bodyStyle}>
               As you write, different voices may appear — The Watcher, The Tender One, The Still
               Point, and others. Each notices different things: patterns in your words, emotions
               beneath the surface, what you might be avoiding.
             </div>
-            <div style={{
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 13,
-              color: 'var(--text-secondary)',
-              textAlign: 'center',
-              lineHeight: 1.7,
-              maxWidth: 360,
-            }}>
+            <div style={bodyStyle}>
               They learn from your writing and evolve over time. They're not therapists — they're
               companions to the writing process.
             </div>
-            <button
-              onClick={() => setStep(3)}
-              style={{
-                width: '100%',
-                padding: '10px 20px',
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 14,
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 8,
-                background: 'var(--text-primary)',
-                color: 'var(--bg-primary)',
-                cursor: 'pointer',
-              }}
-            >
+            <button onClick={() => setStep(3)} style={primaryButtonStyle}>
               One more thing
             </button>
-            <button
-              onClick={() => setStep(1)}
-              style={{
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 12,
-                color: 'var(--text-ghost)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
+            <button onClick={() => setStep(1)} style={backButtonStyle}>
               Back
             </button>
           </>
@@ -158,21 +142,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
         {step === 3 && (
           <>
-            <div style={{
-              fontFamily: "'Spectral', serif",
-              fontSize: 24,
-              color: 'var(--text-primary)',
-            }}>
-              Before you begin
-            </div>
-            <div style={{
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 13,
-              color: 'var(--text-secondary)',
-              textAlign: 'center',
-              lineHeight: 1.7,
-              maxWidth: 360,
-            }}>
+            <div style={headingStyle}>Before you begin</div>
+            <div style={bodyStyle}>
               UnderSurface is a writing tool, not a therapeutic service. The inner voices are AI
               writing companions — they're not therapists, and they can't replace professional care.
             </div>
@@ -184,39 +155,21 @@ export function Onboarding({ onComplete }: OnboardingProps) {
               gap: 12,
               padding: '4px 0',
             }}>
-              <label style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 10,
-                cursor: 'pointer',
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 13,
-                color: 'var(--text-secondary)',
-                lineHeight: 1.5,
-              }}>
+              <label style={checkboxLabelStyle}>
                 <input
                   type="checkbox"
                   checked={disclaimerChecked}
                   onChange={(e) => setDisclaimerChecked(e.target.checked)}
-                  style={{ marginTop: 3, flexShrink: 0, accentColor: 'var(--color-still)' }}
+                  style={checkboxStyle}
                 />
                 I understand this is not a therapeutic service
               </label>
-              <label style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 10,
-                cursor: 'pointer',
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 13,
-                color: 'var(--text-secondary)',
-                lineHeight: 1.5,
-              }}>
+              <label style={checkboxLabelStyle}>
                 <input
                   type="checkbox"
                   checked={privacyChecked}
                   onChange={(e) => setPrivacyChecked(e.target.checked)}
-                  style={{ marginTop: 3, flexShrink: 0, accentColor: 'var(--color-still)' }}
+                  style={checkboxStyle}
                 />
                 <span>
                   I've read and accept the{' '}
@@ -244,12 +197,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
               onClick={handleComplete}
               disabled={!canFinish || saving}
               style={{
-                width: '100%',
-                padding: '10px 20px',
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 14,
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 8,
+                ...primaryButtonStyle,
                 background: canFinish ? 'var(--text-primary)' : 'var(--border-light)',
                 color: canFinish ? 'var(--bg-primary)' : 'var(--text-ghost)',
                 cursor: canFinish ? 'pointer' : 'default',
@@ -258,17 +206,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             >
               {saving ? 'Starting...' : 'Begin writing'}
             </button>
-            <button
-              onClick={() => setStep(2)}
-              style={{
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 12,
-                color: 'var(--text-ghost)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
+            <button onClick={() => setStep(2)} style={backButtonStyle}>
               Back
             </button>
           </>

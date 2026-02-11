@@ -6,9 +6,9 @@ import { EntriesList } from './components/Sidebar/EntriesList'
 import { LoginScreen } from './components/LoginScreen'
 import { AnnouncementBanner } from './components/AnnouncementBanner'
 import { useAuth } from './auth/useAuth'
+import { initializeDB, db, generateId } from './store/db'
 
 const AdminDashboard = lazy(() => import('./admin/AdminDashboard'))
-import { initializeDB, db, generateId } from './store/db'
 import { spellEngine } from './engine/spellEngine'
 import { ReflectionEngine } from './engine/reflectionEngine'
 import { useSettings } from './store/settings'
@@ -96,6 +96,27 @@ function App() {
   const [intention, setIntention] = useState('')
   const [explorations, setExplorations] = useState<GuidedExploration[]>([])
 
+  // Load most recent entry or create a blank one
+  const loadOrCreateEntry = useCallback(async () => {
+    const entries = await db.entries.orderBy('updatedAt').reverse().toArray()
+    if (entries.length > 0) {
+      const entry = entries[0] as { id: string; content: string }
+      setActiveEntryId(entry.id)
+      setInitialContent(entry.content)
+    } else {
+      const id = generateId()
+      await db.entries.add({
+        id,
+        content: '',
+        plainText: '',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+      setActiveEntryId(id)
+      setInitialContent('')
+    }
+  }, [])
+
   // Initialize DB and load or create first entry
   useEffect(() => {
     if (!user) return
@@ -113,29 +134,11 @@ function App() {
       setHasConsent(true)
 
       spellEngine.init()
-
-      // Get most recent entry or create one
-      const entries = await db.entries.orderBy('updatedAt').reverse().toArray()
-      if (entries.length > 0) {
-        const entry = entries[0] as { id: string; content: string }
-        setActiveEntryId(entry.id)
-        setInitialContent(entry.content)
-      } else {
-        const id = generateId()
-        await db.entries.add({
-          id,
-          content: '',
-          plainText: '',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        })
-        setActiveEntryId(id)
-        setInitialContent('')
-      }
+      await loadOrCreateEntry()
       setIsReady(true)
     }
     init()
-  }, [user])
+  }, [user, loadOrCreateEntry])
 
   // Log session start/end
   useEffect(() => {
@@ -289,24 +292,7 @@ function App() {
     const handleOnboardingComplete = async () => {
       setHasConsent(true)
       spellEngine.init()
-
-      const entries = await db.entries.orderBy('updatedAt').reverse().toArray()
-      if (entries.length > 0) {
-        const entry = entries[0] as { id: string; content: string }
-        setActiveEntryId(entry.id)
-        setInitialContent(entry.content)
-      } else {
-        const id = generateId()
-        await db.entries.add({
-          id,
-          content: '',
-          plainText: '',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        })
-        setActiveEntryId(id)
-        setInitialContent('')
-      }
+      await loadOrCreateEntry()
       setIsReady(true)
     }
     return <Onboarding onComplete={handleOnboardingComplete} />

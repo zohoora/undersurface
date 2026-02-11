@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth, GoogleAuthProvider, OAuthProvider } from 'firebase/auth'
+import { getAuth, GoogleAuthProvider } from 'firebase/auth'
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 
 const firebaseConfig = {
@@ -20,5 +20,4 @@ initializeFirestore(app, {
 
 export const auth = getAuth(app)
 export const googleProvider = new GoogleAuthProvider()
-export const appleProvider = new OAuthProvider('apple.com')
 export const firestore = getFirestore(app)

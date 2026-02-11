@@ -1,41 +1,29 @@
 import { getAuth } from 'firebase/auth'
 
-async function getAuthToken(): Promise<string> {
+async function accountFetch(body: Record<string, unknown>): Promise<void> {
   const user = getAuth().currentUser
   if (!user) throw new Error('Not authenticated')
-  return user.getIdToken()
+  const token = await user.getIdToken()
+
+  const response = await fetch('/api/account', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(`Request failed: ${response.status}${detail ? ` — ${detail}` : ''}`)
+  }
 }
 
 export async function deleteAccount(): Promise<void> {
-  const token = await getAuthToken()
-  const response = await fetch('/api/account', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ action: 'deleteAccount' }),
-  })
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => '')
-    throw new Error(`Delete failed: ${response.status}${body ? ` — ${body}` : ''}`)
-  }
+  await accountFetch({ action: 'deleteAccount' })
 }
 
 export async function submitContactMessage(message: string): Promise<void> {
-  const token = await getAuthToken()
-  const response = await fetch('/api/account', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ action: 'submitContact', message }),
-  })
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => '')
-    throw new Error(`Send failed: ${response.status}${body ? ` — ${body}` : ''}`)
-  }
+  await accountFetch({ action: 'submitContact', message })
 }

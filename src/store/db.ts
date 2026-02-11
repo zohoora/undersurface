@@ -145,22 +145,19 @@ export function generateId(): string {
 }
 
 export async function exportAllData() {
-  const [entries, parts, memories, thoughts, interactions, entrySummaries, userProfile, fossils, letters, sessionLog, innerWeather, consent] = await Promise.all([
-    db.entries.toArray(),
-    db.parts.toArray(),
-    db.memories.toArray(),
-    db.thoughts.toArray(),
-    db.interactions.toArray(),
-    db.entrySummaries.toArray(),
-    db.userProfile.toArray(),
-    db.fossils.toArray(),
-    db.letters.toArray(),
-    db.sessionLog.toArray(),
-    db.innerWeather.toArray(),
-    db.consent.toArray(),
-  ])
+  const collectionNames = [
+    'entries', 'parts', 'memories', 'thoughts', 'interactions',
+    'entrySummaries', 'userProfile', 'fossils', 'letters',
+    'sessionLog', 'innerWeather', 'consent',
+  ] as const
 
-  const data = { entries, parts, memories, thoughts, interactions, entrySummaries, userProfile, fossils, letters, sessionLog, innerWeather, consent, exportedAt: new Date().toISOString() }
+  const results = await Promise.all(
+    collectionNames.map((name) => db[name].toArray()),
+  )
+
+  const data: Record<string, unknown> = { exportedAt: new Date().toISOString() }
+  collectionNames.forEach((name, i) => { data[name] = results[i] })
+
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

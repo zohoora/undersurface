@@ -8,6 +8,17 @@ import { submitContactMessage } from '../../api/accountApi'
 import { PolicyModal } from '../PolicyModal'
 import { DeleteAccountModal } from '../DeleteAccountModal'
 
+const dataButtonBase = {
+  fontSize: 11,
+  fontFamily: "'Inter', sans-serif",
+  background: 'none',
+  border: '1px solid var(--border-subtle)',
+  borderRadius: 4,
+  padding: '6px 12px',
+  cursor: 'pointer',
+  width: '100%',
+} as const
+
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
@@ -69,6 +80,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
     const timer = setTimeout(() => setContactSent(false), 3000)
     return () => clearTimeout(timer)
   }, [contactSent])
+
   const set = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     updateSettings({ [key]: value })
   }
@@ -274,50 +286,22 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
             <div className="settings-section-label">Data</div>
             <button
               onClick={exportAllData}
-              style={{
-                fontSize: 11,
-                fontFamily: "'Inter', sans-serif",
-                color: 'var(--text-primary)',
-                background: 'none',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 4,
-                padding: '6px 12px',
-                cursor: 'pointer',
-                width: '100%',
-                marginBottom: 6,
-              }}
+              style={{ ...dataButtonBase, color: 'var(--text-primary)', marginBottom: 6 }}
             >
               Export all data
             </button>
             <button
               onClick={() => setPolicyOpen(true)}
-              style={{
-                fontSize: 11,
-                fontFamily: "'Inter', sans-serif",
-                color: 'var(--text-secondary)',
-                background: 'none',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 4,
-                padding: '6px 12px',
-                cursor: 'pointer',
-                width: '100%',
-                marginBottom: 6,
-              }}
+              style={{ ...dataButtonBase, color: 'var(--text-secondary)', marginBottom: 6 }}
             >
               Privacy &amp; Terms
             </button>
             <button
               onClick={() => setDeleteOpen(true)}
               style={{
-                fontSize: 11,
-                fontFamily: "'Inter', sans-serif",
+                ...dataButtonBase,
                 color: 'var(--color-tender)',
-                background: 'none',
-                border: '1px solid var(--color-tender)',
-                borderRadius: 4,
-                padding: '6px 12px',
-                cursor: 'pointer',
-                width: '100%',
+                borderColor: 'var(--color-tender)',
               }}
             >
               Delete account
