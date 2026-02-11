@@ -25,16 +25,14 @@ describe('settings', () => {
     // Force a fresh load by clearing + updating
     updateSettings({ responseSpeed: 1.0 })
     const s = getSettings()
-    expect(s.openRouterApiKey).toBe('')
     expect(s.openRouterModel).toBe('google/gemini-3-flash-preview')
-    expect(s.hasSeenOnboarding).toBe(false)
     expect(s.autocorrect).toBe(true)
   })
 
   it('saves and loads settings', () => {
-    updateSettings({ openRouterApiKey: 'test-key' })
+    updateSettings({ responseSpeed: 2.0 })
     const s = getSettings()
-    expect(s.openRouterApiKey).toBe('test-key')
+    expect(s.responseSpeed).toBe(2.0)
   })
 
   it('merges partial updates with existing settings', () => {

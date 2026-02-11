@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { updateSettings } from '../store/settings'
 import { db } from '../store/db'
 import { PolicyModal } from './PolicyModal'
 
@@ -73,7 +72,6 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     if (!canFinish || saving) return
     setSaving(true)
     try {
-      updateSettings({ hasSeenOnboarding: true })
       await db.consent.add({
         id: 'terms',
         acceptedAt: Date.now(),

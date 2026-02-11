@@ -20,6 +20,14 @@ const MEMORY_CAPS: Record<string, number> = {
 }
 
 export class ReflectionEngine {
+  private simpleHash(text: string): string {
+    let hash = 0
+    for (let i = 0; i < text.length; i++) {
+      hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0
+    }
+    return hash.toString(36)
+  }
+
   async reflect(entryId: string, parts: Part[]): Promise<ReflectionResult> {
     const result: ReflectionResult = { memoriesCreated: 0, profileUpdated: false }
 
@@ -27,6 +35,14 @@ export class ReflectionEngine {
       // 1. Load entry
       const entry = await db.entries.get(entryId) as { plainText: string; intention?: string } | undefined
       if (!entry || entry.plainText.trim().length < 100) return result
+
+      // 1b. Dedup check — skip if entry already reflected with same content
+      const contentHash = this.simpleHash(entry.plainText)
+      const existingSummaries = await db.entrySummaries.where('entryId').equals(entryId).toArray() as EntrySummary[]
+      if (existingSummaries.length > 0) {
+        const lastSummary = existingSummaries[existingSummaries.length - 1] as EntrySummary & { contentHash?: string }
+        if (lastSummary.contentHash === contentHash) return result
+      }
 
       // 2. Load thoughts + interactions for this entry
       const thoughts = await db.thoughts.where('entryId').equals(entryId).toArray() as { partId: string; content: string }[]
@@ -82,7 +98,7 @@ export class ReflectionEngine {
       const parsed = this.parseReflectionResponse(response)
       if (!parsed) return result
 
-      // 8a. Save entry summary
+      // 8a. Save entry summary (with content hash for dedup)
       if (parsed.entrySummary) {
         const summary: EntrySummary = {
           id: generateId(),
@@ -92,7 +108,7 @@ export class ReflectionEngine {
           keyMoments: parsed.entrySummary.keyMoments || [],
           timestamp: Date.now(),
         }
-        await db.entrySummaries.add(summary)
+        await db.entrySummaries.add({ ...summary, contentHash })
         result.entrySummary = summary
       }
 

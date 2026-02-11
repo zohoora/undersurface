@@ -40,7 +40,8 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
     setEntries(data as Entry[])
   }, [])
 
-  // Initial load + periodic refresh
+  // Initial load + infrequent fallback refresh (60s instead of 3s)
+  // Refresh on activeEntryId change (entry switches and content saves)
   useEffect(() => {
     let cancelled = false
     const load = async () => {
@@ -48,12 +49,12 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
       if (!cancelled) setEntries(data as Entry[])
     }
     load()
-    const interval = setInterval(load, 3000)
+    const interval = setInterval(load, 60_000)
     return () => {
       cancelled = true
       clearInterval(interval)
     }
-  }, [])
+  }, [activeEntryId])
 
   const handleNewEntry = async () => {
     const id = generateId()

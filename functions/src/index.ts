@@ -9,6 +9,40 @@ initializeApp()
 const openRouterKey = defineSecret('OPENROUTER_API_KEY')
 const ADMIN_EMAILS = ['zohoora@gmail.com']
 
+// ─── Chat API guardrails ──────────────────────────────────
+
+const ALLOWED_MODEL_PREFIXES = [
+  'google/gemini',
+  'anthropic/claude',
+  'meta-llama/',
+  'mistralai/',
+  'openai/gpt',
+  'qwen/',
+  'deepseek/',
+]
+
+const MAX_TOKENS_CAP = 500
+
+// Best-effort per-instance rate limiter (not shared across Cloud Function instances)
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+const RATE_LIMIT_WINDOW_MS = 60_000
+const RATE_LIMIT_MAX = 30 // requests per minute per uid
+
+function checkRateLimit(uid: string): boolean {
+  const now = Date.now()
+  const entry = rateLimitMap.get(uid)
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(uid, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
+    return true
+  }
+  entry.count++
+  return entry.count <= RATE_LIMIT_MAX
+}
+
+function isModelAllowed(model: string): boolean {
+  return ALLOWED_MODEL_PREFIXES.some((prefix) => model.startsWith(prefix))
+}
+
 export const chat = onRequest(
   {
     secrets: [openRouterKey],
@@ -29,16 +63,39 @@ export const chat = onRequest(
       return
     }
 
+    let uid: string
     try {
-      await getAuth().verifyIdToken(authHeader.split('Bearer ')[1])
+      const decoded = await getAuth().verifyIdToken(authHeader.split('Bearer ')[1])
+      uid = decoded.uid
     } catch {
       res.status(401).json({ error: 'Invalid auth token' })
       return
     }
 
-    const { messages, model, max_tokens, temperature, stream } = req.body
+    // Rate limit
+    if (!checkRateLimit(uid)) {
+      res.status(429).json({ error: 'Too many requests. Please wait a moment.' })
+      return
+    }
+
+    // Validate request body
+    const { messages, model, max_tokens, temperature, stream } = req.body || {}
+    if (!Array.isArray(messages) || messages.length === 0) {
+      res.status(400).json({ error: 'Invalid messages' })
+      return
+    }
+
     const resolvedModel = model || 'google/gemini-3-flash-preview'
-    console.log(`model=${resolvedModel} stream=${!!stream} max_tokens=${max_tokens || 150}`)
+    if (!isModelAllowed(resolvedModel)) {
+      res.status(400).json({ error: `Model not allowed: ${resolvedModel}` })
+      return
+    }
+
+    const resolvedMaxTokens = Math.min(
+      typeof max_tokens === 'number' && max_tokens > 0 ? max_tokens : 150,
+      MAX_TOKENS_CAP,
+    )
+    console.log(`uid=${uid.slice(0, 8)} model=${resolvedModel} stream=${!!stream} max_tokens=${resolvedMaxTokens}`)
 
     const openRouterResponse = await fetch(
       'https://openrouter.ai/api/v1/chat/completions',
@@ -53,8 +110,8 @@ export const chat = onRequest(
         body: JSON.stringify({
           model: resolvedModel,
           messages,
-          max_tokens: max_tokens || 150,
-          temperature: temperature ?? 0.9,
+          max_tokens: resolvedMaxTokens,
+          temperature: typeof temperature === 'number' ? Math.min(temperature, 2) : 0.9,
           stream: !!stream,
         }),
       },
@@ -114,9 +171,20 @@ async function getCollectionCount(uid: string, name: string): Promise<number> {
   return snap.data().count
 }
 
+// Paginate through all Firebase Auth users (listUsers returns max 1000 per call)
+async function getAllUsers() {
+  const allUsers: import('firebase-admin/auth').UserRecord[] = []
+  let pageToken: string | undefined
+  do {
+    const result = await getAuth().listUsers(1000, pageToken)
+    allUsers.push(...result.users)
+    pageToken = result.pageToken
+  } while (pageToken)
+  return allUsers
+}
+
 async function handleGetOverview() {
-  const listResult = await getAuth().listUsers()
-  const users = listResult.users
+  const users = await getAllUsers()
 
   let totalEntries = 0
   let totalThoughts = 0
@@ -170,10 +238,10 @@ async function handleGetOverview() {
 }
 
 async function handleGetUserList() {
-  const listResult = await getAuth().listUsers()
+  const allAuthUsers = await getAllUsers()
   const users = []
 
-  for (const user of listResult.users) {
+  for (const user of allAuthUsers) {
     const [entryCount, thoughtCount, interactionCount] = await Promise.all([
       getCollectionCount(user.uid, 'entries'),
       getCollectionCount(user.uid, 'thoughts'),
@@ -305,8 +373,7 @@ async function handleGetUserDetail(uid: string) {
 }
 
 async function handleGetAnalytics() {
-  const listResult = await getAuth().listUsers()
-  const users = listResult.users
+  const users = await getAllUsers()
 
   const now = Date.now()
   const oneDay = 24 * 60 * 60 * 1000
@@ -433,26 +500,27 @@ async function handleUpdateConfig(
 }
 
 async function handleGenerateInsights(apiKey: string) {
-  // Collect summaries and profiles across all users
-  const listResult = await getAuth().listUsers()
+  // Collect summaries and profiles across all users (pseudonymous — no PII sent to AI)
+  const allAuthUsers = await getAllUsers()
   const allSummaries: string[] = []
   const allProfiles: string[] = []
 
-  for (const user of listResult.users) {
-    const name = user.displayName || user.email || 'Unknown'
+  for (let i = 0; i < allAuthUsers.length; i++) {
+    const user = allAuthUsers[i]
+    const label = `User ${i + 1}`
 
     const summaries = await getCollectionDocs(user.uid, 'entrySummaries')
     for (const s of summaries) {
       const themes = (s.themes as string[])?.join(', ') || ''
       const arc = (s.emotionalArc as string) || ''
-      allSummaries.push(`[${name}] Themes: ${themes}. Arc: ${arc}`)
+      allSummaries.push(`[${label}] Themes: ${themes}. Arc: ${arc}`)
     }
 
     const profiles = await getCollectionDocs(user.uid, 'userProfile')
     if (profiles.length > 0) {
       const p = profiles[0]
       allProfiles.push(
-        `[${name}] Landscape: ${p.innerLandscape || 'none'}. ` +
+        `[${label}] Landscape: ${p.innerLandscape || 'none'}. ` +
         `Themes: ${(p.recurringThemes as string[])?.join(', ') || 'none'}. ` +
         `Patterns: ${(p.emotionalPatterns as string[])?.join(', ') || 'none'}.`
       )
@@ -559,6 +627,11 @@ export const accountApi = onRequest(
       return
     }
 
+    if (!req.body || typeof req.body.action !== 'string') {
+      res.status(400).json({ error: 'Missing action' })
+      return
+    }
+
     const { action, ...params } = req.body
 
     try {
@@ -571,6 +644,16 @@ export const accountApi = onRequest(
           ]
           for (const coll of collections) {
             await deleteCollection(uid, coll)
+          }
+          // Delete top-level contactMessages by this user
+          const contactSnap = await getFirestore()
+            .collection('contactMessages')
+            .where('uid', '==', uid)
+            .get()
+          if (contactSnap.docs.length > 0) {
+            const batch = getFirestore().batch()
+            contactSnap.docs.forEach((d) => batch.delete(d.ref))
+            await batch.commit()
           }
           await getFirestore().collection('users').doc(uid).delete()
           await getAuth().deleteUser(uid)
@@ -630,6 +713,11 @@ export const adminApi = onRequest(
     const adminEmail = await verifyAdmin(req.headers.authorization)
     if (!adminEmail) {
       res.status(403).json({ error: 'Forbidden' })
+      return
+    }
+
+    if (!req.body || typeof req.body.action !== 'string') {
+      res.status(400).json({ error: 'Missing action' })
       return
     }
 

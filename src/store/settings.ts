@@ -3,9 +3,7 @@ import { getGlobalConfig } from './globalConfig'
 
 export interface AppSettings {
   // AI
-  openRouterApiKey: string
   openRouterModel: string
-  hasSeenOnboarding: boolean
 
   // Part responsiveness (0.5 = slower, 2.0 = faster)
   responseSpeed: number
@@ -22,9 +20,7 @@ export interface AppSettings {
 }
 
 const DEFAULTS: AppSettings = {
-  openRouterApiKey: '',
   openRouterModel: 'google/gemini-3-flash-preview',
-  hasSeenOnboarding: false,
   responseSpeed: 1.0,
   typewriterScroll: 'typewriter',
   autoCapitalize: true,

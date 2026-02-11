@@ -70,6 +70,7 @@ function SplashScreen() {
 function App() {
   const { user, loading } = useAuth()
   const [isReady, setIsReady] = useState(false)
+  const [initError, setInitError] = useState<string | null>(null)
   const [hasConsent, setHasConsent] = useState<boolean | null>(null)
   const [activeEntryId, setActiveEntryId] = useState<string>('')
   const [initialContent, setInitialContent] = useState('')
@@ -122,20 +123,25 @@ function App() {
     if (!user) return
 
     const init = async () => {
-      initGlobalConfig()
-      await initializeDB()
+      try {
+        initGlobalConfig()
+        await initializeDB()
 
-      // Check consent before proceeding
-      const consentDoc = await db.consent.get('terms')
-      if (!consentDoc || (consentDoc as { acceptedVersion?: string }).acceptedVersion !== '1.0') {
-        setHasConsent(false)
-        return
+        // Check consent before proceeding
+        const consentDoc = await db.consent.get('terms')
+        if (!consentDoc || (consentDoc as { acceptedVersion?: string }).acceptedVersion !== '1.0') {
+          setHasConsent(false)
+          return
+        }
+        setHasConsent(true)
+
+        spellEngine.init()
+        await loadOrCreateEntry()
+        setIsReady(true)
+      } catch (error) {
+        console.error('Init failed:', error)
+        setInitError(error instanceof Error ? error.message : 'Failed to initialize. Please try again.')
       }
-      setHasConsent(true)
-
-      spellEngine.init()
-      await loadOrCreateEntry()
-      setIsReady(true)
     }
     init()
   }, [user, loadOrCreateEntry])
@@ -301,6 +307,55 @@ function App() {
       setIsReady(true)
     }
     return <Onboarding onComplete={handleOnboardingComplete} />
+  }
+
+  // Init error — show retry screen
+  if (initError) {
+    return (
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--bg-primary)',
+        gap: 16,
+        padding: 40,
+      }}>
+        <div style={{
+          fontFamily: "'Spectral', serif",
+          fontSize: 24,
+          color: 'var(--text-primary)',
+        }}>
+          Something went wrong
+        </div>
+        <div style={{
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 13,
+          color: 'var(--text-secondary)',
+          textAlign: 'center',
+          maxWidth: 340,
+        }}>
+          {initError}
+        </div>
+        <button
+          onClick={() => { setInitError(null); window.location.reload() }}
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 14,
+            padding: '10px 24px',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 8,
+            background: 'var(--surface-primary)',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+          }}
+        >
+          Try again
+        </button>
+      </div>
+    )
   }
 
   // Initializing DB
