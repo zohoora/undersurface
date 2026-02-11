@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { useSettings, updateSettings } from '../../store/settings'
 import type { AppSettings } from '../../store/settings'
 import { useAuth } from '../../auth/useAuth'
 import { useTheme } from '../../hooks/useTheme'
 import { exportAllData } from '../../store/db'
 import { submitContactMessage } from '../../api/accountApi'
-import { PolicyModal } from '../PolicyModal'
-import { DeleteAccountModal } from '../DeleteAccountModal'
+import { trackEvent } from '../../services/analytics'
+
+const PolicyModal = lazy(() => import('../PolicyModal'))
+const DeleteAccountModal = lazy(() => import('../DeleteAccountModal'))
 
 const dataButtonBase = {
   fontSize: 11,
@@ -88,7 +90,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
   return (
     <div className="settings-panel">
       <button
-        className="settings-gear-btn"
+        className={`settings-gear-btn${isOpen ? ' active' : ''}`}
         onClick={onToggle}
         aria-label="Toggle settings"
         aria-expanded={isOpen}
@@ -285,7 +287,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
           <div className="settings-section">
             <div className="settings-section-label">Data</div>
             <button
-              onClick={exportAllData}
+              onClick={() => { trackEvent('export_data'); exportAllData() }}
               style={{ ...dataButtonBase, color: 'var(--text-primary)', marginBottom: 6 }}
             >
               Export all data
@@ -307,8 +309,10 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
               Delete account
             </button>
           </div>
-          <PolicyModal isOpen={policyOpen} onClose={() => setPolicyOpen(false)} />
-          <DeleteAccountModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} />
+          <Suspense fallback={null}>
+            {policyOpen && <PolicyModal isOpen={policyOpen} onClose={() => setPolicyOpen(false)} />}
+            {deleteOpen && <DeleteAccountModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} />}
+          </Suspense>
         </div>
       )}
     </div>

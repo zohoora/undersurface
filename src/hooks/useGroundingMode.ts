@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { getGlobalConfig } from '../store/globalConfig'
+import { trackEvent } from '../services/analytics'
 
 // Module-level state (like useFlowState pattern)
 let groundingActive = false
@@ -20,7 +21,7 @@ function getSnapshot(): boolean {
   return groundingActive
 }
 
-export function activateGrounding(): void {
+export function activateGrounding(trigger: 'auto' | 'manual' = 'auto'): void {
   if (groundingActive) {
     // Re-trigger resets the auto-exit timer
     resetAutoExit()
@@ -28,6 +29,7 @@ export function activateGrounding(): void {
   }
   groundingActive = true
   document.documentElement.setAttribute('data-grounding', 'true')
+  trackEvent('grounding_activated', { trigger })
   notify()
   resetAutoExit()
 }

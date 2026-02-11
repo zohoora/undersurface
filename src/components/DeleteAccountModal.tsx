@@ -8,7 +8,7 @@ interface DeleteAccountModalProps {
   onClose: () => void
 }
 
-export function DeleteAccountModal({ isOpen, onClose }: DeleteAccountModalProps) {
+export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountModalProps) {
   // Inner component unmounts when closed, so state resets on next open
   if (!isOpen) return null
   return <DeleteAccountModalContent onClose={onClose} />

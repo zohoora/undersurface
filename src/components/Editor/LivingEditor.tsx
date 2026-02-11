@@ -23,6 +23,7 @@ import { buildInteractionReply } from '../../ai/partPrompts'
 import { streamChatCompletion } from '../../ai/openrouter'
 import { db, generateId } from '../../store/db'
 import { getGlobalConfig, useGlobalConfig } from '../../store/globalConfig'
+import { trackEvent } from '../../services/analytics'
 import type { EmotionalTone, Part, PartThought } from '../../types'
 
 interface ActiveThought {
@@ -66,7 +67,7 @@ interface Props {
   intention?: string
 }
 
-export function LivingEditor({
+export default function LivingEditor({
   entryId,
   initialContent,
   onContentChange,
@@ -609,6 +610,8 @@ export function LivingEditor({
       if (!part) return
 
       const text = editor?.getText() || ''
+
+      trackEvent('thinking_out_loud', { part_name: activeInteraction.partName, status: 'user_responded' })
 
       const interactionId = generateId()
       await db.interactions.add({

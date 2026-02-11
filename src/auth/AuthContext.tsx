@@ -4,6 +4,8 @@ import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, signIn
 import type { User } from 'firebase/auth'
 import { auth, googleProvider } from '../firebase'
 import { AuthContext } from './authContext'
+import * as Sentry from '@sentry/react'
+import { trackEvent, setAnalyticsUser, clearAnalyticsUser } from '../services/analytics'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -13,20 +15,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u)
       setLoading(false)
+      if (u) {
+        setAnalyticsUser(u.uid)
+        Sentry.setUser({ id: u.uid, email: u.email ?? undefined })
+      } else {
+        clearAnalyticsUser()
+        Sentry.setUser(null)
+      }
     })
     return unsubscribe
   }, [])
 
   const signIn = async () => {
     await signInWithPopup(auth, googleProvider)
+    trackEvent('sign_in', { method: 'google' })
   }
 
   const signInWithEmail = async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email, password)
+    trackEvent('sign_in', { method: 'email' })
   }
 
   const signUpWithEmail = async (email: string, password: string) => {
     await createUserWithEmailAndPassword(auth, email, password)
+    trackEvent('sign_up', { method: 'email' })
   }
 
   const resetPassword = async (email: string) => {

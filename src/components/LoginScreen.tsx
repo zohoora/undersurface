@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../auth/useAuth'
-import { PolicyModal } from './PolicyModal'
+import PolicyModal from './PolicyModal'
 
 const FORM_WIDTH = 280
 

@@ -19,7 +19,7 @@ interface PolicyModalProps {
   initialSection?: 'privacy' | 'disclaimer'
 }
 
-export function PolicyModal({ isOpen, onClose, initialSection }: PolicyModalProps) {
+export default function PolicyModal({ isOpen, onClose, initialSection }: PolicyModalProps) {
   const privacyRef = useRef<HTMLDivElement>(null)
   const disclaimerRef = useRef<HTMLDivElement>(null)
 

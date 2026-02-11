@@ -417,8 +417,8 @@
 
 .settings-panel {
   margin-top: auto;
-  padding-top: 12px;
-  border-top: 1px solid var(--overlay-subtle);
+  padding-top: 8px;
+  position: relative;
 }
 
 .settings-gear-btn {
@@ -430,7 +430,7 @@
   cursor: pointer;
   font-size: 12px;
   color: var(--text-ghost);
-  transition: color 0.2s ease;
+  transition: color 0.2s ease, background 0.2s ease;
   border: none;
   background: none;
   font-family: 'Inter', sans-serif;
@@ -441,8 +441,29 @@
   color: var(--text-secondary);
 }
 
+.settings-gear-btn.active {
+  color: var(--text-secondary);
+  background: var(--overlay-subtle);
+}
+
 .settings-body {
-  padding: 4px 0 8px;
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: -16px;
+  right: -16px;
+  max-height: 65vh;
+  overflow-y: auto;
+  padding: 16px 16px 8px;
+  background: var(--bg-primary);
+  border-radius: 12px 12px 0 0;
+  border-top: 1px solid var(--border-subtle);
+  box-shadow: 0 -8px 32px var(--overlay-light);
+  animation: settingsSlideUp 0.2s ease-out;
+}
+
+@keyframes settingsSlideUp {
+  from { transform: translateY(6px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 .settings-section {
@@ -1143,10 +1164,6 @@ body {
 
 /* Session close trigger */
 .session-close-trigger {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
   font-family: 'Inter', sans-serif;
   font-size: 11px;
   color: var(--text-ghost);
@@ -1155,17 +1172,14 @@ body {
   cursor: pointer;
   opacity: 0.35;
   transition: opacity 0.3s ease;
-  padding: 6px 12px;
+  padding: 4px 0;
   letter-spacing: 0.03em;
-  z-index: 5;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-@media (max-width: 768px) {
-  .session-close-trigger {
-    bottom: 56px;
-    padding: 10px 20px;
-    font-size: 12px;
-  }
+.session-close-trigger:hover {
+  opacity: 0.7;
 }
 
 /* Small phones */

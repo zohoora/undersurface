@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import { BreathingBackground } from './components/Atmosphere/BreathingBackground'
 import { CursorGlow } from './components/Atmosphere/CursorGlow'
-import { LivingEditor } from './components/Editor/LivingEditor'
 import { EntriesList } from './components/Sidebar/EntriesList'
 import { LoginScreen } from './components/LoginScreen'
 import { AnnouncementBanner } from './components/AnnouncementBanner'
@@ -9,6 +8,7 @@ import { useAuth } from './auth/useAuth'
 import { initializeDB, db, generateId } from './store/db'
 
 const AdminDashboard = lazy(() => import('./admin/AdminDashboard'))
+const LivingEditor = lazy(() => import('./components/Editor/LivingEditor'))
 import { spellEngine } from './engine/spellEngine'
 import { ReflectionEngine } from './engine/reflectionEngine'
 import { useSettings } from './store/settings'
@@ -22,17 +22,31 @@ import { useGroundingMode } from './hooks/useGroundingMode'
 import { InnerWeather } from './components/InnerWeather'
 import { WeatherEngine } from './engine/weatherEngine'
 import { RitualEngine } from './engine/ritualEngine'
-import { FossilEngine } from './engine/fossilEngine'
 import { IntentionInput } from './components/Editor/IntentionInput'
 import { ExplorationCard } from './components/Editor/ExplorationCard'
-import { ExplorationEngine } from './engine/explorationEngine'
 import { Onboarding } from './components/Onboarding'
 import { CrisisResources } from './components/CrisisResources'
 import { SessionClosing } from './components/SessionClosing'
 import { chatCompletion } from './ai/openrouter'
+import { trackEvent } from './services/analytics'
 import type { EmotionalTone, Part, GuidedExploration, InnerWeather as InnerWeatherType } from './types'
 
 const ADMIN_EMAILS = ['zohoora@gmail.com']
+
+function EditorSkeleton() {
+  return (
+    <div style={{
+      maxWidth: 680,
+      margin: '0 auto',
+      padding: '120px 40px',
+      opacity: 0.3,
+    }}>
+      <div style={{ height: 20, width: '60%', background: 'var(--border-light)', borderRadius: 4, marginBottom: 16 }} />
+      <div style={{ height: 16, width: '90%', background: 'var(--border-light)', borderRadius: 4, marginBottom: 12 }} />
+      <div style={{ height: 16, width: '75%', background: 'var(--border-light)', borderRadius: 4 }} />
+    </div>
+  )
+}
 
 function SplashScreen() {
   return (
@@ -92,8 +106,8 @@ function App() {
   const reflectionEngineRef = useRef(new ReflectionEngine())
   const weatherEngineRef = useRef(new WeatherEngine())
   const ritualEngineRef = useRef(new RitualEngine())
-  const fossilEngineRef = useRef(new FossilEngine())
-  const explorationEngineRef = useRef(new ExplorationEngine())
+  const fossilEngineRef = useRef<InstanceType<typeof import('./engine/fossilEngine').FossilEngine> | null>(null)
+  const explorationEngineRef = useRef<InstanceType<typeof import('./engine/explorationEngine').ExplorationEngine> | null>(null)
   const [weather, setWeather] = useState<InnerWeatherType | null>(null)
   const [fossilThought, setFossilThought] = useState<{ partName: string; partColor: string; colorLight: string; content: string } | null>(null)
   const [intention, setIntention] = useState('')
@@ -142,6 +156,7 @@ function App() {
         spellEngine.init()
         await loadOrCreateEntry()
         setIsReady(true)
+        trackEvent('app_launch')
       } catch (error) {
         console.error('Init failed:', error)
         setInitError(error instanceof Error ? error.message : 'Failed to initialize. Please try again.')
@@ -200,18 +215,24 @@ function App() {
     // Trigger reflection on outgoing entry (async, non-blocking)
     triggerReflection(outgoingEntryId)
 
-    const entry = await db.entries.get(id) as { id: string; content: string; intention?: string } | undefined
+    const entry = await db.entries.get(id) as { id: string; content: string; intention?: string; createdAt?: number } | undefined
     if (entry) {
       setActiveEntryId(id)
       setInitialContent(entry.content)
       setIntention(entry.intention || '')
       setExplorations([])
+      const ageDays = entry.createdAt ? Math.floor((Date.now() - entry.createdAt) / 86400000) : 0
+      trackEvent('entry_switch', { entry_age_days: ageDays })
 
       // Fossil check for old entries
       setFossilThought(null)
       const entryCreatedAt = (entry as { createdAt?: number }).createdAt
       if (entryCreatedAt) {
         db.parts.toArray().then(async (parts) => {
+          if (!fossilEngineRef.current) {
+            const { FossilEngine } = await import('./engine/fossilEngine')
+            fossilEngineRef.current = new FossilEngine()
+          }
           const fossil = await fossilEngineRef.current.checkForFossil(id, entryCreatedAt, parts as Part[])
           if (fossil) {
             const part = (parts as Part[]).find(p => p.id === fossil.partId)
@@ -222,6 +243,7 @@ function App() {
                 colorLight: part.colorLight,
                 content: fossil.commentary,
               })
+              trackEvent('fossil_shown', { part_name: part.name })
               setTimeout(() => setFossilThought(null), 30000)
             }
           }
@@ -238,15 +260,24 @@ function App() {
     setInitialContent('')
     setIntention('')
     setExplorations([])
+    trackEvent('new_entry')
 
-    // Generate explorations for new blank entry
-    const engine = explorationEngineRef.current
-    engine.reset()
-    if (engine.shouldSuggest()) {
-      engine.generateExplorations()
-        .then((results) => { if (results.length > 0) setExplorations(results) })
-        .catch(console.error)
-    }
+    // Generate explorations for new blank entry (lazy-loaded)
+    ;(async () => {
+      if (!explorationEngineRef.current) {
+        const { ExplorationEngine } = await import('./engine/explorationEngine')
+        explorationEngineRef.current = new ExplorationEngine()
+      }
+      const engine = explorationEngineRef.current
+      engine.reset()
+      if (engine.shouldSuggest()) {
+        const results = await engine.generateExplorations()
+        if (results.length > 0) {
+          setExplorations(results)
+          trackEvent('exploration_shown', { count: results.length })
+        }
+      }
+    })().catch(console.error)
   }, [activeEntryId, triggerReflection])
 
   const handleIntentionChange = useCallback((newIntention: string) => {
@@ -254,11 +285,13 @@ function App() {
     if (activeEntryId) {
       db.entries.update(activeEntryId, { intention: newIntention })
     }
+    if (newIntention.trim()) trackEvent('intention_set')
   }, [activeEntryId])
 
   const handleSelectExploration = useCallback((exploration: GuidedExploration) => {
     handleIntentionChange(exploration.prompt)
     setExplorations([])
+    trackEvent('exploration_selected', { source: 'new_entry' })
   }, [handleIntentionChange])
 
   const handleDismissExplorations = useCallback(() => {
@@ -279,6 +312,8 @@ function App() {
     }
 
     const text = latestContentRef.current.text.trim()
+    const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0
+    trackEvent('session_close', { word_count: wordCount })
     const snippet = text.slice(-600) || 'The writer opened a blank page today.'
 
     try {
@@ -300,7 +335,10 @@ function App() {
     setClosingPhrase(null)
   }, [])
 
+  const prevEmotionRef = useRef(emotion)
   const handleEmotionChange = useCallback((newEmotion: EmotionalTone) => {
+    if (newEmotion !== prevEmotionRef.current) trackEvent('emotion_shift', { from: prevEmotionRef.current, to: newEmotion })
+    prevEmotionRef.current = newEmotion
     setEmotion(newEmotion)
     weatherEngineRef.current.recordEmotion(newEmotion)
     const w = weatherEngineRef.current.getWeather()
@@ -344,6 +382,7 @@ function App() {
       spellEngine.init()
       await loadOrCreateEntry()
       setIsReady(true)
+      trackEvent('onboarding_complete')
     }
     return <Onboarding onComplete={handleOnboardingComplete} />
   }
@@ -483,36 +522,41 @@ function App() {
           onDismiss={handleDismissExplorations}
         />
       )}
-      {globalConfig?.features?.intentionsEnabled === true && (
-        <div style={{
-          position: 'relative',
-          zIndex: 2,
-          maxWidth: 680,
-          margin: '0 auto',
-          padding: '0 40px',
-        }}>
-          <IntentionInput value={intention} onChange={handleIntentionChange} />
+      <div style={{
+        position: 'relative',
+        zIndex: 2,
+        maxWidth: 680,
+        margin: '0 auto',
+        padding: '0 40px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        minHeight: 28,
+      }}>
+        <div style={{ flex: 1 }}>
+          {globalConfig?.features?.intentionsEnabled === true && (
+            <IntentionInput value={intention} onChange={handleIntentionChange} />
+          )}
         </div>
-      )}
-      <LivingEditor
-        key={activeEntryId}
-        entryId={activeEntryId}
-        initialContent={initialContent}
-        onContentChange={handleContentChange}
-        onEmotionChange={handleEmotionChange}
-        onActivePartColorChange={handleActivePartColorChange}
-        settings={settings}
-        intention={intention}
-      />
-      {/* Session close trigger */}
-      <button
-        className="session-close-trigger"
-        onClick={handleSessionClose}
-        onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7' }}
-        onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.35' }}
-      >
-        done for now
-      </button>
+        <button
+          className="session-close-trigger"
+          onClick={handleSessionClose}
+        >
+          close session
+        </button>
+      </div>
+      <Suspense fallback={<EditorSkeleton />}>
+        <LivingEditor
+          key={activeEntryId}
+          entryId={activeEntryId}
+          initialContent={initialContent}
+          onContentChange={handleContentChange}
+          onEmotionChange={handleEmotionChange}
+          onActivePartColorChange={handleActivePartColorChange}
+          settings={settings}
+          intention={intention}
+        />
+      </Suspense>
       {/* Session closing overlay */}
       {(closingLoading || closingPhrase) && (
         <SessionClosing

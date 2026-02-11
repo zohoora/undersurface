@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { db } from '../store/db'
-import { PolicyModal } from './PolicyModal'
+import PolicyModal from './PolicyModal'
 
 const headingStyle = {
   fontFamily: "'Spectral', serif",

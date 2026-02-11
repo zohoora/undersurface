@@ -4,6 +4,7 @@ import { streamChatCompletion, analyzeEmotion } from '../ai/openrouter'
 import { db, generateId } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { activateGrounding, isGroundingActive } from '../hooks/useGroundingMode'
+import { trackEvent } from '../services/analytics'
 import { QuoteEngine } from './quoteEngine'
 import { DisagreementEngine } from './disagreementEngine'
 import { QuietTracker } from './quietTracker'
@@ -334,6 +335,7 @@ export class PartOrchestrator {
           }
 
           this.callbacks.onThoughtComplete(thought)
+          trackEvent('part_thought', { part_name: part.name, emotion: this.currentEmotion, pause_type: event.type })
 
           // Track activity for quiet return system
           this.quietTracker.updateLastActive(part.id)
