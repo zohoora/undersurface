@@ -1,0 +1,2 @@
+# Stale nested output dir (caused by running with --output-dir benchmarks/results from benchmarks/)
+benchmarks/

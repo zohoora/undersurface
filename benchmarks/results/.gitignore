@@ -1,0 +1,7 @@
+# Result JSON files are large (50-275KB each) and may reference API keys
+# Keep markdown summaries, ignore raw JSON
+*.json
+
+# Keep directory structure
+!.gitignore
+!.gitkeep
