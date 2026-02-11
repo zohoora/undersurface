@@ -219,6 +219,20 @@ export interface ContactMessage {
   createdAt: number
 }
 
+export interface AdminAnalyticsResponse {
+  activeUsers: {
+    daily: number
+    weekly: number
+    monthly: number
+  }
+  signupsByWeek: Array<{ week: string; count: number }>
+  entriesByDay: Array<{ date: string; count: number }>
+  partUsage: Array<{ partName: string; partColor: string; thoughtCount: number }>
+  averageWordsPerEntry: number
+  averageEntriesPerUser: number
+  totalWords: number
+}
+
 export type AdminAction =
   | 'getOverview'
   | 'getUserList'
@@ -227,3 +241,4 @@ export type AdminAction =
   | 'updateConfig'
   | 'generateInsights'
   | 'getContactMessages'
+  | 'getAnalytics'

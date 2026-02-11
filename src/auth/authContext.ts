@@ -7,6 +7,7 @@ export interface AuthContextValue {
   signIn: () => Promise<void>
   signInWithEmail: (email: string, password: string) => Promise<void>
   signUpWithEmail: (email: string, password: string) => Promise<void>
+  resetPassword: (email: string) => Promise<void>
   signOut: () => Promise<void>
 }
 

@@ -287,6 +287,11 @@ function App() {
     window.history.replaceState(null, '', '/')
   }
 
+  // 404 — redirect unknown paths to root
+  if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/admin')) {
+    window.history.replaceState(null, '', '/')
+  }
+
   // Consent gate — show onboarding if user hasn't accepted terms
   if (hasConsent === false) {
     const handleOnboardingComplete = async () => {

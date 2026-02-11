@@ -304,6 +304,113 @@ async function handleGetUserDetail(uid: string) {
   }
 }
 
+async function handleGetAnalytics() {
+  const listResult = await getAuth().listUsers()
+  const users = listResult.users
+
+  const now = Date.now()
+  const oneDay = 24 * 60 * 60 * 1000
+  const oneWeek = 7 * oneDay
+  const oneMonth = 30 * oneDay
+
+  let dailyActive = 0
+  let weeklyActive = 0
+  let monthlyActive = 0
+  let totalEntries = 0
+  let totalWords = 0
+
+  // Signup tracking by week (last 12 weeks)
+  const signupBuckets: Record<string, number> = {}
+  // Entry tracking by day (last 14 days)
+  const entryBuckets: Record<string, number> = {}
+  // Part usage tracking
+  const partThoughtCounts: Record<string, { name: string; color: string; count: number }> = {}
+
+  for (const user of users) {
+    // Track signups by week
+    const createdAt = new Date(user.metadata.creationTime).getTime()
+    if (now - createdAt < 12 * oneWeek) {
+      const weekStart = new Date(createdAt)
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay())
+      const weekKey = weekStart.toISOString().split('T')[0]
+      signupBuckets[weekKey] = (signupBuckets[weekKey] || 0) + 1
+    }
+
+    // Get entries for activity + word count
+    const entriesSnap = await getFirestore()
+      .collection('users').doc(user.uid).collection('entries')
+      .get()
+
+    let userLastActive = 0
+    for (const doc of entriesSnap.docs) {
+      const data = doc.data()
+      totalEntries++
+      const text = (data.plainText as string) || ''
+      totalWords += text.split(/\s+/).filter((w: string) => w.length > 0).length
+      const updatedAt = (data.updatedAt as number) || 0
+      if (updatedAt > userLastActive) userLastActive = updatedAt
+
+      // Track entries by day (last 14 days)
+      const entryCreated = (data.createdAt as number) || 0
+      if (now - entryCreated < 14 * oneDay) {
+        const dayKey = new Date(entryCreated).toISOString().split('T')[0]
+        entryBuckets[dayKey] = (entryBuckets[dayKey] || 0) + 1
+      }
+    }
+
+    if (now - userLastActive < oneDay) dailyActive++
+    if (now - userLastActive < oneWeek) weeklyActive++
+    if (now - userLastActive < oneMonth) monthlyActive++
+
+    // Get parts for this user
+    const partsSnap = await getFirestore()
+      .collection('users').doc(user.uid).collection('parts')
+      .get()
+    const partMap: Record<string, { name: string; color: string }> = {}
+    for (const doc of partsSnap.docs) {
+      const data = doc.data()
+      partMap[data.id as string] = { name: data.name as string, color: data.color as string }
+    }
+
+    // Count thoughts per part
+    const thoughtsSnap = await getFirestore()
+      .collection('users').doc(user.uid).collection('thoughts')
+      .get()
+    for (const doc of thoughtsSnap.docs) {
+      const partId = doc.data().partId as string
+      const part = partMap[partId]
+      if (part) {
+        if (!partThoughtCounts[part.name]) {
+          partThoughtCounts[part.name] = { name: part.name, color: part.color, count: 0 }
+        }
+        partThoughtCounts[part.name].count++
+      }
+    }
+  }
+
+  // Build sorted arrays
+  const signupsByWeek = Object.entries(signupBuckets)
+    .map(([week, count]) => ({ week, count }))
+    .sort((a, b) => a.week.localeCompare(b.week))
+
+  const entriesByDay = Object.entries(entryBuckets)
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  const partUsage = Object.values(partThoughtCounts)
+    .sort((a, b) => b.count - a.count)
+
+  return {
+    activeUsers: { daily: dailyActive, weekly: weeklyActive, monthly: monthlyActive },
+    signupsByWeek,
+    entriesByDay,
+    partUsage,
+    averageWordsPerEntry: totalEntries > 0 ? Math.round(totalWords / totalEntries) : 0,
+    averageEntriesPerUser: users.length > 0 ? Math.round((totalEntries / users.length) * 10) / 10 : 0,
+    totalWords,
+  }
+}
+
 async function handleGetConfig() {
   const docRef = getFirestore().collection('appConfig').doc('global')
   const snap = await docRef.get()
@@ -552,6 +659,9 @@ export const adminApi = onRequest(
             return
           }
           res.json(await handleUpdateConfig(params.config, adminEmail))
+          return
+        case 'getAnalytics':
+          res.json(await handleGetAnalytics())
           return
         case 'generateInsights':
           res.json(await handleGenerateInsights(openRouterKey.value()))

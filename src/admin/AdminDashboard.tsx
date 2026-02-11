@@ -2,15 +2,17 @@ import { useState } from 'react'
 import { useAuth } from '../auth/useAuth'
 import { AdminOverview } from './AdminOverview'
 import { AdminUsers } from './AdminUsers'
+import { AdminAnalytics } from './AdminAnalytics'
 import { AdminInsights } from './AdminInsights'
 import { AdminSettings } from './AdminSettings'
 import { AdminMessages } from './AdminMessages'
 
-type Tab = 'overview' | 'users' | 'messages' | 'insights' | 'settings'
+type Tab = 'overview' | 'users' | 'analytics' | 'messages' | 'insights' | 'settings'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'users', label: 'Users' },
+  { id: 'analytics', label: 'Analytics' },
   { id: 'messages', label: 'Messages' },
   { id: 'insights', label: 'Insights' },
   { id: 'settings', label: 'Settings' },
@@ -86,6 +88,7 @@ export default function AdminDashboard() {
       <main style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>
         {activeTab === 'overview' && <AdminOverview />}
         {activeTab === 'users' && <AdminUsers />}
+        {activeTab === 'analytics' && <AdminAnalytics />}
         {activeTab === 'messages' && <AdminMessages />}
         {activeTab === 'insights' && <AdminInsights />}
         {activeTab === 'settings' && <AdminSettings />}
