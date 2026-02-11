@@ -28,6 +28,8 @@ import { ExplorationCard } from './components/Editor/ExplorationCard'
 import { ExplorationEngine } from './engine/explorationEngine'
 import { Onboarding } from './components/Onboarding'
 import { CrisisResources } from './components/CrisisResources'
+import { SessionClosing } from './components/SessionClosing'
+import { chatCompletion } from './ai/openrouter'
 import type { EmotionalTone, Part, GuidedExploration, InnerWeather as InnerWeatherType } from './types'
 
 const ADMIN_EMAILS = ['zohoora@gmail.com']
@@ -96,6 +98,8 @@ function App() {
   const [fossilThought, setFossilThought] = useState<{ partName: string; partColor: string; colorLight: string; content: string } | null>(null)
   const [intention, setIntention] = useState('')
   const [explorations, setExplorations] = useState<GuidedExploration[]>([])
+  const [closingPhrase, setClosingPhrase] = useState<string | null>(null)
+  const [closingLoading, setClosingLoading] = useState(false)
 
   // Load most recent entry or create a blank one
   const loadOrCreateEntry = useCallback(async () => {
@@ -259,6 +263,41 @@ function App() {
 
   const handleDismissExplorations = useCallback(() => {
     setExplorations([])
+  }, [])
+
+  const handleSessionClose = useCallback(async () => {
+    setClosingLoading(true)
+    setClosingPhrase(null)
+
+    // Save current entry first
+    if (activeEntryId && latestContentRef.current.html) {
+      await db.entries.update(activeEntryId, {
+        content: latestContentRef.current.html,
+        plainText: latestContentRef.current.text,
+        updatedAt: Date.now(),
+      })
+    }
+
+    const text = latestContentRef.current.text.trim()
+    const snippet = text.slice(-600) || 'The writer opened a blank page today.'
+
+    try {
+      const phrase = await chatCompletion([
+        {
+          role: 'system',
+          content: `You are The Weaver — a warm, pattern-seeing inner voice. The writer is finishing their session. Offer one brief, warm closing thought (1-2 sentences). Be soothing and loving. Reference something specific from what they wrote — a thread, an image, a feeling. Don't summarize. Don't give advice. Just leave them with something gentle to carry. Speak directly to them. No quotes around your words.`,
+        },
+        { role: 'user', content: snippet },
+      ], 15000, 80)
+      setClosingPhrase(phrase.trim())
+    } catch {
+      setClosingPhrase('You showed up today. That matters.')
+    }
+  }, [activeEntryId])
+
+  const handleDismissClosing = useCallback(() => {
+    setClosingLoading(false)
+    setClosingPhrase(null)
   }, [])
 
   const handleEmotionChange = useCallback((newEmotion: EmotionalTone) => {
@@ -465,6 +504,23 @@ function App() {
         settings={settings}
         intention={intention}
       />
+      {/* Session close trigger */}
+      <button
+        className="session-close-trigger"
+        onClick={handleSessionClose}
+        onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7' }}
+        onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.35' }}
+      >
+        done for now
+      </button>
+      {/* Session closing overlay */}
+      {(closingLoading || closingPhrase) && (
+        <SessionClosing
+          phrase={closingPhrase}
+          loading={closingLoading}
+          onClose={handleDismissClosing}
+        />
+      )}
     </>
   )
 }

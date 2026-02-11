@@ -119,7 +119,7 @@ User opens Settings → Delete Account / Contact form
 | `src/engine/ritualEngine.ts` | Session logging for ritual detection (writing habits) |
 | `src/engine/fossilEngine.ts` | Resurfaces old entry commentary when revisiting past entries |
 | `src/engine/explorationEngine.ts` | AI-generated personalized writing prompts from user profile + recent summaries |
-| `src/store/db.ts` | Firestore wrapper — mimics Dexie.js API surface; 12 collection proxies + data export |
+| `src/store/db.ts` | Firestore wrapper — mimics Dexie.js API surface; 12 collection proxies + Markdown data export |
 | `src/store/settings.ts` | User settings in localStorage (3-tier cascade: hardcoded < globalConfig < localStorage) |
 | `src/store/globalConfig.ts` | Real-time listener on `appConfig/global` Firestore doc, provides `useGlobalConfig()` hook |
 | `src/firebase.ts` | Firebase/Firestore initialization with offline persistence |
@@ -134,6 +134,7 @@ User opens Settings → Delete Account / Contact form
 | `src/components/PolicyContent.tsx` | Privacy policy and disclaimer content |
 | `src/components/PolicyModal.tsx` | Modal wrapper for policy content |
 | `src/components/InnerWeather.tsx` | Inner weather display widget |
+| `src/components/SessionClosing.tsx` | Session closing overlay — shows The Weaver's closing thought with fade-in/out animation |
 | `src/components/AnnouncementBanner.tsx` | Fixed banner from global config, dismissible via sessionStorage |
 | `src/components/Editor/LivingEditor.tsx` | TipTap-based rich text editor with part thoughts, autocorrect, color bleed |
 | `src/components/Editor/IntentionInput.tsx` | Subtle per-entry intention input (ghost button → inline edit, 120 char max) |
@@ -357,6 +358,30 @@ AI-generated personalized writing prompts on new blank entries. Controlled by `f
 
 **Undo on Backspace**: `LivingEditor.tsx` tracks the last autocorrection in `lastAutocorrectRef`. If the user presses Backspace immediately after a correction (cursor is right after the corrected word + delimiter), the correction reverts to the original text. The ref is cleared on any other keypress (single-shot undo).
 
+### Session closing
+
+A warm closing ritual when the user taps "done for now" at the bottom of the editor.
+
+#### How it works
+
+1. **Trigger** — A subtle "done for now" text button sits at bottom-center of the screen (CSS class `session-close-trigger`). On mobile (≤768px), it shifts up to `bottom: 56px` with a larger tap target.
+2. **Save + AI call** — `handleSessionClose` in `App.tsx` saves the current entry, then sends the last ~600 characters to The Weaver via `chatCompletion` with a special closing prompt (max 80 tokens, 15s timeout).
+3. **Overlay** — `SessionClosing.tsx` renders a full-screen overlay: backdrop fades in (0.5s), breathing dots pulse while loading, then the phrase floats in with a subtle upward animation. "— The Weaver" attribution appears below in purple (`--color-weaver`).
+4. **Dismiss** — User taps anywhere to fade out (0.5s) and return to the editor.
+5. **Fallback** — If the AI call fails, the fallback phrase is: "You showed up today. That matters."
+
+### Data export
+
+`exportAllData()` in `db.ts` exports all user data as a human-readable Markdown document (`undersurface-export-YYYY-MM-DD.md`). Structure:
+
+1. **About You** — user profile (inner landscape, themes, patterns, growth signals)
+2. **Your Inner Voices** — each part with role, description, concern, growth notes, last 5 reflections
+3. **Journal** — entries grouped by date, each with: timestamp, intention, entry text, part thoughts (with anchor context), Thinking Out Loud conversations, reflection summaries, fossil commentary
+4. **Letters from Your Voices** — chronological letters with trigger type
+5. **Writing Sessions** — table of date, time, duration, word count
+
+Part IDs are resolved to human-readable names throughout.
+
 ### Environment variables
 
 Defined in `.env.local` (git-ignored):
@@ -504,3 +529,6 @@ If the app needs to work on a new domain:
 - **contactMessages Firestore rules**: `contactMessages` has `allow read, write: if false` in client rules. It's a top-level collection (not under `users/{uid}/`) written by `accountApi` Cloud Function via Admin SDK and read by `adminApi` Cloud Function.
 - **Account deletion deletes 12 collections**: The `deleteAccount` action in `accountApi` must delete all subcollections under `users/{uid}/`. If a new collection is added to `db.ts`, it must also be added to the deletion list in `functions/src/index.ts`.
 - **Analytics iterates all users**: `handleGetAnalytics` in `functions/src/index.ts` reads entries/parts/thoughts for every user. Fine at small scale but may need optimization (aggregation docs, Cloud Scheduler) as user count grows.
+- **Session closing uses The Weaver specifically**: The closing prompt is hardcoded to The Weaver's voice (pattern-seeing, warm, connecting). The part ID isn't used — it's a standalone `chatCompletion` call with a Weaver-flavored system prompt in `App.tsx`.
+- **Session closing button mobile positioning**: On mobile (≤768px), the "done for now" button sits at `bottom: 56px` to clear the InnerWeather widget at `bottom: 20px` and iOS Safari's bottom chrome. Styled via `.session-close-trigger` class in `atmosphere.css`.
+- **Data export is Markdown, not JSON**: `exportAllData()` produces a `.md` file with human-readable diary content. Part UUIDs are resolved to names via a lookup map built from the parts collection.

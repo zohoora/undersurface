@@ -1141,6 +1141,33 @@ body {
   }
 }
 
+/* Session close trigger */
+.session-close-trigger {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  color: var(--text-ghost);
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.35;
+  transition: opacity 0.3s ease;
+  padding: 6px 12px;
+  letter-spacing: 0.03em;
+  z-index: 5;
+}
+
+@media (max-width: 768px) {
+  .session-close-trigger {
+    bottom: 56px;
+    padding: 10px 20px;
+    font-size: 12px;
+  }
+}
+
 /* Small phones */
 @media (max-width: 400px) {
   .editor-container {
