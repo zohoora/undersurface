@@ -1,10 +1,15 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  // Load .env.local so SENTRY_* vars are available via process.env
+  const env = loadEnv(mode, process.cwd(), '')
+  Object.assign(process.env, env)
+
+  return {
   build: {
     sourcemap: true,
     rollupOptions: {
@@ -44,4 +49,4 @@ export default defineConfig({
       disable: !process.env.SENTRY_AUTH_TOKEN,
     }),
   ],
-})
+}})
