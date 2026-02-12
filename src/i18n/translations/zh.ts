@@ -168,6 +168,8 @@ const zh = {
   'policy.needHelp': '如果你现在需要帮助',
   'policy.recommendation': '我们的建议',
   'policy.recommendationBody': '我们鼓励你将 UnderSurface 与专业支持配合使用，而不是替代专业支持。与内心声音一起写作可以成为你过程中有意义的陪伴——但它不能替代受过专业训练的人员所提供的关怀。',
+
+  'echo.label': '过去',
 } as const
 
 export default zh

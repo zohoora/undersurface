@@ -168,6 +168,8 @@ const vi = {
   'policy.needHelp': 'Nếu bạn cần giúp đỡ ngay',
   'policy.recommendation': 'Khuyến nghị của chúng tôi',
   'policy.recommendationBody': 'Chúng tôi khuyến khích sử dụng UnderSurface song song với hỗ trợ chuyên nghiệp, không phải thay thế. Viết cùng các giọng nói bên trong có thể là người bạn đồng hành ý nghĩa trong hành trình của bạn — nhưng không thể thay thế sự chăm sóc của một chuyên gia được đào tạo.',
+
+  'echo.label': 'Quá Khứ',
 } as const
 
 export default vi

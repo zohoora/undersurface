@@ -168,6 +168,8 @@ const hi = {
   'policy.needHelp': 'अगर आपको अभी मदद चाहिए',
   'policy.recommendation': 'हमारी सिफारिश',
   'policy.recommendationBody': 'हम UnderSurface को पेशेवर सहायता के साथ उपयोग करने की सलाह देते हैं, उसके बदले नहीं। आंतरिक आवाज़ों के साथ लिखना आपकी प्रक्रिया में एक सार्थक साथी हो सकता है — लेकिन यह एक प्रशिक्षित पेशेवर की देखभाल का विकल्प नहीं है।',
+
+  'echo.label': 'अतीत',
 } as const
 
 export default hi

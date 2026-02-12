@@ -201,6 +201,9 @@ const en = {
   'export.duration': 'Duration',
   'export.words': 'Words',
   'export.unknownVoice': 'Unknown Voice',
+
+  // Echo thoughts
+  'echo.label': 'The Past',
 } as const
 
 export type TranslationKey = keyof typeof en

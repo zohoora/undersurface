@@ -168,6 +168,8 @@ const de = {
   'policy.needHelp': 'Wenn du jetzt Hilfe brauchst',
   'policy.recommendation': 'Unsere Empfehlung',
   'policy.recommendationBody': 'Wir empfehlen, UnderSurface ergänzend zu professioneller Unterstützung zu nutzen, nicht anstelle davon. Das Schreiben mit inneren Stimmen kann ein wertvoller Begleiter in deinem Prozess sein — aber es ist kein Ersatz für die Betreuung durch einen ausgebildeten Fachmann.',
+
+  'echo.label': 'Die Vergangenheit',
 } as const
 
 export default de

@@ -536,7 +536,7 @@ function App() {
           onDismiss={handleDismissExplorations}
         />
       )}
-      <div style={{
+      <div className="toolbar-row" style={{
         position: 'relative',
         zIndex: 2,
         maxWidth: 680,

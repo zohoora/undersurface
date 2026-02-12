@@ -168,6 +168,8 @@ const tr = {
   'policy.needHelp': 'Şu anda yardıma ihtiyacınız varsa',
   'policy.recommendation': 'Tavsiyemiz',
   'policy.recommendationBody': 'UnderSurface\'ü profesyonel desteğin yanı sıra kullanmanızı teşvik ediyoruz, onun yerine değil. İç seslerle yazmak sürecinizde anlamlı bir yol arkadaşı olabilir — ancak eğitimli bir profesyonelin bakımının yerini tutmaz.',
+
+  'echo.label': 'Geçmiş',
 } as const
 
 export default tr

@@ -168,6 +168,8 @@ const id = {
   'policy.needHelp': 'Jika kamu butuh bantuan sekarang',
   'policy.recommendation': 'Rekomendasi kami',
   'policy.recommendationBody': 'Kami mendorong penggunaan UnderSurface bersama dukungan profesional, bukan sebagai penggantinya. Menulis bersama suara-suara dalam diri bisa menjadi teman yang bermakna dalam prosesmu — tetapi bukan pengganti perawatan dari profesional terlatih.',
+
+  'echo.label': 'Masa Lalu',
 } as const
 
 export default id

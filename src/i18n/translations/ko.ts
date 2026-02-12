@@ -168,6 +168,8 @@ const ko = {
   'policy.needHelp': '지금 도움이 필요하신가요',
   'policy.recommendation': '권장 사항',
   'policy.recommendationBody': 'UnderSurface를 전문적인 지원과 함께 사용하시길 권장하며, 대체 수단으로 사용하지 마세요. 내면의 목소리와 함께 글을 쓰는 것은 의미 있는 동반 활동이 될 수 있지만, 전문가의 돌봄을 대신할 수는 없습니다.',
+
+  'echo.label': '과거',
 } as const
 
 export default ko

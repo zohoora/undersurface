@@ -129,7 +129,7 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
             {t['entries.new']}
           </button>
           <div style={{ marginTop: 8 }}>
-            {entries?.map((entry) => (
+            {entries?.filter((e) => e.plainText?.trim() || e.id === activeEntryId).map((entry) => (
               <div
                 key={entry.id}
                 className={`entry-item ${entry.id === activeEntryId ? 'active' : ''}`}

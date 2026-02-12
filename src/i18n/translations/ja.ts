@@ -168,6 +168,8 @@ const ja = {
   'policy.needHelp': '今すぐ助けが必要な場合',
   'policy.recommendation': '私たちからのおすすめ',
   'policy.recommendationBody': 'UnderSurface は専門的なサポートの代わりではなく、それと併せて使うことをお勧めします。内なる声とともに書くことは、あなたのプロセスにおける意味のある伴走になり得ます——しかし、訓練を受けた専門家によるケアの代わりにはなりません。',
+
+  'echo.label': '過去',
 } as const
 
 export default ja

@@ -339,8 +339,8 @@
   top: 0;
   left: 0;
   width: 240px;
-  height: 100vh;
-  padding: 24px 16px;
+  height: 100dvh;
+  padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
   z-index: 10;
   font-family: 'Inter', sans-serif;
   transform: translateX(-200px);
@@ -1048,6 +1048,11 @@ body {
     max-width: 100%;
   }
 
+  /* Toolbar row: clear the hamburger button on mobile */
+  .toolbar-row {
+    padding-left: 60px !important;
+  }
+
   .tiptap {
     font-size: 17px;
     line-height: 1.75;
@@ -1062,14 +1067,10 @@ body {
   .entries-sidebar {
     width: 280px;
     transform: translateX(-280px);
-    background: linear-gradient(
-      to right,
-      var(--sidebar-bg) 85%,
-      transparent
-    );
-    padding: 64px 16px 20px;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: var(--bg-primary);
+    padding: 64px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .entries-sidebar:hover {

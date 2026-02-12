@@ -168,6 +168,8 @@ const nl = {
   'policy.needHelp': 'Als je nu hulp nodig hebt',
   'policy.recommendation': 'Onze aanbeveling',
   'policy.recommendationBody': 'We moedigen aan om UnderSurface naast professionele ondersteuning te gebruiken, niet in plaats daarvan. Schrijven met innerlijke stemmen kan een waardevolle aanvulling zijn op je proces — maar het is geen vervanging voor de zorg van een getrainde professional.',
+
+  'echo.label': 'Het Verleden',
 } as const
 
 export default nl

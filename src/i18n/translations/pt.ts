@@ -168,6 +168,8 @@ const pt = {
   'policy.needHelp': 'Se você precisa de ajuda agora',
   'policy.recommendation': 'Nossa recomendação',
   'policy.recommendationBody': 'Encorajamos o uso do UnderSurface junto com apoio profissional, não em substituição a ele. Escrever com vozes interiores pode ser um companheiro significativo no seu processo — mas não é um substituto para o cuidado de um profissional qualificado.',
+
+  'echo.label': 'O Passado',
 } as const
 
 export default pt

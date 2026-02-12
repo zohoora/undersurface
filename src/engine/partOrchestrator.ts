@@ -5,7 +5,7 @@ import { db, generateId } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { activateGrounding, isGroundingActive } from '../hooks/useGroundingMode'
 import { trackEvent } from '../services/analytics'
-import { getPartDisplayName } from '../i18n'
+import { getPartDisplayName, t } from '../i18n'
 import { QuoteEngine } from './quoteEngine'
 import { DisagreementEngine } from './disagreementEngine'
 import { QuietTracker } from './quietTracker'
@@ -138,16 +138,14 @@ export class PartOrchestrator {
     // Echo check (before regular thought)
     const echo = await this.echoEngine.findEcho(event.currentText)
     if (echo) {
-      // Find a relevant part for this echo
-      const echoPart = this.parts[Math.floor(Math.random() * this.parts.length)]
       this.callbacks.onEcho?.({
         text: echo.text,
         entryId: echo.entryId,
         date: echo.date,
-        partId: echoPart.id,
-        partName: getPartDisplayName(echoPart),
-        partColor: echoPart.color,
-        partColorLight: echoPart.colorLight,
+        partId: 'echo',
+        partName: t('echo.label'),
+        partColor: '#A09A94',
+        partColorLight: '#A09A9415',
       })
       return
     }
@@ -365,7 +363,8 @@ export class PartOrchestrator {
                     isDisagreement: true,
                     respondingToPartId: part.id,
                   }
-                  db.thoughts.add({ ...disagreementThought, isNew: undefined })
+                  const { isNew: _, ...toStore } = disagreementThought
+                  db.thoughts.add(toStore)
                   this.callbacks.onDisagreementComplete?.(disagreementThought)
                 }
               } catch (e) {
