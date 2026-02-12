@@ -5,6 +5,7 @@ import { db, generateId } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { activateGrounding, isGroundingActive } from '../hooks/useGroundingMode'
 import { trackEvent } from '../services/analytics'
+import { getPartDisplayName } from '../i18n'
 import { QuoteEngine } from './quoteEngine'
 import { DisagreementEngine } from './disagreementEngine'
 import { QuietTracker } from './quietTracker'
@@ -74,6 +75,10 @@ export class PartOrchestrator {
   private intention: string = ''
   private callbacks: OrchestratorCallbacks
 
+  // Pre-warmed caches — loaded once in loadParts(), avoids repeated DB reads per thought
+  private cachedProfile: import('../types').UserProfile | undefined
+  private cachedSummaries: import('../types').EntrySummary[] | undefined
+
   private quoteEngine = new QuoteEngine()
   private disagreementEngine = new DisagreementEngine()
   private quietTracker = new QuietTracker()
@@ -89,7 +94,13 @@ export class PartOrchestrator {
   }
 
   async loadParts() {
-    const dbParts = await db.parts.toArray()
+    const [dbParts, profile, summariesRaw] = await Promise.all([
+      db.parts.toArray(),
+      db.userProfile.get('current') as Promise<import('../types').UserProfile | undefined>,
+      db.entrySummaries.orderBy('timestamp').reverse().toArray() as Promise<import('../types').EntrySummary[]>,
+    ])
+    this.cachedProfile = profile
+    this.cachedSummaries = summariesRaw?.slice(0, 5)
     this.parts = await Promise.all(
       dbParts.map(async (p) => {
         const memories = await db.memories
@@ -134,7 +145,7 @@ export class PartOrchestrator {
         entryId: echo.entryId,
         date: echo.date,
         partId: echoPart.id,
-        partName: echoPart.name,
+        partName: getPartDisplayName(echoPart),
         partColor: echoPart.color,
         partColorLight: echoPart.colorLight,
       })
@@ -148,7 +159,7 @@ export class PartOrchestrator {
       if (event.duration > (config.partIntelligence?.silenceFlowThreshold ?? 120) * 1000) {
         if (Math.random() < silenceChance) {
           const silencePart = this.parts[Math.floor(Math.random() * this.parts.length)]
-          this.callbacks.onSilence?.(silencePart.id, silencePart.name, silencePart.color, silencePart.colorLight)
+          this.callbacks.onSilence?.(silencePart.id, getPartDisplayName(silencePart), silencePart.color, silencePart.colorLight)
           return
         }
       }
@@ -245,18 +256,17 @@ export class PartOrchestrator {
   }
 
   private async generateThought(part: Part, event: PauseEvent): Promise<void> {
-    // Parallel DB reads — all independent, no need to be sequential
-    const [allMemories, profile, summariesRaw, quote, thread, rituals] = await Promise.all([
-      db.memories.where('partId').equals(part.id).toArray() as Promise<import('../types').PartMemory[]>,
-      db.userProfile.get('current') as Promise<import('../types').UserProfile | undefined>,
-      (part.ifsRole === 'manager' || part.ifsRole === 'self')
-        ? db.entrySummaries.orderBy('timestamp').reverse().toArray() as Promise<import('../types').EntrySummary[]>
-        : Promise.resolve(undefined),
+    // Use pre-warmed caches for profile/summaries; part.memories loaded in loadParts()
+    const allMemories = (part.memories || []) as import('../types').PartMemory[]
+    const profile = this.cachedProfile
+    const entrySummaries = (part.ifsRole === 'manager' || part.ifsRole === 'self')
+      ? this.cachedSummaries : undefined
+
+    const [quote, thread, rituals] = await Promise.all([
       this.quoteEngine.findQuote(event.currentText),
       this.threadEngine.findUnfinishedThread(event.currentText),
       this.ritualEngine.detectRituals(),
     ])
-    const entrySummaries = summariesRaw?.slice(0, 5)
 
     const messages = buildPartMessages(
       part,
@@ -276,7 +286,7 @@ export class PartOrchestrator {
       },
     )
 
-    this.callbacks.onThoughtStart(part.id, part.name, part.color)
+    this.callbacks.onThoughtStart(part.id, getPartDisplayName(part), part.color)
 
     await streamChatCompletion(
       messages,
@@ -314,14 +324,17 @@ export class PartOrchestrator {
           const trimmed = text.trim()
           if (trimmed.length > 20) {
             const contextSnippet = event.recentText.slice(-100).trim()
-            db.memories.add({
+            const newMemory = {
               id: generateId(),
               partId: part.id,
               entryId: this.entryId,
               content: `Noticed: "${contextSnippet}" → Responded: "${trimmed}"`,
-              type: 'observation',
+              type: 'observation' as const,
               timestamp: Date.now(),
-            })
+            }
+            db.memories.add(newMemory)
+            // Keep in-memory cache in sync so subsequent thoughts see this memory
+            if (part.memories) (part.memories as import('../types').PartMemory[]).push(newMemory)
           }
 
           this.callbacks.onThoughtComplete(thought)

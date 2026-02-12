@@ -54,7 +54,7 @@ function getGlobalDefaults(): Partial<AppSettings> {
 }
 
 // Settings that should always come from globalConfig, never from localStorage
-const ADMIN_CONTROLLED_KEYS: (keyof AppSettings)[] = ['openRouterModel']
+const ADMIN_CONTROLLED_KEYS: (keyof AppSettings)[] = ['openRouterModel', 'typewriterScroll']
 
 function load(): AppSettings {
   if (cache) return cache

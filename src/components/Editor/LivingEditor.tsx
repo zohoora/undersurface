@@ -24,7 +24,7 @@ import { streamChatCompletion } from '../../ai/openrouter'
 import { db, generateId } from '../../store/db'
 import { getGlobalConfig, useGlobalConfig } from '../../store/globalConfig'
 import { trackEvent } from '../../services/analytics'
-import { t, getLanguageCode } from '../../i18n'
+import { t, getLanguageCode, getPartDisplayName } from '../../i18n'
 import type { EmotionalTone, Part, PartThought } from '../../types'
 
 interface ActiveThought {
@@ -517,7 +517,7 @@ export default function LivingEditor({
         const newThought: ActiveThought = {
           id: thought.id,
           partId: thought.partId,
-          partName: part?.name || 'Unknown',
+          partName: part ? getPartDisplayName(part) : 'Unknown',
           partColor: part?.color || '#A09A94',
           partColorLight: part?.colorLight || '#A09A9425',
           content: thought.content,
@@ -554,7 +554,7 @@ export default function LivingEditor({
           const newThought: ActiveThought = {
             id: generateId(),
             partId: result.part.id,
-            partName: result.part.name,
+            partName: getPartDisplayName(result.part),
             partColor: result.part.color,
             partColorLight: result.part.colorLight,
             content: result.firstWords,

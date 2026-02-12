@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { PolicyContent } from './PolicyContent'
+import { useTranslation } from '../i18n'
 
 const navButtonStyle = {
   fontFamily: "'Inter', sans-serif",
@@ -20,6 +21,7 @@ interface PolicyModalProps {
 }
 
 export default function PolicyModal({ isOpen, onClose, initialSection }: PolicyModalProps) {
+  const t = useTranslation()
   const privacyRef = useRef<HTMLDivElement>(null)
   const disclaimerRef = useRef<HTMLDivElement>(null)
 
@@ -81,13 +83,13 @@ export default function PolicyModal({ isOpen, onClose, initialSection }: PolicyM
               onClick={() => privacyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
               style={navButtonStyle}
             >
-              Privacy Policy
+              {t['policy.privacyTitle']}
             </button>
             <button
               onClick={() => disclaimerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
               style={navButtonStyle}
             >
-              Disclaimer
+              {t['policy.disclaimerNav']}
             </button>
           </div>
           <button

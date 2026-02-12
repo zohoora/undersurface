@@ -30,7 +30,7 @@ firebase deploy --only hosting
 ### 2. Cloud Functions (Firebase Functions, Node.js 22)
 
 Three Cloud Functions in `functions/src/index.ts`:
-- **`chat`** — proxies AI requests to OpenRouter (256MiB, 30s timeout)
+- **`chat`** — proxies AI requests to OpenRouter (512MiB, 30s timeout, minInstances: 1 for warm starts)
 - **`accountApi`** — user self-service: account deletion + contact form (256MiB, 60s timeout)
 - **`adminApi`** — admin dashboard backend with 8 actions (512MiB, 120s timeout)
 
@@ -108,8 +108,8 @@ User opens Settings → Delete Account / Contact form
 | File | Purpose |
 |------|---------|
 | `src/ai/openrouter.ts` | Client-side API calls (sends to `/api/chat` with Firebase auth token); `analyzeEmotionAndDistress()` for combined emotion + distress LLM check |
-| `src/ai/partPrompts.ts` | System prompts for all 6 seeded parts + exported SHARED_INSTRUCTIONS + emergence, reflection, growth, grounding, intention prompts + `languageDirective()` for i18n |
-| `src/engine/partOrchestrator.ts` | Selects which part responds based on pause type, emotion, content (role-based scoring); LLM-based distress detection triggers grounding; passes intention to prompts |
+| `src/ai/partPrompts.ts` | System prompts for all 6 seeded parts + exported SHARED_INSTRUCTIONS + emergence, reflection, growth, grounding, intention prompts + `languageDirective()` for i18n. No engine-specific prompt builders — engines build prompts inline |
+| `src/engine/partOrchestrator.ts` | Selects which part responds based on pause type, emotion, content (role-based scoring); LLM-based distress detection triggers grounding; passes intention to prompts; pre-warms profile/summaries/memories cache in `loadParts()` |
 | `src/engine/pauseDetector.ts` | Detects writing pauses from keystroke timing |
 | `src/engine/emergenceEngine.ts` | Detects new parts emerging from writing (imports `SHARED_INSTRUCTIONS` from partPrompts) |
 | `src/engine/reflectionEngine.ts` | Entry reflection — creates memories, summaries, profile updates on entry switch |
@@ -117,13 +117,13 @@ User opens Settings → Delete Account / Contact form
 | `src/engine/spellEngine.ts` | Autocorrect (Damerau-Levenshtein + Typo.js) |
 | `src/engine/weatherEngine.ts` | Inner weather tracking from emotional tone shifts |
 | `src/engine/ritualEngine.ts` | Session logging for ritual detection (writing habits) |
-| `src/engine/fossilEngine.ts` | Resurfaces old entry commentary when revisiting past entries. Lazy-loaded on first entry switch |
+| `src/engine/fossilEngine.ts` | Resurfaces old entry commentary when revisiting past entries. Lazy-loaded on first entry switch. Includes `languageDirective()` for i18n |
 | `src/engine/explorationEngine.ts` | AI-generated personalized writing prompts from user profile + recent summaries. Lazy-loaded on first new entry |
 | `src/store/db.ts` | Firestore wrapper — mimics Dexie.js API surface; 12 collection proxies + translated Markdown data export |
 | `src/store/settings.ts` | User settings in localStorage (3-tier cascade: hardcoded < globalConfig < localStorage); includes `language` setting |
 | `src/i18n/index.ts` | Translation system — `t()` for non-React, `useTranslation()` hook for React, `getLanguageCode()`, `getLLMLanguageName()`, `getPartDisplayName()`, `languageDirective()` re-export |
 | `src/i18n/languages.ts` | Language metadata (17 supported languages) + `detectBrowserLanguage()` |
-| `src/i18n/translations/en.ts` | English translations (~145 keys) — source of truth for `TranslationKey` and `TranslationStrings` types |
+| `src/i18n/translations/en.ts` | English translations (~169 keys including policy content) — source of truth for `TranslationKey` and `TranslationStrings` types |
 | `src/i18n/translations/*.ts` | 16 non-English translation files (es, fr, de, pt, it, ru, zh, ja, ko, tr, nl, vi, hi, id, th, pl) |
 | `src/store/globalConfig.ts` | Real-time listener on `appConfig/global` Firestore doc, provides `useGlobalConfig()` hook |
 | `src/firebase.ts` | Firebase/Firestore initialization with offline persistence |
@@ -136,7 +136,7 @@ User opens Settings → Delete Account / Contact form
 | `src/components/Onboarding.tsx` | Post-signup consent flow (terms acceptance) |
 | `src/components/CrisisResources.tsx` | Crisis resource links shown during grounding mode |
 | `src/components/DeleteAccountModal.tsx` | Account deletion confirmation modal. Lazy-loaded from SettingsPanel — default export |
-| `src/components/PolicyContent.tsx` | Privacy policy and disclaimer content |
+| `src/components/PolicyContent.tsx` | Privacy policy and disclaimer content — fully translated via `useTranslation()` |
 | `src/components/PolicyModal.tsx` | Modal wrapper for policy content — default export |
 | `src/components/InnerWeather.tsx` | Inner weather display widget |
 | `src/components/SessionClosing.tsx` | Session closing overlay — shows The Weaver's closing thought with fade-in/out animation |
@@ -145,7 +145,7 @@ User opens Settings → Delete Account / Contact form
 | `src/components/Editor/IntentionInput.tsx` | Subtle per-entry intention input (ghost button → inline edit, 120 char max) |
 | `src/components/Editor/ExplorationCard.tsx` | Clickable exploration prompt card with dismiss button |
 | `src/components/Sidebar/EntriesList.tsx` | Entry list sidebar |
-| `src/components/Sidebar/SettingsPanel.tsx` | User settings panel (appearance, model, speed, data export, contact form, delete account). Opens as a slide-up overlay above the gear button |
+| `src/components/Sidebar/SettingsPanel.tsx` | User settings panel (appearance, model, speed, data export, contact form, delete account). Opens as a slide-up overlay above the gear button. Auto-scroll is admin-controlled only (not shown in user settings) |
 | `src/admin/adminTypes.ts` | TypeScript types for admin API responses + `GlobalConfig` |
 | `src/admin/adminApi.ts` | Client-side admin API caller (`adminFetch(action, params)`) |
 | `src/admin/AdminDashboard.tsx` | Admin shell with tab navigation (Overview, Users, Analytics, Messages, Insights, Settings). Lazy-loaded via `React.lazy` — default export. |
@@ -304,19 +304,19 @@ Key types: `PartMemory.type` (`'observation' | 'interaction' | 'reflection' | 'p
 
 ### Internationalization (i18n)
 
-17 LTR languages supported: English, Spanish, French, German, Portuguese, Italian, Russian, Chinese (Simplified), Japanese, Korean, Turkish, Dutch, Vietnamese, Hindi, Indonesian, Thai, Polish. RTL languages (Arabic, Farsi, Hebrew) deferred. Admin dashboard stays English-only. Privacy Policy stays English.
+17 LTR languages supported: English, Spanish, French, German, Portuguese, Italian, Russian, Chinese (Simplified), Japanese, Korean, Turkish, Dutch, Vietnamese, Hindi, Indonesian, Thai, Polish. RTL languages (Arabic, Farsi, Hebrew) deferred. Admin dashboard stays English-only. Privacy policy and disclaimer are translated.
 
 #### Architecture
 
 1. **Translation system** — Lightweight, no library. Flat key-value objects per language in `src/i18n/translations/*.ts`. English is the fallback. TypeScript enforces key completeness via `TranslationKey` type derived from `en.ts`.
 2. **`t(key)`** — Non-React synchronous function. Safe in class components (e.g., ErrorBoundary) and non-React code (e.g., `db.ts` export).
 3. **`useTranslation()`** — React hook via `useSyncExternalStore` (same pattern as `useSettings()`). Reactive to language changes.
-4. **Eager loading** — All 17 translation files loaded via `import.meta.glob({ eager: true })` (~60-80KB total). No dynamic loading needed.
-5. **AI prompts** — System prompts stay English (best instruction-following). `languageDirective()` appends `"You MUST respond in {language}"` to 7 user-facing prompt builders. Internal prompts (reflection, growth, emotion analysis) stay English-only.
+4. **Lazy loading** — English is bundled inline. Non-English translation files are lazy-loaded via `import.meta.glob` (16 separate chunks, ~4-5KB each). Current language is pre-loaded at module init; falls back to English while loading.
+5. **AI prompts** — System prompts stay English (best instruction-following). `languageDirective()` appends `"You MUST respond in {language}"` to all user-facing prompt builders (partPrompts, fossilEngine, letterEngine, blankPageEngine, session closing). Internal prompts (reflection, growth, emotion analysis) stay English-only.
 6. **Distress detection** — LLM-based via `analyzeEmotionAndDistress()`, replacing English keyword array. Works in any language. Zero additional API calls (combined with emotion check).
 7. **Autocorrect** — Hidden from Settings for non-English. Autocorrect code path and "i"→"I" fix skipped when `getLanguageCode() !== 'en'`.
 8. **Crisis resources** — English shows US resources (988, Crisis Text Line) + findahelpline.com. Non-English shows only findahelpline.com with translated labels.
-9. **Seeded part names** — Translated display names via `getPartDisplayName()`. Emerged part names stay in their original language (LLM-generated).
+9. **Seeded part names** — Translated display names via `getPartDisplayName()` at all UI-facing output points (orchestrator callbacks, App.tsx fossil, LivingEditor disagreement/emergence, blankPageEngine, letterEngine). Emerged part names stay in their original language (LLM-generated).
 10. **Data export** — Section headers translated, dates localized via `getLanguageCode()` in `toLocaleDateString()`.
 
 #### Adding a new translation key
@@ -408,7 +408,7 @@ A warm closing ritual when the user taps "close session" in the toolbar above th
 
 ### Bundle splitting
 
-The frontend uses code splitting to reduce the initial bundle size. The main chunk is ~224KB gzipped (down from ~397KB before splitting).
+The frontend uses code splitting to reduce the initial bundle size. The main chunk is ~228KB gzipped (down from ~397KB before splitting).
 
 #### Lazy-loaded components (React.lazy)
 
@@ -429,6 +429,10 @@ The frontend uses code splitting to reduce the initial bundle size. The main chu
 | `ExplorationEngine` | First new entry with feature enabled | Experimental feature, often disabled |
 
 Both use `await import('./engine/...')` at their call sites in `App.tsx`. Refs are `useRef<... | null>(null)`.
+
+#### Lazy-loaded translations
+
+Non-English translation files (16 languages) are lazy-loaded via `import.meta.glob` in `src/i18n/index.ts`. Each produces a separate ~4-5KB chunk. Only the current user's language is fetched at module init; English is always bundled inline as the fallback.
 
 #### manualChunks
 
@@ -666,7 +670,7 @@ If the app needs to work on a new domain:
 - **Analytics lazy-initializes**: `src/services/analytics.ts` calls `getAnalytics()` on the first `trackEvent()`, not at module import. This avoids blocking startup. Uses `getApp()` from `firebase/app` (not a direct import of the app instance from `firebase.ts`).
 - **FossilEngine and ExplorationEngine are lazy-loaded**: Both engines are initialized via dynamic `import()` at their call sites in `App.tsx` (not eagerly imported). Their refs are `useRef<... | null>(null)` and null-checked before use.
 - **Settings panel is a slide-up overlay**: `.settings-body` uses `position: absolute; bottom: calc(100% + 4px)` to float above the gear button. It has `max-height: 65vh` with overflow scroll and a slide-up animation. The gear button gets an `.active` class when open.
-- **manualChunks splits editor and Sentry**: `vite.config.ts` groups `@tiptap` + `prosemirror` into an `editor` chunk (~119KB) and `@sentry` into a `sentry` chunk (~30KB). The main chunk is ~224KB gzipped (down from ~397KB).
+- **manualChunks splits editor and Sentry**: `vite.config.ts` groups `@tiptap` + `prosemirror` into an `editor` chunk (~119KB) and `@sentry` into a `sentry` chunk (~30KB). The main chunk is ~228KB gzipped (down from ~397KB).
 - **Sentry source map upload needs env vars**: `sentryVitePlugin` in `vite.config.ts` reads `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` from `process.env` (not `import.meta.env`). The plugin is disabled when `SENTRY_AUTH_TOKEN` is missing (e.g., local dev, CI without secrets).
 - **ErrorBoundary captures to Sentry**: `componentDidCatch` in `ErrorBoundary.tsx` calls `Sentry.captureException(error)` to report React render errors. This is the only class component in the codebase.
 - **Grounding activation trigger parameter**: `activateGrounding()` accepts an optional `trigger: 'auto' | 'manual'` parameter for analytics tracking. The orchestrator passes `'auto'`, the settings toggle passes `'manual'`.
@@ -679,3 +683,10 @@ If the app needs to work on a new domain:
 - **Language default is browser-detected**: `detectBrowserLanguage()` checks `navigator.language` against supported codes. Falls back to `'en'`. Only runs once as the default for `DEFAULTS.language`.
 - **languageDirective() is not injected into reflection/growth prompts**: Internal metadata prompts stay English because their output feeds back into English-keyed orchestrator logic (`ROLE_KEYWORDS`, `isValidEmotion()`).
 - **Distress detection is now LLM-based**: `DISTRESS_KEYWORDS` array was removed. Distress is assessed via `analyzeEmotionAndDistress()` returning a 0-3 level, piggybacking on the 30s emotion check. Default threshold changed from 3 (keyword hits) to 2 (moderate distress level).
+- **chat function minInstances: 1**: Keeps one warm instance to avoid cold starts. Requires `firebase deploy --force` because it increases the minimum bill. To disable warm instances, set `minInstances: 0` and redeploy.
+- **partOrchestrator pre-warms DB caches**: `loadParts()` fetches profile + summaries + memories upfront. `generateThought()` uses these cached values instead of re-reading from DB. New observation memories are pushed to the in-memory `part.memories` array to keep the cache current within a session.
+- **Lazy-loaded translations fall back to English**: On first load for non-English users, there may be a brief flash of English text while the language file is fetched. The pre-load fires at module init and typically resolves before first render. `invalidateTranslationCache()` also triggers a pre-load when the language changes.
+- **typewriterScroll is admin-controlled**: Added to `ADMIN_CONTROLLED_KEYS` in `settings.ts`, so localStorage values are stripped and the globalConfig default always wins. No user-facing auto-scroll toggle in SettingsPanel.
+- **Settings panel uses flex-wrap for i18n**: `.settings-row` has `flex-wrap: wrap` so option groups drop below long translated labels instead of overflowing.
+- **Startup parallelizes spellEngine.init() and loadOrCreateEntry()**: Both are async and independent — `Promise.all` in `App.tsx` runs dictionary fetch and Firestore entry read concurrently.
+- **Privacy policy is translated**: `PolicyContent.tsx` uses `useTranslation()` with `policy.*` keys (~24 keys). `PolicyModal.tsx` nav buttons are also translated. The "delete" confirmation word in `DeleteAccountModal` remains English-only.

@@ -30,7 +30,7 @@ import { SessionClosing } from './components/SessionClosing'
 import { chatCompletion } from './ai/openrouter'
 import { languageDirective } from './ai/partPrompts'
 import { trackEvent } from './services/analytics'
-import { t, useTranslation } from './i18n'
+import { t, useTranslation, getPartDisplayName } from './i18n'
 import type { EmotionalTone, Part, GuidedExploration, InnerWeather as InnerWeatherType } from './types'
 
 const ADMIN_EMAILS = ['zohoora@gmail.com']
@@ -156,8 +156,7 @@ function App() {
         }
         setHasConsent(true)
 
-        spellEngine.init()
-        await loadOrCreateEntry()
+        await Promise.all([spellEngine.init(), loadOrCreateEntry()])
         setIsReady(true)
         trackEvent('app_launch')
       } catch (error) {
@@ -241,7 +240,7 @@ function App() {
             const part = (parts as Part[]).find(p => p.id === fossil.partId)
             if (part) {
               setFossilThought({
-                partName: part.name,
+                partName: getPartDisplayName(part),
                 partColor: part.color,
                 colorLight: part.colorLight,
                 content: fossil.commentary,

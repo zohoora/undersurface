@@ -1,7 +1,7 @@
 import { getGlobalConfig } from '../store/globalConfig'
 import { db, generateId } from '../store/db'
 import { chatCompletion } from '../ai/openrouter'
-import { SHARED_INSTRUCTIONS } from '../ai/partPrompts'
+import { SHARED_INSTRUCTIONS, languageDirective } from '../ai/partPrompts'
 import type { Part, UserProfile, EntryFossil } from '../types'
 
 export class FossilEngine {
@@ -39,7 +39,7 @@ export class FossilEngine {
       // Load user profile for context
       const profile = await db.userProfile.get('current') as UserProfile | undefined
 
-      let systemContent = `${SHARED_INSTRUCTIONS}\n\nYou are ${part.name}. You are re-reading an old diary entry written ${daysSince} days ago. Write a brief reflection (1-2 sentences) on what you notice now — how things have changed, what stands out, what the writer might not see. Speak as yourself.`
+      let systemContent = `${SHARED_INSTRUCTIONS}\n\nYou are ${part.name}. You are re-reading an old diary entry written ${daysSince} days ago. Write a brief reflection (1-2 sentences) on what you notice now — how things have changed, what stands out, what the writer might not see. Speak as yourself.${languageDirective()}`
 
       if (profile) {
         const profileLines: string[] = []

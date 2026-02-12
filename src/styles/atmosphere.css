@@ -484,6 +484,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 2px 8px;
   padding: 5px 8px;
   border-radius: 4px;
 }
@@ -536,6 +538,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .settings-slider-label {
@@ -765,6 +769,8 @@
   background: var(--overlay-subtle);
   border-radius: 4px;
   padding: 2px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .settings-option {

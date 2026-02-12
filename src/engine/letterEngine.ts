@@ -1,7 +1,8 @@
 import { getGlobalConfig } from '../store/globalConfig'
 import { db, generateId } from '../store/db'
 import { chatCompletion } from '../ai/openrouter'
-import { SHARED_INSTRUCTIONS } from '../ai/partPrompts'
+import { SHARED_INSTRUCTIONS, languageDirective } from '../ai/partPrompts'
+import { getPartDisplayName } from '../i18n'
 import type { Part, EntrySummary, UserProfile, PartLetter, PartMemory } from '../types'
 
 export class LetterEngine {
@@ -40,7 +41,7 @@ export class LetterEngine {
 
       if (recentSummaries.length === 0) return null
 
-      const partNames = topParts.map((p) => `${p.name} (${p.ifsRole})`).join(', ')
+      const partNames = topParts.map((p) => `${getPartDisplayName(p)} (${p.ifsRole})`).join(', ')
 
       const summaryContext = recentSummaries.map((s) =>
         `- Themes: ${s.themes.join(', ')} | Arc: ${s.emotionalArc} | Key moments: ${s.keyMoments.join(', ')}`
@@ -62,7 +63,7 @@ export class LetterEngine {
           role: 'system',
           content: `${SHARED_INSTRUCTIONS}
 
-You are writing a letter to a diary writer from the perspective of their inner parts. The letter should be warm, personal, and reference specific things from their writing. Write as a collaborative voice from these parts: ${partNames}. 3-5 paragraphs. Reference specific themes and growth you've witnessed. Sign off with the part names.`,
+You are writing a letter to a diary writer from the perspective of their inner parts. The letter should be warm, personal, and reference specific things from their writing. Write as a collaborative voice from these parts: ${partNames}. 3-5 paragraphs. Reference specific themes and growth you've witnessed. Sign off with the part names.${languageDirective()}`,
         },
         {
           role: 'user',

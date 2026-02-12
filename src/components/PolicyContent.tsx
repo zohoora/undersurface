@@ -1,46 +1,42 @@
+import { useTranslation, getLanguageCode } from '../i18n'
+
 interface PolicyContentProps {
   section: 'privacy' | 'disclaimer' | 'both'
 }
 
 function PrivacyPolicy() {
+  const t = useTranslation()
   return (
     <div>
       <h2 style={{ fontFamily: "'Spectral', serif", fontSize: 20, fontWeight: 400, marginBottom: 16, color: 'var(--text-primary)' }}>
-        Privacy Policy
+        {t['policy.privacyTitle']}
       </h2>
 
-      <Section title="What we store">
-        Your diary entries, inner voices (parts), memories, thoughts, emotional patterns, entry summaries,
-        and user profile are stored in our database, tied to your Google account. This data is what makes
-        your inner voices learn and grow with you over time.
+      <Section title={t['policy.whatWeStore']}>
+        {t['policy.whatWeStoreBody']}
       </Section>
 
-      <Section title="How AI works here">
-        When you write, your text is sent to a third-party AI service (OpenRouter) to generate responses
-        from your inner voices. The AI provider processes your writing to create responses but does not
-        permanently store your content.
+      <Section title={t['policy.howAiWorks']}>
+        {t['policy.howAiWorksBody']}
       </Section>
 
-      <Section title="Who can see your data">
-        Administrators can view user data for support and to improve the experience. We do not sell or
-        share your data with anyone else.
+      <Section title={t['policy.whoCanSee']}>
+        {t['policy.whoCanSeeBody']}
       </Section>
 
-      <Section title="Device preferences">
-        Settings like your theme, scroll behavior, and autocorrect preferences are stored locally on your
-        device (in localStorage). These never leave your browser.
+      <Section title={t['policy.devicePreferences']}>
+        {t['policy.devicePreferencesBody']}
       </Section>
 
-      <Section title="Data retention">
-        Your data is stored for as long as your account exists. You can export all your data or delete
-        your account at any time from Settings.
+      <Section title={t['policy.dataRetention']}>
+        {t['policy.dataRetentionBody']}
       </Section>
 
-      <Section title="Your choices">
+      <Section title={t['policy.yourChoices']}>
         <ul style={{ paddingLeft: 20, margin: '8px 0' }}>
-          <li style={{ marginBottom: 6 }}>Export your data anytime (Settings &rarr; Export all data)</li>
-          <li style={{ marginBottom: 6 }}>Delete your account and all data (Settings &rarr; Delete account)</li>
-          <li>Sign out to end your session</li>
+          <li style={{ marginBottom: 6 }}>{t['policy.choiceExport']}</li>
+          <li style={{ marginBottom: 6 }}>{t['policy.choiceDelete']}</li>
+          <li>{t['policy.choiceSignOut']}</li>
         </ul>
       </Section>
     </div>
@@ -48,50 +44,53 @@ function PrivacyPolicy() {
 }
 
 function TherapeuticDisclaimer() {
+  const t = useTranslation()
+  const isEnglish = getLanguageCode() === 'en'
+
   return (
     <div>
       <h2 style={{ fontFamily: "'Spectral', serif", fontSize: 20, fontWeight: 400, marginBottom: 16, color: 'var(--text-primary)' }}>
-        Therapeutic Disclaimer
+        {t['policy.disclaimerTitle']}
       </h2>
 
-      <Section title="This is not therapy">
-        UnderSurface is a writing tool, not a therapeutic service. The inner voices are AI writing
-        companions — they are not therapists, counselors, or clinical tools. They cannot diagnose, treat, or replace professional mental health care.
+      <Section title={t['policy.notTherapy']}>
+        {t['policy.notTherapyBody']}
       </Section>
 
-      <Section title="Grounding mode is not clinical">
-        When the app detects distress in your writing, it may shift to a calming mode. This is a
-        comfort feature, not a clinical intervention.
+      <Section title={t['policy.groundingNotClinical']}>
+        {t['policy.groundingNotClinicalBody']}
       </Section>
 
-      <Section title="If you need help now">
+      <Section title={t['policy.needHelp']}>
         <ul style={{ paddingLeft: 20, margin: '8px 0' }}>
-          <li style={{ marginBottom: 6 }}>
-            <strong>988 Suicide &amp; Crisis Lifeline</strong> — Call or text{' '}
-            <a href="tel:988" style={{ color: 'var(--color-still)', textDecoration: 'underline', textUnderlineOffset: 3 }}>988</a>
-          </li>
-          <li style={{ marginBottom: 6 }}>
-            <strong>Crisis Text Line</strong> — Text HOME to{' '}
-            <a href="sms:741741&body=HOME" style={{ color: 'var(--color-still)', textDecoration: 'underline', textUnderlineOffset: 3 }}>741741</a>
-          </li>
+          {isEnglish && (
+            <>
+              <li style={{ marginBottom: 6 }}>
+                <strong>{t['crisis.988.name']}</strong> — {t['crisis.988.action']}{' '}
+                <a href="tel:988" style={{ color: 'var(--color-still)', textDecoration: 'underline', textUnderlineOffset: 3 }}>988</a>
+              </li>
+              <li style={{ marginBottom: 6 }}>
+                <strong>{t['crisis.textLine.name']}</strong> — {t['crisis.textLine.action']}{' '}
+                <a href="sms:741741&body=HOME" style={{ color: 'var(--color-still)', textDecoration: 'underline', textUnderlineOffset: 3 }}>741741</a>
+              </li>
+            </>
+          )}
           <li>
-            <strong>Outside the US?</strong>{' '}
+            {isEnglish ? <strong>{t['crisis.international']}</strong> : <strong>{t['crisis.internationalOnly']}</strong>}{' '}
             <a
               href="https://findahelpline.com"
               target="_blank"
               rel="noopener noreferrer"
               style={{ color: 'var(--color-still)', textDecoration: 'underline', textUnderlineOffset: 3 }}
             >
-              findahelpline.com
+              {t['crisis.findHelpline']}
             </a>
           </li>
         </ul>
       </Section>
 
-      <Section title="Our recommendation">
-        We encourage using UnderSurface alongside professional support, not instead of it. Writing with
-        inner voices can be a meaningful companion to your process — but it is not a substitute for
-        the care of a trained professional.
+      <Section title={t['policy.recommendation']}>
+        {t['policy.recommendationBody']}
       </Section>
     </div>
   )

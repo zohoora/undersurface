@@ -47,7 +47,8 @@ export const chat = onRequest(
   {
     secrets: [openRouterKey],
     cors: true,
-    memory: '256MiB',
+    memory: '512MiB',
+    minInstances: 1,
     region: 'us-central1',
   },
   async (req, res) => {

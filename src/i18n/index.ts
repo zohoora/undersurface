@@ -4,21 +4,29 @@ import { getLanguage } from './languages'
 import type { TranslationKey, TranslationStrings } from './translations/en'
 import en from './translations/en'
 
-// Eager-load all translation files
-const translationModules = import.meta.glob<{ default: Record<string, string> }>(
+// Lazy loaders for non-English translations — only the current language is fetched
+const translationLoaders = import.meta.glob<{ default: Record<string, string> }>(
   './translations/*.ts',
-  { eager: true },
 )
 
 const translationMap = new Map<string, Record<string, string>>()
 translationMap.set('en', en)
 
-for (const [path, mod] of Object.entries(translationModules)) {
-  const code = path.replace('./translations/', '').replace('.ts', '')
-  if (code !== 'en' && mod.default) {
-    translationMap.set(code, mod.default)
-  }
+// Pre-load the current language at module init (resolves before first render in most cases)
+function preloadLanguage(lang: string) {
+  if (lang === 'en' || translationMap.has(lang)) return
+  const path = `./translations/${lang}.ts`
+  const loader = translationLoaders[path]
+  if (!loader) return
+  loader().then(mod => {
+    if (mod.default) {
+      translationMap.set(lang, mod.default)
+      invalidateTranslationCache()
+    }
+  })
 }
+
+preloadLanguage(getSettings().language ?? 'en')
 
 let cachedStrings: TranslationStrings | null = null
 let cachedLang = ''
@@ -73,6 +81,8 @@ export function useTranslation(): TranslationStrings {
 export function invalidateTranslationCache() {
   cachedStrings = null
   cachedLang = ''
+  // Pre-load the new language if not yet loaded
+  preloadLanguage(getSettings().language ?? 'en')
   for (const fn of listeners) fn()
 }
 

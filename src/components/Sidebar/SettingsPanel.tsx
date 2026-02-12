@@ -202,21 +202,6 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
             </SettingRow>
           </div>
 
-          {/* Editor */}
-          <div className="settings-section">
-            <div className="settings-section-label">{t['settings.editor']}</div>
-            <SettingRow label={t['settings.autoScroll']}>
-              <OptionGroup
-                value={settings.typewriterScroll}
-                options={[
-                  { value: 'off', label: t['settings.scrollOff'] },
-                  { value: 'comfortable', label: t['settings.scrollComfortable'] },
-                  { value: 'typewriter', label: t['settings.scrollTypewriter'] },
-                ]}
-                onChange={(v) => set('typewriterScroll', v)}
-              />
-            </SettingRow>
-          </div>
 
           {/* Autocorrect — only for English */}
           {settings.language === 'en' && (
