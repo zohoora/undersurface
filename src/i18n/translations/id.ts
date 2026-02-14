@@ -169,6 +169,17 @@ const id = {
   'policy.recommendation': 'Rekomendasi kami',
   'policy.recommendationBody': 'Kami mendorong penggunaan UnderSurface bersama dukungan profesional, bukan sebagai penggantinya. Menulis bersama suara-suara dalam diri bisa menjadi teman yang bermakna dalam prosesmu — tetapi bukan pengganti perawatan dari profesional terlatih.',
 
+
+  // Landing page hero
+  'landing.headline': 'A diary that listens back',
+  'landing.feature1': 'Write freely — inner voices listen',
+  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
+  'landing.feature3': 'They learn your patterns and grow with you',
+  'landing.cta': 'Start writing — it\'s free',
+  'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
+  'landing.demoPartName': 'The Tender One',
+  'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
+
   'echo.label': 'Masa Lalu',
 } as const
 

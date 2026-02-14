@@ -169,6 +169,17 @@ const vi = {
   'policy.recommendation': 'Khuyến nghị của chúng tôi',
   'policy.recommendationBody': 'Chúng tôi khuyến khích sử dụng UnderSurface song song với hỗ trợ chuyên nghiệp, không phải thay thế. Viết cùng các giọng nói bên trong có thể là người bạn đồng hành ý nghĩa trong hành trình của bạn — nhưng không thể thay thế sự chăm sóc của một chuyên gia được đào tạo.',
 
+
+  // Landing page hero
+  'landing.headline': 'A diary that listens back',
+  'landing.feature1': 'Write freely — inner voices listen',
+  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
+  'landing.feature3': 'They learn your patterns and grow with you',
+  'landing.cta': 'Start writing — it\'s free',
+  'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
+  'landing.demoPartName': 'The Tender One',
+  'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
+
   'echo.label': 'Quá Khứ',
 } as const
 

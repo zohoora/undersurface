@@ -7,6 +7,20 @@ import { AuthContext } from './authContext'
 import * as Sentry from '@sentry/react'
 import { trackEvent, setAnalyticsUser, clearAnalyticsUser } from '../services/analytics'
 
+declare global {
+  interface Window {
+    gtag?: (...args: unknown[]) => void
+  }
+}
+
+function trackAdConversion() {
+  window.gtag?.('event', 'conversion', {
+    send_to: 'AW-17954082823/TuxaCPeu0vgbEIeglvFC',
+    value: 1.0,
+    currency: 'CAD',
+  })
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
@@ -27,8 +41,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signIn = async () => {
-    await signInWithPopup(auth, googleProvider)
+    const result = await signInWithPopup(auth, googleProvider)
     trackEvent('sign_in', { method: 'google' })
+    // Google sign-in auto-creates accounts — track as conversion for new users
+    if (result.user.metadata.creationTime === result.user.metadata.lastSignInTime) {
+      trackAdConversion()
+    }
   }
 
   const signInWithEmail = async (email: string, password: string) => {
@@ -39,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUpWithEmail = async (email: string, password: string) => {
     await createUserWithEmailAndPassword(auth, email, password)
     trackEvent('sign_up', { method: 'email' })
+    trackAdConversion()
   }
 
   const resetPassword = async (email: string) => {

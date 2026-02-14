@@ -169,6 +169,17 @@ const ru = {
   'policy.recommendation': 'Наша рекомендация',
   'policy.recommendationBody': 'Мы рекомендуем использовать UnderSurface наряду с профессиональной поддержкой, а не вместо неё. Письмо с внутренними голосами может быть ценным дополнением к вашему процессу — но оно не заменяет заботу квалифицированного специалиста.',
 
+
+  // Landing page hero
+  'landing.headline': 'A diary that listens back',
+  'landing.feature1': 'Write freely — inner voices listen',
+  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
+  'landing.feature3': 'They learn your patterns and grow with you',
+  'landing.cta': 'Start writing — it\'s free',
+  'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
+  'landing.demoPartName': 'The Tender One',
+  'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
+
   'echo.label': 'Прошлое',
 } as const
 

@@ -169,6 +169,17 @@ const th = {
   'policy.recommendation': 'คำแนะนำของเรา',
   'policy.recommendationBody': 'เราแนะนำให้ใช้ UnderSurface ควบคู่กับการสนับสนุนจากผู้เชี่ยวชาญ ไม่ใช่แทนที่ การเขียนร่วมกับเสียงภายในสามารถเป็นเพื่อนร่วมทางที่มีความหมายในกระบวนการของคุณ — แต่ไม่ใช่สิ่งทดแทนการดูแลจากผู้เชี่ยวชาญที่ผ่านการฝึกฝน',
 
+
+  // Landing page hero
+  'landing.headline': 'A diary that listens back',
+  'landing.feature1': 'Write freely — inner voices listen',
+  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
+  'landing.feature3': 'They learn your patterns and grow with you',
+  'landing.cta': 'Start writing — it\'s free',
+  'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
+  'landing.demoPartName': 'The Tender One',
+  'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
+
   'echo.label': 'อดีต',
 } as const
 

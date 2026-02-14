@@ -132,7 +132,7 @@ User opens Settings → Delete Account / Contact form
 | `src/auth/AuthContext.tsx` | Auth provider — Google + Email/Password + password reset; sets Sentry user context + analytics user on auth state change |
 | `src/auth/useAuth.ts` | Hook for consuming auth context |
 | `src/api/accountApi.ts` | Client-side account API caller for `deleteAccount` and `submitContact` actions |
-| `src/components/LoginScreen.tsx` | Landing page + auth: artistic design with Spectral serif poetry, breathing circle animation, email/password form (sign-in, sign-up, password reset modes), Google sign-in alternative |
+| `src/components/LoginScreen.tsx` | Two-section scrollable landing page: hero section (typing animation demo cycling through 5 examples with different parts, feature callouts, CTA) + auth section (email/password form, Google sign-in). Designed for Google Ads cold traffic |
 | `src/components/Onboarding.tsx` | Post-signup consent flow (terms acceptance) |
 | `src/components/CrisisResources.tsx` | Crisis resource links shown during grounding mode |
 | `src/components/DeleteAccountModal.tsx` | Account deletion confirmation modal. Lazy-loaded from SettingsPanel — default export |
@@ -186,7 +186,7 @@ Firebase Authentication with Google Sign-In and Email/Password. The auth flow:
 - `src/auth/authContext.ts` defines the `AuthContextValue` interface
 - `src/auth/useAuth.ts` is the hook components use
 - `App.tsx` gates the entire app behind auth — unauthenticated users see `LoginScreen`
-- The `LoginScreen` serves as both landing page and auth form: email/password with sign-in, sign-up, and password reset modes; Google sign-in as alternative
+- The `LoginScreen` is a two-section scrollable page: a hero section (viewport-height) with an animated demo showing 5 cycling examples of the AI thought experience, feature callouts, and a CTA that smooth-scrolls to the auth section below. The auth section has email/password form (sign-in, sign-up, password reset modes) and Google sign-in
 - The Cloud Functions verify Firebase ID tokens on every request
 - `adminApi` additionally checks email against `ADMIN_EMAILS` allowlist (hardcoded in both `functions/src/index.ts` and `src/App.tsx`)
 - On auth state change, `AuthContext.tsx` sets Sentry user context (`Sentry.setUser`) and Firebase Analytics user ID (`setAnalyticsUser`); clears both on sign-out
@@ -477,6 +477,54 @@ Product analytics via Firebase Analytics, lazy-initialized on first event.
 
 Firebase Analytics must be enabled in Firebase Console → Project Settings → Integrations → Google Analytics. Events may take up to 24h to appear in the console.
 
+### Google Ads conversion tracking
+
+Tracks sign-up conversions for Google Search ad campaigns. Conversion ID: `AW-17954082823`.
+
+#### How it works
+
+1. **Google tag** — `index.html` loads `gtag.js` with the Google Ads conversion ID on every page.
+2. **Conversion event** — `AuthContext.tsx` fires `gtag('event', 'conversion', { send_to: 'AW-17954082823/TuxaCPeu0vgbEIeglvFC' })` on:
+   - **Email sign-up** — always (explicit `createUserWithEmailAndPassword`)
+   - **Google sign-in** — only for new users (`creationTime === lastSignInTime` check avoids counting returning users)
+3. **`gclid` parameter** — Google Ads auto-appends `?gclid=...` to landing page URLs. The gtag script handles attribution automatically.
+
+#### Logo assets
+
+Brand logo files in `public/` for Google Ads and marketing:
+
+| File | Size | Use |
+|------|------|-----|
+| `logo-square-1200.png` | 1200x1200, transparent | Google Ads square logo |
+| `logo-square-1200-opaque.png` | 1200x1200, cream bg | Google Ads (requires opaque) |
+| `logo-landscape-1200x300.png` | 1200x300, transparent | Google Ads landscape logo |
+| `logo-landscape-1200x300-opaque.png` | 1200x300, cream bg | Google Ads (requires opaque) |
+| `logo-icon-512.png` | 512x512, transparent | App stores / large icon |
+| `logo-icon-192.png` | 192x192, transparent | PWA / smaller contexts |
+
+### Landing page (LoginScreen)
+
+The `LoginScreen` is designed for cold traffic from Google Ads. Two scrollable sections:
+
+1. **Hero section** (viewport height) — "UnderSurface" title, "A diary that listens back" headline, animated demo editor, 3 feature callouts, CTA button
+2. **Auth section** — existing sign-up/sign-in form with Google and email options
+
+#### Demo editor animation
+
+A self-contained carousel cycling through 5 demo examples, each showing a different AI part responding to writing:
+
+| # | Part | Color | Theme |
+|---|------|-------|-------|
+| 1 | The Watcher | `#5A7F94` (steel blue) | Masking emotions |
+| 2 | The Tender One | `#B58548` (amber) | Self-sabotage patterns |
+| 3 | The Weaver | `#7E6BA0` (purple) | Quiet grief |
+| 4 | The Still | `#628E66` (green) | Anxiety |
+| 5 | The Spark | `#A06A7A` (rose) | Unspoken truth |
+
+Each demo: text types character-by-character (40ms/char) → 800ms pause → thought bubble fades in (600ms) → holds 4s → fades out → next demo after 1s. Full cycle ~50s.
+
+The demo content is hardcoded in `LoginScreen.tsx` (not i18n) since Google Ads initially target English-speaking countries. The `landing.*` i18n keys are used for the headline, feature points, and CTA text.
+
 ### Sentry (frontend error monitoring)
 
 Catches unhandled exceptions, API failures, and React render errors in production.
@@ -690,3 +738,7 @@ If the app needs to work on a new domain:
 - **Settings panel uses flex-wrap for i18n**: `.settings-row` has `flex-wrap: wrap` so option groups drop below long translated labels instead of overflowing.
 - **Startup parallelizes spellEngine.init() and loadOrCreateEntry()**: Both are async and independent — `Promise.all` in `App.tsx` runs dictionary fetch and Firestore entry read concurrently.
 - **Privacy policy is translated**: `PolicyContent.tsx` uses `useTranslation()` with `policy.*` keys (~24 keys). `PolicyModal.tsx` nav buttons are also translated. The "delete" confirmation word in `DeleteAccountModal` remains English-only.
+- **Landing page demo content is hardcoded, not i18n**: The 5 demo examples in `LoginScreen.tsx` (`DEMOS` array) are English-only constants, not translation keys. This is intentional — Google Ads initially target English-speaking countries. The headline, features, and CTA use `landing.*` i18n keys.
+- **Google Ads conversion fires only for new users**: `trackAdConversion()` in `AuthContext.tsx` fires on `signUpWithEmail` always, but on Google `signIn` only when `creationTime === lastSignInTime` (new account). Returning Google users don't trigger conversions.
+- **Service worker registration errors are filtered in Sentry**: `main.tsx` `beforeSend` drops `"Rejected"` errors from `registerSW.js`. These are non-critical PWA registration failures (caused by extensions, incognito mode, etc.).
+- **Google tag (gtag.js) loads on every page**: The Google Ads tag in `index.html` loads for all users, not just ad visitors. This is required for conversion attribution to work (it reads the `gclid` query parameter).

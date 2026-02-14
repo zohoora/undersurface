@@ -169,6 +169,17 @@ const nl = {
   'policy.recommendation': 'Onze aanbeveling',
   'policy.recommendationBody': 'We moedigen aan om UnderSurface naast professionele ondersteuning te gebruiken, niet in plaats daarvan. Schrijven met innerlijke stemmen kan een waardevolle aanvulling zijn op je proces — maar het is geen vervanging voor de zorg van een getrainde professional.',
 
+
+  // Landing page hero
+  'landing.headline': 'A diary that listens back',
+  'landing.feature1': 'Write freely — inner voices listen',
+  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
+  'landing.feature3': 'They learn your patterns and grow with you',
+  'landing.cta': 'Start writing — it\'s free',
+  'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
+  'landing.demoPartName': 'The Tender One',
+  'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
+
   'echo.label': 'Het Verleden',
 } as const
 

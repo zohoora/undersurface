@@ -169,6 +169,17 @@ const hi = {
   'policy.recommendation': 'हमारी सिफारिश',
   'policy.recommendationBody': 'हम UnderSurface को पेशेवर सहायता के साथ उपयोग करने की सलाह देते हैं, उसके बदले नहीं। आंतरिक आवाज़ों के साथ लिखना आपकी प्रक्रिया में एक सार्थक साथी हो सकता है — लेकिन यह एक प्रशिक्षित पेशेवर की देखभाल का विकल्प नहीं है।',
 
+
+  // Landing page hero
+  'landing.headline': 'A diary that listens back',
+  'landing.feature1': 'Write freely — inner voices listen',
+  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
+  'landing.feature3': 'They learn your patterns and grow with you',
+  'landing.cta': 'Start writing — it\'s free',
+  'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
+  'landing.demoPartName': 'The Tender One',
+  'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
+
   'echo.label': 'अतीत',
 } as const
 

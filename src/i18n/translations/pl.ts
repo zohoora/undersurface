@@ -169,6 +169,17 @@ const pl = {
   'policy.recommendation': 'Nasza rekomendacja',
   'policy.recommendationBody': 'Zachęcamy do korzystania z UnderSurface obok profesjonalnego wsparcia, nie zamiast niego. Pisanie z wewnętrznymi głosami może być wartościowym towarzyszem twojego procesu — ale nie jest zamiennikiem opieki wyszkolonego profesjonalisty.',
 
+
+  // Landing page hero
+  'landing.headline': 'A diary that listens back',
+  'landing.feature1': 'Write freely — inner voices listen',
+  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
+  'landing.feature3': 'They learn your patterns and grow with you',
+  'landing.cta': 'Start writing — it\'s free',
+  'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
+  'landing.demoPartName': 'The Tender One',
+  'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
+
   'echo.label': 'Przeszłość',
 } as const
 
