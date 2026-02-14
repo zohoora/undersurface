@@ -185,56 +185,72 @@ async function getAllUsers() {
 }
 
 async function handleGetOverview() {
-  const users = await getAllUsers()
+  // Read cached totals from appConfig/analytics (1 read instead of N user scans)
+  const analyticsSnap = await getFirestore().collection('appConfig').doc('analytics').get()
+  const cached = analyticsSnap.exists ? analyticsSnap.data() : null
 
+  let userCount = 0
   let totalEntries = 0
   let totalThoughts = 0
   let totalInteractions = 0
-  const recentActivity: Array<{
-    uid: string
-    displayName: string
-    entryId: string
-    preview: string
-    updatedAt: number
-  }> = []
+  let refreshedAt: number | undefined
 
-  for (const user of users) {
-    const [entryCount, thoughtCount, interactionCount] = await Promise.all([
-      getCollectionCount(user.uid, 'entries'),
-      getCollectionCount(user.uid, 'thoughts'),
-      getCollectionCount(user.uid, 'interactions'),
-    ])
-    totalEntries += entryCount
-    totalThoughts += thoughtCount
-    totalInteractions += interactionCount
+  if (cached) {
+    userCount = (cached.userCount as number) || 0
+    totalEntries = (cached.totalEntries as number) || 0
+    totalThoughts = (cached.totalThoughts as number) || 0
+    totalInteractions = (cached.totalInteractions as number) || 0
+    refreshedAt = cached.refreshedAt as number | undefined
+  } else {
+    // Bootstrap: no cache yet, count users from Auth
+    const users = await getAllUsers()
+    userCount = users.length
+  }
 
-    // Get recent entries for activity feed
-    const recentEntries = await getFirestore()
-      .collection('users').doc(user.uid).collection('entries')
-      .orderBy('updatedAt', 'desc')
-      .limit(3)
-      .get()
+  // Recent activity via collection group query (bounded, fast)
+  const recentSnap = await getFirestore()
+    .collectionGroup('entries')
+    .orderBy('updatedAt', 'desc')
+    .limit(10)
+    .get()
 
-    for (const doc of recentEntries.docs) {
-      const data = doc.data()
-      recentActivity.push({
-        uid: user.uid,
-        displayName: user.displayName || user.email || 'Unknown',
-        entryId: data.id || doc.id,
-        preview: (data.plainText || '').slice(0, 100),
-        updatedAt: data.updatedAt || 0,
-      })
+  // Collect unique user IDs from doc paths
+  const userIds = new Set<string>()
+  const rawActivity: Array<{ uid: string; entryId: string; preview: string; updatedAt: number }> = []
+  for (const doc of recentSnap.docs) {
+    const uid = doc.ref.parent.parent!.id
+    userIds.add(uid)
+    const data = doc.data()
+    rawActivity.push({
+      uid,
+      entryId: (data.id as string) || doc.id,
+      preview: ((data.plainText as string) || '').slice(0, 100),
+      updatedAt: (data.updatedAt as number) || 0,
+    })
+  }
+
+  // Batch-fetch display names from Auth
+  const displayNames: Record<string, string> = {}
+  const uidList = [...userIds]
+  if (uidList.length > 0) {
+    const userRecords = await getAuth().getUsers(uidList.map((uid) => ({ uid })))
+    for (const user of userRecords.users) {
+      displayNames[user.uid] = user.displayName || user.email || 'Unknown'
     }
   }
 
-  recentActivity.sort((a, b) => b.updatedAt - a.updatedAt)
+  const recentActivity = rawActivity.map((item) => ({
+    ...item,
+    displayName: displayNames[item.uid] || 'Unknown',
+  }))
 
   return {
-    userCount: users.length,
+    userCount,
     totalEntries,
     totalThoughts,
     totalInteractions,
-    recentActivity: recentActivity.slice(0, 10),
+    recentActivity,
+    refreshedAt,
   }
 }
 
@@ -373,7 +389,8 @@ async function handleGetUserDetail(uid: string) {
   }
 }
 
-async function handleGetAnalytics() {
+// Full analytics computation — expensive, writes result to appConfig/analytics
+async function computeAndCacheAnalytics() {
   const users = await getAllUsers()
 
   const now = Date.now()
@@ -386,6 +403,8 @@ async function handleGetAnalytics() {
   let monthlyActive = 0
   let totalEntries = 0
   let totalWords = 0
+  let totalThoughts = 0
+  let totalInteractions = 0
 
   // Signup tracking by week (last 12 weeks)
   const signupBuckets: Record<string, number> = {}
@@ -405,9 +424,14 @@ async function handleGetAnalytics() {
     }
 
     // Get entries for activity + word count
-    const entriesSnap = await getFirestore()
-      .collection('users').doc(user.uid).collection('entries')
-      .get()
+    const [entriesSnap, thoughtCount, interactionCount] = await Promise.all([
+      getFirestore().collection('users').doc(user.uid).collection('entries').get(),
+      getCollectionCount(user.uid, 'thoughts'),
+      getCollectionCount(user.uid, 'interactions'),
+    ])
+
+    totalThoughts += thoughtCount
+    totalInteractions += interactionCount
 
     let userLastActive = 0
     for (const doc of entriesSnap.docs) {
@@ -468,7 +492,11 @@ async function handleGetAnalytics() {
   const partUsage = Object.values(partThoughtCounts)
     .sort((a, b) => b.count - a.count)
 
-  return {
+  const result = {
+    userCount: users.length,
+    totalEntries,
+    totalThoughts,
+    totalInteractions,
     activeUsers: { daily: dailyActive, weekly: weeklyActive, monthly: monthlyActive },
     signupsByWeek,
     entriesByDay,
@@ -476,7 +504,27 @@ async function handleGetAnalytics() {
     averageWordsPerEntry: totalEntries > 0 ? Math.round(totalWords / totalEntries) : 0,
     averageEntriesPerUser: users.length > 0 ? Math.round((totalEntries / users.length) * 10) / 10 : 0,
     totalWords,
+    refreshedAt: Date.now(),
   }
+
+  // Cache to Firestore
+  await getFirestore().collection('appConfig').doc('analytics').set(result)
+
+  return result
+}
+
+async function handleRefreshAnalytics() {
+  return await computeAndCacheAnalytics()
+}
+
+async function handleGetAnalytics() {
+  // Read cached analytics (1 read)
+  const snap = await getFirestore().collection('appConfig').doc('analytics').get()
+  if (snap.exists) {
+    return snap.data()
+  }
+  // Bootstrap: no cache yet, compute and write it
+  return await computeAndCacheAnalytics()
 }
 
 async function handleGetConfig() {
@@ -751,6 +799,9 @@ export const adminApi = onRequest(
           return
         case 'getAnalytics':
           res.json(await handleGetAnalytics())
+          return
+        case 'refreshAnalytics':
+          res.json(await handleRefreshAnalytics())
           return
         case 'generateInsights':
           res.json(await handleGenerateInsights(openRouterKey.value()))

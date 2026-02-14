@@ -28,7 +28,7 @@ export function AdminOverview() {
         display: 'grid',
         gridTemplateColumns: 'repeat(4, 1fr)',
         gap: 16,
-        marginBottom: 32,
+        marginBottom: 16,
       }}>
         {metrics.map((m) => (
           <div key={m.label} style={{
@@ -42,6 +42,12 @@ export function AdminOverview() {
           </div>
         ))}
       </div>
+
+      {data.refreshedAt && (
+        <div style={{ fontSize: 11, color: '#C4BEB8', marginBottom: 24 }}>
+          Totals last refreshed: {new Date(data.refreshedAt).toLocaleString()}
+        </div>
+      )}
 
       <h3 style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>Recent Activity</h3>
       {data.recentActivity.length === 0 ? (

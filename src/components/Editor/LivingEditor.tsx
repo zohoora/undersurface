@@ -66,6 +66,7 @@ interface Props {
   onActivePartColorChange: (color: string | null) => void
   settings: AppSettings
   intention?: string
+  onFirstKeystroke?: () => void
 }
 
 export default function LivingEditor({
@@ -76,6 +77,7 @@ export default function LivingEditor({
   onActivePartColorChange,
   settings,
   intention,
+  onFirstKeystroke,
 }: Props) {
   const theme = useTheme()
   const globalConfig = useGlobalConfig()
@@ -91,6 +93,8 @@ export default function LivingEditor({
   const blankPageRef = useRef(new BlankPageEngine())
   const blankPageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const intentionRef = useRef(intention || '')
+
+  const firstKeystrokeRef = useRef(false)
 
   const lastAutocorrectRef = useRef<{
     original: string
@@ -272,6 +276,10 @@ export default function LivingEditor({
       const text = editor.getText()
       onContentChange(html, text)
       pauseDetectorRef.current?.updateText(text, editor.state.selection.from)
+      if (!firstKeystrokeRef.current && text.length > 0) {
+        firstKeystrokeRef.current = true
+        onFirstKeystroke?.()
+      }
     },
   })
 

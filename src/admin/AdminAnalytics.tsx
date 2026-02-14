@@ -45,12 +45,26 @@ function BarChart({ items, labelKey, valueKey, colorKey }: {
 export function AdminAnalytics() {
   const [data, setData] = useState<AdminAnalyticsResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     adminFetch<AdminAnalyticsResponse>('getAnalytics')
       .then(setData)
       .catch((e) => setError(e.message))
   }, [])
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    setError(null)
+    try {
+      const result = await adminFetch<AdminAnalyticsResponse>('refreshAnalytics')
+      setData(result)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Refresh failed')
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   if (error) return <div style={{ color: '#B91C1C', fontSize: 13, padding: 20 }}>Error: {error}</div>
   if (!data) return <div style={{ fontSize: 13, color: '#A09A94', padding: 20 }}>Loading analytics...</div>
@@ -69,6 +83,32 @@ export function AdminAnalytics() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Refresh controls */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 12,
+            padding: '6px 14px',
+            border: '1px solid #E8E4DF',
+            borderRadius: 6,
+            background: refreshing ? '#F5F2EF' : '#FFFFFF',
+            color: '#2D2B29',
+            cursor: refreshing ? 'wait' : 'pointer',
+            opacity: refreshing ? 0.6 : 1,
+          }}
+        >
+          {refreshing ? 'Refreshing...' : 'Refresh'}
+        </button>
+        {data.refreshedAt && (
+          <span style={{ fontSize: 11, color: '#C4BEB8' }}>
+            Last refreshed: {new Date(data.refreshedAt).toLocaleString()}
+          </span>
+        )}
+      </div>
+
       {/* Retention */}
       <div>
         <h3 style={{ fontSize: 14, fontWeight: 500, marginBottom: 12 }}>Active Users</h3>

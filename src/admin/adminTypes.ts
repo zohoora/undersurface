@@ -105,6 +105,7 @@ export interface AdminOverviewResponse {
   totalThoughts: number
   totalInteractions: number
   recentActivity: RecentActivity[]
+  refreshedAt?: number
 }
 
 export interface RecentActivity {
@@ -227,10 +228,11 @@ export interface AdminAnalyticsResponse {
   }
   signupsByWeek: Array<{ week: string; count: number }>
   entriesByDay: Array<{ date: string; count: number }>
-  partUsage: Array<{ partName: string; partColor: string; thoughtCount: number }>
+  partUsage: Array<{ name: string; color: string; count: number }>
   averageWordsPerEntry: number
   averageEntriesPerUser: number
   totalWords: number
+  refreshedAt?: number
 }
 
 export type AdminAction =
@@ -242,3 +244,4 @@ export type AdminAction =
   | 'generateInsights'
   | 'getContactMessages'
   | 'getAnalytics'
+  | 'refreshAnalytics'

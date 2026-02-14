@@ -363,6 +363,7 @@ export class PartOrchestrator {
                     isDisagreement: true,
                     respondingToPartId: part.id,
                   }
+                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
                   const { isNew: _, ...toStore } = disagreementThought
                   db.thoughts.add(toStore)
                   this.callbacks.onDisagreementComplete?.(disagreementThought)

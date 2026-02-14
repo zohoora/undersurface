@@ -117,6 +117,8 @@ function App() {
   const [explorations, setExplorations] = useState<GuidedExploration[]>([])
   const [closingPhrase, setClosingPhrase] = useState<string | null>(null)
   const [closingLoading, setClosingLoading] = useState(false)
+  const readyAtRef = useRef(0)
+  const firstKeystrokeTrackedRef = useRef(false)
 
   // Load most recent entry or create a blank one
   const loadOrCreateEntry = useCallback(async () => {
@@ -157,6 +159,8 @@ function App() {
         setHasConsent(true)
 
         await Promise.all([spellEngine.init(), loadOrCreateEntry()])
+        readyAtRef.current = Date.now()
+        firstKeystrokeTrackedRef.current = false
         setIsReady(true)
         trackEvent('app_launch')
       } catch (error) {
@@ -569,6 +573,13 @@ function App() {
           onActivePartColorChange={handleActivePartColorChange}
           settings={settings}
           intention={intention}
+          onFirstKeystroke={() => {
+            if (firstKeystrokeTrackedRef.current) return
+            firstKeystrokeTrackedRef.current = true
+            trackEvent('first_keystroke', {
+              seconds_to_first_keystroke: Math.round((Date.now() - readyAtRef.current) / 1000),
+            })
+          }}
         />
       </Suspense>
       {/* Session closing overlay */}

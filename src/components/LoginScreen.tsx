@@ -3,6 +3,7 @@ import { useAuth } from '../auth/useAuth'
 import PolicyModal from './PolicyModal'
 import { useTranslation, SUPPORTED_LANGUAGES } from '../i18n'
 import { getSettings, updateSettings } from '../store/settings'
+import { trackEvent } from '../services/analytics'
 
 const FORM_WIDTH = 280
 
@@ -52,6 +53,7 @@ export function LoginScreen() {
     try {
       await signIn()
     } catch (err) {
+      trackEvent('auth_error', { method: 'google' })
       setError(err instanceof Error ? err.message : 'Sign-in failed')
     } finally {
       setIsSigningIn(false)
@@ -63,6 +65,7 @@ export function LoginScreen() {
     setError(null)
     setSuccess(null)
     setIsSigningIn(true)
+    trackEvent('auth_form_submitted', { mode })
     try {
       if (mode === 'reset') {
         await resetPassword(email)
@@ -74,6 +77,7 @@ export function LoginScreen() {
         await signInWithEmail(email, password)
       }
     } catch (err) {
+      trackEvent('auth_error', { method: 'email', mode })
       setError(cleanFirebaseError(err))
     } finally {
       setIsSigningIn(false)

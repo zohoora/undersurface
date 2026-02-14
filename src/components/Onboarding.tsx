@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { db } from '../store/db'
 import PolicyModal from './PolicyModal'
 import { useTranslation } from '../i18n'
+import { trackEvent } from '../services/analytics'
 
 const headingStyle = {
   fontFamily: "'Spectral', serif",
@@ -68,6 +69,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [policyOpen, setPolicyOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  useEffect(() => {
+    trackEvent('onboarding_step_viewed', { step })
+  }, [step])
+
   const canFinish = disclaimerChecked && privacyChecked
 
   const handleComplete = async () => {
@@ -111,7 +116,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             <div style={{ ...bodyStyle, maxWidth: 340 }}>
               {t['onboarding.step1.body']}
             </div>
-            <button onClick={() => setStep(2)} style={primaryButtonStyle}>
+            <button onClick={() => { trackEvent('onboarding_step_completed', { step: 1 }); setStep(2) }} style={primaryButtonStyle}>
               {t['onboarding.step1.button']}
             </button>
           </>
@@ -126,7 +131,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             <div style={bodyStyle}>
               {t['onboarding.step2.body2']}
             </div>
-            <button onClick={() => setStep(3)} style={primaryButtonStyle}>
+            <button onClick={() => { trackEvent('onboarding_step_completed', { step: 2 }); setStep(3) }} style={primaryButtonStyle}>
               {t['onboarding.step2.button']}
             </button>
             <button onClick={() => setStep(1)} style={backButtonStyle}>

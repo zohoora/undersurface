@@ -14,7 +14,7 @@ const TIME_LABELS: Record<TimeOfDay, string> = {
   'night': 'night',
 }
 
-function categorizeHour(hour: number): TimeOfDay {
+export function categorizeHour(hour: number): TimeOfDay {
   if (hour >= 5 && hour < 8) return 'early-morning'
   if (hour >= 8 && hour < 12) return 'morning'
   if (hour >= 12 && hour < 17) return 'afternoon'
