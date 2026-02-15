@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1270, initial-scale=1">
+<title>UnderSurface — Hero Animation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1270px;
+    height: 760px;
+    overflow: hidden;
+    font-family: 'Spectral', serif;
+    background: #FAF6F1;
+    color: #2D2B29;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .editor-window {
+    width: 820px;
+    background: #FDFBF8;
+    border-radius: 16px;
+    border: 1px solid rgba(160,154,148,0.15);
+    box-shadow: 0 8px 40px rgba(45,43,41,0.06), 0 1px 3px rgba(45,43,41,0.04);
+    overflow: hidden;
+  }
+
+  .window-bar {
+    display: flex;
+    align-items: center;
+    padding: 14px 18px;
+    background: rgba(250,246,241,0.6);
+    border-bottom: 1px solid rgba(160,154,148,0.1);
+    gap: 8px;
+  }
+
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(160,154,148,0.2);
+  }
+
+  .window-title {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    color: #A09A94;
+    margin-left: 8px;
+  }
+
+  .editor-body {
+    padding: 36px 48px 44px;
+    min-height: 420px;
+  }
+
+  .typed-text {
+    font-size: 18px;
+    line-height: 1.85;
+    min-height: 100px;
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.2em;
+    background: #2D2B29;
+    margin-left: 1px;
+    vertical-align: text-bottom;
+    animation: blink 1.06s step-end infinite;
+  }
+
+  .cursor.hidden { display: none; }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  .thought {
+    margin-top: 28px;
+    border-left: 3px solid #5A7F94;
+    border-radius: 0 10px 10px 0;
+    padding: 16px 20px;
+    background: rgba(90,127,148,0.06);
+    max-width: 560px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+
+  .thought.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .thought-header {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #5A7F94;
+    margin-bottom: 7px;
+  }
+
+  .thought-text {
+    font-family: 'Spectral', serif;
+    font-style: italic;
+    font-size: 16px;
+    line-height: 1.6;
+    color: #4A6A7A;
+  }
+
+  .atmosphere {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at 40% 55%, rgba(90,127,148,0.05) 0%, transparent 55%);
+  }
+</style>
+</head>
+<body>
+<div class="atmosphere"></div>
+<div class="editor-window">
+  <div class="window-bar">
+    <div class="dot"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
+    <span class="window-title">undersurface.me</span>
+  </div>
+  <div class="editor-body">
+    <div class="typed-text">
+      <span id="textContent"></span><span class="cursor" id="cursor"></span>
+    </div>
+    <div class="thought" id="thought">
+      <div class="thought-header">The Watcher</div>
+      <div class="thought-text">&ldquo;You&rsquo;re noticing the gap between what you showed them and what was actually happening inside.&rdquo;</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const text = "I smiled and said it was fine. But driving home, my hands were shaking on the wheel. I turned the music up so I wouldn\u2019t have to hear myself think\u2026";
+const el = document.getElementById('textContent');
+const thought = document.getElementById('thought');
+let i = 0;
+
+function type() {
+  if (i < text.length) {
+    el.textContent = text.slice(0, i + 1);
+    i++;
+    setTimeout(type, 38);
+  } else {
+    setTimeout(() => {
+      thought.classList.add('visible');
+    }, 900);
+  }
+}
+
+setTimeout(type, 800);
+</script>
+</body>
+</html>

@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1270, initial-scale=1">
+<title>UnderSurface — Editor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1270px;
+    height: 760px;
+    overflow: hidden;
+    font-family: 'Spectral', serif;
+    background: #FAF6F1;
+    color: #2D2B29;
+  }
+
+  .app {
+    display: flex;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 260px;
+    background: linear-gradient(135deg, rgba(250,246,241,0.97) 0%, rgba(245,240,233,0.95) 100%);
+    border-right: 1px solid rgba(160,154,148,0.15);
+    padding: 20px 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-header {
+    padding: 8px 20px 20px;
+    font-family: 'Spectral', serif;
+    font-size: 22px;
+    font-weight: 500;
+    color: #2D2B29;
+    letter-spacing: -0.02em;
+  }
+
+  .entry-item {
+    padding: 12px 20px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: all 0.2s;
+  }
+
+  .entry-item.active {
+    background: rgba(160,154,148,0.08);
+    border-left-color: #A09A94;
+  }
+
+  .entry-date {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    color: #A09A94;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+
+  .entry-preview {
+    font-size: 14px;
+    color: #5A5753;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sidebar-footer {
+    margin-top: auto;
+    padding: 16px 20px;
+    border-top: 1px solid rgba(160,154,148,0.12);
+  }
+
+  .new-entry-btn {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: #A09A94;
+    background: none;
+    border: 1px solid rgba(160,154,148,0.2);
+    border-radius: 8px;
+    padding: 8px 16px;
+    cursor: pointer;
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Editor area */
+  .editor-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 32px 80px 40px;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  .toolbar {
+    display: flex;
+    justify-content: flex-end;
+    padding-bottom: 20px;
+    gap: 16px;
+  }
+
+  .toolbar-btn {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    color: #A09A94;
+    background: none;
+    border: none;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+  }
+
+  .editor-content {
+    flex: 1;
+    line-height: 1.85;
+    font-size: 17px;
+    max-width: 680px;
+  }
+
+  .editor-content p {
+    margin-bottom: 16px;
+  }
+
+  /* Thought bubbles */
+  .thought {
+    margin: 20px 0 24px;
+    border-left: 3px solid;
+    border-radius: 0 10px 10px 0;
+    padding: 14px 18px;
+    max-width: 520px;
+    animation: thoughtIn 0.6s ease both;
+  }
+
+  @keyframes thoughtIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .thought-header {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+
+  .thought-text {
+    font-family: 'Spectral', serif;
+    font-style: italic;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* Part colors */
+  .thought.watcher {
+    border-color: #5A7F94;
+    background: rgba(90,127,148,0.06);
+  }
+  .thought.watcher .thought-header { color: #5A7F94; }
+  .thought.watcher .thought-text { color: #4A6A7A; }
+
+  .thought.tender {
+    border-color: #B58548;
+    background: rgba(181,133,72,0.06);
+  }
+  .thought.tender .thought-header { color: #B58548; }
+  .thought.tender .thought-text { color: #8A6633; }
+
+  .thought.weaver {
+    border-color: #7E6BA0;
+    background: rgba(126,107,160,0.06);
+  }
+  .thought.weaver .thought-header { color: #7E6BA0; }
+  .thought.weaver .thought-text { color: #6B5A8A; }
+
+  /* Cursor */
+  .cursor {
+    display: inline-block;
+    width: 1.5px;
+    height: 1.15em;
+    background: #2D2B29;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink 1.06s step-end infinite;
+  }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  /* Inner weather */
+  .weather-widget {
+    position: absolute;
+    top: 32px;
+    right: 40px;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    color: #A09A94;
+    text-align: right;
+  }
+
+  .weather-label {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+  }
+
+  .weather-value {
+    font-size: 13px;
+    color: #7A7570;
+  }
+
+  /* Atmosphere overlay */
+  .atmosphere {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at 30% 60%, rgba(90,127,148,0.04) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 40%, rgba(181,133,72,0.03) 0%, transparent 50%);
+  }
+</style>
+</head>
+<body>
+<div class="atmosphere"></div>
+<div class="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">UnderSurface</div>
+
+    <div class="entry-item active">
+      <div class="entry-date">Today · 9:42 PM</div>
+      <div class="entry-preview">I smiled and said it was fine...</div>
+    </div>
+    <div class="entry-item">
+      <div class="entry-date">Yesterday · 11:15 PM</div>
+      <div class="entry-preview">Every time something good starts, I find a way...</div>
+    </div>
+    <div class="entry-item">
+      <div class="entry-date">Feb 11 · 8:30 PM</div>
+      <div class="entry-preview">I drove past her house today...</div>
+    </div>
+    <div class="entry-item">
+      <div class="entry-date">Feb 9 · 10:20 PM</div>
+      <div class="entry-preview">I keep almost saying it. At dinner, in the car...</div>
+    </div>
+    <div class="entry-item">
+      <div class="entry-date">Feb 7 · 7:45 PM</div>
+      <div class="entry-preview">The apartment feels different now that...</div>
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="new-entry-btn">+ new entry</button>
+    </div>
+  </div>
+
+  <!-- Editor -->
+  <div class="editor-area">
+    <div class="toolbar">
+      <span class="toolbar-btn">close session</span>
+    </div>
+
+    <div class="editor-content">
+      <p>I smiled and said it was fine. But driving home, my hands were shaking on the wheel. I turned the music up so I wouldn't have to hear myself think.</p>
+
+      <div class="thought watcher">
+        <div class="thought-header">The Watcher</div>
+        <div class="thought-text">You're noticing the gap between what you showed them and what was actually happening inside.</div>
+      </div>
+
+      <p>It's not even that what they said was wrong. It was true. But hearing it out loud made something crack open that I'd been keeping sealed for months. Maybe longer.</p>
+
+      <p>I keep doing this thing where I perform being okay so convincingly that even I start to believe it. And then some small thing — a sentence, a look — and the whole facade just</p>
+
+      <div class="thought tender">
+        <div class="thought-header">The Tender One</div>
+        <div class="thought-text">That facade kept you safe when you needed it. What if it's okay to not need it right now?</div>
+      </div>
+
+      <p>I don't know where that sentence was going. I think I stopped because I was about to write something I'm not ready to see on the page yet.<span class="cursor"></span></p>
+
+      <div class="thought weaver">
+        <div class="thought-header">The Weaver</div>
+        <div class="thought-text">You've been here before — the edge of saying it. Each time you get a little closer.</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

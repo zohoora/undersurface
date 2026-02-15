@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1270, initial-scale=1">
+<title>UnderSurface — Dark Mode</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1270px;
+    height: 760px;
+    overflow: hidden;
+    font-family: 'Spectral', serif;
+    background: #1C1B19;
+    color: #E8E4DF;
+  }
+
+  .app {
+    display: flex;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 260px;
+    background: linear-gradient(135deg, rgba(28,27,25,0.98) 0%, rgba(35,33,30,0.96) 100%);
+    border-right: 1px solid rgba(120,115,108,0.12);
+    padding: 20px 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-header {
+    padding: 8px 20px 20px;
+    font-family: 'Spectral', serif;
+    font-size: 22px;
+    font-weight: 500;
+    color: #E8E4DF;
+    letter-spacing: -0.02em;
+  }
+
+  .entry-item {
+    padding: 12px 20px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+  }
+
+  .entry-item.active {
+    background: rgba(120,115,108,0.08);
+    border-left-color: #78736C;
+  }
+
+  .entry-date {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    color: #78736C;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+
+  .entry-preview {
+    font-size: 14px;
+    color: #A09A94;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sidebar-footer {
+    margin-top: auto;
+    padding: 16px 20px;
+    border-top: 1px solid rgba(120,115,108,0.1);
+  }
+
+  .new-entry-btn {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: #78736C;
+    background: none;
+    border: 1px solid rgba(120,115,108,0.15);
+    border-radius: 8px;
+    padding: 8px 16px;
+    cursor: pointer;
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Editor area */
+  .editor-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 32px 80px 40px;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  .toolbar {
+    display: flex;
+    justify-content: flex-end;
+    padding-bottom: 20px;
+  }
+
+  .toolbar-btn {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    color: #78736C;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
+  .editor-content {
+    flex: 1;
+    line-height: 1.85;
+    font-size: 17px;
+    max-width: 680px;
+  }
+
+  .editor-content p {
+    margin-bottom: 16px;
+  }
+
+  /* Thought bubbles */
+  .thought {
+    margin: 20px 0 24px;
+    border-left: 3px solid;
+    border-radius: 0 10px 10px 0;
+    padding: 14px 18px;
+    max-width: 520px;
+  }
+
+  .thought-header {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+
+  .thought-text {
+    font-family: 'Spectral', serif;
+    font-style: italic;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  .thought.watcher {
+    border-color: #6B91A6;
+    background: rgba(107,145,166,0.08);
+  }
+  .thought.watcher .thought-header { color: #6B91A6; }
+  .thought.watcher .thought-text { color: #8AAFC2; }
+
+  .thought.tender {
+    border-color: #C49555;
+    background: rgba(196,149,85,0.08);
+  }
+  .thought.tender .thought-header { color: #C49555; }
+  .thought.tender .thought-text { color: #D4A86E; }
+
+  .thought.weaver {
+    border-color: #917CB2;
+    background: rgba(145,124,178,0.08);
+  }
+  .thought.weaver .thought-header { color: #917CB2; }
+  .thought.weaver .thought-text { color: #A694C4; }
+
+  .cursor {
+    display: inline-block;
+    width: 1.5px;
+    height: 1.15em;
+    background: #E8E4DF;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink 1.06s step-end infinite;
+  }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  .atmosphere {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at 30% 60%, rgba(107,145,166,0.03) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 40%, rgba(196,149,85,0.02) 0%, transparent 50%);
+  }
+</style>
+</head>
+<body>
+<div class="atmosphere"></div>
+<div class="app">
+  <div class="sidebar">
+    <div class="sidebar-header">UnderSurface</div>
+    <div class="entry-item active">
+      <div class="entry-date">Today · 9:42 PM</div>
+      <div class="entry-preview">I smiled and said it was fine...</div>
+    </div>
+    <div class="entry-item">
+      <div class="entry-date">Yesterday · 11:15 PM</div>
+      <div class="entry-preview">Every time something good starts, I find a way...</div>
+    </div>
+    <div class="entry-item">
+      <div class="entry-date">Feb 11 · 8:30 PM</div>
+      <div class="entry-preview">I drove past her house today...</div>
+    </div>
+    <div class="entry-item">
+      <div class="entry-date">Feb 9 · 10:20 PM</div>
+      <div class="entry-preview">I keep almost saying it. At dinner, in the car...</div>
+    </div>
+    <div class="entry-item">
+      <div class="entry-date">Feb 7 · 7:45 PM</div>
+      <div class="entry-preview">The apartment feels different now that...</div>
+    </div>
+    <div class="sidebar-footer">
+      <button class="new-entry-btn">+ new entry</button>
+    </div>
+  </div>
+
+  <div class="editor-area">
+    <div class="toolbar">
+      <span class="toolbar-btn">close session</span>
+    </div>
+    <div class="editor-content">
+      <p>I smiled and said it was fine. But driving home, my hands were shaking on the wheel. I turned the music up so I wouldn't have to hear myself think.</p>
+
+      <div class="thought watcher">
+        <div class="thought-header">The Watcher</div>
+        <div class="thought-text">You're noticing the gap between what you showed them and what was actually happening inside.</div>
+      </div>
+
+      <p>It's not even that what they said was wrong. It was true. But hearing it out loud made something crack open that I'd been keeping sealed for months. Maybe longer.</p>
+
+      <p>I keep doing this thing where I perform being okay so convincingly that even I start to believe it. And then some small thing — a sentence, a look — and the whole facade just</p>
+
+      <div class="thought tender">
+        <div class="thought-header">The Tender One</div>
+        <div class="thought-text">That facade kept you safe when you needed it. What if it's okay to not need it right now?</div>
+      </div>
+
+      <p>I don't know where that sentence was going. I think I stopped because I was about to write something I'm not ready to see on the page yet.<span class="cursor"></span></p>
+
+      <div class="thought weaver">
+        <div class="thought-header">The Weaver</div>
+        <div class="thought-text">You've been here before — the edge of saying it. Each time you get a little closer.</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

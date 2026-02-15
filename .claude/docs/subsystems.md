@@ -1,0 +1,112 @@
+# Subsystem Details
+
+## Dark mode
+
+Light, dark, and system-follow themes via `[data-theme="dark"]` on `<html>`. All colors are CSS custom properties in `atmosphere.css`. Dark mode uses warm charcoals, not blue-blacks. Each of 9 emotions has dark variants. Components with inline styles use `var(--bg-primary)` etc. Color bleed is disabled in dark mode. Part thought alpha is boosted from `'25'` to `'30'` in dark mode via `boostAlpha()`.
+
+Adding new themed components: use CSS `var()` for all colors. For React inline styles: `style={{ background: 'var(--bg-primary)' }}`. The `[data-theme="dark"]` block in `atmosphere.css` handles the rest.
+
+## Adaptive parts system
+
+Parts learn through five layers:
+1. **Dynamic scoring** — `partOrchestrator.ts` uses `ifsRole`-based lookup tables, so emerged parts score correctly out of the box
+2. **Observation memories** — every thought creates a `type: 'observation'` memory; TOL interactions create `type: 'interaction'` memories
+3. **Reflection engine** — on entry switch, analyzes full entry + thoughts. Produces summaries, reflection/pattern memories, keyword suggestions, profile updates (~1 API call)
+4. **Enhanced prompts** — `buildPartMessages()` injects categorized memories, user profile, entry summaries
+5. **Part growth** — every 5 entries, evolves parts: updates `systemPromptAddition`, `learnedKeywords`, `learnedEmotions` (~1 API call)
+
+Key types: `PartMemory.type` (`'observation' | 'interaction' | 'reflection' | 'pattern'`), `EntrySummary`, `UserProfile`, `Part.learnedKeywords`, `Part.systemPromptAddition`.
+
+`SHARED_INSTRUCTIONS` from `partPrompts.ts` is the single source of truth for all parts (seeded + emerged).
+
+## i18n
+
+17 LTR languages. No library — flat key-value objects per language. `t(key)` for non-React, `useTranslation()` hook for React. English bundled inline, others lazy-loaded (~4-5KB each).
+
+- AI system prompts stay English; `languageDirective()` appends response language to user-facing prompts (parts, fossils, letters, blank page, session closing)
+- Internal prompts (reflection, growth, emotion) stay English because output feeds back into English-keyed logic
+- Autocorrect is English-only (hidden from Settings for non-English)
+- Seeded part names translated via `getPartDisplayName()`; emerged parts keep LLM-generated names
+- Distress detection is LLM-based via `analyzeEmotionAndDistress()` — works in any language
+
+### Adding a new translation key
+
+1. Add key + English text to `src/i18n/translations/en.ts`
+2. Add to all 16 other language files
+3. Use `t('key')` in non-React or `useTranslation()` hook in React
+
+### Adding a new language
+
+1. Add entry to `SUPPORTED_LANGUAGES` in `src/i18n/languages.ts`
+2. Create `src/i18n/translations/{code}.ts` with all keys from `en.ts`
+3. No other changes needed — `import.meta.glob` auto-discovers new files
+
+## Emergency grounding
+
+Controlled by `features.emergencyGrounding`. LLM-based distress detection via `analyzeEmotionAndDistress()` (piggybacked on emotion check, zero additional API calls). Distress level 0-3; activates at `intensityThreshold` (default 2).
+
+- Grounding state sets `data-grounding="true"` on `<html>` — desaturated greens, slower breathing, overrides emotion atmosphere
+- Self-role parts score +40, others -30
+- Grounding prompt overrides intention in `buildPartMessages`
+- Auto-exits after `autoExitMinutes` (default 5)
+- Manual toggle in Settings when feature enabled
+- `CrisisResources.tsx` renders helpline links during grounding
+
+Tuning: admin Settings -> Safety & Wellbeing -> `GlobalConfig.grounding`.
+
+## Bundle splitting
+
+Main chunk ~228KB gzipped.
+
+**manualChunks**: `@tiptap`+`prosemirror` -> `editor` (~119KB), `@sentry` -> `sentry` (~30KB).
+
+**Lazy-loaded components** (React.lazy, require default exports):
+- `LivingEditor` — after auth + consent
+- `AdminDashboard` — /admin route
+- `DeleteAccountModal` — settings click
+
+**Lazy-loaded engines** (dynamic import):
+- `FossilEngine` — first entry switch
+- `ExplorationEngine` — first new entry with feature enabled
+
+**Lazy-loaded translations**: 16 non-English files via `import.meta.glob`.
+
+## Intentions
+
+Per-entry writing intentions that persist and influence AI responses. Controlled by `features.intentionsEnabled`.
+
+- `IntentionInput.tsx` renders above the editor (ghost button -> text input, 120 char max)
+- Stored as `intention` field on entry document (accessed via cast, not in `DiaryEntry` interface)
+- `buildPartMessages` appends intention guidance (skipped during grounding)
+- `reflectionEngine.ts` prepends intention to entry text for summaries
+
+## Guided explorations
+
+AI-generated personalized writing prompts on new blank entries. Controlled by `features.guidedExplorations`.
+
+- `explorationEngine.ts` uses profile + recent summaries to generate prompts
+- Selecting a prompt sets it as the entry's intention
+- Suppressed during grounding. Single-shot guard (`hasSuggested`) prevents duplicate API calls
+- Tuning: `GlobalConfig.explorations` -> `maxPrompts`, `triggerOnNewEntry`
+
+## Session closing
+
+A warm closing ritual via "close session" button in the toolbar.
+
+- Saves current entry, sends last ~600 chars to The Weaver via `chatCompletion` (max 80 tokens, 15s timeout)
+- `SessionClosing.tsx` renders full-screen overlay with fade-in animation
+- Fallback: "You showed up today. That matters."
+- Uses The Weaver specifically (hardcoded prompt, not part ID lookup)
+
+## Autocorrect
+
+`spellEngine.ts` — Damerau-Levenshtein + Typo.js. English-only.
+
+- Triggers on word-boundary characters (space, comma, period) but NOT apostrophe (would mangle contractions)
+- Undo on Backspace: `lastAutocorrectRef` in `LivingEditor.tsx` (single-shot, cleared on any other keypress)
+- Hidden from Settings for non-English users
+- `postinstall` script copies dictionary files to `public/dictionaries/`
+
+## Data export
+
+`exportAllData()` in `db.ts` exports all user data as a human-readable Markdown document. Includes: user profile, parts with reflections, journal entries with thoughts/TOL/summaries/fossils, letters, writing sessions. Part IDs resolved to names.

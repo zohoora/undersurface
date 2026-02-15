@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=390, initial-scale=1">
+<title>UnderSurface — Mobile</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 390px;
+    height: 844px;
+    overflow: hidden;
+    font-family: 'Spectral', serif;
+    background: #FAF6F1;
+    color: #2D2B29;
+  }
+
+  .phone-frame {
+    width: 390px;
+    height: 844px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Mobile editor */
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid rgba(160,154,148,0.12);
+  }
+
+  .mobile-title {
+    font-family: 'Spectral', serif;
+    font-size: 18px;
+    font-weight: 500;
+    color: #2D2B29;
+  }
+
+  .mobile-date {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    color: #A09A94;
+  }
+
+  .mobile-actions {
+    display: flex;
+    gap: 16px;
+  }
+
+  .mobile-btn {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    color: #A09A94;
+    background: none;
+    border: none;
+  }
+
+  .editor-content {
+    padding: 20px 20px 40px;
+    line-height: 1.85;
+    font-size: 16px;
+    overflow-y: auto;
+    height: calc(844px - 56px);
+  }
+
+  .editor-content p {
+    margin-bottom: 14px;
+  }
+
+  .thought {
+    margin: 18px 0 22px;
+    border-left: 3px solid;
+    border-radius: 0 10px 10px 0;
+    padding: 12px 14px;
+  }
+
+  .thought-header {
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 5px;
+  }
+
+  .thought-text {
+    font-family: 'Spectral', serif;
+    font-style: italic;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .thought.watcher {
+    border-color: #5A7F94;
+    background: rgba(90,127,148,0.06);
+  }
+  .thought.watcher .thought-header { color: #5A7F94; }
+  .thought.watcher .thought-text { color: #4A6A7A; }
+
+  .thought.tender {
+    border-color: #B58548;
+    background: rgba(181,133,72,0.06);
+  }
+  .thought.tender .thought-header { color: #B58548; }
+  .thought.tender .thought-text { color: #8A6633; }
+
+  .cursor {
+    display: inline-block;
+    width: 1.5px;
+    height: 1.1em;
+    background: #2D2B29;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink 1.06s step-end infinite;
+  }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  .atmosphere {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at 50% 50%, rgba(90,127,148,0.04) 0%, transparent 60%);
+  }
+</style>
+</head>
+<body>
+<div class="atmosphere"></div>
+<div class="phone-frame">
+  <div class="mobile-header">
+    <div>
+      <div class="mobile-title">UnderSurface</div>
+      <div class="mobile-date">Today · 9:42 PM</div>
+    </div>
+    <div class="mobile-actions">
+      <span class="mobile-btn">close session</span>
+    </div>
+  </div>
+
+  <div class="editor-content">
+    <p>I smiled and said it was fine. But driving home, my hands were shaking on the wheel. I turned the music up so I wouldn't have to hear myself think.</p>
+
+    <div class="thought watcher">
+      <div class="thought-header">The Watcher</div>
+      <div class="thought-text">You're noticing the gap between what you showed them and what was actually happening inside.</div>
+    </div>
+
+    <p>It's not even that what they said was wrong. It was true. But hearing it out loud made something crack open that I'd been keeping sealed for months. Maybe longer.</p>
+
+    <p>I keep doing this thing where I perform being okay so convincingly that even I start to believe it. And then some small thing — a sentence, a look — and the whole facade just</p>
+
+    <div class="thought tender">
+      <div class="thought-header">The Tender One</div>
+      <div class="thought-text">That facade kept you safe when you needed it. What if it's okay to not need it right now?</div>
+    </div>
+
+    <p>I don't know where that sentence was going. I think I stopped because I was about to write something I'm not ready to see on the page yet.<span class="cursor"></span></p>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1200px;
+    height: 628px;
+    overflow: hidden;
+    font-family: 'Spectral', serif;
+    background: #FAF6F1;
+    color: #2D2B29;
+    display: flex;
+    position: relative;
+  }
+
+  .atmosphere {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 20% 80%, rgba(90,127,148,0.07) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(181,133,72,0.05) 0%, transparent 45%),
+      radial-gradient(ellipse at 60% 70%, rgba(126,107,160,0.04) 0%, transparent 40%);
+  }
+
+  .left {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 60px 50px 60px 72px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .brand {
+    font-family: 'Spectral', serif;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #A09A94;
+    margin-bottom: 24px;
+  }
+
+  h1 {
+    font-family: 'Spectral', serif;
+    font-size: 46px;
+    font-weight: 400;
+    line-height: 1.2;
+    color: #2D2B29;
+    margin-bottom: 20px;
+    letter-spacing: -0.02em;
+  }
+
+  h1 em {
+    font-style: italic;
+    color: #5A7F94;
+  }
+
+  .subtitle {
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    font-weight: 400;
+    color: #7A7570;
+    line-height: 1.6;
+    max-width: 380px;
+  }
+
+  .url {
+    margin-top: 32px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #A09A94;
+    letter-spacing: 0.02em;
+  }
+
+  .right {
+    width: 520px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 48px 40px 20px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .editor-card {
+    width: 100%;
+    background: #FDFBF8;
+    border-radius: 14px;
+    border: 1px solid rgba(160,154,148,0.12);
+    box-shadow: 0 12px 48px rgba(45,43,41,0.07), 0 2px 6px rgba(45,43,41,0.03);
+    padding: 28px 32px;
+    position: relative;
+  }
+
+  .editor-text {
+    font-size: 15.5px;
+    line-height: 1.8;
+    color: #3D3B39;
+    margin-bottom: 4px;
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 1.5px;
+    height: 1.1em;
+    background: #2D2B29;
+    margin-left: 1px;
+    vertical-align: text-bottom;
+    animation: blink 1.06s step-end infinite;
+  }
+
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .thought {
+    margin-top: 20px;
+    border-left: 3px solid #5A7F94;
+    border-radius: 0 10px 10px 0;
+    padding: 14px 16px;
+    background: rgba(90,127,148,0.06);
+  }
+
+  .thought-name {
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #5A7F94;
+    margin-bottom: 5px;
+  }
+
+  .thought-text {
+    font-style: italic;
+    font-size: 14px;
+    line-height: 1.55;
+    color: #4A6A7A;
+  }
+
+  .dot-row {
+    position: absolute;
+    top: 12px;
+    left: 16px;
+    display: flex;
+    gap: 6px;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(160,154,148,0.18);
+  }
+</style>
+</head>
+<body>
+<div class="atmosphere"></div>
+<div class="left">
+  <div class="brand">UnderSurface</div>
+  <h1>A diary that<br><em>listens back</em></h1>
+  <div class="subtitle">Write freely. When you pause, inner voices respond — noticing what you haven't said yet.</div>
+  <div class="url">undersurface.me</div>
+</div>
+<div class="right">
+  <div class="editor-card">
+    <div class="editor-text">
+      I keep doing this thing where I perform being okay so convincingly that even I start to believe it.<span class="cursor"></span>
+    </div>
+    <div class="thought">
+      <div class="thought-name">The Watcher</div>
+      <div class="thought-text">You're noticing the gap between what you showed them and what was actually happening inside.</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1080px;
+    height: 1920px;
+    overflow: hidden;
+    font-family: 'Spectral', serif;
+    background: #1C1B19;
+    color: #E8E4DF;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  .atmosphere {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 30% 20%, rgba(107,145,166,0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 60%, rgba(196,149,85,0.04) 0%, transparent 45%),
+      radial-gradient(ellipse at 40% 85%, rgba(145,124,178,0.05) 0%, transparent 40%);
+  }
+
+  .top-section {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 120px 72px 60px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .brand {
+    font-family: 'Spectral', serif;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #78736C;
+    margin-bottom: 40px;
+  }
+
+  h1 {
+    font-family: 'Spectral', serif;
+    font-size: 62px;
+    font-weight: 400;
+    line-height: 1.15;
+    color: #E8E4DF;
+    text-align: center;
+    margin-bottom: 24px;
+    letter-spacing: -0.02em;
+  }
+
+  h1 em { font-style: italic; color: #6B91A6; }
+
+  .subtitle {
+    font-family: 'Inter', sans-serif;
+    font-size: 18px;
+    font-weight: 400;
+    color: #A09A94;
+    line-height: 1.65;
+    text-align: center;
+    max-width: 560px;
+  }
+
+  .middle-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 64px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .entry {
+    width: 100%;
+    padding: 0 12px;
+  }
+
+  .entry-text {
+    font-size: 22px;
+    line-height: 1.8;
+    color: #D4D0CB;
+    margin-bottom: 8px;
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.15em;
+    background: #E8E4DF;
+    margin-left: 1px;
+    vertical-align: text-bottom;
+    animation: blink 1.06s step-end infinite;
+  }
+
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .thought {
+    margin-top: 32px;
+    border-left: 3px solid #6B91A6;
+    border-radius: 0 12px 12px 0;
+    padding: 20px 24px;
+    background: rgba(107,145,166,0.08);
+  }
+
+  .thought-name {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6B91A6;
+    margin-bottom: 8px;
+  }
+
+  .thought-text {
+    font-style: italic;
+    font-size: 19px;
+    line-height: 1.6;
+    color: #8AAFC2;
+  }
+
+  .thought2 {
+    margin-top: 24px;
+    border-left: 3px solid #C49555;
+    border-radius: 0 12px 12px 0;
+    padding: 20px 24px;
+    background: rgba(196,149,85,0.07);
+  }
+
+  .thought2 .thought-name { color: #C49555; }
+  .thought2 .thought-text { color: #D4A86E; }
+
+  .bottom-section {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 72px 100px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .divider {
+    width: 40px;
+    height: 1px;
+    background: rgba(120,115,108,0.2);
+    margin-bottom: 28px;
+  }
+
+  .url {
+    font-family: 'Inter', sans-serif;
+    font-size: 17px;
+    color: #78736C;
+    letter-spacing: 0.03em;
+  }
+
+  .tagline-small {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #5A5753;
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+<div class="atmosphere"></div>
+<div class="top-section">
+  <div class="brand">UnderSurface</div>
+  <h1>A diary that<br><em>listens back</em></h1>
+  <div class="subtitle">Write freely. When you pause, inner voices respond — noticing what you haven't said yet.</div>
+</div>
+<div class="middle-section">
+  <div class="entry">
+    <div class="entry-text">
+      I can't stop running through tomorrow's conversation in my head. Every version ends badly.<span class="cursor"></span>
+    </div>
+    <div class="thought">
+      <div class="thought-name">The Still</div>
+      <div class="thought-text">You're not in that room yet. You're here, writing. Stay a moment.</div>
+    </div>
+    <div class="thought2">
+      <div class="thought-name">The Tender One</div>
+      <div class="thought-text">What if it doesn't end badly — and that scares you more?</div>
+    </div>
+  </div>
+</div>
+<div class="bottom-section">
+  <div class="divider"></div>
+  <div class="url">undersurface.me</div>
+  <div class="tagline-small">free &middot; no ads &middot; works in your browser</div>
+</div>
+</body>
+</html>
