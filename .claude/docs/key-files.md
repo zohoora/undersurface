@@ -5,7 +5,7 @@
 | File | Purpose |
 |------|---------|
 | `src/ai/openrouter.ts` | Client-side API calls to `/api/chat`; `analyzeEmotionAndDistress()` for combined emotion + distress check |
-| `src/ai/partPrompts.ts` | System prompts for 6 seeded parts + `SHARED_INSTRUCTIONS` + emergence, reflection, growth, grounding, intention prompts + `languageDirective()` |
+| `src/ai/partPrompts.ts` | System prompts for 7 seeded parts + `SHARED_INSTRUCTIONS` + emergence, reflection, growth, grounding, intention prompts + `languageDirective()` |
 | `src/engine/partOrchestrator.ts` | Selects which part responds (role-based scoring); distress detection; intention passing; pre-warms DB caches in `loadParts()` |
 | `src/engine/pauseDetector.ts` | Detects writing pauses from keystroke timing |
 | `src/engine/emergenceEngine.ts` | Detects new parts emerging from writing |
@@ -21,6 +21,7 @@
 | `src/engine/disagreementEngine.ts` | Parts respectfully disagree. Feature-flagged (`partsDisagreeing`). Uses `ROLE_OPPOSITION` mapping (protector<>exile, manager<>firefighter) |
 | `src/engine/echoEngine.ts` | Resurfaces patterns from past entries. Feature-flagged (`echoes`) |
 | `src/engine/threadEngine.ts` | Resumes unfinished themes across sessions. Feature-flagged (`threads`) |
+| `src/engine/bodyMapEngine.ts` | Computes HomunculusState from somatic memories — emotion-to-color mapping, region sizing, dominant emotions |
 | `src/engine/quoteEngine.ts` | Highlights meaningful quotes. Feature-flagged |
 | `src/engine/quietTracker.ts` | Tracks periods of silence/no writing |
 
@@ -49,7 +50,7 @@
 |------|---------|
 | `src/i18n/index.ts` | `t()` for non-React, `useTranslation()` hook, `getLanguageCode()`, `getLLMLanguageName()`, `getPartDisplayName()`, `languageDirective()` |
 | `src/i18n/languages.ts` | 17 supported languages + `detectBrowserLanguage()` |
-| `src/i18n/translations/en.ts` | English translations (~178 keys) — source of truth for `TranslationKey` type |
+| `src/i18n/translations/en.ts` | English translations (~193 keys) — source of truth for `TranslationKey` type |
 | `src/i18n/translations/*.ts` | 16 non-English files (lazy-loaded, ~4-5KB each) |
 
 ## Auth & Services
@@ -76,9 +77,13 @@
 | `src/components/ThinkingOutLoud/ThinkingSpace.tsx` | "Thinking Out Loud" UI for user-part conversations |
 | `src/components/Atmosphere/BreathingBackground.tsx` | Breathing background animation |
 | `src/components/Atmosphere/CursorGlow.tsx` | Visual glow effect around cursor |
+| `src/components/Atmosphere/BilateralPulse.tsx` | Bilateral stimulation edge pulses — rhythm adapts to emotional tone |
 | `src/components/Atmosphere/PauseRipple.tsx` | Visual ripple during writing pauses |
 | `src/components/Atmosphere/usePauseRipple.ts` | Pause ripple hook (co-located with component) |
-| `src/components/Sidebar/EntriesList.tsx` | Entry list sidebar |
+| `src/components/BodyMap/BodyMapTab.tsx` | Body Map tab container — loads somatic memories, computes HomunculusState, handles dormant state |
+| `src/components/BodyMap/HomunculusSVG.tsx` | SVG homunculus figure with 10 animated body regions (Framer Motion), click-to-select, breathing animation |
+| `src/components/BodyMap/RegionDetail.tsx` | Region detail panel — emotion pills, recent somatic quotes, entry dates |
+| `src/components/Sidebar/EntriesList.tsx` | Entry list sidebar with Body Map tab (when `bodyMap` feature flag enabled) |
 | `src/components/Sidebar/SettingsPanel.tsx` | Settings panel — slide-up overlay above gear button |
 | `src/components/Sidebar/ModelSelector.tsx` | LLM model selection dropdown |
 | `src/components/SessionClosing.tsx` | Session closing overlay — The Weaver's closing thought |

@@ -26,6 +26,9 @@
 | `features.partQuietReturn` | Bonus for parts that haven't spoken recently |
 | `features.partCatchphrases` | Parts develop signature phrases |
 | `features.silenceAsResponse` | Silence as a valid part response in flow |
+| `features.quietOneEnabled` | The Quiet One seeded part (avoidance-aware) |
+| `features.bodyMap` | Body Map (emotional homunculus) in sidebar |
+| `features.bilateralStimulation` | Subtle alternating left/right edge pulses, rhythm adapts to emotion |
 | **Memory/Engagement** | |
 | `features.echoes` | Resurface patterns from past entries |
 | `features.innerWeather` | Inner weather tracking |
@@ -38,6 +41,9 @@
 | `features.inkWeight` | Text weight varies with intensity |
 | `features.colorBleed` | Recent text tinted with part color |
 | `features.breathingBackground` | Breathing background animation |
+| **Text Interaction** | |
+| `features.textHighlights` | User-toggleable text highlights from AI parts |
+| `features.ghostText` | User-toggleable ghost text annotations from AI parts |
 | **Safety & Guidance** | |
 | `features.emergencyGrounding` | Distress detection + grounding mode |
 | `features.intentionsEnabled` | Per-entry writing intentions |

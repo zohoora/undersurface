@@ -53,4 +53,4 @@ Admin components use inline styles with warm muted palette (Inter font, #FAF8F5 
 | `src/admin/AdminAnalytics.tsx` | Active users, engagement metrics, charts |
 | `src/admin/AdminMessages.tsx` | Contact message inbox |
 | `src/admin/AdminInsights.tsx` | LLM-generated narrative analysis |
-| `src/admin/AdminSettings.tsx` | Form for GlobalConfig (model, speed, feature flags, announcements, version signal) |
+| `src/admin/AdminSettings.tsx` | Form for GlobalConfig (model, speed, feature flags incl. bodyMap/quietOne/textHighlights/ghostText, announcements, version signal) |

@@ -22,6 +22,7 @@ const DEFAULTS: GlobalConfig = {
     blankPageSpeaks: false,
     quietOneEnabled: false,
     bodyMap: false,
+    bilateralStimulation: false,
     textHighlights: false,
     ghostText: false,
     echoes: false,
@@ -529,6 +530,11 @@ export function AdminSettings() {
           label="Body Map"
           checked={!!config.features.bodyMap}
           onChange={(v) => setFeature('bodyMap', v)}
+        />
+        <ToggleRow
+          label="Bilateral Stimulation"
+          checked={!!config.features.bilateralStimulation}
+          onChange={(v) => setFeature('bilateralStimulation', v)}
         />
 
         <ToggleRow

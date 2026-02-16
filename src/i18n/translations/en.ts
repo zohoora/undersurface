@@ -56,6 +56,7 @@ const en = {
   'settings.aiInteractions': 'AI Interactions',
   'settings.textHighlights': 'Text Highlights',
   'settings.ghostText': 'Ghost Text',
+  'settings.bilateralStimulation': 'Bilateral Rhythm',
   'settings.contactUs': 'Contact Us',
   'settings.contactPlaceholder': 'Your message...',
   'settings.contactSent': 'Message sent — thank you!',

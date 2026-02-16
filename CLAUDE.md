@@ -109,7 +109,7 @@ SPA in `App.tsx`: `/` → diary, `/admin` → admin dashboard (lazy-loaded), any
 ### Feature flags
 
 3 core flags (default enabled, `=== false`): `partsEnabled`, `visualEffectsEnabled`, `autocorrectEnabled`.
-24 experimental flags (default disabled, `=== true`) across 5 categories: Atmosphere, Part Intelligence, Memory/Engagement, Visual Effects, Safety & Guidance.
+28 experimental flags (default disabled, `=== true`) across 6 categories: Atmosphere, Part Intelligence, Memory/Engagement, Visual Effects, Text Interaction, Safety & Guidance.
 
 Full list + settings cascade + tuning params: `.claude/docs/feature-flags.md`
 
@@ -119,7 +119,7 @@ At `/admin` for admins only. Lazy-loaded. 6 tabs, 9 API actions. Overview shows 
 
 ### Subsystems
 
-Dark mode, adaptive parts, i18n (17 languages), emergency grounding, bundle splitting, intentions, explorations, session closing, autocorrect, data export — all documented in `.claude/docs/subsystems.md`
+Dark mode, adaptive parts, i18n (17 languages), emergency grounding, bundle splitting, intentions, explorations, session closing, autocorrect, body map, data export — all documented in `.claude/docs/subsystems.md`
 
 ### Analytics & tracking
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import { BreathingBackground } from './components/Atmosphere/BreathingBackground'
 import { CursorGlow } from './components/Atmosphere/CursorGlow'
+import { BilateralPulse } from './components/Atmosphere/BilateralPulse'
 import { EntriesList } from './components/Sidebar/EntriesList'
 import { LoginScreen } from './components/LoginScreen'
 import { AnnouncementBanner } from './components/AnnouncementBanner'
@@ -93,6 +94,7 @@ function App() {
   const [hasConsent, setHasConsent] = useState<boolean | null>(null)
   const [activeEntryId, setActiveEntryId] = useState<string>('')
   const [initialContent, setInitialContent] = useState('')
+  const [isEditorBlank, setIsEditorBlank] = useState(true)
   const [emotion, setEmotion] = useState<EmotionalTone>('neutral')
   const [activePartColor, setActivePartColor] = useState<string | null>(null)
   const settings = useSettings()
@@ -186,6 +188,7 @@ function App() {
   const handleContentChange = useCallback(
     (content: string, plainText: string) => {
       latestContentRef.current = { html: content, text: plainText }
+      setIsEditorBlank(!plainText.trim())
 
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
       saveTimerRef.current = setTimeout(async () => {
@@ -225,6 +228,7 @@ function App() {
     if (entry) {
       setActiveEntryId(id)
       setInitialContent(entry.content)
+      setIsEditorBlank(!entry.content?.replace(/<[^>]*>/g, '').trim())
       setIntention(entry.intention || '')
       setExplorations([])
       const ageDays = entry.createdAt ? Math.floor((Date.now() - entry.createdAt) / 86400000) : 0
@@ -264,6 +268,7 @@ function App() {
 
     setActiveEntryId(id)
     setInitialContent('')
+    setIsEditorBlank(true)
     setIntention('')
     setExplorations([])
     trackEvent('new_entry')
@@ -492,6 +497,14 @@ function App() {
       <a href="#editor" className="skip-to-content">{tr['app.skipToEditor']}</a>
       <BreathingBackground emotion={emotion} enabled={visualEffectsEnabled && globalConfig?.features?.breathingBackground !== false} />
       <CursorGlow partTint={activePartColor} />
+      <BilateralPulse
+        emotion={emotion}
+        enabled={
+          visualEffectsEnabled
+          && globalConfig?.features?.bilateralStimulation === true
+          && settings.bilateralStimulation !== false
+        }
+      />
       <EntriesList
         activeEntryId={activeEntryId}
         onSelectEntry={handleSelectEntry}
@@ -552,17 +565,17 @@ function App() {
         minHeight: 28,
       }}>
         <div style={{ flex: 1 }}>
-          {globalConfig?.features?.intentionsEnabled === true && (
+          {globalConfig?.features?.intentionsEnabled === true && (isEditorBlank || intention) && (
             <IntentionInput value={intention} onChange={handleIntentionChange} />
           )}
         </div>
-        <button
-          className="session-close-trigger"
-          onClick={handleSessionClose}
-        >
-          {tr['session.end']}
-        </button>
       </div>
+      <button
+        className="session-close-trigger"
+        onClick={handleSessionClose}
+      >
+        {tr['session.end']}
+      </button>
       <Suspense fallback={<EditorSkeleton />}>
         <LivingEditor
           key={activeEntryId}

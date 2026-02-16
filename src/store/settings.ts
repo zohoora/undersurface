@@ -19,6 +19,7 @@ export interface AppSettings {
   // AI text interactions (user can disable even when admin-enabled)
   textHighlights: boolean
   ghostText: boolean
+  bilateralStimulation: boolean
 
   // Appearance
   theme: 'light' | 'dark' | 'system'
@@ -35,6 +36,7 @@ const DEFAULTS: AppSettings = {
   autocorrect: true,
   textHighlights: true,
   ghostText: true,
+  bilateralStimulation: true,
   theme: 'system',
   language: detectBrowserLanguage(),
 }

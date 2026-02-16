@@ -20,6 +20,7 @@ export interface GlobalConfig {
     blankPageSpeaks?: boolean
     quietOneEnabled?: boolean
     bodyMap?: boolean
+    bilateralStimulation?: boolean
     // Memory/Engagement
     echoes?: boolean
     innerWeather?: boolean

@@ -138,6 +138,64 @@
   display: none;
 }
 
+/* ── Bilateral Stimulation Pulses ─────────────────────── */
+
+.bilateral-pulse {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.05;
+}
+
+.bilateral-pulse-left {
+  left: calc(50% - 360px);
+  background: linear-gradient(
+    to right,
+    rgba(180, 160, 140, 0.6) 0%,
+    transparent 100%
+  );
+}
+
+.bilateral-pulse-right {
+  right: calc(50% - 360px);
+  background: linear-gradient(
+    to left,
+    rgba(180, 160, 140, 0.6) 0%,
+    transparent 100%
+  );
+}
+
+[data-theme="dark"] .bilateral-pulse-left {
+  background: linear-gradient(
+    to right,
+    rgba(140, 120, 100, 0.6) 0%,
+    transparent 100%
+  );
+}
+
+[data-theme="dark"] .bilateral-pulse-right {
+  background: linear-gradient(
+    to left,
+    rgba(140, 120, 100, 0.6) 0%,
+    transparent 100%
+  );
+}
+
+@media (max-width: 768px) {
+  .bilateral-pulse {
+    width: 12px;
+  }
+  .bilateral-pulse-left {
+    left: 0;
+  }
+  .bilateral-pulse-right {
+    right: 0;
+  }
+}
+
 /* ── Pause Ripple ──────────────────────────────────────── */
 
 .pause-ripple {
@@ -1243,10 +1301,22 @@ body {
   .letter-entry {
     padding: 40px 20px;
   }
+
+  /* Session close: larger touch target on mobile */
+  .session-close-trigger {
+    padding: 8px 14px;
+    font-size: 12px;
+    top: calc(16px + env(safe-area-inset-top, 0px));
+    right: 16px;
+  }
 }
 
 /* Session close trigger */
 .session-close-trigger {
+  position: fixed;
+  top: calc(20px + env(safe-area-inset-top, 0px));
+  right: 20px;
+  z-index: 10;
   font-family: 'Inter', sans-serif;
   font-size: 11px;
   color: var(--text-secondary);
@@ -1259,7 +1329,6 @@ body {
   padding: 4px 10px;
   letter-spacing: 0.03em;
   white-space: nowrap;
-  flex-shrink: 0;
 }
 
 .session-close-trigger:hover {
