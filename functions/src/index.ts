@@ -456,6 +456,20 @@ async function computeAndCacheAnalytics() {
   // Part usage tracking
   const partThoughtCounts: Record<string, { name: string; color: string; count: number }> = {}
 
+  // Rich metrics accumulators
+  let totalSessions = 0
+  let totalSessionDuration = 0
+  let sessionsWithDuration = 0
+  const hourBuckets: Record<number, number> = {}
+  const emotionCounts: Record<string, number> = {}
+  let totalIntensity = 0
+  let weatherEntries = 0
+  let usersWithWeather = 0
+  let usersWithProfile = 0
+  let usersWithLetters = 0
+  let usersWithFossils = 0
+  let totalParts = 0
+
   for (const user of users) {
     // Track signups by week
     const createdAt = new Date(user.metadata.creationTime).getTime()
@@ -501,6 +515,7 @@ async function computeAndCacheAnalytics() {
     const partsSnap = await getFirestore()
       .collection('users').doc(user.uid).collection('parts')
       .get()
+    totalParts += partsSnap.docs.length
     const partMap: Record<string, { name: string; color: string }> = {}
     for (const doc of partsSnap.docs) {
       const data = doc.data()
@@ -521,6 +536,51 @@ async function computeAndCacheAnalytics() {
         partThoughtCounts[part.name].count++
       }
     }
+
+    // Session logs
+    const sessionsSnap = await getFirestore()
+      .collection('users').doc(user.uid).collection('sessionLog')
+      .get()
+    totalSessions += sessionsSnap.docs.length
+    for (const doc of sessionsSnap.docs) {
+      const data = doc.data()
+      if (data.duration && typeof data.duration === 'number') {
+        totalSessionDuration += data.duration
+        sessionsWithDuration++
+      }
+      const startedAt = data.startedAt as number
+      if (startedAt) {
+        const hour = new Date(startedAt).getHours()
+        hourBuckets[hour] = (hourBuckets[hour] || 0) + 1
+      }
+    }
+
+    // Inner weather
+    const weatherSnap = await getFirestore()
+      .collection('users').doc(user.uid).collection('innerWeather')
+      .get()
+    if (weatherSnap.docs.length > 0) usersWithWeather++
+    for (const doc of weatherSnap.docs) {
+      const data = doc.data()
+      const emotion = data.dominantEmotion as string
+      if (emotion) {
+        emotionCounts[emotion] = (emotionCounts[emotion] || 0) + 1
+      }
+      if (typeof data.intensity === 'number') {
+        totalIntensity += data.intensity
+        weatherEntries++
+      }
+    }
+
+    // Feature adoption checks
+    const [profileCount, letterCount, fossilCount] = await Promise.all([
+      getCollectionCount(user.uid, 'userProfile'),
+      getCollectionCount(user.uid, 'letters'),
+      getCollectionCount(user.uid, 'fossils'),
+    ])
+    if (profileCount > 0) usersWithProfile++
+    if (letterCount > 0) usersWithLetters++
+    if (fossilCount > 0) usersWithFossils++
   }
 
   // Build sorted arrays
@@ -535,8 +595,26 @@ async function computeAndCacheAnalytics() {
   const partUsage = Object.values(partThoughtCounts)
     .sort((a, b) => b.count - a.count)
 
+  // Find peak writing hour
+  let peakWritingHour: number | null = null
+  let peakHourCount = 0
+  for (const [hour, count] of Object.entries(hourBuckets)) {
+    if (count > peakHourCount) {
+      peakHourCount = count
+      peakWritingHour = parseInt(hour)
+    }
+  }
+
+  // Top emotions
+  const topEmotions = Object.entries(emotionCounts)
+    .map(([emotion, count]) => ({ emotion, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+
+  const userCount = users.length
+
   const result = {
-    userCount: users.length,
+    userCount,
     totalEntries,
     totalThoughts,
     totalInteractions,
@@ -545,8 +623,25 @@ async function computeAndCacheAnalytics() {
     entriesByDay,
     partUsage,
     averageWordsPerEntry: totalEntries > 0 ? Math.round(totalWords / totalEntries) : 0,
-    averageEntriesPerUser: users.length > 0 ? Math.round((totalEntries / users.length) * 10) / 10 : 0,
+    averageEntriesPerUser: userCount > 0 ? Math.round((totalEntries / userCount) * 10) / 10 : 0,
     totalWords,
+    writingHabits: {
+      totalSessions,
+      avgSessionDuration: sessionsWithDuration > 0 ? Math.round(totalSessionDuration / sessionsWithDuration) : 0,
+      avgSessionsPerUser: userCount > 0 ? Math.round((totalSessions / userCount) * 10) / 10 : 0,
+      peakWritingHour,
+    },
+    emotionalLandscape: {
+      topEmotions,
+      weatherAdoptionPercent: userCount > 0 ? Math.round((usersWithWeather / userCount) * 100) : 0,
+      avgIntensity: weatherEntries > 0 ? Math.round((totalIntensity / weatherEntries) * 10) / 10 : 0,
+    },
+    featureAdoption: {
+      profileAdoptionPercent: userCount > 0 ? Math.round((usersWithProfile / userCount) * 100) : 0,
+      letterAdoptionPercent: userCount > 0 ? Math.round((usersWithLetters / userCount) * 100) : 0,
+      fossilAdoptionPercent: userCount > 0 ? Math.round((usersWithFossils / userCount) * 100) : 0,
+      avgPartsPerUser: userCount > 0 ? Math.round((totalParts / userCount) * 10) / 10 : 0,
+    },
     refreshedAt: Date.now(),
   }
 
