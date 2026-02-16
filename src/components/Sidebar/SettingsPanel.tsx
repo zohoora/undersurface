@@ -1,6 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { useSettings, updateSettings } from '../../store/settings'
 import type { AppSettings } from '../../store/settings'
+import { useGlobalConfig } from '../../store/globalConfig'
 import { useAuth } from '../../auth/useAuth'
 import { useTheme } from '../../hooks/useTheme'
 import { exportAllData } from '../../store/db'
@@ -69,6 +70,7 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
   const settings = useSettings()
+  const globalConfig = useGlobalConfig()
   const { user, signOut } = useAuth()
   const t = useTranslation()
   useTheme()
@@ -202,6 +204,23 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
             </SettingRow>
           </div>
 
+
+          {/* AI Interactions — only show when admin has enabled features */}
+          {(globalConfig?.features?.textHighlights === true || globalConfig?.features?.ghostText === true) && (
+            <div className="settings-section">
+              <div className="settings-section-label">{t['settings.aiInteractions']}</div>
+              {globalConfig?.features?.textHighlights === true && (
+                <SettingRow label={t['settings.textHighlights']}>
+                  <Toggle checked={settings.textHighlights} onChange={(v) => set('textHighlights', v)} />
+                </SettingRow>
+              )}
+              {globalConfig?.features?.ghostText === true && (
+                <SettingRow label={t['settings.ghostText']}>
+                  <Toggle checked={settings.ghostText} onChange={(v) => set('ghostText', v)} />
+                </SettingRow>
+              )}
+            </div>
+          )}
 
           {/* Autocorrect — only for English */}
           {settings.language === 'en' && (

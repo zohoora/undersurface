@@ -16,6 +16,10 @@ export interface AppSettings {
   autoCapitalize: boolean
   autocorrect: boolean
 
+  // AI text interactions (user can disable even when admin-enabled)
+  textHighlights: boolean
+  ghostText: boolean
+
   // Appearance
   theme: 'light' | 'dark' | 'system'
 
@@ -29,6 +33,8 @@ const DEFAULTS: AppSettings = {
   typewriterScroll: 'typewriter',
   autoCapitalize: true,
   autocorrect: true,
+  textHighlights: true,
+  ghostText: true,
   theme: 'system',
   language: detectBrowserLanguage(),
 }

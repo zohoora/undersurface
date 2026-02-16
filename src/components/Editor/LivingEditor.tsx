@@ -334,14 +334,14 @@ export default function LivingEditor({
       editor.storage.inkWeight.disabled = !(vfx && globalConfig?.features?.inkWeight !== false)
       editor.storage.paragraphSettle.disabled = !(vfx && globalConfig?.features?.paragraphFade !== false)
       editor.storage.colorBleed.disabled = !(vfx && globalConfig?.features?.colorBleed !== false) || theme === 'dark'
-      editor.storage.textHighlight.disabled = !(vfx && globalConfig?.features?.textHighlights === true)
-      editor.storage.ghostText.disabled = !(globalConfig?.features?.ghostText === true)
+      editor.storage.textHighlight.disabled = !(vfx && globalConfig?.features?.textHighlights === true && settings.textHighlights)
+      editor.storage.ghostText.disabled = !(globalConfig?.features?.ghostText === true && settings.ghostText)
       editor.storage.typewriterScroll.mode = settings.typewriterScroll
       // Force decoration refresh
       editor.view.dispatch(editor.state.tr)
     }
     pauseDetectorRef.current?.setSpeedMultiplier(settings.responseSpeed)
-  }, [editor, globalConfig, settings.typewriterScroll, settings.responseSpeed, theme])
+  }, [editor, globalConfig, settings.typewriterScroll, settings.responseSpeed, settings.textHighlights, settings.ghostText, theme])
 
   // Clean up faded thoughts periodically
   useEffect(() => {

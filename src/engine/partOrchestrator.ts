@@ -4,6 +4,7 @@ import { streamChatCompletion, analyzeEmotionAndDistress } from '../ai/openroute
 import { parseAnnotations, isDelimiterPrefix, DELIMITER, fixGhostCapitalization } from '../ai/annotationParser'
 import { db, generateId } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
+import { getSettings } from '../store/settings'
 import { activateGrounding, isGroundingActive } from '../hooks/useGroundingMode'
 import { trackEvent } from '../services/analytics'
 import { getPartDisplayName, t } from '../i18n'
@@ -269,8 +270,9 @@ export class PartOrchestrator {
     ])
 
     const config = getGlobalConfig()
-    const annotateHighlights = config?.features?.textHighlights === true
-    const annotateGhostText = config?.features?.ghostText === true
+    const userSettings = getSettings()
+    const annotateHighlights = config?.features?.textHighlights === true && userSettings.textHighlights
+    const annotateGhostText = config?.features?.ghostText === true && userSettings.ghostText
     const wantAnnotations = annotateHighlights || annotateGhostText
 
     const messages = buildPartMessages(
