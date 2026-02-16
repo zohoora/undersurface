@@ -105,7 +105,7 @@ Full list + settings cascade + tuning params: `.claude/docs/feature-flags.md`
 
 ### Admin dashboard
 
-At `/admin` for admins only. Lazy-loaded. 6 tabs, 9 API actions. Details: `.claude/docs/admin.md`
+At `/admin` for admins only. Lazy-loaded. 6 tabs, 9 API actions. Overview shows live user count + cached rich metrics (writing habits, emotional landscape, feature adoption). Users table is sortable (9 columns). UserDetail has 8 tabs covering all 12 Firestore subcollections. Details: `.claude/docs/admin.md`
 
 ### Subsystems
 
@@ -187,7 +187,7 @@ Add to `SEEDED_PARTS` in `partPrompts.ts`. Scoring is role-based (`ifsRole`) —
 - **Cloud Function streaming** requires `X-Accel-Buffering: no` and `Cache-Control: no-cache, no-transform`
 - **Firebase offline persistence** — `persistentLocalCache` + `persistentMultipleTabManager` must init before any Firestore calls
 - **`chat` function `minInstances: 1`** requires `firebase deploy --force`
-- **Analytics `handleGetAnalytics`** iterates all users — needs optimization at scale
+- **Analytics `refreshAnalytics`** iterates all users + their subcollections (sessions, weather, parts, profiles, letters, fossils) — needs optimization at scale
 
 ### React & Editor
 - **Refs in setState callbacks** — capture ref values before calling setState (React batches updates)

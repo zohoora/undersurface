@@ -13,13 +13,13 @@ Admin route is checked before DB initialization — admin page doesn't load TipT
 
 | Action | Input | Returns |
 |--------|-------|---------|
-| `getOverview` | — | userCount, totalEntries, totalThoughts, totalInteractions, recentActivity[] |
-| `getUserList` | — | users[] with counts, words, lastActive |
-| `getUserDetail` | `{ uid }` | Full user data: entries, parts, thoughts, interactions, memories, profile, summaries |
+| `getOverview` | — | userCount (live from Auth), totalEntries, totalThoughts, totalInteractions, recentActivity[], writingHabits, emotionalLandscape, featureAdoption |
+| `getUserList` | — | users[] with counts, words, lastActive, partCount, sessionCount, createdAt |
+| `getUserDetail` | `{ uid }` | Full user data: entries, parts, thoughts, interactions, memories, profile, summaries, sessions, weather, letters, fossils |
 | `getConfig` | — | Current GlobalConfig from `appConfig/global` |
 | `updateConfig` | `{ config }` | Merged config (sets updatedAt + updatedBy) |
-| `getAnalytics` | — | activeUsers (daily/weekly/monthly), signupsByWeek, entriesByDay, partUsage, engagement metrics |
-| `refreshAnalytics` | — | Force-refresh cached analytics data |
+| `getAnalytics` | — | activeUsers (daily/weekly/monthly), signupsByWeek, entriesByDay, partUsage, engagement metrics, writingHabits, emotionalLandscape, featureAdoption |
+| `refreshAnalytics` | — | Force-refresh cached analytics data (includes all rich metrics) |
 | `generateInsights` | — | LLM narrative + highlights from entry summaries and user profiles (can take 10-30s) |
 | `getContactMessages` | — | Up to 100 most recent contact messages, ordered by createdAt desc |
 
@@ -47,9 +47,9 @@ Admin components use inline styles with warm muted palette (Inter font, #FAF8F5 
 | `src/admin/adminTypes.ts` | TypeScript types for admin API + `GlobalConfig` |
 | `src/admin/adminApi.ts` | Client-side admin API caller (`adminFetch(action, params)`) |
 | `src/admin/AdminDashboard.tsx` | Admin shell with tab navigation. Lazy-loaded — default export |
-| `src/admin/AdminOverview.tsx` | Metric cards + recent activity feed |
-| `src/admin/AdminUsers.tsx` | User table with drill-down |
-| `src/admin/AdminUserDetail.tsx` | Full user data view (entries, parts, thoughts, profile) |
+| `src/admin/AdminOverview.tsx` | Metric cards + writing habits, emotional landscape, feature adoption + recent activity feed |
+| `src/admin/AdminUsers.tsx` | Sortable user table (9 columns) with drill-down |
+| `src/admin/AdminUserDetail.tsx` | Full user data view (8 tabs: entries, parts, thoughts, profile, sessions, weather, letters, fossils) |
 | `src/admin/AdminAnalytics.tsx` | Active users, engagement metrics, charts |
 | `src/admin/AdminMessages.tsx` | Contact message inbox |
 | `src/admin/AdminInsights.tsx` | LLM-generated narrative analysis |

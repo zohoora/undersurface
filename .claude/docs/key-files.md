@@ -105,10 +105,13 @@
 
 | File | Purpose |
 |------|---------|
-| `src/admin/adminTypes.ts` | TypeScript types for admin API + `GlobalConfig` |
+| `src/admin/adminTypes.ts` | TypeScript types for admin API + `GlobalConfig` + rich metric types (WritingHabits, EmotionalLandscape, FeatureAdoption, AdminSession, AdminWeather, AdminLetter, AdminFossil) |
 | `src/admin/adminApi.ts` | Client-side admin API caller (`adminFetch(action, params)`) |
 | `src/admin/AdminDashboard.tsx` | Admin shell with 6 tabs. Lazy-loaded — default export |
-| `src/admin/Admin{Overview,Users,UserDetail,Analytics,Messages,Insights,Settings}.tsx` | Individual admin tab components |
+| `src/admin/AdminOverview.tsx` | Live user count + cached metric cards + writing habits, emotional landscape, feature adoption sections + recent activity |
+| `src/admin/AdminUsers.tsx` | Sortable user table (9 columns: user, entries, thoughts, interactions, words, parts, sessions, signup, last active) |
+| `src/admin/AdminUserDetail.tsx` | 8-tab user detail view (entries, parts, thoughts, profile, sessions, weather, letters, fossils) |
+| `src/admin/Admin{Analytics,Messages,Insights,Settings}.tsx` | Analytics charts, contact messages, AI insights, global config editor |
 
 ## Config & Build
 
