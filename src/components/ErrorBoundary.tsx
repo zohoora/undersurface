@@ -11,14 +11,23 @@ interface State {
   hasError: boolean
 }
 
+function isDOMManipulationError(error: Error): boolean {
+  const msg = error.message || ''
+  return msg.includes('removeChild') || msg.includes('insertBefore')
+}
+
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false }
 
-  static getDerivedStateFromError(): State {
+  static getDerivedStateFromError(error: Error): State {
+    // DOM manipulation errors from browser extensions / Chrome Translate
+    // are not real app errors — attempt to continue rendering
+    if (isDOMManipulationError(error)) return { hasError: false }
     return { hasError: true }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
+    if (isDOMManipulationError(error)) return
     console.error('ErrorBoundary caught:', error, info.componentStack)
     Sentry.captureException(error, { contexts: { react: { componentStack: info.componentStack ?? '' } } })
   }
