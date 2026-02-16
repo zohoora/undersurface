@@ -10,6 +10,10 @@
       "ignore": ["node_modules", ".git", "src"]
     }
   ],
+  "emulators": {
+    "firestore": { "port": 8080 },
+    "auth": { "port": 9099 }
+  },
   "hosting": {
     "public": "dist",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],

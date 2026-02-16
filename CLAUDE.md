@@ -12,6 +12,8 @@ npm run build            # Production build → dist/
 npm run lint             # ESLint (flat config)
 npm run test             # Vitest
 npm run preview          # Preview production build locally
+npm run test:indexes     # Run Firestore index tests (requires emulator)
+npm run smoke-test       # Post-deploy smoke test against live site
 ```
 
 ## CI/CD
@@ -49,6 +51,14 @@ firebase deploy --only firestore:rules
 
 ```bash
 npm run build && cd functions && npx tsc && cd .. && firebase deploy
+```
+
+### Post-deploy verification
+
+After deploying, run the smoke test to verify the live site:
+
+```bash
+npm run smoke-test
 ```
 
 ### Decision table
@@ -126,6 +136,8 @@ Vitest. Tests cover: `spellEngine`, `ritualEngine`, `pauseDetector`, `partOrches
 ```bash
 npm run test             # Run all tests
 npm run test -- --watch  # Watch mode
+npm run test:indexes     # Integration tests against Firestore emulator
+npm run smoke-test       # Post-deploy smoke test against live site
 ```
 
 ## Code Conventions

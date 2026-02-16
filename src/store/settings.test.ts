@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
+// Mock globalConfig to avoid importing firebase.ts (needs real API keys)
+vi.mock('./globalConfig', () => ({
+  getGlobalConfig: () => null,
+}))
+
 // Mock localStorage
 const storage = new Map<string, string>()
 vi.stubGlobal('localStorage', {
