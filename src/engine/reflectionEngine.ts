@@ -92,7 +92,7 @@ export class ReflectionEngine {
       )
 
       // 6. Single AI call (15s timeout for larger input)
-      const response = await chatCompletion(messages, 15000, 800)
+      const response = await chatCompletion(messages, 15000, 1000)
 
       // 7. Parse response
       const parsed = this.parseReflectionResponse(response)
@@ -198,6 +198,15 @@ export class ReflectionEngine {
       // 8f. Prune old memories per part
       await this.pruneMemories(parts)
 
+      // 8f2. Prune somatic memories (cap at 100)
+      const somaticMems = await db.memories.where('partId').equals('_somatic').toArray()
+      if (somaticMems.length > 100) {
+        const sorted = [...somaticMems].sort((a, b) => (b.timestamp as number) - (a.timestamp as number))
+        for (const mem of sorted.slice(100)) {
+          await db.memories.delete(mem.id as string)
+        }
+      }
+
       // 8g. Store quotable passages in entry summary
       if (parsed.quotablePassages && Array.isArray(parsed.quotablePassages) && result.entrySummary) {
         // We'll add quotable passages to the entry summary's keyMoments
@@ -221,6 +230,31 @@ export class ReflectionEngine {
           const updatedMoments = [...(result.entrySummary.keyMoments || []), ...validThreads.map(t => `[thread] ${t}`)]
           await db.entrySummaries.update(result.entrySummary.id, { keyMoments: updatedMoments })
           result.entrySummary.keyMoments = updatedMoments
+        }
+      }
+
+      // 8i. Create somatic memories (body map)
+      if (parsed.somaticSignals && Array.isArray(parsed.somaticSignals)) {
+        const validRegions = ['head', 'eyes', 'throat', 'chest', 'stomach', 'shoulders', 'hands', 'back', 'hips', 'legs']
+        const validIntensities = ['low', 'medium', 'high']
+        for (const signal of parsed.somaticSignals) {
+          if (!validRegions.includes(signal.bodyRegion)) continue
+          if (typeof signal.quote !== 'string' || !signal.quote.trim()) continue
+          if (typeof signal.emotion !== 'string' || !signal.emotion.trim()) continue
+          const intensity = validIntensities.includes(signal.intensity) ? signal.intensity : 'medium'
+          await db.memories.add({
+            id: generateId(),
+            partId: '_somatic',
+            entryId,
+            content: `${signal.bodyRegion}: ${signal.quote} (${signal.emotion}, ${intensity})`,
+            type: 'somatic',
+            bodyRegion: signal.bodyRegion,
+            quote: signal.quote.trim().slice(0, 100),
+            emotion: signal.emotion.trim(),
+            intensity,
+            timestamp: Date.now(),
+          })
+          result.memoriesCreated++
         }
       }
 
@@ -265,6 +299,12 @@ export class ReflectionEngine {
     partKeywordSuggestions?: Record<string, string[]>
     quotablePassages?: string[]
     unfinishedThreads?: string[]
+    somaticSignals?: Array<{
+      bodyRegion: string
+      quote: string
+      emotion: string
+      intensity: string
+    }>
   } | null {
     try {
       // Extract JSON from potential markdown code blocks

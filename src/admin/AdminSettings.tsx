@@ -21,6 +21,7 @@ const DEFAULTS: GlobalConfig = {
     silenceAsResponse: false,
     blankPageSpeaks: false,
     quietOneEnabled: false,
+    bodyMap: false,
     textHighlights: false,
     ghostText: false,
     echoes: false,
@@ -523,6 +524,11 @@ export function AdminSettings() {
           label="The Quiet One"
           checked={!!config.features.quietOneEnabled}
           onChange={(v) => setFeature('quietOneEnabled', v)}
+        />
+        <ToggleRow
+          label="Body Map"
+          checked={!!config.features.bodyMap}
+          onChange={(v) => setFeature('bodyMap', v)}
         />
 
         <ToggleRow

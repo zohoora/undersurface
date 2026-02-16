@@ -1,7 +1,10 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, lazy, Suspense } from 'react'
 import { db, generateId } from '../../store/db'
 import { SettingsPanel } from './SettingsPanel'
 import { useTranslation, getLanguageCode } from '../../i18n'
+import { useGlobalConfig } from '../../store/globalConfig'
+
+const BodyMapTab = lazy(() => import('../BodyMap/BodyMapTab').then(m => ({ default: m.BodyMapTab })))
 
 interface Props {
   activeEntryId: string
@@ -34,8 +37,11 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
   const [isOpen, setIsOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [entries, setEntries] = useState<Entry[]>([])
+  const [activeTab, setActiveTab] = useState<'entries' | 'body'>('entries')
   const isMobile = useIsMobile()
   const t = useTranslation()
+  const globalConfig = useGlobalConfig()
+  const showBodyMap = globalConfig?.features?.bodyMap === true
 
   const loadEntries = useCallback(async () => {
     const data = await db.entries.orderBy('updatedAt').reverse().toArray()
@@ -124,24 +130,50 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
         onMouseLeave={() => setSettingsOpen(false)}
       >
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', opacity: settingsOpen ? 0.15 : 1, transition: 'opacity 0.25s ease', pointerEvents: settingsOpen ? 'none' : 'auto' }}>
-          <div className="sidebar-label">{t['entries.title']}</div>
-          <button className="new-entry-btn" onClick={handleNewEntry}>
-            {t['entries.new']}
-          </button>
-          <div style={{ marginTop: 8 }}>
-            {entries?.filter((e) => e.plainText?.trim() || e.id === activeEntryId).map((entry) => (
-              <div
-                key={entry.id}
-                className={`entry-item ${entry.id === activeEntryId ? 'active' : ''}`}
-                onClick={() => handleSelect(entry.id)}
+          {showBodyMap ? (
+            <div className="sidebar-tab-bar">
+              <button
+                className={`sidebar-tab ${activeTab === 'entries' ? 'active' : ''}`}
+                onClick={() => setActiveTab('entries')}
               >
-                <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 2 }}>
-                  {formatDate(entry.updatedAt)}
-                </div>
-                {getPreview(entry.plainText)}
+                {t['entries.title']}
+              </button>
+              <button
+                className={`sidebar-tab ${activeTab === 'body' ? 'active' : ''}`}
+                onClick={() => setActiveTab('body')}
+              >
+                {t['bodyMap.title']}
+              </button>
+            </div>
+          ) : (
+            <div className="sidebar-label">{t['entries.title']}</div>
+          )}
+
+          {activeTab === 'body' && showBodyMap ? (
+            <Suspense fallback={null}>
+              <BodyMapTab />
+            </Suspense>
+          ) : (
+            <>
+              <button className="new-entry-btn" onClick={handleNewEntry}>
+                {t['entries.new']}
+              </button>
+              <div style={{ marginTop: 8 }}>
+                {entries?.filter((e) => e.plainText?.trim() || e.id === activeEntryId).map((entry) => (
+                  <div
+                    key={entry.id}
+                    className={`entry-item ${entry.id === activeEntryId ? 'active' : ''}`}
+                    onClick={() => handleSelect(entry.id)}
+                  >
+                    <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 2 }}>
+                      {formatDate(entry.updatedAt)}
+                    </div>
+                    {getPreview(entry.plainText)}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
         <SettingsPanel isOpen={settingsOpen} onToggle={() => setSettingsOpen((o) => !o)} />
       </div>

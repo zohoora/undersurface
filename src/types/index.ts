@@ -22,7 +22,7 @@ export interface Part {
   quietSince?: number
 }
 
-export type MemoryType = 'observation' | 'interaction' | 'reflection' | 'pattern'
+export type MemoryType = 'observation' | 'interaction' | 'reflection' | 'pattern' | 'somatic'
 
 export interface PartMemory {
   id: string
@@ -193,3 +193,35 @@ export interface ConsentRecord {
   disclaimerAccepted: boolean
   privacyAccepted: boolean
 }
+
+export type BodyRegion = 'head' | 'eyes' | 'throat' | 'chest' | 'stomach' | 'shoulders' | 'hands' | 'back' | 'hips' | 'legs'
+
+export interface SomaticSignal {
+  bodyRegion: BodyRegion
+  quote: string
+  emotion: string
+  intensity: 'low' | 'medium' | 'high'
+}
+
+export interface SomaticMemory {
+  id: string
+  partId: '_somatic'
+  entryId: string
+  content: string
+  type: 'somatic'
+  bodyRegion: BodyRegion
+  quote: string
+  emotion: string
+  intensity: 'low' | 'medium' | 'high'
+  timestamp: number
+}
+
+export interface HomunculusRegionState {
+  signalCount: number
+  dominantEmotions: Array<{ emotion: string; count: number; color: string }>
+  sizeFactor: number
+  fillColor: string
+  quotes: Array<{ text: string; date: string; entryId: string }>
+}
+
+export type HomunculusState = Record<BodyRegion, HomunculusRegionState>

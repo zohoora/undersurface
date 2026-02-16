@@ -371,6 +371,35 @@
   padding-left: 8px;
 }
 
+.sidebar-tab-bar {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
+.sidebar-tab {
+  flex: 1;
+  padding: 6px 0;
+  border: none;
+  background: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-ghost);
+  cursor: pointer;
+  transition: color 0.2s ease;
+  border-bottom: 1.5px solid transparent;
+}
+
+.sidebar-tab:hover { color: var(--text-secondary); }
+.sidebar-tab.active {
+  color: var(--text-secondary);
+  border-bottom-color: var(--text-secondary);
+}
+
 .entries-sidebar .entry-item {
   padding: 8px;
   border-radius: 6px;

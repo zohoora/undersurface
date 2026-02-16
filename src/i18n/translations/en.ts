@@ -73,6 +73,20 @@ const en = {
   'entries.yesterday': 'Yesterday',
   'entries.empty': 'Empty entry',
 
+  // Body Map
+  'bodyMap.title': 'Body',
+  'bodyMap.dormant': 'Write. I\'ll take shape.',
+  'bodyMap.region.head': 'Head',
+  'bodyMap.region.eyes': 'Eyes',
+  'bodyMap.region.throat': 'Throat',
+  'bodyMap.region.chest': 'Chest',
+  'bodyMap.region.stomach': 'Stomach',
+  'bodyMap.region.shoulders': 'Shoulders',
+  'bodyMap.region.hands': 'Hands',
+  'bodyMap.region.back': 'Back',
+  'bodyMap.region.hips': 'Hips',
+  'bodyMap.region.legs': 'Legs & Feet',
+
   // Editor
   'editor.placeholder': 'Begin writing...',
 

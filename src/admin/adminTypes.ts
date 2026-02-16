@@ -19,6 +19,7 @@ export interface GlobalConfig {
     silenceAsResponse?: boolean
     blankPageSpeaks?: boolean
     quietOneEnabled?: boolean
+    bodyMap?: boolean
     // Memory/Engagement
     echoes?: boolean
     innerWeather?: boolean
