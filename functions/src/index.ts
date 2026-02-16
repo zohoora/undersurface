@@ -258,10 +258,12 @@ async function handleGetUserList() {
   const users = []
 
   for (const user of allAuthUsers) {
-    const [entryCount, thoughtCount, interactionCount] = await Promise.all([
+    const [entryCount, thoughtCount, interactionCount, partCount, sessionCount] = await Promise.all([
       getCollectionCount(user.uid, 'entries'),
       getCollectionCount(user.uid, 'thoughts'),
       getCollectionCount(user.uid, 'interactions'),
+      getCollectionCount(user.uid, 'parts'),
+      getCollectionCount(user.uid, 'sessionLog'),
     ])
 
     // Get total words and last active from entries
@@ -287,8 +289,11 @@ async function handleGetUserList() {
       entryCount,
       thoughtCount,
       interactionCount,
+      partCount,
+      sessionCount,
       totalWords,
       lastActive,
+      createdAt: new Date(user.metadata.creationTime).getTime(),
     })
   }
 
@@ -299,7 +304,7 @@ async function handleGetUserDetail(uid: string) {
   // Get user info from Auth
   const userRecord = await getAuth().getUser(uid)
 
-  const [entries, parts, thoughts, interactions, memories, entrySummaries, userProfileDocs] =
+  const [entries, parts, thoughts, interactions, memories, entrySummaries, userProfileDocs, sessionLog, innerWeather, letters, fossils] =
     await Promise.all([
       getCollectionDocs(uid, 'entries'),
       getCollectionDocs(uid, 'parts'),
@@ -308,6 +313,10 @@ async function handleGetUserDetail(uid: string) {
       getCollectionDocs(uid, 'memories'),
       getCollectionDocs(uid, 'entrySummaries'),
       getCollectionDocs(uid, 'userProfile'),
+      getCollectionDocs(uid, 'sessionLog'),
+      getCollectionDocs(uid, 'innerWeather'),
+      getCollectionDocs(uid, 'letters'),
+      getCollectionDocs(uid, 'fossils'),
     ])
 
   // Compute counts and words from raw entries
@@ -329,8 +338,11 @@ async function handleGetUserDetail(uid: string) {
       entryCount: entries.length,
       thoughtCount: thoughts.length,
       interactionCount: interactions.length,
+      partCount: parts.length,
+      sessionCount: sessionLog.length,
       totalWords,
       lastActive,
+      createdAt: new Date(userRecord.metadata.creationTime).getTime(),
     },
     entries: entries.map((e) => ({
       id: e.id,
@@ -384,6 +396,38 @@ async function handleGetUserDetail(uid: string) {
       emotionalArc: s.emotionalArc,
       keyMoments: s.keyMoments,
       timestamp: s.timestamp || 0,
+    })),
+    sessions: sessionLog.map((s) => ({
+      id: s.id,
+      startedAt: s.startedAt || 0,
+      endedAt: s.endedAt,
+      duration: s.duration,
+      wordCount: s.wordCount || 0,
+      timeOfDay: s.timeOfDay || '',
+      dayOfWeek: s.dayOfWeek ?? 0,
+    })),
+    weather: innerWeather.map((w) => ({
+      id: w.id,
+      dominantEmotion: w.dominantEmotion || '',
+      secondaryEmotion: w.secondaryEmotion,
+      intensity: w.intensity ?? 0,
+      trend: w.trend || 'steady',
+      updatedAt: w.updatedAt || 0,
+    })),
+    letters: letters.map((l) => ({
+      id: l.id,
+      partIds: l.partIds || [],
+      content: l.content || '',
+      triggerType: l.triggerType || 'milestone',
+      createdAt: l.createdAt || 0,
+      isRead: l.isRead ?? false,
+    })),
+    fossils: fossils.map((f) => ({
+      id: f.id,
+      entryId: f.entryId || '',
+      partId: f.partId || '',
+      commentary: f.commentary || '',
+      createdAt: f.createdAt || 0,
     })),
   }
 }
