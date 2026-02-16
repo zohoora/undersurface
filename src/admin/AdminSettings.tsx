@@ -20,6 +20,7 @@ const DEFAULTS: GlobalConfig = {
     partCatchphrases: false,
     silenceAsResponse: false,
     blankPageSpeaks: false,
+    quietOneEnabled: false,
     textHighlights: false,
     ghostText: false,
     echoes: false,
@@ -517,6 +518,12 @@ export function AdminSettings() {
             onChange={(v) => setPartInt('blankPageDelaySeconds', v)}
           />
         )}
+
+        <ToggleRow
+          label="The Quiet One"
+          checked={!!config.features.quietOneEnabled}
+          onChange={(v) => setFeature('quietOneEnabled', v)}
+        />
 
         <ToggleRow
           label="Text Highlights"

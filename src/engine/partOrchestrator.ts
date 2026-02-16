@@ -216,6 +216,8 @@ export class PartOrchestrator {
       } else {
         score -= config?.grounding?.otherRolePenalty ?? 30
       }
+      // Extra suppression for The Quiet One during grounding
+      if (part.id === 'quiet') score -= 60
     }
 
     // Quiet return bonus/penalty
@@ -226,6 +228,37 @@ export class PartOrchestrator {
     }
     if (this.quietTracker.isReturning(part)) {
       score *= this.quietTracker.getReturnBonus()
+    }
+
+    // Avoidance-aware scoring for The Quiet One
+    if (part.id === 'quiet') {
+      const quietConfig = getGlobalConfig()
+      if (quietConfig?.features?.quietOneEnabled === true) {
+        const profile = this.cachedProfile
+        if (profile?.avoidancePatterns?.length) {
+          const avoidanceText = profile.avoidancePatterns.join(' ').toLowerCase()
+          const words = avoidanceText.split(/\s+/).filter(w => w.length > 3)
+          const overlap = words.filter(w => text.includes(w)).length
+          if (overlap > 0) {
+            score += Math.min(overlap * 10, 30)
+          }
+        }
+        // High recency penalty — should never speak twice in one session
+        if (recencyIndex === 0) score -= 80
+        if (recencyIndex === 1) score -= 50
+        // Only speak on avoidance-related pause types
+        if (!['trailing_off', 'ellipsis', 'long_pause', 'cadence_slowdown'].includes(event.type)) {
+          score -= 40
+        }
+        // Entry cooldown — check localStorage
+        const lastSpokeEntry = localStorage.getItem('quietOneLastSpokeEntry')
+        if (lastSpokeEntry) {
+          const entriesSince = this.getEntriesSinceQuietSpoke(lastSpokeEntry)
+          if (entriesSince < 3) score -= 100
+        }
+      } else {
+        score -= 200
+      }
     }
 
     return score
@@ -397,6 +430,11 @@ export class PartOrchestrator {
           // Track activity for quiet return system
           this.quietTracker.updateLastActive(part.id)
 
+          // Record entry for The Quiet One cooldown
+          if (part.id === 'quiet') {
+            localStorage.setItem('quietOneLastSpokeEntry', this.entryId)
+          }
+
           // Disagreement check — another part may push back
           const disagreePart = this.disagreementEngine.shouldDisagree(part, this.parts)
           if (disagreePart) {
@@ -468,6 +506,14 @@ export class PartOrchestrator {
 
   resetSession() {
     this.echoEngine.reset()
+  }
+
+  private getEntriesSinceQuietSpoke(lastEntryId: string): number {
+    if (lastEntryId === this.entryId) return 0
+    if (!this.cachedSummaries?.length) return 1
+    const lastIdx = this.cachedSummaries.findIndex(s => s.entryId === lastEntryId)
+    if (lastIdx === -1) return 3
+    return lastIdx
   }
 
   private isValidEmotion(tone: string): tone is EmotionalTone {

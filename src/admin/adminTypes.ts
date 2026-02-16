@@ -18,6 +18,7 @@ export interface GlobalConfig {
     partCatchphrases?: boolean
     silenceAsResponse?: boolean
     blankPageSpeaks?: boolean
+    quietOneEnabled?: boolean
     // Memory/Engagement
     echoes?: boolean
     innerWeather?: boolean

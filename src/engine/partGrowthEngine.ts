@@ -52,7 +52,12 @@ export class PartGrowthEngine {
         }
 
         if (typeof growth.promptAddition === 'string' && growth.promptAddition.trim()) {
-          updates.systemPromptAddition = growth.promptAddition.trim()
+          let addition = growth.promptAddition.trim()
+          // Cap growth addition for The Quiet One to preserve sparse voice
+          if (part.id === 'quiet') {
+            addition = addition.slice(0, 200)
+          }
+          updates.systemPromptAddition = addition
         }
 
         if (Array.isArray(growth.keywords)) {

@@ -139,6 +139,28 @@ export async function initializeDB() {
       })),
     )
   }
+
+  // Seed The Quiet One for existing users who don't have it yet
+  if (existingParts > 0) {
+    const hasQuiet = await db.parts.get('quiet')
+    if (!hasQuiet) {
+      const quietDef = SEEDED_PARTS.find(p => p.id === 'quiet')
+      if (quietDef) {
+        await db.parts.add({
+          id: quietDef.id,
+          name: quietDef.name,
+          color: quietDef.color,
+          colorLight: quietDef.colorLight,
+          ifsRole: quietDef.ifsRole,
+          voiceDescription: quietDef.voiceDescription,
+          concern: quietDef.concern,
+          systemPrompt: quietDef.systemPrompt,
+          isSeeded: quietDef.isSeeded,
+          createdAt: quietDef.createdAt,
+        })
+      }
+    }
+  }
 }
 
 export function generateId(): string {
