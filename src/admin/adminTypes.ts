@@ -99,6 +99,26 @@ export interface GlobalConfig {
   }
 }
 
+export interface WritingHabits {
+  totalSessions: number
+  avgSessionDuration: number
+  avgSessionsPerUser: number
+  peakWritingHour: number | null
+}
+
+export interface EmotionalLandscape {
+  topEmotions: Array<{ emotion: string; count: number }>
+  weatherAdoptionPercent: number
+  avgIntensity: number
+}
+
+export interface FeatureAdoption {
+  profileAdoptionPercent: number
+  letterAdoptionPercent: number
+  fossilAdoptionPercent: number
+  avgPartsPerUser: number
+}
+
 export interface AdminOverviewResponse {
   userCount: number
   totalEntries: number
@@ -106,6 +126,9 @@ export interface AdminOverviewResponse {
   totalInteractions: number
   recentActivity: RecentActivity[]
   refreshedAt?: number
+  writingHabits: WritingHabits | null
+  emotionalLandscape: EmotionalLandscape | null
+  featureAdoption: FeatureAdoption | null
 }
 
 export interface RecentActivity {
@@ -126,6 +149,45 @@ export interface AdminUser {
   interactionCount: number
   totalWords: number
   lastActive: number | null
+  partCount: number
+  sessionCount: number
+  createdAt: number | null
+}
+
+export interface AdminSession {
+  id: string
+  startedAt: number
+  endedAt?: number
+  duration?: number
+  wordCount: number
+  timeOfDay: string
+  dayOfWeek: number
+}
+
+export interface AdminWeather {
+  id: string
+  dominantEmotion: string
+  secondaryEmotion?: string
+  intensity: number
+  trend: 'rising' | 'falling' | 'steady'
+  updatedAt: number
+}
+
+export interface AdminLetter {
+  id: string
+  partIds: string[]
+  content: string
+  triggerType: 'milestone' | 'pattern' | 'growth'
+  createdAt: number
+  isRead: boolean
+}
+
+export interface AdminFossil {
+  id: string
+  entryId: string
+  partId: string
+  commentary: string
+  createdAt: number
 }
 
 export interface AdminUserDetailResponse {
@@ -137,6 +199,10 @@ export interface AdminUserDetailResponse {
   memories: AdminMemory[]
   userProfile: AdminUserProfile | null
   entrySummaries: AdminEntrySummary[]
+  sessions: AdminSession[]
+  weather: AdminWeather[]
+  letters: AdminLetter[]
+  fossils: AdminFossil[]
 }
 
 export interface AdminEntry {

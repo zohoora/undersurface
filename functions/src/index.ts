@@ -185,27 +185,23 @@ async function getAllUsers() {
 }
 
 async function handleGetOverview() {
+  // Always get live user count from Firebase Auth
+  const allAuthUsers = await getAllUsers()
+  const userCount = allAuthUsers.length
+
   // Read cached totals from appConfig/analytics (1 read instead of N user scans)
   const analyticsSnap = await getFirestore().collection('appConfig').doc('analytics').get()
   const cached = analyticsSnap.exists ? analyticsSnap.data() : null
 
-  let userCount = 0
-  let totalEntries = 0
-  let totalThoughts = 0
-  let totalInteractions = 0
-  let refreshedAt: number | undefined
+  const totalEntries = (cached?.totalEntries as number) || 0
+  const totalThoughts = (cached?.totalThoughts as number) || 0
+  const totalInteractions = (cached?.totalInteractions as number) || 0
+  const refreshedAt = cached?.refreshedAt as number | undefined
 
-  if (cached) {
-    userCount = (cached.userCount as number) || 0
-    totalEntries = (cached.totalEntries as number) || 0
-    totalThoughts = (cached.totalThoughts as number) || 0
-    totalInteractions = (cached.totalInteractions as number) || 0
-    refreshedAt = cached.refreshedAt as number | undefined
-  } else {
-    // Bootstrap: no cache yet, count users from Auth
-    const users = await getAllUsers()
-    userCount = users.length
-  }
+  // Rich metrics from cache (populated by computeAndCacheAnalytics)
+  const writingHabits = cached?.writingHabits || null
+  const emotionalLandscape = cached?.emotionalLandscape || null
+  const featureAdoption = cached?.featureAdoption || null
 
   // Recent activity via collection group query (bounded, fast)
   const recentSnap = await getFirestore()
@@ -251,6 +247,9 @@ async function handleGetOverview() {
     totalInteractions,
     recentActivity,
     refreshedAt,
+    writingHabits,
+    emotionalLandscape,
+    featureAdoption,
   }
 }
 
