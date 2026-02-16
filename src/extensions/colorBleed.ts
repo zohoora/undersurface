@@ -1,22 +1,13 @@
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { hexToRgb } from '../utils/color'
 
 export const colorBleedKey = new PluginKey('colorBleed')
 
 const BASE_RGB: [number, number, number] = [44, 40, 37] // #2C2825
 const BLEED_WORDS = 20
 const MAX_BLEND = 0.3
-
-function hexToRgb(hex: string): [number, number, number] {
-  hex = hex.replace('#', '')
-  if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2]
-  return [
-    parseInt(hex.substring(0, 2), 16),
-    parseInt(hex.substring(2, 4), 16),
-    parseInt(hex.substring(4, 6), 16),
-  ]
-}
 
 function blend(base: [number, number, number], tint: [number, number, number], amount: number): string {
   const r = Math.round(base[0] * (1 - amount) + tint[0] * amount)

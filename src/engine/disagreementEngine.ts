@@ -1,7 +1,6 @@
 import { getGlobalConfig } from '../store/globalConfig'
 import { chatCompletion } from '../ai/openrouter'
-import type { Part } from '../types'
-import type { IFSRole } from '../types'
+import type { Part, IFSRole } from '../types'
 
 const ROLE_OPPOSITION: Record<IFSRole, IFSRole[]> = {
   protector: ['exile'],

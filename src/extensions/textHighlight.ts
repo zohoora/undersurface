@@ -1,6 +1,7 @@
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { hexToRgba } from '../utils/color'
 
 export const textHighlightKey = new PluginKey('textHighlight')
 
@@ -13,15 +14,6 @@ interface HighlightMeta {
 interface HighlightState {
   decorations: DecorationSet
   fadeTimer: ReturnType<typeof setTimeout> | null
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  hex = hex.replace('#', '')
-  if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2]
-  const r = parseInt(hex.substring(0, 2), 16)
-  const g = parseInt(hex.substring(2, 4), 16)
-  const b = parseInt(hex.substring(4, 6), 16)
-  return `rgba(${r},${g},${b},${alpha})`
 }
 
 function findPhrasePositions(doc: import('@tiptap/pm/model').Node, phrase: string): Array<{ from: number; to: number }> {

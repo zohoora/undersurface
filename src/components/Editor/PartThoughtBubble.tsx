@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { HandwritingText } from './HandwritingText'
 import { useTheme } from '../../hooks/useTheme'
+import { boostAlpha } from '../../utils/color'
 
 interface Props {
   partName: string
@@ -22,10 +23,12 @@ interface Props {
   isReturning?: boolean
 }
 
-function boostAlpha(colorLight: string, isDark: boolean): string {
-  if (!isDark || colorLight.length < 8) return colorLight
-  // Replace last 2 hex chars (alpha) with higher value
-  return colorLight.slice(0, -2) + '30'
+function getEnterDuration(opts: { isEmerging?: boolean; isEcho?: boolean; isSilence?: boolean; isReturning?: boolean }): number {
+  if (opts.isEmerging) return 1.2
+  if (opts.isEcho) return 1.2
+  if (opts.isSilence) return 0.4
+  if (opts.isReturning) return 1.5
+  return 0.8
 }
 
 export function PartThoughtBubble({
@@ -92,7 +95,7 @@ export function PartThoughtBubble({
               : { duration: 1.8, ease: [0.4, 0, 0.2, 1] },
           }}
           transition={{
-            duration: isEmerging ? 1.2 : isEcho ? 1.2 : isSilence ? 0.4 : isReturning ? 1.5 : 0.8,
+            duration: getEnterDuration({ isEmerging, isEcho, isSilence, isReturning }),
             ease: [0.4, 0, 0.2, 1],
           }}
           onClick={onClick}

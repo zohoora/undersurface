@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { HandwritingText } from '../Editor/HandwritingText'
 import { useTheme } from '../../hooks/useTheme'
+import { boostAlpha } from '../../utils/color'
 
 interface Props {
   partName: string
@@ -13,11 +14,6 @@ interface Props {
   partReply: string | null
   isReplyStreaming: boolean
   onClose: () => void
-}
-
-function boostAlpha(colorLight: string, isDark: boolean): string {
-  if (!isDark || colorLight.length < 8) return colorLight
-  return colorLight.slice(0, -2) + '30'
 }
 
 export function ThinkingSpace({

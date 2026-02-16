@@ -534,7 +534,7 @@ export default function LivingEditor({
           partId,
           partName,
           partColor,
-          partColorLight: partColorLight,
+          partColorLight,
           content: '',
           isStreaming: false,
           isEmerging: false,

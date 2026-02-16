@@ -121,45 +121,40 @@ export const db = {
   consent: createCollectionProxy('consent'),
 }
 
+function toStorablePart(p: typeof SEEDED_PARTS[number]): DocumentData {
+  return {
+    id: p.id,
+    name: p.name,
+    color: p.color,
+    colorLight: p.colorLight,
+    ifsRole: p.ifsRole,
+    voiceDescription: p.voiceDescription,
+    concern: p.concern,
+    systemPrompt: p.systemPrompt,
+    isSeeded: p.isSeeded,
+    createdAt: p.createdAt,
+  }
+}
+
 export async function initializeDB() {
   const existingParts = await db.parts.count()
+
   if (existingParts === 0) {
-    await db.parts.bulkPut(
-      SEEDED_PARTS.map((p) => ({
-        id: p.id,
-        name: p.name,
-        color: p.color,
-        colorLight: p.colorLight,
-        ifsRole: p.ifsRole,
-        voiceDescription: p.voiceDescription,
-        concern: p.concern,
-        systemPrompt: p.systemPrompt,
-        isSeeded: p.isSeeded,
-        createdAt: p.createdAt,
-      })),
-    )
+    await db.parts.bulkPut(SEEDED_PARTS.map(toStorablePart))
+    return
   }
 
-  // Seed The Quiet One for existing users who don't have it yet
-  if (existingParts > 0) {
-    const hasQuiet = await db.parts.get('quiet')
-    if (!hasQuiet) {
-      const quietDef = SEEDED_PARTS.find(p => p.id === 'quiet')
-      if (quietDef) {
-        await db.parts.add({
-          id: quietDef.id,
-          name: quietDef.name,
-          color: quietDef.color,
-          colorLight: quietDef.colorLight,
-          ifsRole: quietDef.ifsRole,
-          voiceDescription: quietDef.voiceDescription,
-          concern: quietDef.concern,
-          systemPrompt: quietDef.systemPrompt,
-          isSeeded: quietDef.isSeeded,
-          createdAt: quietDef.createdAt,
-        })
-      }
-    }
+  // Seed any new seeded parts for existing users who don't have them yet
+  await seedMissingPart('quiet')
+}
+
+async function seedMissingPart(partId: string): Promise<void> {
+  const existing = await db.parts.get(partId)
+  if (existing) return
+
+  const definition = SEEDED_PARTS.find(p => p.id === partId)
+  if (definition) {
+    await db.parts.add(toStorablePart(definition))
   }
 }
 

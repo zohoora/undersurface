@@ -1,5 +1,6 @@
 import { getGlobalConfig } from '../store/globalConfig'
 import { db } from '../store/db'
+import { extractWords } from '../utils/text'
 import type { EntrySummary } from '../types'
 
 export class EchoEngine {
@@ -36,14 +37,14 @@ export class EchoEngine {
       if (qualifying.length === 0) return null
 
       // Find thematic overlap with currentText
-      const currentWords = this.extractWords(currentText)
+      const currentWords = extractWords(currentText)
       let bestScore = 0
       let bestSummary: EntrySummary | null = null
 
       for (const summary of qualifying) {
         const summaryWords = new Set([
-          ...summary.themes.flatMap((t) => this.extractWords(t)),
-          ...summary.keyMoments.flatMap((m) => this.extractWords(m)),
+          ...summary.themes.flatMap((t) => extractWords(t)),
+          ...summary.keyMoments.flatMap((m) => extractWords(m)),
         ])
         const overlap = currentWords.filter((w) => summaryWords.has(w)).length
         if (overlap > bestScore) {
@@ -77,14 +78,6 @@ export class EchoEngine {
       console.error('EchoEngine error:', error)
       return null
     }
-  }
-
-  private extractWords(text: string): string[] {
-    return text
-      .toLowerCase()
-      .replace(/[^a-z\s]/g, '')
-      .split(/\s+/)
-      .filter((w) => w.length > 3)
   }
 
   private extractFragment(text: string): string | null {

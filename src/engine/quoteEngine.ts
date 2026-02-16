@@ -1,5 +1,6 @@
 import { getGlobalConfig } from '../store/globalConfig'
 import { db } from '../store/db'
+import { extractWords } from '../utils/text'
 import type { EntrySummary } from '../types'
 
 export class QuoteEngine {
@@ -25,14 +26,14 @@ export class QuoteEngine {
       const candidates = qualifying.slice(0, 5)
 
       // Simple word intersection scoring
-      const currentWords = this.extractWords(currentText)
+      const currentWords = extractWords(currentText)
       let bestScore = 0
       let bestSummary: EntrySummary | null = null
 
       for (const summary of candidates) {
         const summaryWords = new Set([
-          ...summary.themes.flatMap((t) => this.extractWords(t)),
-          ...summary.keyMoments.flatMap((m) => this.extractWords(m)),
+          ...summary.themes.flatMap((t) => extractWords(t)),
+          ...summary.keyMoments.flatMap((m) => extractWords(m)),
         ])
         const overlap = currentWords.filter((w) => summaryWords.has(w)).length
         if (overlap > bestScore) {
@@ -55,14 +56,6 @@ export class QuoteEngine {
       console.error('QuoteEngine error:', error)
       return null
     }
-  }
-
-  private extractWords(text: string): string[] {
-    return text
-      .toLowerCase()
-      .replace(/[^a-z\s]/g, '')
-      .split(/\s+/)
-      .filter((w) => w.length > 3)
   }
 
   private extractPassage(text: string): string | null {

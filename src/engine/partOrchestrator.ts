@@ -190,9 +190,10 @@ export class PartOrchestrator {
   private scorePart(part: Part, event: PauseEvent): number {
     let score = 0
     const text = event.recentText.toLowerCase()
+    const recencyIndex = this.recentSpeakers.indexOf(part.id)
+    const config = getGlobalConfig()
 
     // Recency penalty — don't repeat the same voice
-    const recencyIndex = this.recentSpeakers.indexOf(part.id)
     if (recencyIndex === 0) score -= 50
     else if (recencyIndex === 1) score -= 25
 
@@ -208,60 +209,72 @@ export class PartOrchestrator {
     // Add some randomness for organic feel
     score += Math.random() * 15
 
-    // Grounding mode: strongly favor self-role parts
+    // Grounding mode: strongly favor self-role parts, suppress The Quiet One
     if (isGroundingActive()) {
-      const config = getGlobalConfig()
       if (part.ifsRole === 'self') {
         score += config?.grounding?.selfRoleScoreBonus ?? 40
       } else {
         score -= config?.grounding?.otherRolePenalty ?? 30
       }
-      // Extra suppression for The Quiet One during grounding
       if (part.id === 'quiet') score -= 60
     }
 
     // Quiet return bonus/penalty
     const quietParts = this.quietTracker.getQuietParts(this.parts)
     if (quietParts?.some(qp => qp.id === part.id)) {
-      // Quiet parts score near zero unless they have strong content match
       if (score < 30) score -= 40
     }
     if (this.quietTracker.isReturning(part)) {
       score *= this.quietTracker.getReturnBonus()
     }
 
-    // Avoidance-aware scoring for The Quiet One
+    // The Quiet One: avoidance-aware scoring with strict cooldowns
     if (part.id === 'quiet') {
-      const quietConfig = getGlobalConfig()
-      if (quietConfig?.features?.quietOneEnabled === true) {
-        const profile = this.cachedProfile
-        if (profile?.avoidancePatterns?.length) {
-          const avoidanceText = profile.avoidancePatterns.join(' ').toLowerCase()
-          const words = avoidanceText.split(/\s+/).filter(w => w.length > 3)
-          const overlap = words.filter(w => text.includes(w)).length
-          if (overlap > 0) {
-            score += Math.min(overlap * 10, 30)
-          }
-        }
-        // High recency penalty — should never speak twice in one session
-        if (recencyIndex === 0) score -= 80
-        if (recencyIndex === 1) score -= 50
-        // Only speak on avoidance-related pause types
-        if (!['trailing_off', 'ellipsis', 'long_pause', 'cadence_slowdown'].includes(event.type)) {
-          score -= 40
-        }
-        // Entry cooldown — check localStorage
-        const lastSpokeEntry = localStorage.getItem('quietOneLastSpokeEntry')
-        if (lastSpokeEntry) {
-          const entriesSince = this.getEntriesSinceQuietSpoke(lastSpokeEntry)
-          if (entriesSince < 3) score -= 100
-        }
-      } else {
-        score -= 200
-      }
+      score += this.scoreQuietOne(text, event.type, recencyIndex, config)
     }
 
     return score
+  }
+
+  private scoreQuietOne(
+    text: string,
+    pauseType: PauseType,
+    recencyIndex: number,
+    config: ReturnType<typeof getGlobalConfig>,
+  ): number {
+    if (config?.features?.quietOneEnabled !== true) return -200
+
+    let adjustment = 0
+
+    // Boost when text overlaps with known avoidance patterns
+    const avoidancePatterns = this.cachedProfile?.avoidancePatterns
+    if (avoidancePatterns?.length) {
+      adjustment += this.avoidanceOverlap(avoidancePatterns, text)
+    }
+
+    // Steep recency penalty — should never speak twice in a session
+    if (recencyIndex === 0) adjustment -= 80
+    else if (recencyIndex === 1) adjustment -= 50
+
+    // Only speak on avoidance-related pause types
+    const AVOIDANCE_PAUSE_TYPES: PauseType[] = ['trailing_off', 'ellipsis', 'long_pause', 'cadence_slowdown']
+    if (!AVOIDANCE_PAUSE_TYPES.includes(pauseType)) {
+      adjustment -= 40
+    }
+
+    // Entry cooldown — must wait at least 3 entries between appearances
+    const lastSpokeEntry = localStorage.getItem('quietOneLastSpokeEntry')
+    if (lastSpokeEntry && this.getEntriesSinceQuietSpoke(lastSpokeEntry) < 3) {
+      adjustment -= 100
+    }
+
+    return adjustment
+  }
+
+  private avoidanceOverlap(patterns: string[], text: string): number {
+    const words = patterns.join(' ').toLowerCase().split(/\s+/).filter(w => w.length > 3)
+    const matchCount = words.filter(w => text.includes(w)).length
+    return Math.min(matchCount * 10, 30)
   }
 
   private pauseTypeAffinity(part: Part, pauseType: PauseType): number {

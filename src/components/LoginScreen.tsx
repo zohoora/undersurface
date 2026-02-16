@@ -5,6 +5,17 @@ import { useTranslation, SUPPORTED_LANGUAGES } from '../i18n'
 import { getSettings, updateSettings } from '../store/settings'
 import { trackEvent } from '../services/analytics'
 
+function getSubmitLabel(
+  t: Record<string, string>,
+  mode: 'signin' | 'signup' | 'reset',
+  isSigningIn: boolean,
+): string {
+  if (isSigningIn) return t['login.pleaseWait']
+  if (mode === 'reset') return t['login.reset']
+  if (mode === 'signup') return t['login.signUp']
+  return t['login.signIn']
+}
+
 const FORM_WIDTH = 280
 
 const inputStyle = {
@@ -510,7 +521,7 @@ export function LoginScreen() {
                 width: FORM_WIDTH,
               }}
             >
-              {isSigningIn ? t['login.pleaseWait'] : mode === 'reset' ? t['login.reset'] : mode === 'signup' ? t['login.signUp'] : t['login.signIn']}
+              {getSubmitLabel(t, mode, isSigningIn)}
             </button>
             <div style={{
               display: 'flex',

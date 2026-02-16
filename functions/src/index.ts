@@ -651,10 +651,6 @@ async function computeAndCacheAnalytics() {
   return result
 }
 
-async function handleRefreshAnalytics() {
-  return await computeAndCacheAnalytics()
-}
-
 async function handleGetAnalytics() {
   // Read cached analytics (1 read)
   const snap = await getFirestore().collection('appConfig').doc('analytics').get()
@@ -939,7 +935,7 @@ export const adminApi = onRequest(
           res.json(await handleGetAnalytics())
           return
         case 'refreshAnalytics':
-          res.json(await handleRefreshAnalytics())
+          res.json(await computeAndCacheAnalytics())
           return
         case 'generateInsights':
           res.json(await handleGenerateInsights(openRouterKey.value()))

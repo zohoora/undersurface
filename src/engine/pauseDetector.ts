@@ -117,10 +117,6 @@ export class PauseDetector {
     }
 
     if (trimmed.endsWith('\n\n') || trimmed.endsWith('\n')) {
-      const beforeNewline = trimmed.replace(/\n+$/, '')
-      if (beforeNewline.endsWith('.') || beforeNewline.endsWith('!') || beforeNewline.endsWith('?')) {
-        return 'paragraph_break'
-      }
       return 'paragraph_break'
     }
 

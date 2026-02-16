@@ -298,7 +298,8 @@ export function buildPartMessages(
   }
 
   if (part.id === 'quiet' && profile?.avoidancePatterns?.length) {
-    systemContent += `\n\nTerritories this writer tends to circle but not enter:\n${profile.avoidancePatterns.map(p => `- ${p}`).join('\n')}\n\nUse this to sense when they are near an edge. Do not name these topics — only notice the approach.`
+    const patterns = profile.avoidancePatterns.map(p => `- ${p}`).join('\n')
+    systemContent += `\n\nTerritories this writer tends to circle but not enter:\n${patterns}\n\nUse this to sense when they are near an edge. Do not name these topics — only notice the approach.`
   }
 
   if (options?.ritualContext) {
