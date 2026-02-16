@@ -6,6 +6,8 @@ import { InkWeight } from '../../extensions/inkWeight'
 import { ParagraphSettle } from '../../extensions/paragraphSettle'
 import { MarginTraces, marginTracesKey } from '../../extensions/marginTraces'
 import { ColorBleed, colorBleedKey } from '../../extensions/colorBleed'
+import { TextHighlight, textHighlightKey } from '../../extensions/textHighlight'
+import { GhostText, ghostTextKey } from '../../extensions/ghostText'
 import { TypewriterScroll } from '../../extensions/typewriterScroll'
 import { spellEngine } from '../../engine/spellEngine'
 import { PauseDetector } from '../../engine/pauseDetector'
@@ -25,7 +27,7 @@ import { db, generateId } from '../../store/db'
 import { getGlobalConfig, useGlobalConfig } from '../../store/globalConfig'
 import { trackEvent } from '../../services/analytics'
 import { t, getLanguageCode, getPartDisplayName } from '../../i18n'
-import type { EmotionalTone, Part, PartThought } from '../../types'
+import type { EmotionalTone, Part, PartAnnotations, PartThought } from '../../types'
 
 interface ActiveThought {
   id: string
@@ -90,6 +92,7 @@ export default function LivingEditor({
   const currentThoughtRef = useRef<ActiveThought | null>(null)
   const emergenceCheckCountRef = useRef(0)
   const pendingBleedColorRef = useRef<string | null>(null)
+  const ghostTextRef = useRef<string | null>(null)
   const blankPageRef = useRef(new BlankPageEngine())
   const blankPageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const intentionRef = useRef(intention || '')
@@ -126,6 +129,8 @@ export default function LivingEditor({
       ParagraphSettle,
       MarginTraces,
       ColorBleed,
+      TextHighlight,
+      GhostText,
       TypewriterScroll,
     ],
     content: initialContent || '',
@@ -135,6 +140,17 @@ export default function LivingEditor({
         spellcheck: 'false',
       },
       handleKeyDown: (_view, event) => {
+        // Ghost text acceptance via Tab
+        if (event.key === 'Tab' && editor && ghostTextRef.current) {
+          event.preventDefault()
+          const text = ghostTextRef.current
+          ghostTextRef.current = null
+          editor.commands.insertContent(text)
+          const tr = editor.state.tr.setMeta(ghostTextKey, { clear: true })
+          editor.view.dispatch(tr)
+          return true
+        }
+
         if (event.metaKey || event.ctrlKey || event.altKey) return false
 
         // Undo autocorrect on Backspace
@@ -177,6 +193,13 @@ export default function LivingEditor({
           lastKeystrokeTimeRef.current = now
           const rawIntensity = Math.min(1, Math.max(0, 1 - (interval - 50) / 400))
           typingEnergyRef.current = typingEnergyRef.current * 0.7 + rawIntensity * 0.3
+
+          // Clear ghost text when typing resumes
+          if (ghostTextRef.current && editor) {
+            ghostTextRef.current = null
+            const clearTr = editor.state.tr.setMeta(ghostTextKey, { clear: true })
+            editor.view.dispatch(clearTr)
+          }
 
           // Fade out visible thoughts and close interactions when typing resumes
           setThoughts((prev) => {
@@ -311,6 +334,8 @@ export default function LivingEditor({
       editor.storage.inkWeight.disabled = !(vfx && globalConfig?.features?.inkWeight !== false)
       editor.storage.paragraphSettle.disabled = !(vfx && globalConfig?.features?.paragraphFade !== false)
       editor.storage.colorBleed.disabled = !(vfx && globalConfig?.features?.colorBleed !== false) || theme === 'dark'
+      editor.storage.textHighlight.disabled = !(vfx && globalConfig?.features?.textHighlights === true)
+      editor.storage.ghostText.disabled = !(globalConfig?.features?.ghostText === true)
       editor.storage.typewriterScroll.mode = settings.typewriterScroll
       // Force decoration refresh
       editor.view.dispatch(editor.state.tr)
@@ -518,6 +543,35 @@ export default function LivingEditor({
         }
         setThoughts((prev) => [...prev, newThought])
         onActivePartColorChange(partColor)
+      },
+      onAnnotations: (annotations: PartAnnotations, partColor: string) => {
+        if (!editor) return
+
+        // Dispatch text highlights
+        if (annotations.highlights && annotations.highlights.length > 0) {
+          const tr = editor.state.tr.setMeta(textHighlightKey, {
+            phrases: annotations.highlights,
+            color: partColor,
+            fadeDuration: 8000,
+          })
+          editor.view.dispatch(tr)
+        }
+
+        // Dispatch ghost text at cursor position (only near end of doc)
+        if (annotations.ghostText) {
+          const docSize = editor.state.doc.content.size
+          const cursorPos = editor.state.selection.from
+          // Only show ghost text when cursor is near end of document
+          if (docSize - cursorPos < 20) {
+            ghostTextRef.current = annotations.ghostText
+            const tr = editor.state.tr.setMeta(ghostTextKey, {
+              text: annotations.ghostText,
+              position: cursorPos,
+              color: partColor,
+            })
+            editor.view.dispatch(tr)
+          }
+        }
       },
       onDisagreementComplete: (thought) => {
         const parts = orchestrator['parts'] as Part[]

@@ -181,6 +181,11 @@ export interface GuidedExploration {
   sourceDetail?: string
 }
 
+export interface PartAnnotations {
+  highlights?: string[]
+  ghostText?: string
+}
+
 export interface ConsentRecord {
   id: string
   acceptedAt: number

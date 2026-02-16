@@ -20,6 +20,8 @@ const DEFAULTS: GlobalConfig = {
     partCatchphrases: false,
     silenceAsResponse: false,
     blankPageSpeaks: false,
+    textHighlights: false,
+    ghostText: false,
     echoes: false,
     innerWeather: false,
     entryFossils: false,
@@ -515,6 +517,17 @@ export function AdminSettings() {
             onChange={(v) => setPartInt('blankPageDelaySeconds', v)}
           />
         )}
+
+        <ToggleRow
+          label="Text Highlights"
+          checked={!!config.features.textHighlights}
+          onChange={(v) => setFeature('textHighlights', v)}
+        />
+        <ToggleRow
+          label="Ghost Text"
+          checked={!!config.features.ghostText}
+          onChange={(v) => setFeature('ghostText', v)}
+        />
       </CollapsibleSection>
 
       {/* Engagement Features */}

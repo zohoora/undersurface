@@ -193,6 +193,8 @@ export function buildPartMessages(
     ritualContext?: string
     isGrounding?: boolean
     intention?: string
+    annotateHighlights?: boolean
+    annotateGhostText?: boolean
   },
 ): { role: 'system' | 'user'; content: string }[] {
   let systemContent = part.systemPrompt
@@ -274,12 +276,25 @@ export function buildPartMessages(
     systemContent += `\n\nThe writer set an intention: "${options.intention}". If natural, help them stay connected to it. Don't force it.`
   }
 
+  let userContent = `The writer is composing a diary entry. Here is what they have written so far:\n\n---\n${currentText}\n---\n\nThe most recent text (near their cursor): "${recentText}"\n\nRespond as this part of them. Encourage and guide their writing — help them go deeper, keep going, or find what they haven't said yet. 1-2 sentences only. Be genuine, not performative.${languageDirective()}`
+
+  // Annotation instructions (skip during grounding mode)
+  const wantAnnotations = !options?.isGrounding && (options?.annotateHighlights || options?.annotateGhostText)
+  if (wantAnnotations) {
+    const parts: string[] = []
+    if (options?.annotateHighlights) {
+      parts.push('Pick 1-3 exact verbatim phrases from the writer\'s text above that relate to your response. These must be word-for-word substrings from their writing.')
+    }
+    if (options?.annotateGhostText) {
+      parts.push('Predict what the WRITER would naturally write next (max 8 words), in THEIR voice and diary style — not yours. You are nudging their direction, not writing for them. Study their tone, vocabulary, and sentence patterns. The ghostText must begin with a space character. Example: writer wrote "I miss the way things were." → good: " Sometimes I catch myself reaching for" — bad: " The question is whether nostalgia serves us". The ghost text should sound like the writer kept typing, gently steered by your perspective.')
+    }
+
+    userContent += `\n\nAfter your response, if something stands out, add annotations in this format:\n\n---annotations---\n{"highlights": ["exact phrase from text"], "ghostText": " A new sentence or continuation"}\n\n${parts.join(' ')}\nIf nothing stands out, omit the annotations section entirely.`
+  }
+
   return [
     { role: 'system', content: systemContent },
-    {
-      role: 'user',
-      content: `The writer is composing a diary entry. Here is what they have written so far:\n\n---\n${currentText}\n---\n\nThe most recent text (near their cursor): "${recentText}"\n\nRespond as this part of them. Encourage and guide their writing — help them go deeper, keep going, or find what they haven't said yet. 1-2 sentences only. Be genuine, not performative.${languageDirective()}`,
-    },
+    { role: 'user', content: userContent },
   ]
 }
 

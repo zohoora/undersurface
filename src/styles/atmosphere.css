@@ -1022,6 +1022,53 @@ body {
   opacity: 0.7;
 }
 
+/* ── Text Highlights ───────────────────────────────────── */
+
+.text-highlight {
+  transition: opacity 0.6s ease-out, background 0.6s ease-out;
+  border-radius: 2px;
+}
+
+.text-highlight.fading {
+  opacity: 0.3;
+  background: transparent !important;
+  text-decoration-color: transparent !important;
+}
+
+/* ── Ghost Text ────────────────────────────────────────── */
+
+@keyframes ghost-text-appear {
+  from { opacity: 0; }
+  to { opacity: 0.38; }
+}
+
+.ghost-text {
+  font-style: italic;
+  pointer-events: none;
+  user-select: none;
+}
+
+.ghost-text-hint {
+  font-size: 10px;
+  font-style: normal;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Touch devices: ghost text is tappable */
+@media (hover: none) and (pointer: coarse) {
+  .ghost-text {
+    pointer-events: auto;
+    cursor: pointer;
+    min-height: 30px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .ghost-text-hint {
+    display: none;
+  }
+}
+
 /* ── Part Return Animation ─────────────────────────────── */
 
 .part-thought.returning-thought {

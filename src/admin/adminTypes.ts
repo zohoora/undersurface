@@ -30,6 +30,9 @@ export interface GlobalConfig {
     inkWeight?: boolean
     colorBleed?: boolean
     breathingBackground?: boolean
+    // Text Interaction
+    textHighlights?: boolean
+    ghostText?: boolean
     // Safety & Guidance
     emergencyGrounding?: boolean
     intentionsEnabled?: boolean
