@@ -43,8 +43,54 @@ Sentry.init({
     if (message.includes('removeChild') || message.includes('insertBefore')) {
       return null
     }
+    // Filter out Safari IndexedDB connection loss — known WebKit bug, not actionable
+    if (message.includes('Connection to Indexed Database server lost')) {
+      return null
+    }
+    // Filter out errors from obfuscated third-party scripts injected by in-app browsers
+    if (/_0x[a-f0-9]{4,}/.test(message)) {
+      return null
+    }
     return event
   },
+})
+
+// Safari sometimes kills IndexedDB connections (known WebKit bug).
+// Catch the unhandled rejection and prompt the user to refresh.
+window.addEventListener('unhandledrejection', (event) => {
+  const msg = String(event.reason?.message ?? event.reason ?? '')
+  if (msg.includes('Connection to Indexed Database server lost')) {
+    event.preventDefault()
+    // Only show once
+    if (document.getElementById('idb-lost-banner')) return
+    const banner = document.createElement('div')
+    banner.id = 'idb-lost-banner'
+    Object.assign(banner.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      right: '0',
+      zIndex: '99999',
+      padding: '14px 20px',
+      background: '#1a1a2e',
+      color: '#e0def4',
+      fontFamily: "'Inter', sans-serif",
+      fontSize: '14px',
+      textAlign: 'center',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
+    })
+    banner.appendChild(document.createTextNode('Connection interrupted \u2014 please '))
+    const btn = document.createElement('button')
+    btn.textContent = 'refresh the page'
+    Object.assign(btn.style, {
+      background: 'none', border: '1px solid #e0def4', color: '#e0def4',
+      borderRadius: '4px', padding: '4px 12px', marginLeft: '8px',
+      cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px',
+    })
+    btn.addEventListener('click', () => window.location.reload())
+    banner.appendChild(btn)
+    document.body.appendChild(banner)
+  }
 })
 
 createRoot(document.getElementById('root')!).render(
