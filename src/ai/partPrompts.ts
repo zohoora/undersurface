@@ -424,6 +424,7 @@ Active parts: ${partList}${profileContext}${summaryContext}
 
 Respond with valid JSON only:
 {
+  "title": "A short evocative title for this entry (3-8 words). Not a summary — capture the emotional essence or central image.",
   "entrySummary": {
     "themes": ["theme1", "theme2"],
     "emotionalArc": "brief description of emotional journey in this entry",

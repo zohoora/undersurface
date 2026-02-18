@@ -98,6 +98,11 @@ export class ReflectionEngine {
       const parsed = this.parseReflectionResponse(response)
       if (!parsed) return result
 
+      // 7b. Save title to entry
+      if (typeof parsed.title === 'string' && parsed.title.trim()) {
+        await db.entries.update(entryId, { title: parsed.title.trim() })
+      }
+
       // 8a. Save entry summary (with content hash for dedup)
       if (parsed.entrySummary) {
         const summary: EntrySummary = {
@@ -288,6 +293,7 @@ export class ReflectionEngine {
   }
 
   private parseReflectionResponse(response: string): {
+    title?: string
     entrySummary?: { themes: string[]; emotionalArc: string; keyMoments: string[] }
     partMemories?: Record<string, string>
     profileUpdates?: {

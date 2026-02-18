@@ -37,6 +37,8 @@ export interface DiaryEntry {
   id: string
   content: string
   plainText: string
+  title?: string
+  favorited?: boolean
   createdAt: number
   updatedAt: number
   thoughts: PartThought[]

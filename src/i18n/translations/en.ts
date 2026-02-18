@@ -73,6 +73,9 @@ const en = {
   'entries.today': 'Today',
   'entries.yesterday': 'Yesterday',
   'entries.empty': 'Empty entry',
+  'entries.search': 'Search entries...',
+  'entries.favorites': 'Favorites',
+  'entries.noResults': 'No entries found',
 
   // Body Map
   'bodyMap.title': 'Body',
