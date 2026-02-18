@@ -150,14 +150,14 @@ export async function analyzeEmotionAndDistress(text: string): Promise<{ emotion
   const response = await chatCompletion([
     {
       role: 'system',
-      content: `You analyze the emotional tone and distress level of diary writing. This writing may be in any language. Respond with valid JSON only, no other text:
+      content: `You analyze the emotional tone and distress level of diary writing. This is a journaling app where people process difficult emotions — that is normal and healthy, not distress. This writing may be in any language. Respond with valid JSON only, no other text:
 {"emotion": "<one of: neutral, tender, anxious, angry, sad, joyful, contemplative, fearful, hopeful, conflicted>", "distress": <0-3>}
 
-Distress scale:
-0 = no distress
-1 = mild distress (worry, unease)
-2 = moderate distress (panic, overwhelm, acute fear)
-3 = severe distress (suicidal ideation, self-harm references, crisis)`,
+Distress scale (err on the side of LOW scores — processing hard feelings is not distress):
+0 = no distress — normal writing, even if exploring sadness, anger, fear, or painful memories
+1 = mild distress — venting frustration, expressing worry or unease, processing grief
+2 = elevated distress — writer seems genuinely overwhelmed right now (not reflecting on past overwhelm), expressing hopelessness about the future, or describing an active panic episode
+3 = safety concern — explicit mention of suicidal thoughts, self-harm urges, or intent to harm others. ONLY use 3 for clear safety-relevant language, not metaphor or dark imagery`,
     },
     {
       role: 'user',

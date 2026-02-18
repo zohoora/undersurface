@@ -510,8 +510,8 @@ export class PartOrchestrator {
     if (config?.features?.emergencyGrounding !== true) return
     if (isGroundingActive()) return
 
-    // Default threshold is 2 (moderate distress) — configurable via admin
-    const threshold = config.grounding?.intensityThreshold ?? 2
+    // Default threshold is 3 (safety concern only) — configurable via admin
+    const threshold = config.grounding?.intensityThreshold ?? 3
     if (level >= threshold) {
       activateGrounding()
     }
