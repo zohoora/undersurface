@@ -43,8 +43,9 @@ Sentry.init({
     if (message.includes('removeChild') || message.includes('insertBefore')) {
       return null
     }
-    // Filter out Safari IndexedDB connection loss — known WebKit bug, not actionable
-    if (message.includes('Connection to Indexed Database server lost')) {
+    // Filter out Safari IndexedDB errors — known WebKit bugs, not actionable
+    if (message.includes('Connection to Indexed Database server lost')
+      || message.includes('Error looking up record in object store by key range')) {
       return null
     }
     // Filter out errors from obfuscated third-party scripts injected by in-app browsers
@@ -59,7 +60,8 @@ Sentry.init({
 // Catch the unhandled rejection and prompt the user to refresh.
 window.addEventListener('unhandledrejection', (event) => {
   const msg = String(event.reason?.message ?? event.reason ?? '')
-  if (msg.includes('Connection to Indexed Database server lost')) {
+  if (msg.includes('Connection to Indexed Database server lost')
+    || msg.includes('Error looking up record in object store by key range')) {
     event.preventDefault()
     // Only show once
     if (document.getElementById('idb-lost-banner')) return
