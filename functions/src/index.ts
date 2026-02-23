@@ -823,10 +823,21 @@ export const accountApi = onRequest(
           const collections = [
             'entries', 'parts', 'memories', 'thoughts', 'interactions',
             'entrySummaries', 'userProfile', 'fossils', 'letters',
-            'sessionLog', 'innerWeather', 'consent',
+            'sessionLog', 'innerWeather', 'consent', 'sessions',
           ]
           for (const coll of collections) {
             await deleteCollection(uid, coll)
+          }
+          // Delete session message subcollections
+          const sessionsSnap = await getFirestore()
+            .collection('users').doc(uid).collection('sessions').get()
+          for (const sessionDoc of sessionsSnap.docs) {
+            const messagesSnap = await sessionDoc.ref.collection('messages').get()
+            if (messagesSnap.docs.length > 0) {
+              const batch = getFirestore().batch()
+              messagesSnap.docs.forEach(d => batch.delete(d.ref))
+              await batch.commit()
+            }
           }
           // Delete top-level contactMessages by this user
           const contactSnap = await getFirestore()
