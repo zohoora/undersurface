@@ -41,6 +41,13 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamingContent])
 
+  // Auto-focus input after streaming completes
+  useEffect(() => {
+    if (!isStreaming && textareaRef.current) {
+      textareaRef.current.focus()
+    }
+  }, [isStreaming])
+
   // Load parts and initialize session
   useEffect(() => {
     let cancelled = false
@@ -390,7 +397,7 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
       maxWidth: 640,
       margin: '0 auto',
       paddingTop: 80,
-      paddingBottom: 160,
+      paddingBottom: 80,
       paddingLeft: 24,
       paddingRight: 24,
       minHeight: '100vh',
@@ -498,72 +505,65 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
         </div>
       )}
 
+      {/* Inline input — flows in the document like co-editing */}
+      {!isClosed && !isStreaming && (
+        <div style={{ marginBottom: 20 }}>
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={e => {
+              setInput(e.target.value)
+              // Auto-resize
+              const el = e.target
+              el.style.height = 'auto'
+              el.style.height = el.scrollHeight + 'px'
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder="take your time"
+            rows={1}
+            style={{
+              width: '100%',
+              fontFamily: "'Spectral', serif",
+              fontSize: 17,
+              lineHeight: 1.7,
+              color: 'var(--text-primary)',
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              resize: 'none',
+              outline: 'none',
+              overflow: 'hidden',
+            }}
+          />
+        </div>
+      )}
+
       <div ref={messagesEndRef} />
 
-      {/* Fixed bottom input bar */}
+      {/* End session — subtle, inline at the bottom */}
       {!isClosed && (
         <div style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          background: 'var(--bg-primary)',
-          borderTop: '1px solid var(--border-subtle)',
-          padding: '16px 24px',
-          paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+          paddingTop: 40,
+          paddingBottom: 40,
         }}>
-          <div style={{
-            maxWidth: 640,
-            margin: '0 auto',
-            display: 'flex',
-            gap: 12,
-            alignItems: 'flex-end',
-          }}>
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="take your time"
-              disabled={isStreaming}
-              rows={1}
-              style={{
-                flex: 1,
-                fontFamily: "'Spectral', serif",
-                fontSize: 17,
-                lineHeight: 1.7,
-                color: 'var(--text-primary)',
-                background: 'var(--surface-primary)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 12,
-                padding: '12px 16px',
-                resize: 'none',
-                outline: 'none',
-                minHeight: 48,
-                maxHeight: 160,
-                overflow: 'auto',
-              }}
-            />
-            <button
-              onClick={handleEndSession}
-              disabled={!canEnd}
-              style={{
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 12,
-                fontWeight: 500,
-                color: canEnd ? 'var(--text-secondary)' : 'var(--text-secondary)',
-                opacity: canEnd ? 0.7 : 0.3,
-                background: 'none',
-                border: 'none',
-                cursor: canEnd ? 'pointer' : 'default',
-                padding: '12px 8px',
-                whiteSpace: 'nowrap',
-                letterSpacing: '0.02em',
-              }}
-            >
-              end session
-            </button>
-          </div>
+          <button
+            onClick={handleEndSession}
+            disabled={!canEnd}
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 11,
+              fontWeight: 500,
+              color: 'var(--text-secondary)',
+              opacity: canEnd ? 0.5 : 0.2,
+              background: 'none',
+              border: 'none',
+              cursor: canEnd ? 'pointer' : 'default',
+              padding: 0,
+              letterSpacing: '0.04em',
+            }}
+          >
+            end session
+          </button>
         </div>
       )}
 
