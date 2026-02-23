@@ -385,6 +385,8 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
 
   return (
     <div style={{
+      position: 'relative',
+      zIndex: 2,
       maxWidth: 640,
       margin: '0 auto',
       paddingTop: 80,
