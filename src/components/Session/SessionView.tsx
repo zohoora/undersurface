@@ -519,7 +519,7 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
               el.style.height = el.scrollHeight + 'px'
             }}
             onKeyDown={handleKeyDown}
-            placeholder="take your time"
+            placeholder=""
             rows={1}
             style={{
               width: '100%',
