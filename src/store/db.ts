@@ -11,6 +11,7 @@ import {
   getCountFromServer,
   where,
   deleteDoc,
+  onSnapshot,
 } from 'firebase/firestore'
 import type { DocumentData } from 'firebase/firestore'
 import { firestore } from '../firebase'
@@ -119,6 +120,30 @@ export const db = {
   sessionLog: createCollectionProxy('sessionLog'),
   innerWeather: createCollectionProxy('innerWeather'),
   consent: createCollectionProxy('consent'),
+  sessions: createCollectionProxy('sessions'),
+}
+
+export const sessionMessages = {
+  async add(sessionId: string, data: DocumentData) {
+    const id = data.id as string
+    const ref = doc(firestore, 'users', getUid(), 'sessions', sessionId, 'messages', id)
+    await setDoc(ref, data)
+  },
+
+  async getAll(sessionId: string) {
+    const colRef = collection(firestore, 'users', getUid(), 'sessions', sessionId, 'messages')
+    const q = query(colRef, orderBy('timestamp', 'asc'))
+    const snap = await getDocs(q)
+    return snap.docs.map(d => d.data())
+  },
+
+  subscribe(sessionId: string, callback: (messages: DocumentData[]) => void) {
+    const colRef = collection(firestore, 'users', getUid(), 'sessions', sessionId, 'messages')
+    const q = query(colRef, orderBy('timestamp', 'asc'))
+    return onSnapshot(q, snap => {
+      callback(snap.docs.map(d => d.data()))
+    })
+  },
 }
 
 function toStorablePart(p: typeof SEEDED_PARTS[number]): DocumentData {
@@ -395,7 +420,7 @@ export async function exportAllData() {
   const collectionNames = [
     'entries', 'parts', 'memories', 'thoughts', 'interactions',
     'entrySummaries', 'userProfile', 'fossils', 'letters',
-    'sessionLog', 'innerWeather', 'consent',
+    'sessionLog', 'innerWeather', 'consent', 'sessions',
   ] as const
 
   const results = await Promise.all(
