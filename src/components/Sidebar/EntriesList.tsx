@@ -3,6 +3,7 @@ import { db, generateId } from '../../store/db'
 import { SettingsPanel } from './SettingsPanel'
 import { useTranslation, getLanguageCode } from '../../i18n'
 import { useGlobalConfig } from '../../store/globalConfig'
+import type { Session } from '../../types'
 
 const BodyMapTab = lazy(() => import('../BodyMap/BodyMapTab').then(m => ({ default: m.BodyMapTab })))
 
@@ -42,10 +43,12 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
   const [activeTab, setActiveTab] = useState<'entries' | 'body'>('entries')
   const [searchQuery, setSearchQuery] = useState('')
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
+  const [sessions, setSessions] = useState<Session[]>([])
   const isMobile = useIsMobile()
   const t = useTranslation()
   const globalConfig = useGlobalConfig()
   const showBodyMap = globalConfig?.features?.bodyMap === true
+  const currentPath = window.location.pathname
 
   const loadEntries = useCallback(async () => {
     const data = await db.entries.orderBy('updatedAt').reverse().toArray()
@@ -67,6 +70,13 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
       clearInterval(interval)
     }
   }, [activeEntryId])
+
+  // Load sessions
+  useEffect(() => {
+    db.sessions.orderBy('startedAt').reverse().toArray()
+      .then(s => setSessions(s as unknown as Session[]))
+      .catch(console.error)
+  }, [])
 
   const handleNewEntry = async () => {
     const id = generateId()
@@ -115,6 +125,20 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
     if (entry.title) return entry.title
     if (!entry.plainText) return t['entries.empty']
     return entry.plainText.slice(0, 40) + (entry.plainText.length > 40 ? '...' : '')
+  }
+
+  const getSessionPreview = (session: Session) => {
+    const text = session.sessionNote || session.firstLine
+    if (!text) return 'Session'
+    return text.slice(0, 40) + (text.length > 40 ? '...' : '')
+  }
+
+  const handleNewSession = () => {
+    window.location.href = '/session/new'
+  }
+
+  const handleSelectSession = (id: string) => {
+    window.location.href = '/session/' + id
   }
 
   const filteredEntries = useMemo(() => {
@@ -247,6 +271,40 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
                   ))
                 )}
               </div>
+
+              {/* Sessions section */}
+              <div className="sidebar-label" style={{ marginTop: 16 }}>Sessions</div>
+              <button className="new-entry-btn" onClick={handleNewSession}>
+                New Session
+              </button>
+              {sessions.length > 0 && (
+                <div style={{ marginTop: 4 }}>
+                  {sessions.map((session) => (
+                    <div
+                      key={session.id}
+                      className={`entry-item ${currentPath === '/session/' + session.id ? 'active' : ''}`}
+                      onClick={() => handleSelectSession(session.id)}
+                      style={{ opacity: session.status === 'closed' ? 0.7 : 1 }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 2 }}>
+                          {formatDate(session.startedAt)}
+                        </div>
+                        {session.status === 'active' && (
+                          <div style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            background: 'var(--text-secondary)',
+                            opacity: 0.6,
+                          }} />
+                        )}
+                      </div>
+                      {getSessionPreview(session)}
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </div>
