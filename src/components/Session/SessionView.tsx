@@ -323,6 +323,7 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
         .map(m => m.partName as string),
     )]
     const sessionNote = await orchestrator.generateSessionNote(finalMessages, partNames)
+    trackEvent('session_note_generated', { session_id: currentSession.id })
 
     // Update session as closed
     const endedAt = Date.now()
