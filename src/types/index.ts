@@ -31,6 +31,8 @@ export interface PartMemory {
   content: string
   type?: MemoryType
   timestamp: number
+  source?: 'journal' | 'session'
+  sessionId?: string
 }
 
 export interface DiaryEntry {
@@ -74,6 +76,38 @@ export interface ThinkingOutLoudInteraction {
   partReply: string | null
   status: 'open' | 'user_responded' | 'complete' | 'closed'
   timestamp: number
+}
+
+export type SessionPhase = 'opening' | 'deepening' | 'closing'
+export type SessionOpeningMethod = 'auto' | 'user_chose' | 'open_invitation'
+export type EmergenceReason = 'emotional_gravity' | 'tension' | 'user_invitation'
+
+export interface Session {
+  id: string
+  startedAt: number
+  endedAt: number | null
+  status: 'active' | 'closed'
+  hostPartId: string
+  participantPartIds: string[]
+  openingMethod: SessionOpeningMethod
+  chosenPartId?: string
+  sessionNote: string | null
+  messageCount: number
+  firstLine: string
+  phase: SessionPhase
+  favorited?: boolean
+}
+
+export interface SessionMessage {
+  id: string
+  speaker: 'user' | 'part'
+  partId: string | null
+  partName: string | null
+  content: string
+  timestamp: number
+  phase: SessionPhase
+  isEmergence: boolean
+  emergenceReason?: EmergenceReason
 }
 
 export type PauseType =
