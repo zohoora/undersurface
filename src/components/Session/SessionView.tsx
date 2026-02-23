@@ -268,7 +268,9 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
     const currentMessages = messagesRef.current
     const currentParts = partsRef.current
 
-    ed?.commands.clearContent()
+    // Don't clear editor here — it causes a flash because clearContent is
+    // a synchronous DOM mutation while setMessages is batched by React.
+    // The editor is cleared by an effect when isStreaming becomes true.
 
     // Create user message
     const msgId = generateId()
@@ -519,6 +521,13 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
     const vfx = getGlobalConfig()?.features?.visualEffectsEnabled !== false
     inputEditor.storage.inkWeight.disabled = !(vfx && getGlobalConfig()?.features?.inkWeight !== false)
   }, [inputEditor])
+
+  // Clear editor content when streaming starts (editor is hidden, so no flash)
+  useEffect(() => {
+    if (isStreaming && inputEditor) {
+      inputEditor.commands.clearContent()
+    }
+  }, [isStreaming, inputEditor])
 
   // Focus editor after streaming completes
   useEffect(() => {
