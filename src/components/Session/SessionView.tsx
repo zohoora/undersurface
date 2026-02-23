@@ -1,10 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import { InkWeight } from '../../extensions/inkWeight'
+import { spellEngine } from '../../engine/spellEngine'
+import { getLanguageCode, getPartDisplayName } from '../../i18n'
+import { useSettings } from '../../store/settings'
+import { getGlobalConfig } from '../../store/globalConfig'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../../store/db'
 import { SessionOrchestrator } from '../../engine/sessionOrchestrator'
 import { buildSessionMessages } from '../../ai/sessionPrompts'
 import { streamChatCompletion } from '../../ai/openrouter'
 import { trackEvent } from '../../services/analytics'
-import { getPartDisplayName } from '../../i18n'
 import { SessionMessageBubble } from './SessionMessage'
 import type { Session, SessionMessage, Part, PartMemory } from '../../types'
 
@@ -18,18 +24,24 @@ interface Props {
 export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionCreated }: Props) {
   const [session, setSession] = useState<Session | null>(null)
   const [messages, setMessages] = useState<SessionMessage[]>([])
-  const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [streamingPartName, setStreamingPartName] = useState<string | null>(null)
   const [parts, setParts] = useState<Part[]>([])
+  const settings = useSettings()
 
   const orchestratorRef = useRef(new SessionOrchestrator())
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const sessionRef = useRef<Session | null>(null)
   const messagesRef = useRef<SessionMessage[]>([])
   const partsRef = useRef<Part[]>([])
+  const lastAutocorrectRef = useRef<{
+    original: string
+    correction: string
+    wordStart: number
+    delimiter: string
+  } | null>(null)
+  const handleSendRef = useRef<() => void>(() => {})
 
   // Keep refs in sync
   useEffect(() => { sessionRef.current = session }, [session])
@@ -40,13 +52,6 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamingContent])
-
-  // Auto-focus input after streaming completes
-  useEffect(() => {
-    if (!isStreaming && textareaRef.current) {
-      textareaRef.current.focus()
-    }
-  }, [isStreaming])
 
   // Load parts and initialize session
   useEffect(() => {
@@ -254,15 +259,16 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
     )
   }, [])
 
-  const handleSend = useCallback(async () => {
-    const trimmed = input.trim()
+  const handleSend = useCallback(async (editorInstance?: ReturnType<typeof useEditor>) => {
+    const ed = editorInstance
+    const trimmed = ed?.getText().trim() ?? ''
     if (!trimmed || isStreaming || !sessionRef.current || sessionRef.current.status === 'closed') return
 
     const currentSession = sessionRef.current
     const currentMessages = messagesRef.current
     const currentParts = partsRef.current
 
-    setInput('')
+    ed?.commands.clearContent()
 
     // Create user message
     const msgId = generateId()
@@ -305,7 +311,7 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
       messageCount: updatedMessages.length,
       firstLine,
     })
-  }, [input, isStreaming, generatePartMessage])
+  }, [isStreaming, generatePartMessage])
 
   const handleEndSession = useCallback(async () => {
     const currentSession = sessionRef.current
@@ -380,12 +386,146 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
     })
   }, [isStreaming, generatePartMessage])
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
+  const inputEditor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: false,
+        codeBlock: false,
+        blockquote: false,
+        bulletList: false,
+        orderedList: false,
+        listItem: false,
+        horizontalRule: false,
+        hardBreak: false,
+      }),
+      InkWeight,
+    ],
+    content: '',
+    editorProps: {
+      attributes: {
+        class: 'session-input',
+        spellcheck: 'false',
+      },
+      handleKeyDown: (_view, event) => {
+        // Enter sends message (Shift+Enter for newline)
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault()
+          handleSendRef.current()
+          return true
+        }
+
+        if (event.metaKey || event.ctrlKey || event.altKey) return false
+
+        // Undo autocorrect on Backspace
+        if (event.key === 'Backspace' && inputEditor && lastAutocorrectRef.current) {
+          const { original, correction, wordStart, delimiter } = lastAutocorrectRef.current
+          const cursor = inputEditor.state.selection.from
+          const expectedEnd = wordStart + correction.length + delimiter.length
+          if (cursor === expectedEnd) {
+            const docText = inputEditor.state.doc.textBetween(wordStart, expectedEnd)
+            if (docText === correction + delimiter) {
+              event.preventDefault()
+              inputEditor.view.dispatch(
+                inputEditor.state.tr.replaceWith(
+                  wordStart,
+                  expectedEnd,
+                  inputEditor.state.schema.text(original + delimiter),
+                ),
+              )
+              lastAutocorrectRef.current = null
+              return true
+            }
+          }
+          lastAutocorrectRef.current = null
+        }
+
+        if (event.key.length === 1 || event.key === 'Backspace' || event.key === 'Delete') {
+          if (event.key !== 'Backspace') lastAutocorrectRef.current = null
+
+          // Auto-capitalize
+          if (settings.autoCapitalize && inputEditor && event.key.length === 1) {
+            const from = inputEditor.state.selection.from
+            const parentOffset = inputEditor.state.selection.$from.parentOffset
+
+            if (/[a-z]/.test(event.key)) {
+              const shouldCapitalize = parentOffset === 0
+                || /[.!?]\s$/.test(inputEditor.state.doc.textBetween(Math.max(0, from - 3), from))
+
+              if (shouldCapitalize) {
+                event.preventDefault()
+                inputEditor.commands.insertContent(event.key.toUpperCase())
+                return true
+              }
+            }
+
+            // Fix standalone "i" to "I"
+            if (getLanguageCode() === 'en' && /[\s,.'!?;:]/.test(event.key) && from >= 1) {
+              const lookback = inputEditor.state.doc.textBetween(Math.max(0, from - 2), from)
+              if (/(?:^|\s)i$/.test(lookback)) {
+                inputEditor.view.dispatch(
+                  inputEditor.state.tr.replaceWith(from - 1, from, inputEditor.state.schema.text('I'))
+                )
+              }
+            }
+          }
+
+          // Autocorrect on word boundary
+          if (getLanguageCode() === 'en' && settings.autocorrect && getGlobalConfig()?.features?.autocorrectEnabled !== false && inputEditor && /[\s,.!?;:\-)]/.test(event.key)) {
+            const $pos = inputEditor.state.selection.$from
+            const textBefore = $pos.parent.textBetween(0, $pos.parentOffset)
+            const match = textBefore.match(/([a-zA-Z']+)$/)
+            if (match) {
+              const raw = match[1]
+              const leadingApostrophes = raw.length - raw.replace(/^'+/, '').length
+              const word = raw.replace(/^'+|'+$/g, '')
+              const isSentenceStart = match.index === 0
+                || /[.!?]\s+$/.test(textBefore.slice(0, match.index))
+              const correction = spellEngine.suggest(word, isSentenceStart)
+              if (correction) {
+                const absOffset = $pos.start() + $pos.parentOffset
+                const trailingApostrophes = raw.length - raw.replace(/'+$/, '').length
+                const wordStart = absOffset - raw.length + leadingApostrophes
+                const wordEnd = absOffset - trailingApostrophes
+                const capturedEditor = inputEditor
+                const delimiterKey = event.key
+                queueMicrotask(() => {
+                  const currentState = capturedEditor.state
+                  if (currentState.doc.textBetween(wordStart, wordEnd) === word) {
+                    capturedEditor.view.dispatch(
+                      currentState.tr.replaceWith(
+                        wordStart,
+                        wordEnd,
+                        currentState.schema.text(correction),
+                      ),
+                    )
+                    lastAutocorrectRef.current = { original: word, correction, wordStart, delimiter: delimiterKey }
+                  }
+                })
+              }
+            }
+          }
+        }
+        return false
+      },
+    },
+  })
+
+  // Keep handleSendRef in sync so editor's handleKeyDown can call latest version
+  useEffect(() => { handleSendRef.current = () => handleSend(inputEditor) }, [handleSend, inputEditor])
+
+  // Sync InkWeight disabled state
+  useEffect(() => {
+    if (!inputEditor) return
+    const vfx = getGlobalConfig()?.features?.visualEffectsEnabled !== false
+    inputEditor.storage.inkWeight.disabled = !(vfx && getGlobalConfig()?.features?.inkWeight !== false)
+  }, [inputEditor])
+
+  // Focus editor after streaming completes
+  useEffect(() => {
+    if (!isStreaming && inputEditor && session?.status !== 'closed') {
+      setTimeout(() => inputEditor.commands.focus(), 50)
     }
-  }, [handleSend])
+  }, [isStreaming, inputEditor, session?.status])
 
   const isClosed = session?.status === 'closed'
   const canEnd = !isStreaming && messages.length >= 2 && !isClosed
@@ -508,33 +648,7 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
       {/* Inline input — flows in the document like co-editing */}
       {!isClosed && !isStreaming && (
         <div style={{ marginBottom: 20 }}>
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={e => {
-              setInput(e.target.value)
-              // Auto-resize
-              const el = e.target
-              el.style.height = 'auto'
-              el.style.height = el.scrollHeight + 'px'
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder=""
-            rows={1}
-            style={{
-              width: '100%',
-              fontFamily: "'Spectral', serif",
-              fontSize: 17,
-              lineHeight: 1.7,
-              color: 'var(--text-primary)',
-              background: 'transparent',
-              border: 'none',
-              padding: 0,
-              resize: 'none',
-              outline: 'none',
-              overflow: 'hidden',
-            }}
-          />
+          <EditorContent editor={inputEditor} />
         </div>
       )}
 

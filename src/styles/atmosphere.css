@@ -253,6 +253,26 @@
   outline: none;
 }
 
+/* ── Session Input (minimal TipTap for session mode) ─── */
+
+.session-input {
+  font-family: 'Spectral', Georgia, 'Times New Roman', serif;
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.7;
+  color: var(--text-primary);
+  outline: none;
+  caret-color: var(--text-secondary);
+}
+
+.session-input:focus-visible {
+  outline: none;
+}
+
+.session-input p {
+  margin: 0;
+}
+
 .tiptap p {
   margin-bottom: 0.8em;
   position: relative;
