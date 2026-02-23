@@ -273,9 +273,9 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
               </div>
 
               {/* Sessions section */}
-              <div className="sidebar-label" style={{ marginTop: 16 }}>Sessions</div>
+              <div className="sidebar-label" style={{ marginTop: 16 }}>{t['sessions.title']}</div>
               <button className="new-entry-btn" onClick={handleNewSession}>
-                New Session
+                {t['sessions.new']}
               </button>
               {sessions.length > 0 && (
                 <div style={{ marginTop: 4 }}>

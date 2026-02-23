@@ -77,6 +77,10 @@ const en = {
   'entries.favorites': 'Favorites',
   'entries.noResults': 'No entries found',
 
+  // Sessions sidebar
+  'sessions.title': 'Sessions',
+  'sessions.new': '+ New session',
+
   // Body Map
   'bodyMap.title': 'Body',
   'bodyMap.dormant': 'Write. I\'ll take shape.',
