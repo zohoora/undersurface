@@ -94,7 +94,7 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
       hostPartId: hostPart.id,
       participantPartIds: [hostPart.id],
       openingMethod,
-      chosenPartId: chosenPartId ?? undefined,
+      ...(chosenPartId ? { chosenPartId } : {}),
       sessionNote: null,
       messageCount: 0,
       firstLine: '',
@@ -195,7 +195,7 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
             timestamp: Date.now(),
             phase,
             isEmergence,
-            emergenceReason: isEmergence ? 'emotional_gravity' : undefined,
+            ...(isEmergence ? { emergenceReason: 'emotional_gravity' as const } : {}),
           }
 
           await sessionMessagesDb.add(currentSession.id, newMessage)
