@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { Part, SessionMessage, SessionPhase } from '../types'
+import type { Part, SessionMessage } from '../types'
 
 // Mock all external dependencies
 vi.mock('../ai/openrouter', () => ({

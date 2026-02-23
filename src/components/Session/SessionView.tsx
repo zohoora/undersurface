@@ -116,6 +116,7 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
     if (openingMethod !== 'open_invitation') {
       await generatePartMessage(hostPart, [], newSession)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openingMethod, chosenPartId, onSessionCreated])
 
   const generatePartMessage = useCallback(async (
@@ -149,7 +150,6 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
     const profile = profiles.length > 0 ? profiles[0] : null
 
     // Build other parts list
-    const currentParts = partsRef.current
     const otherPartNames = currentMessages
       .filter(m => m.speaker === 'part' && m.partId && m.partId !== part.id)
       .reduce<string[]>((acc, m) => {

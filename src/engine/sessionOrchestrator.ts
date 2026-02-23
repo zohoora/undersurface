@@ -1,4 +1,4 @@
-import type { Part, SessionMessage, SessionPhase, PartMemory, IFSRole } from '../types'
+import type { Part, SessionMessage, SessionPhase, IFSRole } from '../types'
 import { buildSessionNotePrompt } from '../ai/sessionPrompts'
 import { chatCompletion } from '../ai/openrouter'
 import { isGroundingActive } from '../hooks/useGroundingMode'

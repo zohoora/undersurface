@@ -134,11 +134,11 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
   }
 
   const handleNewSession = () => {
-    window.location.href = '/session/new'
+    window.location.assign('/session/new')
   }
 
   const handleSelectSession = (id: string) => {
-    window.location.href = '/session/' + id
+    window.location.assign('/session/' + id)
   }
 
   const filteredEntries = useMemo(() => {

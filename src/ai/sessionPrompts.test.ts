@@ -73,7 +73,7 @@ describe('buildSessionMessages', () => {
   it('includes user profile when provided', () => {
     const result = buildSessionMessages(mockPart, [], {
       phase: 'opening', memories: [],
-      profile: { innerLandscape: 'Tends to intellectualize feelings' } as any,
+      profile: { id: 'current', innerLandscape: 'Tends to intellectualize feelings', recurringThemes: [], emotionalPatterns: [], avoidancePatterns: [], growthSignals: [], lastUpdated: 0 },
     })
     expect(result[0].content).toContain('intellectualize')
   })
