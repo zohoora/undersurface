@@ -10,6 +10,7 @@ import { initializeDB, db, generateId } from './store/db'
 
 const AdminDashboard = lazy(() => import('./admin/AdminDashboard'))
 const LivingEditor = lazy(() => import('./components/Editor/LivingEditor'))
+const SessionView = lazy(() => import('./components/Session/SessionView'))
 import { spellEngine } from './engine/spellEngine'
 import { ReflectionEngine } from './engine/reflectionEngine'
 import { useSettings } from './store/settings'
@@ -394,9 +395,16 @@ function App() {
   }
 
   // 404 — redirect unknown paths to root
-  if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/admin')) {
+  if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/admin') && !window.location.pathname.startsWith('/session')) {
     window.history.replaceState(null, '', '/')
   }
+
+  // Session route detection
+  const isSessionRoute = window.location.pathname.startsWith('/session')
+  const isNewSession = window.location.pathname === '/session/new'
+  const sessionIdFromPath = !isNewSession && window.location.pathname.startsWith('/session/')
+    ? window.location.pathname.split('/session/')[1]
+    : null
 
   // Consent gate — show onboarding if user hasn't accepted terms
   if (hasConsent === false) {
@@ -519,89 +527,103 @@ function App() {
         <InnerWeather weather={weather} />
       </div>
       <CrisisResources visible={isGrounding} />
-      {fossilThought && (
-        <div style={{
-          position: 'relative',
-          zIndex: 2,
-          maxWidth: 680,
-          margin: '0 auto',
-          padding: '0 40px',
-        }}>
-          <div
-            className="part-thought fossil-thought"
-            style={{
-              backgroundColor: fossilThought.colorLight,
-              borderLeft: `2px dotted ${fossilThought.partColor}`,
-              cursor: 'pointer',
+      {isSessionRoute ? (
+        <Suspense fallback={<EditorSkeleton />}>
+          <SessionView
+            sessionId={sessionIdFromPath}
+            openingMethod="auto"
+            onSessionCreated={(id) => {
+              window.history.replaceState(null, '', `/session/${id}`)
             }}
-            onClick={() => setFossilThought(null)}
-          >
-            <div className="fossil-label">{tr['app.fossilLabel']}</div>
-            <div className="part-name" style={{ color: fossilThought.partColor }}>
-              {fossilThought.partName}
+          />
+        </Suspense>
+      ) : (
+        <>
+          {fossilThought && (
+            <div style={{
+              position: 'relative',
+              zIndex: 2,
+              maxWidth: 680,
+              margin: '0 auto',
+              padding: '0 40px',
+            }}>
+              <div
+                className="part-thought fossil-thought"
+                style={{
+                  backgroundColor: fossilThought.colorLight,
+                  borderLeft: `2px dotted ${fossilThought.partColor}`,
+                  cursor: 'pointer',
+                }}
+                onClick={() => setFossilThought(null)}
+              >
+                <div className="fossil-label">{tr['app.fossilLabel']}</div>
+                <div className="part-name" style={{ color: fossilThought.partColor }}>
+                  {fossilThought.partName}
+                </div>
+                <div className="part-content" style={{ color: fossilThought.partColor }}>
+                  {fossilThought.content}
+                </div>
+              </div>
             </div>
-            <div className="part-content" style={{ color: fossilThought.partColor }}>
-              {fossilThought.content}
+          )}
+          {explorations.length > 0 && (
+            <ExplorationCard
+              explorations={explorations}
+              onSelect={handleSelectExploration}
+              onDismiss={handleDismissExplorations}
+            />
+          )}
+          <div className="toolbar-row" style={{
+            position: 'relative',
+            zIndex: 2,
+            maxWidth: 680,
+            margin: '0 auto',
+            padding: '0 40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            minHeight: 28,
+          }}>
+            <div style={{ flex: 1 }}>
+              {globalConfig?.features?.intentionsEnabled === true && (isEditorBlank || intention) && (
+                <IntentionInput value={intention} onChange={handleIntentionChange} />
+              )}
             </div>
           </div>
-        </div>
-      )}
-      {explorations.length > 0 && (
-        <ExplorationCard
-          explorations={explorations}
-          onSelect={handleSelectExploration}
-          onDismiss={handleDismissExplorations}
-        />
-      )}
-      <div className="toolbar-row" style={{
-        position: 'relative',
-        zIndex: 2,
-        maxWidth: 680,
-        margin: '0 auto',
-        padding: '0 40px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        minHeight: 28,
-      }}>
-        <div style={{ flex: 1 }}>
-          {globalConfig?.features?.intentionsEnabled === true && (isEditorBlank || intention) && (
-            <IntentionInput value={intention} onChange={handleIntentionChange} />
+          <button
+            className="session-close-trigger"
+            onClick={handleSessionClose}
+          >
+            {tr['session.end']}
+          </button>
+          <Suspense fallback={<EditorSkeleton />}>
+            <LivingEditor
+              key={activeEntryId}
+              entryId={activeEntryId}
+              initialContent={initialContent}
+              onContentChange={handleContentChange}
+              onEmotionChange={handleEmotionChange}
+              onActivePartColorChange={handleActivePartColorChange}
+              settings={settings}
+              intention={intention}
+              onFirstKeystroke={() => {
+                if (firstKeystrokeTrackedRef.current) return
+                firstKeystrokeTrackedRef.current = true
+                trackEvent('first_keystroke', {
+                  seconds_to_first_keystroke: Math.round((Date.now() - readyAtRef.current) / 1000),
+                })
+              }}
+            />
+          </Suspense>
+          {/* Session closing overlay */}
+          {(closingLoading || closingPhrase) && (
+            <SessionClosing
+              phrase={closingPhrase}
+              loading={closingLoading}
+              onClose={handleDismissClosing}
+            />
           )}
-        </div>
-      </div>
-      <button
-        className="session-close-trigger"
-        onClick={handleSessionClose}
-      >
-        {tr['session.end']}
-      </button>
-      <Suspense fallback={<EditorSkeleton />}>
-        <LivingEditor
-          key={activeEntryId}
-          entryId={activeEntryId}
-          initialContent={initialContent}
-          onContentChange={handleContentChange}
-          onEmotionChange={handleEmotionChange}
-          onActivePartColorChange={handleActivePartColorChange}
-          settings={settings}
-          intention={intention}
-          onFirstKeystroke={() => {
-            if (firstKeystrokeTrackedRef.current) return
-            firstKeystrokeTrackedRef.current = true
-            trackEvent('first_keystroke', {
-              seconds_to_first_keystroke: Math.round((Date.now() - readyAtRef.current) / 1000),
-            })
-          }}
-        />
-      </Suspense>
-      {/* Session closing overlay */}
-      {(closingLoading || closingPhrase) && (
-        <SessionClosing
-          phrase={closingPhrase}
-          loading={closingLoading}
-          onClose={handleDismissClosing}
-        />
+        </>
       )}
     </>
   )
