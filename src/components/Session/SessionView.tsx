@@ -43,6 +43,36 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
   } | null>(null)
   const handleSendRef = useRef<() => void>(() => {})
 
+  // Typewriter effect: buffer incoming tokens, reveal character by character
+  const streamBufferRef = useRef('')
+  const displayedLengthRef = useRef(0)
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const onStreamCompleteRef = useRef<((fullText: string) => void) | null>(null)
+
+  const revealNextChar = useCallback(() => {
+    if (displayedLengthRef.current < streamBufferRef.current.length) {
+      // Reveal 1-3 characters at a time for natural rhythm
+      const remaining = streamBufferRef.current.length - displayedLengthRef.current
+      const burst = remaining > 20 ? 3 : remaining > 5 ? 2 : 1
+      displayedLengthRef.current = Math.min(
+        displayedLengthRef.current + burst,
+        streamBufferRef.current.length,
+      )
+      setStreamingContent(streamBufferRef.current.slice(0, displayedLengthRef.current))
+      // Vary timing: 25-55ms per tick for natural feel
+      const delay = 25 + Math.random() * 30
+      typingTimerRef.current = setTimeout(revealNextChar, delay)
+    } else if (onStreamCompleteRef.current) {
+      // Buffer fully drained and stream is done — finalize
+      const cb = onStreamCompleteRef.current
+      onStreamCompleteRef.current = null
+      cb(streamBufferRef.current)
+    } else {
+      // Waiting for more tokens
+      typingTimerRef.current = null
+    }
+  }, [])
+
   // Keep refs in sync
   useEffect(() => { sessionRef.current = session }, [session])
   useEffect(() => { messagesRef.current = messages }, [messages])
@@ -81,7 +111,14 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
     }
 
     init()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      // Clean up typing timer on unmount
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current)
+        typingTimerRef.current = null
+      }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
@@ -187,69 +224,93 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
       isClosing: phase === 'closing',
     })
 
-    let streamedText = ''
+    // Reset typewriter buffer
+    streamBufferRef.current = ''
+    displayedLengthRef.current = 0
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current)
+      typingTimerRef.current = null
+    }
+    onStreamCompleteRef.current = null
+
+    // Finalize message once typewriter buffer is fully drained
+    const finalizeMessage = async (fullText: string) => {
+      const msgId = generateId()
+      const newMessage: SessionMessage = {
+        id: msgId,
+        speaker: 'part',
+        partId: part.id,
+        partName: displayName,
+        content: fullText.trim(),
+        timestamp: Date.now(),
+        phase,
+        isEmergence,
+        ...(isEmergence ? { emergenceReason: 'emotional_gravity' as const } : {}),
+      }
+
+      await sessionMessagesDb.add(currentSession.id, newMessage)
+
+      const updatedParticipants = isEmergence
+        ? [...new Set([...currentSession.participantPartIds, part.id])]
+        : currentSession.participantPartIds
+
+      const updatedMessages = [...currentMessages, newMessage]
+      const newMessageCount = updatedMessages.length
+      const firstLine = currentSession.firstLine || fullText.trim().slice(0, 100)
+
+      await db.sessions.update(currentSession.id, {
+        participantPartIds: updatedParticipants,
+        messageCount: newMessageCount,
+        firstLine,
+        phase,
+      })
+
+      setSession(prev => prev ? {
+        ...prev,
+        participantPartIds: updatedParticipants,
+        messageCount: newMessageCount,
+        firstLine,
+        phase,
+      } : prev)
+      setMessages(updatedMessages)
+      setIsStreaming(false)
+      setStreamingContent('')
+      setStreamingPartName(null)
+
+      if (isEmergence) {
+        trackEvent('part_emerged', {
+          part_id: part.id,
+          session_id: currentSession.id,
+          reason: 'emotional_gravity',
+        })
+      }
+    }
 
     await streamChatCompletion(
       promptMessages,
       {
         onToken: (token) => {
-          streamedText += token
-          setStreamingContent(streamedText)
-        },
-        onComplete: async (fullText) => {
-          const msgId = generateId()
-          const newMessage: SessionMessage = {
-            id: msgId,
-            speaker: 'part',
-            partId: part.id,
-            partName: displayName,
-            content: fullText.trim(),
-            timestamp: Date.now(),
-            phase,
-            isEmergence,
-            ...(isEmergence ? { emergenceReason: 'emotional_gravity' as const } : {}),
+          streamBufferRef.current += token
+          // Kick off typing if not already running
+          if (!typingTimerRef.current) {
+            revealNextChar()
           }
-
-          await sessionMessagesDb.add(currentSession.id, newMessage)
-
-          // Update participant list if emergence
-          const updatedParticipants = isEmergence
-            ? [...new Set([...currentSession.participantPartIds, part.id])]
-            : currentSession.participantPartIds
-
-          const updatedMessages = [...currentMessages, newMessage]
-          const newMessageCount = updatedMessages.length
-          const firstLine = currentSession.firstLine || fullText.trim().slice(0, 100)
-
-          await db.sessions.update(currentSession.id, {
-            participantPartIds: updatedParticipants,
-            messageCount: newMessageCount,
-            firstLine,
-            phase,
-          })
-
-          setSession(prev => prev ? {
-            ...prev,
-            participantPartIds: updatedParticipants,
-            messageCount: newMessageCount,
-            firstLine,
-            phase,
-          } : prev)
-          setMessages(updatedMessages)
-          setIsStreaming(false)
-          setStreamingContent('')
-          setStreamingPartName(null)
-
-          if (isEmergence) {
-            trackEvent('part_emerged', {
-              part_id: part.id,
-              session_id: currentSession.id,
-              reason: 'emotional_gravity',
-            })
+        },
+        onComplete: (fullText) => {
+          // Don't finalize yet — let the typewriter drain the buffer first
+          onStreamCompleteRef.current = finalizeMessage
+          // If typing already stopped (buffer was caught up), restart to drain
+          if (!typingTimerRef.current) {
+            revealNextChar()
           }
         },
         onError: (error) => {
           console.error('Session stream error:', error)
+          if (typingTimerRef.current) {
+            clearTimeout(typingTimerRef.current)
+            typingTimerRef.current = null
+          }
+          onStreamCompleteRef.current = null
           setIsStreaming(false)
           setStreamingContent('')
           setStreamingPartName(null)
