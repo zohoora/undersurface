@@ -25,7 +25,7 @@ const mockPart: Part = {
 describe('SESSION_INSTRUCTIONS', () => {
   it('contains key session-mode directives', () => {
     expect(SESSION_INSTRUCTIONS).toContain('sustained conversation')
-    expect(SESSION_INSTRUCTIONS).toContain('1-4 sentences')
+    expect(SESSION_INSTRUCTIONS).toContain('1-3 sentences')
     expect(SESSION_INSTRUCTIONS).toContain('not a therapist')
     expect(SESSION_INSTRUCTIONS).not.toContain('5-25 words')
   })
