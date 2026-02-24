@@ -547,9 +547,10 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
             Session Note
           </div>
           <div style={{
-            fontFamily: "'Spectral', serif",
-            fontSize: 15,
-            lineHeight: 1.7,
+            fontFamily: "'Spectral', Georgia, 'Times New Roman', serif",
+            fontSize: 17,
+            fontWeight: 400,
+            lineHeight: 1.85,
             color: 'var(--text-primary)',
             fontStyle: 'italic',
           }}>
@@ -567,9 +568,10 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
       {isStreaming && streamingContent && (
         <div style={{ marginBottom: 20, opacity: 0.88 }}>
           <div style={{
-            fontFamily: "'Spectral', serif",
-            fontSize: 16,
-            lineHeight: 1.7,
+            fontFamily: "'Spectral', Georgia, 'Times New Roman', serif",
+            fontSize: 19,
+            fontWeight: 400,
+            lineHeight: 1.85,
             color: 'var(--text-secondary)',
             fontStyle: 'italic',
           }}>
@@ -577,7 +579,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
             <span style={{
               display: 'inline-block',
               width: 2,
-              height: 16,
+              height: 19,
               background: 'var(--text-secondary)',
               marginLeft: 2,
               opacity: 0.5,
@@ -594,9 +596,10 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
           opacity: 0.5,
         }}>
           <div style={{
-            fontFamily: "'Spectral', serif",
-            fontSize: 16,
-            lineHeight: 1.7,
+            fontFamily: "'Spectral', Georgia, 'Times New Roman', serif",
+            fontSize: 19,
+            fontWeight: 400,
+            lineHeight: 1.85,
             color: 'var(--text-secondary)',
             fontStyle: 'italic',
           }}>

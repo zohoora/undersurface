@@ -30,9 +30,10 @@ export function SessionMessageBubble({ message }: Props) {
           </div>
         )}
         <div style={{
-          fontFamily: "'Spectral', serif",
-          fontSize: isUser ? 17 : 16,
-          lineHeight: 1.7,
+          fontFamily: "'Spectral', Georgia, 'Times New Roman', serif",
+          fontSize: 19,
+          fontWeight: 400,
+          lineHeight: 1.85,
           color: isUser ? 'var(--text-primary)' : 'var(--text-secondary)',
           fontStyle: isUser ? 'normal' : 'italic',
         }}>
