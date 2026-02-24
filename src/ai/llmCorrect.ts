@@ -2,7 +2,7 @@ import { getAuth } from 'firebase/auth'
 
 // Hardcoded model for autocorrect — cheap, fast, good at following instructions.
 // NOT getModel() — autocorrect always uses a small model regardless of user settings.
-const AUTOCORRECT_MODEL = 'google/gemini-2.0-flash-lite-001'
+const AUTOCORRECT_MODEL = 'qwen/qwen-2.5-7b-instruct'
 
 const SYSTEM_PROMPT = `Fix ONLY spelling errors, capitalization, and missing apostrophes in contractions.
 Return ONLY the corrected text. If no corrections needed, return the input exactly.
