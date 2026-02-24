@@ -96,11 +96,12 @@ export interface Session {
   firstLine: string
   phase: SessionPhase
   favorited?: boolean
+  isTherapistSession?: boolean
 }
 
 export interface SessionMessage {
   id: string
-  speaker: 'user' | 'part'
+  speaker: 'user' | 'part' | 'therapist'
   partId: string | null
   partName: string | null
   content: string

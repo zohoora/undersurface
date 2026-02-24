@@ -3,38 +3,41 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { InkWeight } from '../../extensions/inkWeight'
 import { spellEngine } from '../../engine/spellEngine'
-import { getLanguageCode, getPartDisplayName } from '../../i18n'
+import { getLanguageCode } from '../../i18n'
 import { useSettings } from '../../store/settings'
 import { getGlobalConfig } from '../../store/globalConfig'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../../store/db'
 import { SessionOrchestrator } from '../../engine/sessionOrchestrator'
-import { buildSessionMessages } from '../../ai/sessionPrompts'
+import { buildTherapistMessages } from '../../ai/therapistPrompts'
 import { streamChatCompletion } from '../../ai/openrouter'
+import { loadTherapistContext } from '../../engine/sessionContextLoader'
+import type { TherapistContext } from '../../engine/sessionContextLoader'
+import { reflectOnSession } from '../../engine/sessionReflectionEngine'
+import { WeatherEngine } from '../../engine/weatherEngine'
+import { isGroundingActive } from '../../hooks/useGroundingMode'
 import { trackEvent } from '../../services/analytics'
 import { SessionMessageBubble } from './SessionMessage'
-import type { Session, SessionMessage, Part, PartMemory } from '../../types'
+import type { Session, SessionMessage, Part, EmotionalTone } from '../../types'
 
 interface Props {
   sessionId: string | null
-  openingMethod: 'auto' | 'user_chose' | 'open_invitation'
-  chosenPartId?: string
+  openingMethod: 'auto' | 'open_invitation'
   onSessionCreated?: (id: string) => void
 }
 
-export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionCreated }: Props) {
+export function SessionView({ sessionId, openingMethod, onSessionCreated }: Props) {
   const [session, setSession] = useState<Session | null>(null)
   const [messages, setMessages] = useState<SessionMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
-  const [streamingPartName, setStreamingPartName] = useState<string | null>(null)
-  const [parts, setParts] = useState<Part[]>([])
   const settings = useSettings()
 
   const orchestratorRef = useRef(new SessionOrchestrator())
+  const therapistContextRef = useRef<TherapistContext | null>(null)
+  const weatherEngineRef = useRef(new WeatherEngine())
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const sessionRef = useRef<Session | null>(null)
   const messagesRef = useRef<SessionMessage[]>([])
-  const partsRef = useRef<Part[]>([])
   const lastAutocorrectRef = useRef<{
     original: string
     correction: string
@@ -51,7 +54,6 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
 
   const revealNextChar = useCallback(() => {
     if (displayedLengthRef.current < streamBufferRef.current.length) {
-      // Reveal 1-3 characters at a time for natural rhythm
       const remaining = streamBufferRef.current.length - displayedLengthRef.current
       const burst = remaining > 20 ? 3 : remaining > 5 ? 2 : 1
       displayedLengthRef.current = Math.min(
@@ -59,16 +61,13 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
         streamBufferRef.current.length,
       )
       setStreamingContent(streamBufferRef.current.slice(0, displayedLengthRef.current))
-      // Vary timing: 25-55ms per tick for natural feel
       const delay = 25 + Math.random() * 30
       typingTimerRef.current = setTimeout(revealNextChar, delay)
     } else if (onStreamCompleteRef.current) {
-      // Buffer fully drained and stream is done — finalize
       const cb = onStreamCompleteRef.current
       onStreamCompleteRef.current = null
       cb(streamBufferRef.current)
     } else {
-      // Waiting for more tokens
       typingTimerRef.current = null
     }
   }, [])
@@ -76,22 +75,21 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
   // Keep refs in sync
   useEffect(() => { sessionRef.current = session }, [session])
   useEffect(() => { messagesRef.current = messages }, [messages])
-  useEffect(() => { partsRef.current = parts }, [parts])
 
   // Auto-scroll on new messages or streaming content
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamingContent])
 
-  // Load parts and initialize session
+  // Initialize session
   useEffect(() => {
     let cancelled = false
 
     async function init() {
-      const allParts = await db.parts.toArray() as unknown as Part[]
+      // Load therapist context (cross-session memory)
+      const context = await loadTherapistContext()
       if (cancelled) return
-      setParts(allParts)
-      partsRef.current = allParts
+      therapistContextRef.current = context
 
       if (sessionId) {
         // Load existing session
@@ -105,15 +103,13 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
         setMessages(existingMessages)
         messagesRef.current = existingMessages
       } else {
-        // Start new session
-        await startNewSession(allParts)
+        await startNewSession()
       }
     }
 
     init()
     return () => {
       cancelled = true
-      // Clean up typing timer on unmount
       if (typingTimerRef.current) {
         clearTimeout(typingTimerRef.current)
         typingTimerRef.current = null
@@ -122,33 +118,23 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
-  const startNewSession = useCallback(async (availableParts: Part[]) => {
-    if (availableParts.length === 0) return
-
+  const startNewSession = useCallback(async () => {
     const id = generateId()
-
-    // Select host part
-    let hostPart: Part
-    if (openingMethod === 'user_chose' && chosenPartId) {
-      hostPart = availableParts.find(p => p.id === chosenPartId) ?? availableParts[0]
-    } else {
-      hostPart = availableParts[Math.floor(Math.random() * availableParts.length)]
-    }
 
     const newSession: Session = {
       id,
       startedAt: Date.now(),
       endedAt: null,
       status: 'active',
-      hostPartId: hostPart.id,
-      participantPartIds: [hostPart.id],
+      hostPartId: 'therapist',
+      participantPartIds: [],
       openingMethod,
-      ...(chosenPartId ? { chosenPartId } : {}),
       sessionNote: null,
       messageCount: 0,
       firstLine: '',
       phase: 'opening',
       favorited: false,
+      isTherapistSession: true,
     }
 
     await db.sessions.add(newSession)
@@ -158,70 +144,35 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
 
     trackEvent('session_started', {
       opening_method: openingMethod,
-      host_part: hostPart.id,
+      host_part: 'therapist',
     })
 
     // Generate opening message unless open invitation (user speaks first)
     if (openingMethod !== 'open_invitation') {
-      await generatePartMessage(hostPart, [], newSession)
+      await generateTherapistMessage([], newSession)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openingMethod, chosenPartId, onSessionCreated])
+  }, [openingMethod, onSessionCreated])
 
-  const generatePartMessage = useCallback(async (
-    part: Part,
+  // Returns the updated messages array after the therapist message is finalized
+  const generateTherapistMessage = useCallback(async (
     currentMessages: SessionMessage[],
     currentSession: Session,
-  ) => {
-    const displayName = getPartDisplayName({ id: part.id, name: part.name, isSeeded: part.isSeeded })
+  ): Promise<SessionMessage[]> => {
     setIsStreaming(true)
     setStreamingContent('')
-    setStreamingPartName(displayName)
 
     const orchestrator = orchestratorRef.current
     const phase = orchestrator.detectPhase(currentMessages)
     const maxTokens = orchestrator.getMaxTokens(phase)
 
-    // Check if this is an emergence (new part entering)
-    const previousSpeakers = new Set(
-      currentMessages
-        .filter(m => m.speaker === 'part' && m.partId)
-        .map(m => m.partId),
-    )
-    const isEmergence = !previousSpeakers.has(part.id) && previousSpeakers.size > 0
-
-    // Load memories for this part
-    const allMemories = await db.memories.where('partId').equals(part.id).toArray() as unknown as PartMemory[]
-    const partMemories = allMemories.slice(-8)
-
-    // Load user profile
-    const profiles = await db.userProfile.toArray()
-    const profile = profiles.length > 0 ? profiles[0] : null
-
-    // Build other parts list
-    const otherPartNames = currentMessages
-      .filter(m => m.speaker === 'part' && m.partId && m.partId !== part.id)
-      .reduce<string[]>((acc, m) => {
-        if (m.partName && !acc.includes(m.partName)) acc.push(m.partName)
-        return acc
-      }, [])
-
-    // Build emergence context
-    let emergenceContext: string | undefined
-    if (isEmergence) {
-      const lastUserMsg = [...currentMessages].reverse().find(m => m.speaker === 'user')
-      if (lastUserMsg) {
-        emergenceContext = `The writer said: "${lastUserMsg.content.slice(0, 200)}"`
-      }
-    }
-
-    const promptMessages = buildSessionMessages(part, currentMessages, {
+    const context = therapistContextRef.current
+    const promptMessages = buildTherapistMessages(currentMessages, {
       phase,
-      memories: partMemories,
-      profile: profile as Parameters<typeof buildSessionMessages>[2]['profile'],
-      otherParts: otherPartNames,
-      emergenceContext,
-      isClosing: phase === 'closing',
+      recentSessionNotes: context?.recentSessionNotes,
+      relevantMemories: context?.relevantMemories,
+      profile: context?.userProfile,
+      isGrounding: isGroundingActive(),
     })
 
     // Reset typewriter buffer
@@ -233,33 +184,32 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
     }
     onStreamCompleteRef.current = null
 
-    // Finalize message once typewriter buffer is fully drained
+    // Promise that resolves to the final messages array once typewriter finishes
+    let resolveMessages: (messages: SessionMessage[]) => void
+    const messagesPromise = new Promise<SessionMessage[]>(resolve => {
+      resolveMessages = resolve
+    })
+
     const finalizeMessage = async (fullText: string) => {
       const msgId = generateId()
       const newMessage: SessionMessage = {
         id: msgId,
-        speaker: 'part',
-        partId: part.id,
-        partName: displayName,
+        speaker: 'therapist',
+        partId: null,
+        partName: null,
         content: fullText.trim(),
         timestamp: Date.now(),
         phase,
-        isEmergence,
-        ...(isEmergence ? { emergenceReason: 'emotional_gravity' as const } : {}),
+        isEmergence: false,
       }
 
       await sessionMessagesDb.add(currentSession.id, newMessage)
-
-      const updatedParticipants = isEmergence
-        ? [...new Set([...currentSession.participantPartIds, part.id])]
-        : currentSession.participantPartIds
 
       const updatedMessages = [...currentMessages, newMessage]
       const newMessageCount = updatedMessages.length
       const firstLine = currentSession.firstLine || fullText.trim().slice(0, 100)
 
       await db.sessions.update(currentSession.id, {
-        participantPartIds: updatedParticipants,
         messageCount: newMessageCount,
         firstLine,
         phase,
@@ -267,23 +217,15 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
 
       setSession(prev => prev ? {
         ...prev,
-        participantPartIds: updatedParticipants,
         messageCount: newMessageCount,
         firstLine,
         phase,
       } : prev)
       setMessages(updatedMessages)
+      messagesRef.current = updatedMessages
       setIsStreaming(false)
       setStreamingContent('')
-      setStreamingPartName(null)
-
-      if (isEmergence) {
-        trackEvent('part_emerged', {
-          part_id: part.id,
-          session_id: currentSession.id,
-          reason: 'emotional_gravity',
-        })
-      }
+      resolveMessages(updatedMessages)
     }
 
     await streamChatCompletion(
@@ -291,15 +233,12 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
       {
         onToken: (token) => {
           streamBufferRef.current += token
-          // Kick off typing if not already running
           if (!typingTimerRef.current) {
             revealNextChar()
           }
         },
-        onComplete: (fullText) => {
-          // Don't finalize yet — let the typewriter drain the buffer first
+        onComplete: () => {
           onStreamCompleteRef.current = finalizeMessage
-          // If typing already stopped (buffer was caught up), restart to drain
           if (!typingTimerRef.current) {
             revealNextChar()
           }
@@ -313,12 +252,14 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
           onStreamCompleteRef.current = null
           setIsStreaming(false)
           setStreamingContent('')
-          setStreamingPartName(null)
+          resolveMessages(currentMessages)
         },
       },
       maxTokens,
     )
-  }, [])
+
+    return messagesPromise
+  }, [revealNextChar])
 
   const handleSend = useCallback(async (editorInstance?: ReturnType<typeof useEditor>) => {
     const ed = editorInstance
@@ -327,11 +268,6 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
 
     const currentSession = sessionRef.current
     const currentMessages = messagesRef.current
-    const currentParts = partsRef.current
-
-    // Don't clear editor here — it causes a flash because clearContent is
-    // a synchronous DOM mutation while setMessages is batched by React.
-    // The editor is cleared by an effect when isStreaming becomes true.
 
     // Create user message
     const msgId = generateId()
@@ -360,45 +296,40 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
     setSession(prev => prev ? { ...prev, messageCount: updatedMessages.length, firstLine } : prev)
     setMessages(updatedMessages)
 
-    // Select speaker and generate response
-    const orchestrator = orchestratorRef.current
-    const speaker = orchestrator.selectSpeaker(
-      currentParts,
-      updatedMessages,
-      currentSession.hostPartId,
-      trimmed,
-    )
+    // Synchronous crisis keyword check — runs BEFORE therapist responds
+    // Activates grounding mode so isGrounding=true is passed to the prompt
+    orchestratorRef.current.checkCrisisKeywords(trimmed)
 
-    await generatePartMessage(speaker, updatedMessages, {
+    // Non-blocking: LLM-based emotion check and weather update
+    orchestratorRef.current.checkEmotionAfterMessage(trimmed)
+      .then(result => {
+        if (result) {
+          weatherEngineRef.current.recordEmotion(result.emotion as EmotionalTone)
+          if (weatherEngineRef.current.shouldPersist()) {
+            weatherEngineRef.current.persist().catch(console.error)
+          }
+        }
+      })
+      .catch(console.error)
+
+    await generateTherapistMessage(updatedMessages, {
       ...currentSession,
       messageCount: updatedMessages.length,
       firstLine,
     })
-  }, [isStreaming, generatePartMessage])
+  }, [isStreaming, generateTherapistMessage])
 
   const handleEndSession = useCallback(async () => {
     const currentSession = sessionRef.current
     const currentMessages = messagesRef.current
-    const currentParts = partsRef.current
     if (!currentSession || currentSession.status === 'closed' || isStreaming) return
 
-    // Generate closing reflection from host part
-    const hostPart = currentParts.find(p => p.id === currentSession.hostPartId)
-    if (hostPart) {
-      await generatePartMessage(hostPart, currentMessages, currentSession)
-    }
-
-    // Re-read messages after closing reflection
-    const finalMessages = messagesRef.current
+    // Generate closing therapist message — returns updated messages array
+    const finalMessages = await generateTherapistMessage(currentMessages, currentSession)
 
     // Generate session note
     const orchestrator = orchestratorRef.current
-    const partNames = [...new Set(
-      finalMessages
-        .filter(m => m.speaker === 'part' && m.partName)
-        .map(m => m.partName as string),
-    )]
-    const sessionNote = await orchestrator.generateSessionNote(finalMessages, partNames)
+    const sessionNote = await orchestrator.generateSessionNote(finalMessages)
     trackEvent('session_note_generated', { session_id: currentSession.id })
 
     // Update session as closed
@@ -418,36 +349,20 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
       phase: 'closing',
     } : prev)
 
-    // Create reflection memories for each participating part
-    for (const partId of currentSession.participantPartIds) {
-      const part = currentParts.find(p => p.id === partId)
-      if (!part) continue
+    // Non-blocking: run full reflection pipeline
+    db.parts.toArray()
+      .then(parts => reflectOnSession(currentSession.id, finalMessages, parts as Part[]))
+      .catch(error => console.error('Session reflection error:', error))
 
-      const partMsgs = finalMessages.filter(m => m.speaker === 'user').slice(-3)
-      const userSummary = partMsgs.map(m => m.content).join(' ').slice(0, 300)
-
-      if (userSummary) {
-        const memory: PartMemory = {
-          id: generateId(),
-          partId: part.id,
-          entryId: currentSession.id,
-          content: `Session reflection: The writer shared about ${userSummary.slice(0, 150)}...`,
-          type: 'reflection',
-          timestamp: Date.now(),
-          source: 'session',
-          sessionId: currentSession.id,
-        }
-        await db.memories.add(memory)
-      }
-    }
+    // Persist weather
+    weatherEngineRef.current.persist().catch(console.error)
 
     trackEvent('session_closed', {
       session_id: currentSession.id,
       message_count: finalMessages.length,
-      participant_count: currentSession.participantPartIds.length,
       duration_ms: endedAt - currentSession.startedAt,
     })
-  }, [isStreaming, generatePartMessage])
+  }, [isStreaming, generateTherapistMessage])
 
   const inputEditor = useEditor({
     extensions: [
@@ -470,7 +385,6 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
         spellcheck: 'false',
       },
       handleKeyDown: (_view, event) => {
-        // Enter sends message (Shift+Enter for newline)
         if (event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault()
           handleSendRef.current()
@@ -573,7 +487,7 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
     },
   })
 
-  // Keep handleSendRef in sync so editor's handleKeyDown can call latest version
+  // Keep handleSendRef in sync
   useEffect(() => { handleSendRef.current = () => handleSend(inputEditor) }, [handleSend, inputEditor])
 
   // Sync InkWeight disabled state
@@ -583,7 +497,7 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
     inputEditor.storage.inkWeight.disabled = !(vfx && getGlobalConfig()?.features?.inkWeight !== false)
   }, [inputEditor])
 
-  // Clear editor content when streaming starts (editor is hidden, so no flash)
+  // Clear editor content when streaming starts
   useEffect(() => {
     if (isStreaming && inputEditor) {
       inputEditor.commands.clearContent()
@@ -652,18 +566,6 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
       {/* Streaming message */}
       {isStreaming && streamingContent && (
         <div style={{ marginBottom: 20, opacity: 0.88 }}>
-          {streamingPartName && (
-            <div style={{
-              fontSize: 11,
-              fontFamily: "'Inter', sans-serif",
-              fontWeight: 500,
-              color: 'var(--text-secondary)',
-              marginBottom: 4,
-              letterSpacing: '0.02em',
-            }}>
-              {streamingPartName}
-            </div>
-          )}
           <div style={{
             fontFamily: "'Spectral', serif",
             fontSize: 16,
@@ -691,18 +593,6 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
           marginBottom: 20,
           opacity: 0.5,
         }}>
-          {streamingPartName && (
-            <div style={{
-              fontSize: 11,
-              fontFamily: "'Inter', sans-serif",
-              fontWeight: 500,
-              color: 'var(--text-secondary)',
-              marginBottom: 4,
-              letterSpacing: '0.02em',
-            }}>
-              {streamingPartName}
-            </div>
-          )}
           <div style={{
             fontFamily: "'Spectral', serif",
             fontSize: 16,
@@ -715,7 +605,7 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
         </div>
       )}
 
-      {/* Inline input — flows in the document like co-editing */}
+      {/* Inline input */}
       {!isClosed && !isStreaming && (
         <div style={{ marginBottom: 20 }}>
           <EditorContent editor={inputEditor} />
@@ -724,7 +614,7 @@ export function SessionView({ sessionId, openingMethod, chosenPartId, onSessionC
 
       <div ref={messagesEndRef} />
 
-      {/* End session — subtle, inline at the bottom */}
+      {/* End session */}
       {!isClosed && (
         <div style={{
           paddingTop: 40,
