@@ -5,7 +5,7 @@
 | File | Purpose |
 |------|---------|
 | `src/ai/openrouter.ts` | Client-side API calls to `/api/chat`; `analyzeEmotionAndDistress()` for combined emotion + distress check |
-| `src/ai/partPrompts.ts` | System prompts for 7 seeded parts + `SHARED_INSTRUCTIONS` + emergence, reflection, growth, grounding, intention prompts + `languageDirective()` |
+| `src/ai/partPrompts.ts` | System prompts for 7 seeded parts + `SHARED_INSTRUCTIONS` + emergence, reflection, growth, grounding, intention prompts + `languageDirective()` for multilingual AI response directives |
 | `src/ai/sessionPrompts.ts` | Session mode prompts for parts — `SESSION_INSTRUCTIONS`, `buildSessionMessages()`, `buildSessionNotePrompt()` |
 | `src/ai/therapistPrompts.ts` | Therapist companion prompts — `THERAPIST_CORE`, `buildTherapistMessages()`, `buildTherapistSessionNotePrompt()`, `buildSessionReflectionPrompt()` |
 | `src/engine/partOrchestrator.ts` | Selects which part responds (role-based scoring); distress detection; intention passing; pre-warms DB caches in `loadParts()` |
@@ -13,7 +13,7 @@
 | `src/engine/emergenceEngine.ts` | Detects new parts emerging from writing |
 | `src/engine/reflectionEngine.ts` | Entry reflection — creates memories, summaries, profile updates on entry switch |
 | `src/engine/partGrowthEngine.ts` | Part evolution — updates prompts, keywords, emotions every 5 entries |
-| `src/ai/llmCorrect.ts` | LLM-based autocorrect — sentence-level spelling/capitalization correction via small model. All languages |
+| `src/ai/llmCorrect.ts` | LLM-based autocorrect — sentence-level spelling/capitalization correction via small model. All languages with sentence-ending punctuation. Exports `shouldTriggerAutocorrect()`, `isCJK()`, `SENTENCE_END_PUNCT`, `CJK_SENTENCE_END` |
 | `src/engine/sessionOrchestrator.ts` | Session phase detection, crisis keyword detection (20 regex patterns, no cooldown), emotion check with grounding activation |
 | `src/engine/sessionReflectionEngine.ts` | Post-session reflection — extracts memories, profile updates, somatic signals from session transcripts |
 | `src/engine/sessionContextLoader.ts` | Loads session context (memories, profile, recent notes) for therapist prompts |
@@ -53,9 +53,9 @@
 
 | File | Purpose |
 |------|---------|
-| `src/i18n/index.ts` | `t()` for non-React, `useTranslation()` hook, `getLanguageCode()`, `getLLMLanguageName()`, `getPartDisplayName()`, `languageDirective()` |
+| `src/i18n/index.ts` | `t()` for non-React, `useTranslation()` hook, `getLanguageCode()`, `getLLMLanguageName()`, `getPartDisplayName()` |
 | `src/i18n/languages.ts` | 17 supported languages + `detectBrowserLanguage()` |
-| `src/i18n/translations/en.ts` | English translations (~193 keys) — source of truth for `TranslationKey` type |
+| `src/i18n/translations/en.ts` | English translations (~199 keys) — source of truth for `TranslationKey` type |
 | `src/i18n/translations/*.ts` | 16 non-English files (lazy-loaded, ~4-5KB each) |
 
 ## Auth & Services

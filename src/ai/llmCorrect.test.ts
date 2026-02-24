@@ -2,15 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { extractCompletedSentence, correctSentence, _resetThrottle, isCJK, shouldTriggerAutocorrect } from './llmCorrect'
 
 // Mock firebase/auth
+const mockGetAuth = vi.fn(() => ({
+  currentUser: { getIdToken: () => Promise.resolve('mock-token') },
+}))
 vi.mock('firebase/auth', () => ({
-  getAuth: () => ({
-    currentUser: { getIdToken: () => Promise.resolve('mock-token') },
-  }),
+  getAuth: () => mockGetAuth(),
 }))
 
 // Mock i18n
+const mockGetLLMLanguageName = vi.fn(() => 'English')
 vi.mock('../i18n', () => ({
-  getLLMLanguageName: () => 'English',
+  getLLMLanguageName: () => mockGetLLMLanguageName(),
 }))
 
 // Mock global fetch for correctSentence tests
@@ -176,6 +178,49 @@ describe('extractCompletedSentence', () => {
     const result = extractCompletedSentence('Zum Beispiel z.b. ')
     expect(result).toBeNull()
   })
+
+  it('returns null for empty string', () => {
+    const result = extractCompletedSentence('')
+    expect(result).toBeNull()
+  })
+
+  it('returns null for only whitespace', () => {
+    const result = extractCompletedSentence('   ')
+    expect(result).toBeNull()
+  })
+
+  it('extracts CJK sentence ending with fullwidth question mark ？', () => {
+    const result = extractCompletedSentence('你今天去了超市吗？继续写')
+    expect(result).toEqual({
+      sentence: '你今天去了超市吗？',
+      start: 0,
+      end: 9,
+    })
+  })
+
+  it('extracts last of multiple Hindi sentences', () => {
+    const result = extractCompletedSentence('पहला वाक्य समाप्त हुआ। दूसरा वाक्य भी समाप्त हुआ। ')
+    expect(result).not.toBeNull()
+    expect(result!.sentence).toBe('दूसरा वाक्य भी समाप्त हुआ।')
+  })
+
+  it('handles abbreviation mid-sentence followed by valid sentence end', () => {
+    // "Dr. " creates a false sentence boundary, so the function sees "Smith yesterday."
+    // as the last sentence (starting after "Dr. "), which has only 2 words and is skipped.
+    // The full sentence "I visited Dr. Smith yesterday." is not extractable because
+    // the abbreviation check only catches sentences that END with an abbreviation.
+    const result = extractCompletedSentence('I visited Dr. Smith yesterday. ')
+    expect(result).toBeNull()
+  })
+
+  it('extracts Korean sentence with Latin period', () => {
+    const result = extractCompletedSentence('오늘 날씨가 정말 좋았습니다. ')
+    expect(result).toEqual({
+      sentence: '오늘 날씨가 정말 좋았습니다.',
+      start: 0,
+      end: 16,
+    })
+  })
 })
 
 describe('isCJK', () => {
@@ -197,6 +242,19 @@ describe('isCJK', () => {
 
   it('returns false for Hindi text', () => {
     expect(isCJK('नमस्ते')).toBe(false)
+  })
+
+  it('returns false for Korean hangul (not in current CJK regex range)', () => {
+    // Korean hangul \uAC00-\uD7AF is NOT included in the isCJK regex
+    expect(isCJK('안녕하세요')).toBe(false)
+  })
+
+  it('returns true for mixed CJK and Latin text', () => {
+    expect(isCJK('Hello 世界')).toBe(true)
+  })
+
+  it('returns false for empty string', () => {
+    expect(isCJK('')).toBe(false)
   })
 })
 
@@ -228,6 +286,22 @@ describe('shouldTriggerAutocorrect', () => {
   it('does not trigger on regular character after Latin period', () => {
     // Latin text uses space as trigger, not next char
     expect(shouldTriggerAutocorrect('N', 'Hello world.')).toBe(false)
+  })
+
+  it('triggers on space after !', () => {
+    expect(shouldTriggerAutocorrect(' ', 'What a great day!')).toBe(true)
+  })
+
+  it('triggers on space after ?', () => {
+    expect(shouldTriggerAutocorrect(' ', 'Did you go to the store?')).toBe(true)
+  })
+
+  it('returns false for empty textBefore', () => {
+    expect(shouldTriggerAutocorrect(' ', '')).toBe(false)
+  })
+
+  it('does not trigger on multi-character key like Enter', () => {
+    expect(shouldTriggerAutocorrect('Enter', 'Hello world.')).toBe(false)
   })
 })
 
@@ -318,5 +392,39 @@ describe('correctSentence', () => {
     mockApiResponse('我今天去了超市。')
     const result = await correctSentence('我今天去了趄市。')
     expect(result).toBe('我今天去了超市。')
+  })
+
+  it('returns null when a call is already in-flight (throttle)', async () => {
+    _resetThrottle()
+    mockApiResponse('I went to the store yesterday.')
+    // Start first call but don't await it yet
+    const first = correctSentence('I went to teh store yestreday.')
+    // Second immediate call should be throttled (inFlight is true)
+    const second = await correctSentence('Another sentense with erors.')
+    expect(second).toBeNull()
+    // First call still resolves normally
+    const firstResult = await first
+    expect(firstResult).toBe('I went to the store yesterday.')
+  })
+
+  it('returns null when no auth user', async () => {
+    _resetThrottle()
+    // Override getAuth to return null currentUser
+    mockGetAuth.mockReturnValueOnce({ currentUser: null as unknown as { getIdToken: () => Promise<string> } })
+    const result = await correctSentence('I went to teh store yestreday.')
+    expect(result).toBeNull()
+    // fetch should not have been called
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('appends language hint for non-English language', async () => {
+    _resetThrottle()
+    mockGetLLMLanguageName.mockReturnValueOnce('Spanish')
+    mockApiResponse('Fui a la tienda ayer.')
+    const result = await correctSentence('Fui a la tienda ayre.')
+    expect(result).toBe('Fui a la tienda ayer.')
+    // Verify the system prompt includes the language hint
+    const fetchBody = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(fetchBody.messages[0].content).toContain('The text is in Spanish.')
   })
 })

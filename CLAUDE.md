@@ -108,8 +108,8 @@ SPA in `App.tsx` using `pushState`-based client-side routing (no router library)
 
 ### Feature flags
 
-3 core flags (default enabled, `=== false`): `partsEnabled`, `visualEffectsEnabled`, `autocorrectEnabled`.
-28 experimental flags (default disabled, `=== true`) across 6 categories: Atmosphere, Part Intelligence, Memory/Engagement, Visual Effects, Text Interaction, Safety & Guidance.
+7 core flags (default enabled, `!== false`): `partsEnabled`, `visualEffectsEnabled`, `autocorrectEnabled`, `paragraphFade`, `inkWeight`, `colorBleed`, `breathingBackground`.
+24 experimental flags (default disabled, `=== true`) across 5 categories: Atmosphere, Part Intelligence, Memory/Engagement, Text Interaction, Safety & Guidance.
 
 Full list + settings cascade + tuning params: `.claude/docs/feature-flags.md`
 
@@ -131,7 +131,7 @@ Dark mode, adaptive parts, i18n (17 languages), emergency grounding, bundle spli
 
 ## Testing
 
-Vitest (~229 tests). Tests cover: `llmCorrect`, `ritualEngine`, `pauseDetector`, `partOrchestrator`, `weatherEngine`, `settings`, `sessionOrchestrator` (phase detection, crisis keywords, emotion check, grounding activation), `sessionPrompts`, `therapistPrompts`, `SessionView`.
+Vitest (~319 tests, 14 test files). Tests cover: `llmCorrect` (sentence extraction, CJK/Hindi/Thai, trigger logic, correction validation), `annotationParser` (parsing, ghost capitalization, delimiter), `bodyMapEngine` (emotion-to-color mapping, homunculus state computation), `ritualEngine`, `pauseDetector`, `partOrchestrator`, `weatherEngine`, `settings`, `sessionOrchestrator` (phase detection, crisis keywords, emotion check, grounding activation), `sessionReflectionEngine`, `sessionPrompts`, `therapistPrompts`, `SessionView`.
 
 ```bash
 npm run test             # Run all tests

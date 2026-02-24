@@ -2,13 +2,17 @@
 
 `appConfig/global` provides feature flags toggleable via admin Settings (real-time via `onSnapshot`).
 
-## Core flags — default **enabled**, checks use `=== false`
+## Core flags — default **enabled**, checks use `=== false` or `!== false`
 
 | Flag | Effect when off |
 |------|-----------------|
 | `features.partsEnabled` | No AI thoughts |
-| `features.visualEffectsEnabled` | Static background |
+| `features.visualEffectsEnabled` | Static background (master switch) |
 | `features.autocorrectEnabled` | Skip correction |
+| `features.paragraphFade` | No paragraph fade animation |
+| `features.inkWeight` | No text weight variation |
+| `features.colorBleed` | No part color tinting (also disabled in dark mode) |
+| `features.breathingBackground` | No breathing animation |
 
 ## Experimental flags — default **disabled**, checks use `=== true`
 
@@ -36,11 +40,6 @@
 | `features.lettersFromParts` | Periodic letters from parts |
 | `features.ritualsNotStreaks` | Ritual detection from writing habits |
 | `features.unfinishedThreads` | Resume unfinished themes across sessions |
-| **Visual Effects** | |
-| `features.paragraphFade` | Paragraph fade animation |
-| `features.inkWeight` | Text weight varies with intensity |
-| `features.colorBleed` | Recent text tinted with part color |
-| `features.breathingBackground` | Breathing background animation |
 | **Text Interaction** | |
 | `features.textHighlights` | User-toggleable text highlights from AI parts |
 | `features.ghostText` | User-toggleable ghost text annotations from AI parts |
