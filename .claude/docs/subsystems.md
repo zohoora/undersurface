@@ -114,11 +114,15 @@ A warm closing ritual via "end session" button, fixed-positioned at top-right (a
 
 ## Autocorrect
 
-`src/ai/llmCorrect.ts` — LLM-based sentence-level correction. Works in all languages.
+`src/ai/llmCorrect.ts` — LLM-based sentence-level correction. Works in all languages with sentence-ending punctuation.
 
-- Triggers on sentence-ending punctuation (`.!?。！？`) + space — sends the completed sentence to a small, cheap LLM (`google/gemini-2.0-flash-lite-001`)
-- `extractCompletedSentence()` finds the last completed sentence, skipping abbreviations (Dr., etc., e.g., etc.), ellipsis, and short sentences (< 3 words)
-- `correctSentence()` calls the LLM with temperature 0 and validates the response (same word count, <30% length change)
+- Triggers on sentence-ending punctuation (`.!?।。！？`) — Latin/Hindi + space, CJK fullwidth punctuation without space (via `shouldTriggerAutocorrect()`)
+- Uses `qwen/qwen-2.5-7b-instruct` model; adds language hint to system prompt for non-English text
+- `extractCompletedSentence()` finds the last completed sentence, skipping abbreviations (multilingual: Dr., Mme., Sra., z.b., etc.), ellipsis, and short sentences (< 3 words for Latin/Hindi, < 4 chars for CJK)
+- `correctSentence()` calls the LLM with temperature 0 and validates the response (word count for Latin/Hindi, length-only for CJK, <30% length change)
+- CJK (Chinese, Japanese): fullwidth punctuation `。！？` triggers without trailing space; word-count validation skipped (no whitespace-based segmentation)
+- Hindi: danda `।` recognized as sentence-ending punctuation; space-delimited so word count works normally
+- Thai: no standard sentence-ending punctuation — autocorrect silently does nothing (acceptable; segmentation library not worth adding)
 - Throttled: min 3s between calls, skips if a call is in-flight
 - Undo on Backspace: `lastAutocorrectRef` in `LivingEditor.tsx` and `SessionView.tsx` (single-shot, cleared on any other keypress)
 - Shown in Settings for all languages (no English-only guard)

@@ -1,4 +1,5 @@
 import { getAuth } from 'firebase/auth'
+import { getLLMLanguageName } from '../i18n'
 
 // Hardcoded model for autocorrect — cheap, fast, good at following instructions.
 // NOT getModel() — autocorrect always uses a small model regardless of user settings.
@@ -21,6 +22,14 @@ const ABBREVIATIONS = new Set([
   'prof.', 'gen.', 'sgt.', 'cpl.',
   'inc.', 'ltd.', 'co.',
   'jan.', 'feb.', 'mar.', 'apr.', 'jun.', 'jul.', 'aug.', 'sep.', 'oct.', 'nov.', 'dec.',
+  // Spanish
+  'sra.', 'dra.', 'ud.', 'uds.',
+  // French
+  'mme.', 'mlle.', 'm.',
+  // German
+  'nr.', 'bzw.', 'z.b.',
+  // Portuguese
+  'dra.',
 ])
 
 let lastCallTime = 0
@@ -30,6 +39,11 @@ let inFlight = false
 export function _resetThrottle() {
   lastCallTime = 0
   inFlight = false
+}
+
+/** Check if text contains CJK characters (Chinese, Japanese, Korean) */
+export function isCJK(text: string): boolean {
+  return /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]/.test(text)
 }
 
 function wordCount(s: string): number {
@@ -44,8 +58,11 @@ function wordCount(s: string): number {
 export function extractCompletedSentence(
   textBefore: string,
 ): { sentence: string; start: number; end: number } | null {
-  // Find the last sentence-ending char that has a space after it
-  const sentenceEndPattern = /[.!?。！？]\s/g
+  // Match sentence-ending punctuation:
+  // - Latin/Hindi punctuation followed by space: [.!?।]\s
+  // - CJK fullwidth punctuation (no space needed): [。！？]
+  // Thai has no standard sentence-ending punctuation — autocorrect silently skips Thai text.
+  const sentenceEndPattern = /[.!?।]\s|[。！？]/g
   let lastEndMatch: { index: number; length: number } | null = null
 
   let m
@@ -55,7 +72,8 @@ export function extractCompletedSentence(
 
   if (!lastEndMatch) return null
 
-  const sentenceEndPos = lastEndMatch.index + 1 // position after the punctuation char
+  // Position after the punctuation char (before the space for Latin, after punct for CJK)
+  const sentenceEndPos = lastEndMatch.index + 1
 
   // Check for ellipsis: if the char before this period is also a period
   if (textBefore[lastEndMatch.index] === '.') {
@@ -65,21 +83,27 @@ export function extractCompletedSentence(
   }
 
   // Now find sentence start: look backward from the sentence end
-  // for a previous sentence-end+space, or use start of text
+  // for a previous sentence boundary, or use start of text
   let sentenceStart = 0
   const textUpToSentence = textBefore.slice(0, lastEndMatch.index)
 
   // Find the last sentence boundary before our sentence
-  const prevEndPattern = /[.!?。！？]\s/g
+  const prevEndPattern = /[.!?।]\s|[。！？]/g
   let prevMatch
   while ((prevMatch = prevEndPattern.exec(textUpToSentence)) !== null) {
+    // For CJK punctuation (1-char match), next sentence starts right after
+    // For Latin/Hindi (punct+space, 2-char match), next sentence starts after the space
     sentenceStart = prevMatch.index + prevMatch[0].length
   }
 
   const sentence = textBefore.slice(sentenceStart, sentenceEndPos).trim()
 
-  // Skip short sentences (< 3 words)
-  if (wordCount(sentence) < 3) return null
+  // Skip short sentences: CJK uses character count (< 4 chars), others use word count (< 3 words)
+  if (isCJK(sentence)) {
+    if (sentence.length < 4) return null
+  } else {
+    if (wordCount(sentence) < 3) return null
+  }
 
   // Check if the "sentence end" is actually an abbreviation
   const lowerSentence = sentence.toLowerCase()
@@ -88,6 +112,24 @@ export function extractCompletedSentence(
   }
 
   return { sentence, start: sentenceStart, end: sentenceEndPos }
+}
+
+/** Regex matching sentence-ending punctuation (Latin, Hindi danda, CJK fullwidth) */
+export const SENTENCE_END_PUNCT = /[.!?।。！？]$/
+
+/** CJK fullwidth sentence-ending punctuation (no trailing space needed) */
+export const CJK_SENTENCE_END = /[。！？]$/
+
+/**
+ * Check if a keystroke should trigger autocorrect extraction.
+ * Returns true for:
+ * - Space key after any sentence-ending punctuation (Latin/Hindi/CJK)
+ * - Any non-punctuation character after CJK fullwidth punctuation (CJK doesn't use spaces)
+ */
+export function shouldTriggerAutocorrect(key: string, textBefore: string): boolean {
+  if (key === ' ' && SENTENCE_END_PUNCT.test(textBefore)) return true
+  if (key.length === 1 && !/[。！？\s]/.test(key) && CJK_SENTENCE_END.test(textBefore)) return true
+  return false
 }
 
 /**
@@ -110,6 +152,12 @@ export async function correctSentence(sentence: string): Promise<string | null> 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
+    // Add language hint for non-English text
+    const lang = getLLMLanguageName()
+    const systemContent = lang === 'English'
+      ? SYSTEM_PROMPT
+      : `${SYSTEM_PROMPT}\nThe text is in ${lang}.`
+
     let response: Response
     try {
       response = await fetch('/api/chat', {
@@ -121,7 +169,7 @@ export async function correctSentence(sentence: string): Promise<string | null> 
         body: JSON.stringify({
           model: AUTOCORRECT_MODEL,
           messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'system', content: systemContent },
             { role: 'user', content: sentence },
           ],
           temperature: 0,
@@ -145,7 +193,10 @@ export async function correctSentence(sentence: string): Promise<string | null> 
 
     // Validation
     if (corrected === sentence) return null
-    if (wordCount(corrected) !== wordCount(sentence)) return null
+    // CJK has no meaningful whitespace-based word count — skip word-count validation
+    if (!isCJK(sentence)) {
+      if (Math.abs(wordCount(corrected) - wordCount(sentence)) / wordCount(sentence) > 0.3) return null
+    }
     if (Math.abs(corrected.length - sentence.length) / sentence.length > 0.3) return null
 
     return corrected

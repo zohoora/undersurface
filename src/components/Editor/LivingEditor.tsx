@@ -9,7 +9,7 @@ import { ColorBleed, colorBleedKey } from '../../extensions/colorBleed'
 import { TextHighlight, textHighlightKey } from '../../extensions/textHighlight'
 import { GhostText, ghostTextKey } from '../../extensions/ghostText'
 import { TypewriterScroll } from '../../extensions/typewriterScroll'
-import { extractCompletedSentence, correctSentence } from '../../ai/llmCorrect'
+import { extractCompletedSentence, correctSentence, shouldTriggerAutocorrect } from '../../ai/llmCorrect'
 import { PauseDetector } from '../../engine/pauseDetector'
 import { PartOrchestrator } from '../../engine/partOrchestrator'
 import { EmergenceEngine } from '../../engine/emergenceEngine'
@@ -253,13 +253,16 @@ export default function LivingEditor({
             }
           }
 
-          // Autocorrect: on sentence-ending punctuation + space, send completed sentence to LLM
-          if (settings.autocorrect && getGlobalConfig()?.features?.autocorrectEnabled !== false && editor && event.key === ' ') {
+          // Autocorrect: on sentence-ending punctuation, send completed sentence to LLM
+          // Triggers on: space after any sentence-end punct, or next char after CJK fullwidth punct
+          if (settings.autocorrect && getGlobalConfig()?.features?.autocorrectEnabled !== false && editor) {
             const $pos = editor.state.selection.$from
             const textBefore = $pos.parent.textBetween(0, $pos.parentOffset)
-            // Check if char before cursor is sentence-ending punctuation
-            if (/[.!?。！？]$/.test(textBefore)) {
-              const extracted = extractCompletedSentence(textBefore + ' ')
+            if (shouldTriggerAutocorrect(event.key, textBefore)) {
+              // For space-triggered: append space so extractCompletedSentence sees "punct + space"
+              // For CJK-triggered: text already ends with fullwidth punct, no space needed
+              const textForExtraction = event.key === ' ' ? textBefore + ' ' : textBefore
+              const extracted = extractCompletedSentence(textForExtraction)
               if (extracted) {
                 const absStart = $pos.start() + extracted.start
                 const absEnd = $pos.start() + extracted.end

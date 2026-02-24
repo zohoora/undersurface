@@ -57,6 +57,20 @@ const TEST_CASES: TestCase[] = [
 
   // Mixed / proper nouns
   { input: 'I visited new york and saw the staute of liberty.', expected: 'I visited New York and saw the Statue of Liberty.', label: 'Proper nouns + misspelling' },
+
+  // CJK
+  { input: '我今天去了超市买了很多东西。', expected: '我今天去了超市买了很多东西。', label: 'Chinese clean text' },
+  { input: '今日は公園に行きました。', expected: '今日は公園に行きました。', label: 'Japanese clean text' },
+  { input: '오늘 공원에 갔어요.', expected: '오늘 공원에 갔어요.', label: 'Korean clean text' },
+
+  // Hindi
+  { input: 'मैंने आज बहुत काम किया।', expected: 'मैंने आज बहुत काम किया।', label: 'Hindi clean text' },
+
+  // Russian
+  { input: 'Я ходил в магазен вчера.', expected: 'Я ходил в магазин вчера.', label: 'Russian misspelling' },
+
+  // Turkish
+  { input: 'Bugün markete gittim.', expected: 'Bugün markete gittim.', label: 'Turkish clean text' },
 ]
 
 interface ModelResult {

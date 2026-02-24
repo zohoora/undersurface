@@ -131,7 +131,7 @@ Dark mode, adaptive parts, i18n (17 languages), emergency grounding, bundle spli
 
 ## Testing
 
-Vitest (~204 tests). Tests cover: `llmCorrect`, `ritualEngine`, `pauseDetector`, `partOrchestrator`, `weatherEngine`, `settings`, `sessionOrchestrator` (phase detection, crisis keywords, emotion check, grounding activation), `sessionPrompts`, `therapistPrompts`, `SessionView`.
+Vitest (~229 tests). Tests cover: `llmCorrect`, `ritualEngine`, `pauseDetector`, `partOrchestrator`, `weatherEngine`, `settings`, `sessionOrchestrator` (phase detection, crisis keywords, emotion check, grounding activation), `sessionPrompts`, `therapistPrompts`, `SessionView`.
 
 ```bash
 npm run test             # Run all tests
@@ -226,4 +226,4 @@ Add to `SEEDED_PARTS` in `partPrompts.ts`. Scoring is role-based (`ifsRole`) —
 ### PWA & Build
 - **PWA API calls not cached** — go through Firebase rewrites
 - **Sentry source maps** read `process.env` (not `import.meta.env`), disabled without `SENTRY_AUTH_TOKEN`
-- **Autocorrect** uses LLM-based sentence correction (`src/ai/llmCorrect.ts`) — works in all languages
+- **Autocorrect** uses LLM-based sentence correction (`src/ai/llmCorrect.ts`) — works in all languages with sentence-ending punctuation (CJK fullwidth, Hindi danda); Thai silently skipped (no standard sentence punctuation)

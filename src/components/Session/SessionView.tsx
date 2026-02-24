@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { InkWeight } from '../../extensions/inkWeight'
-import { extractCompletedSentence, correctSentence } from '../../ai/llmCorrect'
+import { extractCompletedSentence, correctSentence, shouldTriggerAutocorrect } from '../../ai/llmCorrect'
 import { getLanguageCode } from '../../i18n'
 import { useSettings } from '../../store/settings'
 import { getGlobalConfig } from '../../store/globalConfig'
@@ -446,12 +446,13 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
             }
           }
 
-          // Autocorrect: on sentence-ending punctuation + space, send completed sentence to LLM
-          if (settings.autocorrect && getGlobalConfig()?.features?.autocorrectEnabled !== false && inputEditor && event.key === ' ') {
+          // Autocorrect: on sentence-ending punctuation, send completed sentence to LLM
+          if (settings.autocorrect && getGlobalConfig()?.features?.autocorrectEnabled !== false && inputEditor) {
             const $pos = inputEditor.state.selection.$from
             const textBefore = $pos.parent.textBetween(0, $pos.parentOffset)
-            if (/[.!?。！？]$/.test(textBefore)) {
-              const extracted = extractCompletedSentence(textBefore + ' ')
+            if (shouldTriggerAutocorrect(event.key, textBefore)) {
+              const textForExtraction = event.key === ' ' ? textBefore + ' ' : textBefore
+              const extracted = extractCompletedSentence(textForExtraction)
               if (extracted) {
                 const absStart = $pos.start() + extracted.start
                 const absEnd = $pos.start() + extracted.end

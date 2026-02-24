@@ -144,7 +144,7 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry, navigate
 
   const getSessionPreview = (session: Session) => {
     const text = session.sessionNote || session.firstLine
-    if (!text) return 'Session'
+    if (!text) return t['sessions.title']
     return text.slice(0, 40) + (text.length > 40 ? '...' : '')
   }
 
