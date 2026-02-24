@@ -107,6 +107,20 @@ function App() {
   useFlowState()
   useHandwritingMode()
   const isGrounding = useGroundingMode()
+  const [routePath, setRoutePath] = useState(window.location.pathname)
+
+  // Sync route state with browser back/forward
+  useEffect(() => {
+    const handler = () => setRoutePath(window.location.pathname)
+    window.addEventListener('popstate', handler)
+    return () => window.removeEventListener('popstate', handler)
+  }, [])
+
+  const navigateTo = useCallback((path: string) => {
+    window.history.pushState(null, '', path)
+    setRoutePath(path)
+  }, [])
+
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestContentRef = useRef({ html: '', text: '' })
   const reflectionEngineRef = useRef(new ReflectionEngine())
@@ -387,7 +401,7 @@ function App() {
   }
 
   // Admin routing — before DB init so admin page stays lightweight
-  if (window.location.pathname.startsWith('/admin')) {
+  if (routePath.startsWith('/admin')) {
     if (ADMIN_EMAILS.includes(user.email || '')) {
       return <Suspense fallback={<SplashScreen />}><AdminDashboard /></Suspense>
     }
@@ -395,15 +409,15 @@ function App() {
   }
 
   // 404 — redirect unknown paths to root
-  if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/admin') && !window.location.pathname.startsWith('/session')) {
+  if (routePath !== '/' && !routePath.startsWith('/admin') && !routePath.startsWith('/session')) {
     window.history.replaceState(null, '', '/')
   }
 
   // Session route detection
-  const isSessionRoute = window.location.pathname.startsWith('/session')
-  const isNewSession = window.location.pathname === '/session/new'
-  const sessionIdFromPath = !isNewSession && window.location.pathname.startsWith('/session/')
-    ? window.location.pathname.split('/session/')[1]
+  const isSessionRoute = routePath.startsWith('/session')
+  const isNewSession = routePath === '/session/new'
+  const sessionIdFromPath = !isNewSession && routePath.startsWith('/session/')
+    ? routePath.split('/session/')[1]
     : null
 
   // Consent gate — show onboarding if user hasn't accepted terms
@@ -517,6 +531,8 @@ function App() {
         activeEntryId={activeEntryId}
         onSelectEntry={handleSelectEntry}
         onNewEntry={handleNewEntry}
+        navigateTo={navigateTo}
+        currentPath={routePath}
       />
       <div style={{
         position: 'fixed',
@@ -534,6 +550,7 @@ function App() {
             openingMethod="auto"
             onSessionCreated={(id) => {
               window.history.replaceState(null, '', `/session/${id}`)
+              setRoutePath(`/session/${id}`)
             }}
           />
         </Suspense>
