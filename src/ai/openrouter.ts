@@ -44,6 +44,7 @@ export async function chatCompletion(
         messages,
         max_tokens: maxTokens,
         temperature: 0.9,
+        frequency_penalty: 0.4,
       }),
       signal: controller.signal,
     })
@@ -84,6 +85,7 @@ export async function streamChatCompletion(
           messages,
           max_tokens: maxTokens,
           temperature: 0.9,
+          frequency_penalty: 0.4,
           stream: true,
         }),
         signal: controller.signal,
@@ -108,6 +110,7 @@ export async function streamChatCompletion(
     const decoder = new TextDecoder()
     let fullText = ''
     let buffer = ''
+    let loopDetected = false
 
     try {
       while (true) {
@@ -130,14 +133,38 @@ export async function streamChatCompletion(
             if (token) {
               fullText += token
               callbacks.onToken(token)
+
+              // Repetition loop detection: if the last 40 chars appear
+              // earlier in the text, the model is stuck in a loop — abort.
+              if (fullText.length > 100) {
+                const tail = fullText.slice(-40)
+                const searchArea = fullText.slice(0, -40)
+                if (searchArea.includes(tail)) {
+                  console.warn('Repetition loop detected, aborting stream')
+                  loopDetected = true
+                  controller.abort()
+                  break
+                }
+              }
             }
           } catch {
             // skip malformed JSON chunks
           }
         }
+
+        if (loopDetected) break
       }
     } finally {
       clearTimeout(timeout)
+    }
+
+    // If loop detected, trim the repeated content
+    if (loopDetected && fullText.length > 100) {
+      const tail = fullText.slice(-40)
+      const firstOccurrence = fullText.indexOf(tail)
+      if (firstOccurrence >= 0 && firstOccurrence < fullText.length - 40) {
+        fullText = fullText.slice(0, firstOccurrence + tail.length).trimEnd()
+      }
     }
 
     callbacks.onComplete(fullText)

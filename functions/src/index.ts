@@ -80,7 +80,7 @@ export const chat = onRequest(
     }
 
     // Validate request body
-    const { messages, model, max_tokens, temperature, stream } = req.body || {}
+    const { messages, model, max_tokens, temperature, stream, frequency_penalty } = req.body || {}
     if (!Array.isArray(messages) || messages.length === 0) {
       res.status(400).json({ error: 'Invalid messages' })
       return
@@ -113,6 +113,7 @@ export const chat = onRequest(
           messages,
           max_tokens: resolvedMaxTokens,
           temperature: typeof temperature === 'number' ? Math.min(temperature, 2) : 0.9,
+          frequency_penalty: typeof frequency_penalty === 'number' ? Math.min(Math.max(frequency_penalty, 0), 2) : undefined,
           stream: !!stream,
         }),
       },
