@@ -25,7 +25,7 @@ Key types: `PartMemory.type` (`'observation' | 'interaction' | 'reflection' | 'p
 
 - AI system prompts stay English; `languageDirective()` appends response language to user-facing prompts (parts, fossils, letters, blank page, session closing)
 - Internal prompts (reflection, growth, emotion) stay English because output feeds back into English-keyed logic
-- Autocorrect is English-only (hidden from Settings for non-English)
+- Autocorrect is LLM-based and works in all languages
 - Seeded part names translated via `getPartDisplayName()`; emerged parts keep LLM-generated names
 - Distress detection is LLM-based via `analyzeEmotionAndDistress()` — works in any language
 
@@ -114,12 +114,14 @@ A warm closing ritual via "end session" button, fixed-positioned at top-right (a
 
 ## Autocorrect
 
-`spellEngine.ts` — Damerau-Levenshtein + Typo.js. English-only.
+`src/ai/llmCorrect.ts` — LLM-based sentence-level correction. Works in all languages.
 
-- Triggers on word-boundary characters (space, comma, period) but NOT apostrophe (would mangle contractions)
-- Undo on Backspace: `lastAutocorrectRef` in `LivingEditor.tsx` (single-shot, cleared on any other keypress)
-- Hidden from Settings for non-English users
-- `postinstall` script copies dictionary files to `public/dictionaries/`
+- Triggers on sentence-ending punctuation (`.!?。！？`) + space — sends the completed sentence to a small, cheap LLM (`google/gemini-2.0-flash-lite-001`)
+- `extractCompletedSentence()` finds the last completed sentence, skipping abbreviations (Dr., etc., e.g., etc.), ellipsis, and short sentences (< 3 words)
+- `correctSentence()` calls the LLM with temperature 0 and validates the response (same word count, <30% length change)
+- Throttled: min 3s between calls, skips if a call is in-flight
+- Undo on Backspace: `lastAutocorrectRef` in `LivingEditor.tsx` and `SessionView.tsx` (single-shot, cleared on any other keypress)
+- Shown in Settings for all languages (no English-only guard)
 
 ## Body map (emotional homunculus)
 

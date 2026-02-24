@@ -227,15 +227,13 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
             </div>
           )}
 
-          {/* Autocorrect — only for English */}
-          {settings.language === 'en' && (
-            <div className="settings-section">
-              <div className="settings-section-label">{t['settings.autocorrect']}</div>
-              <SettingRow label={t['settings.autocorrect']}>
-                <Toggle checked={settings.autocorrect} onChange={(v) => { set('autocorrect', v); set('autoCapitalize', v) }} />
-              </SettingRow>
-            </div>
-          )}
+          {/* Autocorrect — works in all languages via LLM */}
+          <div className="settings-section">
+            <div className="settings-section-label">{t['settings.autocorrect']}</div>
+            <SettingRow label={t['settings.autocorrect']}>
+              <Toggle checked={settings.autocorrect} onChange={(v) => { set('autocorrect', v); set('autoCapitalize', v) }} />
+            </SettingRow>
+          </div>
 
           {/* Contact Us */}
           <div className="settings-section">

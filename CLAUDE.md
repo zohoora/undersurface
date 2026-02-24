@@ -131,7 +131,7 @@ Dark mode, adaptive parts, i18n (17 languages), emergency grounding, bundle spli
 
 ## Testing
 
-Vitest (~203 tests). Tests cover: `spellEngine`, `ritualEngine`, `pauseDetector`, `partOrchestrator`, `weatherEngine`, `settings`, `sessionOrchestrator` (phase detection, crisis keywords, emotion check, grounding activation), `sessionPrompts`, `therapistPrompts`, `SessionView`.
+Vitest (~204 tests). Tests cover: `llmCorrect`, `ritualEngine`, `pauseDetector`, `partOrchestrator`, `weatherEngine`, `settings`, `sessionOrchestrator` (phase detection, crisis keywords, emotion check, grounding activation), `sessionPrompts`, `therapistPrompts`, `SessionView`.
 
 ```bash
 npm run test             # Run all tests
@@ -207,7 +207,6 @@ Add to `SEEDED_PARTS` in `partPrompts.ts`. Scoring is role-based (`ifsRole`) —
 - **Part colorLight alpha** — `'25'` in light, `'30'` in dark (via `boostAlpha`). Without boost, invisible on dark
 
 ### Engines & Logic
-- **Autocorrect apostrophe** — `'` is NOT a word boundary (removed from regex to prevent mangling contractions)
 - **Orchestrator pre-warms caches** — `loadParts()` fetches profile + summaries + memories upfront
 - **Exploration engine single-shot** — `hasSuggested` guard; must call `reset()` on entry switch
 - **Session closing** — hardcoded The Weaver prompt, not part ID lookup
@@ -227,4 +226,4 @@ Add to `SEEDED_PARTS` in `partPrompts.ts`. Scoring is role-based (`ifsRole`) —
 ### PWA & Build
 - **PWA API calls not cached** — go through Firebase rewrites
 - **Sentry source maps** read `process.env` (not `import.meta.env`), disabled without `SENTRY_AUTH_TOKEN`
-- **`postinstall`** copies English dictionary files to `public/dictionaries/`
+- **Autocorrect** uses LLM-based sentence correction (`src/ai/llmCorrect.ts`) — works in all languages

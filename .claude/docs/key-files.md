@@ -13,7 +13,7 @@
 | `src/engine/emergenceEngine.ts` | Detects new parts emerging from writing |
 | `src/engine/reflectionEngine.ts` | Entry reflection — creates memories, summaries, profile updates on entry switch |
 | `src/engine/partGrowthEngine.ts` | Part evolution — updates prompts, keywords, emotions every 5 entries |
-| `src/engine/spellEngine.ts` | Autocorrect (Damerau-Levenshtein + Typo.js). English-only |
+| `src/ai/llmCorrect.ts` | LLM-based autocorrect — sentence-level spelling/capitalization correction via small model. All languages |
 | `src/engine/sessionOrchestrator.ts` | Session phase detection, crisis keyword detection (20 regex patterns, no cooldown), emotion check with grounding activation |
 | `src/engine/sessionReflectionEngine.ts` | Post-session reflection — extracts memories, profile updates, somatic signals from session transcripts |
 | `src/engine/sessionContextLoader.ts` | Loads session context (memories, profile, recent notes) for therapist prompts |
@@ -135,5 +135,4 @@
 | `vitest.config.ts` | Test config — finds `src/**/*.test.{ts,tsx}` |
 | `eslint.config.js` | Flat config with TypeScript ESLint, React Hooks, React Refresh |
 | `src/types/tiptap.d.ts` | TipTap editor.storage type augmentation |
-| `src/types/typo-js.d.ts` | Typo.js library type definitions |
 | `src/types/env.d.ts` | Vite environment variable type declarations |

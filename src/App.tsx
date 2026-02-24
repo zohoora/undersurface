@@ -11,7 +11,6 @@ import { initializeDB, db, generateId } from './store/db'
 const AdminDashboard = lazy(() => import('./admin/AdminDashboard'))
 const LivingEditor = lazy(() => import('./components/Editor/LivingEditor'))
 const SessionView = lazy(() => import('./components/Session/SessionView'))
-import { spellEngine } from './engine/spellEngine'
 import { ReflectionEngine } from './engine/reflectionEngine'
 import { useSettings } from './store/settings'
 import { initGlobalConfig, useGlobalConfig, useNewVersionAvailable } from './store/globalConfig'
@@ -175,7 +174,7 @@ function App() {
         }
         setHasConsent(true)
 
-        await Promise.all([spellEngine.init(), loadOrCreateEntry()])
+        await loadOrCreateEntry()
         readyAtRef.current = Date.now()
         firstKeystrokeTrackedRef.current = false
         setIsReady(true)
@@ -424,7 +423,6 @@ function App() {
   if (hasConsent === false) {
     const handleOnboardingComplete = async () => {
       setHasConsent(true)
-      spellEngine.init()
       await loadOrCreateEntry()
       setIsReady(true)
       trackEvent('onboarding_complete')

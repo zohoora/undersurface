@@ -13,8 +13,7 @@
     "test:watch": "vitest",
     "preview": "vite preview",
     "test:indexes": "firebase emulators:exec --only firestore 'npx vitest run --config vitest.config.integration.ts'",
-    "smoke-test": "bash scripts/smoke-test.sh",
-    "postinstall": "mkdir -p public/dictionaries && cp node_modules/dictionary-en/index.aff public/dictionaries/en.aff && cp node_modules/dictionary-en/index.dic public/dictionaries/en.dic"
+    "smoke-test": "bash scripts/smoke-test.sh"
   },
   "dependencies": {
     "@sentry/react": "^10.38.0",
@@ -23,12 +22,10 @@
     "@tiptap/pm": "^3.19.0",
     "@tiptap/react": "^3.19.0",
     "@tiptap/starter-kit": "^3.19.0",
-    "dictionary-en": "^4.0.0",
     "firebase": "^12.9.0",
     "framer-motion": "^12.33.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "typo-js": "^1.3.1"
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

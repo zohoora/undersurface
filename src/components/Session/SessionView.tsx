@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { InkWeight } from '../../extensions/inkWeight'
-import { spellEngine } from '../../engine/spellEngine'
+import { extractCompletedSentence, correctSentence } from '../../ai/llmCorrect'
 import { getLanguageCode } from '../../i18n'
 import { useSettings } from '../../store/settings'
 import { getGlobalConfig } from '../../store/globalConfig'
@@ -446,37 +446,30 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
             }
           }
 
-          // Autocorrect on word boundary
-          if (getLanguageCode() === 'en' && settings.autocorrect && getGlobalConfig()?.features?.autocorrectEnabled !== false && inputEditor && /[\s,.!?;:\-)]/.test(event.key)) {
+          // Autocorrect: on sentence-ending punctuation + space, send completed sentence to LLM
+          if (settings.autocorrect && getGlobalConfig()?.features?.autocorrectEnabled !== false && inputEditor && event.key === ' ') {
             const $pos = inputEditor.state.selection.$from
             const textBefore = $pos.parent.textBetween(0, $pos.parentOffset)
-            const match = textBefore.match(/([a-zA-Z']+)$/)
-            if (match) {
-              const raw = match[1]
-              const leadingApostrophes = raw.length - raw.replace(/^'+/, '').length
-              const word = raw.replace(/^'+|'+$/g, '')
-              const isSentenceStart = match.index === 0
-                || /[.!?]\s+$/.test(textBefore.slice(0, match.index))
-              const correction = spellEngine.suggest(word, isSentenceStart)
-              if (correction) {
-                const absOffset = $pos.start() + $pos.parentOffset
-                const trailingApostrophes = raw.length - raw.replace(/'+$/, '').length
-                const wordStart = absOffset - raw.length + leadingApostrophes
-                const wordEnd = absOffset - trailingApostrophes
+            if (/[.!?。！？]$/.test(textBefore)) {
+              const extracted = extractCompletedSentence(textBefore + ' ')
+              if (extracted) {
+                const absStart = $pos.start() + extracted.start
+                const absEnd = $pos.start() + extracted.end
                 const capturedEditor = inputEditor
-                const delimiterKey = event.key
-                queueMicrotask(() => {
+                const originalSentence = extracted.sentence
+                correctSentence(originalSentence).then((corrected) => {
+                  if (!corrected) return
                   const currentState = capturedEditor.state
-                  if (currentState.doc.textBetween(wordStart, wordEnd) === word) {
-                    capturedEditor.view.dispatch(
-                      currentState.tr.replaceWith(
-                        wordStart,
-                        wordEnd,
-                        currentState.schema.text(correction),
-                      ),
-                    )
-                    lastAutocorrectRef.current = { original: word, correction, wordStart, delimiter: delimiterKey }
-                  }
+                  const currentText = currentState.doc.textBetween(absStart, absEnd)
+                  if (currentText !== originalSentence) return
+                  capturedEditor.view.dispatch(
+                    currentState.tr.replaceWith(
+                      absStart,
+                      absEnd,
+                      currentState.schema.text(corrected),
+                    ),
+                  )
+                  lastAutocorrectRef.current = { original: originalSentence, correction: corrected, wordStart: absStart, delimiter: '' }
                 })
               }
             }
