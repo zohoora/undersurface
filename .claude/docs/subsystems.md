@@ -54,6 +54,19 @@ Controlled by `features.emergencyGrounding`. LLM-based distress detection via `a
 
 Tuning: admin Settings -> Safety & Wellbeing -> `GlobalConfig.grounding`.
 
+## Crisis keyword detection (defense-in-depth)
+
+Fast synchronous keyword check in `sessionOrchestrator.ts` — 20 regex patterns for suicidal ideation, self-harm, and passive death wishes. Runs BEFORE therapist LLM response generation in session mode.
+
+- **No cooldown** — always runs on every message (unlike emotion check which has 30s cooldown)
+- **No feature flag gate** — always active regardless of `emergencyGrounding` setting
+- **Activates grounding immediately** — `activateGrounding('auto')` before LLM generates response, so `isGrounding: true` is passed to therapist prompt
+- **Catches metaphor escalation** — patterns include "rest forever", "with Jesus", "don't want to be alive", "should I die"
+- **Pure function available** — `detectCrisisKeywords()` exported for use without side effects (e.g., in tests)
+- Works alongside async LLM-based emotion detection as defense-in-depth
+
+All three prompt files (`partPrompts.ts`, `sessionPrompts.ts`, `therapistPrompts.ts`) include hardened safety instructions: never affirm death wishes, detect metaphor escalation, ask when unsure about "rest" meaning.
+
 ## Bundle splitting
 
 Main chunk ~228KB gzipped.

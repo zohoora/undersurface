@@ -88,7 +88,7 @@ Account: Settings → accountApi Cloud Function → delete/contact
 
 Detailed file-by-file reference: `.claude/docs/key-files.md`
 
-Core entry points: `src/ai/openrouter.ts` (API calls), `src/ai/partPrompts.ts` (system prompts + `SHARED_INSTRUCTIONS`), `src/engine/partOrchestrator.ts` (part selection + scoring), `src/engine/pauseDetector.ts` (pause detection), `src/components/Editor/LivingEditor.tsx` (TipTap editor), `src/store/db.ts` (Firestore wrapper), `functions/src/index.ts` (Cloud Functions).
+Core entry points: `src/ai/openrouter.ts` (API calls), `src/ai/partPrompts.ts` (system prompts + `SHARED_INSTRUCTIONS`), `src/ai/sessionPrompts.ts` (session mode part prompts), `src/ai/therapistPrompts.ts` (therapist companion prompts), `src/engine/partOrchestrator.ts` (part selection + scoring), `src/engine/sessionOrchestrator.ts` (session phase detection + crisis keywords + emotion check), `src/engine/pauseDetector.ts` (pause detection), `src/components/Editor/LivingEditor.tsx` (TipTap editor), `src/components/Session/SessionView.tsx` (session/conversation mode UI), `src/store/db.ts` (Firestore wrapper), `functions/src/index.ts` (Cloud Functions).
 
 ### Data storage
 
@@ -104,7 +104,7 @@ Firebase Authentication: Google Sign-In + Email/Password. `App.tsx` gates app be
 
 ### URL routing
 
-SPA in `App.tsx`: `/` → diary, `/admin` → admin dashboard (lazy-loaded), anything else → `/`.
+SPA in `App.tsx` using `pushState`-based client-side routing (no router library): `/` → diary, `/session/:id` → session view, `/admin` → admin dashboard (lazy-loaded), anything else → `/`. `navigateTo()` callback uses `history.pushState` + React state; `popstate` listener handles back/forward.
 
 ### Feature flags
 
@@ -131,7 +131,7 @@ Dark mode, adaptive parts, i18n (17 languages), emergency grounding, bundle spli
 
 ## Testing
 
-Vitest. Tests cover: `spellEngine`, `ritualEngine`, `pauseDetector`, `partOrchestrator`, `weatherEngine`, `settings`.
+Vitest (~203 tests). Tests cover: `spellEngine`, `ritualEngine`, `pauseDetector`, `partOrchestrator`, `weatherEngine`, `settings`, `sessionOrchestrator` (phase detection, crisis keywords, emotion check, grounding activation), `sessionPrompts`, `therapistPrompts`, `SessionView`.
 
 ```bash
 npm run test             # Run all tests
@@ -211,6 +211,8 @@ Add to `SEEDED_PARTS` in `partPrompts.ts`. Scoring is role-based (`ifsRole`) —
 - **Orchestrator pre-warms caches** — `loadParts()` fetches profile + summaries + memories upfront
 - **Exploration engine single-shot** — `hasSuggested` guard; must call `reset()` on entry switch
 - **Session closing** — hardcoded The Weaver prompt, not part ID lookup
+- **Crisis keyword check must run before LLM generation** — `checkCrisisKeywords()` is synchronous and activates grounding before `generateTherapistMessage()` so `isGrounding: true` flows into the prompt. Async emotion check alone is too late
+- **Session sidebar is unified** — entries and sessions in one chronological list via `SidebarItem` discriminated union in `EntriesList.tsx`. No separate sections
 
 ### i18n
 - **`t()` shadows loop variables** — in `db.ts`, use different names (e.g., `th` not `t`)
