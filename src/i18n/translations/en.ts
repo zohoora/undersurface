@@ -79,7 +79,7 @@ const en = {
 
   // Sessions sidebar
   'sessions.title': 'Sessions',
-  'sessions.new': '+ New session',
+  'sessions.new': '+ New conversation',
 
   // Body Map
   'bodyMap.title': 'Body',

@@ -502,6 +502,12 @@
   font-weight: 500;
 }
 
+.sidebar-new-buttons {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
 .new-entry-btn {
   padding: 8px;
   border-radius: 6px;
@@ -518,6 +524,18 @@
 
 .new-entry-btn:hover {
   color: var(--text-secondary);
+}
+
+/* ── Session items in unified list ─────────────────────── */
+
+.entry-item.session-item {
+  border-left: 2px solid var(--text-ghost);
+  padding-left: 6px;
+}
+
+.session-item-label {
+  display: inline-flex;
+  align-items: baseline;
 }
 
 /* ── Search & Filter Toolbar ─────────────────────────── */

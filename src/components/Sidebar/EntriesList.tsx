@@ -11,6 +11,8 @@ interface Props {
   activeEntryId: string
   onSelectEntry: (id: string) => void
   onNewEntry: (id: string) => void
+  navigateTo: (path: string) => void
+  currentPath: string
 }
 
 interface Entry {
@@ -20,6 +22,10 @@ interface Entry {
   favorited?: boolean
   updatedAt: number
 }
+
+type SidebarItem =
+  | { kind: 'entry'; id: string; timestamp: number; preview: string; favorited?: boolean; title?: string }
+  | { kind: 'session'; id: string; timestamp: number; preview: string; status: 'active' | 'closed'; favorited?: boolean }
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(
@@ -36,7 +42,7 @@ function useIsMobile() {
   return isMobile
 }
 
-export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props) {
+export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry, navigateTo, currentPath }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [entries, setEntries] = useState<Entry[]>([])
@@ -48,7 +54,6 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
   const t = useTranslation()
   const globalConfig = useGlobalConfig()
   const showBodyMap = globalConfig?.features?.bodyMap === true
-  const currentPath = window.location.pathname
 
   const loadEntries = useCallback(async () => {
     const data = await db.entries.orderBy('updatedAt').reverse().toArray()
@@ -71,12 +76,20 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
     }
   }, [activeEntryId])
 
-  // Load sessions
+  // Load sessions on same interval as entries
   useEffect(() => {
-    db.sessions.orderBy('startedAt').reverse().toArray()
-      .then(s => setSessions(s as unknown as Session[]))
-      .catch(console.error)
-  }, [])
+    let cancelled = false
+    const load = async () => {
+      const data = await db.sessions.orderBy('startedAt').reverse().toArray()
+      if (!cancelled) setSessions(data as unknown as Session[])
+    }
+    load()
+    const interval = setInterval(load, 60_000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [activeEntryId])
 
   const handleNewEntry = async () => {
     const id = generateId()
@@ -89,15 +102,17 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
     })
     onNewEntry(id)
     loadEntries()
+    if (currentPath !== '/') navigateTo('/')
     if (isMobile) setIsOpen(false)
   }
 
   const handleSelect = useCallback(
     (id: string) => {
+      if (currentPath !== '/') navigateTo('/')
       onSelectEntry(id)
       if (isMobile) setIsOpen(false)
     },
-    [onSelectEntry, isMobile],
+    [onSelectEntry, isMobile, currentPath, navigateTo],
   )
 
   const handleToggleFavorite = useCallback(async (e: React.MouseEvent, entry: Entry) => {
@@ -134,27 +149,49 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
   }
 
   const handleNewSession = () => {
-    window.location.assign('/session/new')
+    navigateTo('/session/new')
+    if (isMobile) setIsOpen(false)
   }
 
   const handleSelectSession = (id: string) => {
-    window.location.assign('/session/' + id)
+    navigateTo('/session/' + id)
+    if (isMobile) setIsOpen(false)
   }
 
-  const filteredEntries = useMemo(() => {
-    let filtered = entries.filter(e => e.plainText?.trim() || e.id === activeEntryId)
+  const sidebarItems = useMemo(() => {
+    const entryItems: SidebarItem[] = entries
+      .filter(e => e.plainText?.trim() || e.id === activeEntryId)
+      .map(e => ({
+        kind: 'entry' as const,
+        id: e.id,
+        timestamp: e.updatedAt,
+        preview: getPreview(e),
+        favorited: e.favorited,
+        title: e.title,
+      }))
+
+    const sessionItems: SidebarItem[] = sessions.map(s => ({
+      kind: 'session' as const,
+      id: s.id,
+      timestamp: s.startedAt,
+      preview: getSessionPreview(s),
+      status: s.status,
+      favorited: s.favorited,
+    }))
+
+    let merged = [...entryItems, ...sessionItems]
+
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
-      filtered = filtered.filter(e =>
-        (e.title?.toLowerCase().includes(q)) ||
-        (e.plainText?.toLowerCase().includes(q))
-      )
+      merged = merged.filter(item => item.preview.toLowerCase().includes(q))
     }
     if (showFavoritesOnly) {
-      filtered = filtered.filter(e => e.favorited)
+      merged = merged.filter(item => item.favorited)
     }
-    return filtered
-  }, [entries, searchQuery, showFavoritesOnly, activeEntryId])
+
+    merged.sort((a, b) => b.timestamp - a.timestamp)
+    return merged
+  }, [entries, sessions, searchQuery, showFavoritesOnly, activeEntryId])
 
   return (
     <>
@@ -207,9 +244,14 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
             </Suspense>
           ) : (
             <>
-              <button className="new-entry-btn" onClick={handleNewEntry}>
-                {t['entries.new']}
-              </button>
+              <div className="sidebar-new-buttons">
+                <button className="new-entry-btn" onClick={handleNewEntry}>
+                  {t['entries.new']}
+                </button>
+                <button className="new-entry-btn" onClick={handleNewSession}>
+                  {t['sessions.new']}
+                </button>
+              </div>
 
               {/* Search & filter toolbar */}
               <div className="sidebar-search-toolbar">
@@ -245,52 +287,44 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
               </div>
 
               <div style={{ marginTop: 4 }}>
-                {filteredEntries.length === 0 && (searchQuery || showFavoritesOnly) ? (
+                {sidebarItems.length === 0 && (searchQuery || showFavoritesOnly) ? (
                   <div className="sidebar-no-results">{t['entries.noResults']}</div>
                 ) : (
-                  filteredEntries.map((entry) => (
+                  sidebarItems.map((item) => item.kind === 'entry' ? (
                     <div
-                      key={entry.id}
-                      className={`entry-item ${entry.id === activeEntryId ? 'active' : ''}`}
-                      onClick={() => handleSelect(entry.id)}
+                      key={item.id}
+                      className={`entry-item ${item.id === activeEntryId ? 'active' : ''}`}
+                      onClick={() => handleSelect(item.id)}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 2 }}>
-                          {formatDate(entry.updatedAt)}
+                          {formatDate(item.timestamp)}
                         </div>
                         <button
-                          className={`entry-star-btn ${entry.favorited ? 'active' : ''}`}
-                          onClick={(e) => handleToggleFavorite(e, entry)}
-                          aria-label={entry.favorited ? 'Remove from favorites' : 'Add to favorites'}
+                          className={`entry-star-btn ${item.favorited ? 'active' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleToggleFavorite(e, { id: item.id, favorited: item.favorited } as Entry)
+                          }}
+                          aria-label={item.favorited ? 'Remove from favorites' : 'Add to favorites'}
                         >
-                          {entry.favorited ? '\u2605' : '\u2606'}
+                          {item.favorited ? '\u2605' : '\u2606'}
                         </button>
                       </div>
-                      {getPreview(entry)}
+                      {item.preview}
                     </div>
-                  ))
-                )}
-              </div>
-
-              {/* Sessions section */}
-              <div className="sidebar-label" style={{ marginTop: 16 }}>{t['sessions.title']}</div>
-              <button className="new-entry-btn" onClick={handleNewSession}>
-                {t['sessions.new']}
-              </button>
-              {sessions.length > 0 && (
-                <div style={{ marginTop: 4 }}>
-                  {sessions.map((session) => (
+                  ) : (
                     <div
-                      key={session.id}
-                      className={`entry-item ${currentPath === '/session/' + session.id ? 'active' : ''}`}
-                      onClick={() => handleSelectSession(session.id)}
-                      style={{ opacity: session.status === 'closed' ? 0.7 : 1 }}
+                      key={item.id}
+                      className={`entry-item session-item ${currentPath === '/session/' + item.id ? 'active' : ''}`}
+                      onClick={() => handleSelectSession(item.id)}
+                      style={{ opacity: item.status === 'closed' ? 0.7 : 1 }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 2 }}>
-                          {formatDate(session.startedAt)}
+                          {formatDate(item.timestamp)}
                         </div>
-                        {session.status === 'active' && (
+                        {item.status === 'active' && (
                           <div style={{
                             width: 6,
                             height: 6,
@@ -300,11 +334,16 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry }: Props)
                           }} />
                         )}
                       </div>
-                      {getSessionPreview(session)}
+                      <span className="session-item-label">
+                        <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11" style={{ opacity: 0.45, marginRight: 4, verticalAlign: -1 }}>
+                          <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h7A2.5 2.5 0 0 1 14 2.5v7a2.5 2.5 0 0 1-2.5 2.5H7l-3.5 3.5V12H4.5A2.5 2.5 0 0 1 2 9.5v-7z" />
+                        </svg>
+                        {item.preview}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              )}
+                  ))
+                )}
+              </div>
             </>
           )}
         </div>
