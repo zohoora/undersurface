@@ -257,9 +257,9 @@
 
 .session-input {
   font-family: 'Spectral', Georgia, 'Times New Roman', serif;
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 400;
-  line-height: 1.7;
+  line-height: 1.85;
   color: var(--text-primary);
   outline: none;
   caret-color: var(--text-secondary);
