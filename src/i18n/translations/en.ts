@@ -81,6 +81,17 @@ const en = {
   'sessions.title': 'Sessions',
   'sessions.new': '+ New conversation',
 
+  // Entry choice screen
+  'entries.newShort': '+ New',
+  'choice.journal.title': 'Journal',
+  'choice.journal.tagline': 'Write freely — inner voices listen',
+  'choice.journal.desc': 'Write at your own pace. When you pause or trail off, inner voices stir — not to judge, but to sit beside you in the words.',
+  'choice.journal.aria': 'Start a journal entry — write freely, inner voices listen',
+  'choice.conversation.title': 'Conversation',
+  'choice.conversation.tagline': 'Sit with a companion',
+  'choice.conversation.desc': 'A gentle back-and-forth. Share what\'s on your mind, and a companion responds — following where you lead.',
+  'choice.conversation.aria': 'Start a conversation — sit with a companion who follows where you lead',
+
   // Body Map
   'bodyMap.title': 'Body',
   'bodyMap.dormant': 'Write. I\'ll take shape.',

@@ -22,10 +22,10 @@ export const InkWeight = Extension.create({
           init() {
             return DecorationSet.empty
           },
-          apply(tr, decorationSet) {
-            decorationSet = decorationSet.map(tr.mapping, tr.doc)
+          apply(tr, decorationSet, _oldState, newState) {
+            if (storage.disabled) return DecorationSet.empty
 
-            if (storage.disabled) return decorationSet
+            decorationSet = decorationSet.map(tr.mapping, newState.doc)
             if (!tr.docChanged) return decorationSet
             if (tr.getMeta('paste') || tr.getMeta('uiEvent') === 'drop') {
               return decorationSet

@@ -26,6 +26,7 @@ import { RitualEngine } from './engine/ritualEngine'
 import { IntentionInput } from './components/Editor/IntentionInput'
 import { ExplorationCard } from './components/Editor/ExplorationCard'
 import { Onboarding } from './components/Onboarding'
+import { EntryChoice } from './components/EntryChoice'
 import { CrisisResources } from './components/CrisisResources'
 import { SessionClosing } from './components/SessionClosing'
 import { chatCompletion } from './ai/openrouter'
@@ -135,6 +136,25 @@ function App() {
   const [closingLoading, setClosingLoading] = useState(false)
   const readyAtRef = useRef(0)
   const firstKeystrokeTrackedRef = useRef(false)
+  const [lastUsedType, setLastUsedType] = useState<'journal' | 'conversation' | null>(null)
+
+  // Determine last-used type when entering choice screen
+  useEffect(() => {
+    if (routePath !== '/new') return
+    let cancelled = false
+    ;(async () => {
+      const entries = await db.entries.orderBy('updatedAt').reverse().toArray()
+      const sessions = await db.sessions.orderBy('startedAt').reverse().toArray()
+      if (cancelled) return
+      const latestEntry = entries[0] as { updatedAt: number } | undefined
+      const latestSession = sessions[0] as { startedAt: number } | undefined
+      if (!latestEntry && !latestSession) { setLastUsedType(null); return }
+      if (!latestSession) { setLastUsedType('journal'); return }
+      if (!latestEntry) { setLastUsedType('conversation'); return }
+      setLastUsedType(latestEntry.updatedAt >= latestSession.startedAt ? 'journal' : 'conversation')
+    })()
+    return () => { cancelled = true }
+  }, [routePath])
 
   // Load most recent entry or create a blank one
   const loadOrCreateEntry = useCallback(async () => {
@@ -305,6 +325,16 @@ function App() {
     })().catch(console.error)
   }, [activeEntryId, triggerReflection])
 
+  // Entry choice screen handlers
+  const handleChoiceJournal = useCallback((id: string) => {
+    handleNewEntry(id)
+    navigateTo('/')
+  }, [handleNewEntry, navigateTo])
+
+  const handleChoiceConversation = useCallback(() => {
+    navigateTo('/session/new')
+  }, [navigateTo])
+
   const handleIntentionChange = useCallback((newIntention: string) => {
     setIntention(newIntention)
     if (activeEntryId) {
@@ -408,11 +438,12 @@ function App() {
   }
 
   // 404 — redirect unknown paths to root
-  if (routePath !== '/' && !routePath.startsWith('/admin') && !routePath.startsWith('/session')) {
+  if (routePath !== '/' && routePath !== '/new' && !routePath.startsWith('/admin') && !routePath.startsWith('/session')) {
     window.history.replaceState(null, '', '/')
   }
 
-  // Session route detection
+  // Route detection
+  const isChoiceRoute = routePath === '/new'
   const isSessionRoute = routePath.startsWith('/session')
   const isNewSession = routePath === '/session/new'
   const sessionIdFromPath = !isNewSession && routePath.startsWith('/session/')
@@ -423,8 +454,8 @@ function App() {
   if (hasConsent === false) {
     const handleOnboardingComplete = async () => {
       setHasConsent(true)
-      await loadOrCreateEntry()
       setIsReady(true)
+      navigateTo('/new')
       trackEvent('onboarding_complete')
     }
     return <Onboarding onComplete={handleOnboardingComplete} />
@@ -528,7 +559,6 @@ function App() {
       <EntriesList
         activeEntryId={activeEntryId}
         onSelectEntry={handleSelectEntry}
-        onNewEntry={handleNewEntry}
         navigateTo={navigateTo}
         currentPath={routePath}
       />
@@ -541,7 +571,13 @@ function App() {
         <InnerWeather weather={weather} />
       </div>
       <CrisisResources visible={isGrounding} />
-      {isSessionRoute ? (
+      {isChoiceRoute ? (
+        <EntryChoice
+          onJournalCreated={handleChoiceJournal}
+          onConversationChosen={handleChoiceConversation}
+          lastUsedType={lastUsedType}
+        />
+      ) : isSessionRoute ? (
         <Suspense fallback={<EditorSkeleton />}>
           <SessionView
             sessionId={sessionIdFromPath}

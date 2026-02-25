@@ -13,7 +13,7 @@ interface State {
 
 function isDOMManipulationError(error: Error): boolean {
   const msg = error.message || ''
-  return msg.includes('removeChild') || msg.includes('insertBefore')
+  return msg.includes('removeChild') || msg.includes('insertBefore') || msg.includes('nextSibling')
 }
 
 export class ErrorBoundary extends Component<Props, State> {

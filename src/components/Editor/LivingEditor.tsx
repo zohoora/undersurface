@@ -301,6 +301,29 @@ export default function LivingEditor({
     },
   })
 
+  // Guard against ProseMirror DOM reconciliation crashes on mobile browsers
+  // (Samsung Internet, etc.) that aggressively mutate contentEditable DOM
+  useEffect(() => {
+    if (!editor?.view) return
+    const view = editor.view
+    const originalUpdateState = view.updateState.bind(view)
+    view.updateState = (state) => {
+      try {
+        originalUpdateState(state)
+      } catch (err) {
+        if (err instanceof TypeError && String(err.message).includes('null')) {
+          console.warn('[Editor] ProseMirror DOM sync error — recovering')
+          requestAnimationFrame(() => {
+            try { originalUpdateState(view.state) } catch { /* unrecoverable */ }
+          })
+        } else {
+          throw err
+        }
+      }
+    }
+    return () => { view.updateState = originalUpdateState }
+  }, [editor])
+
   // Breathing sync: rAF loop to update .typing-breath element
   useEffect(() => {
     const updateBreath = () => {

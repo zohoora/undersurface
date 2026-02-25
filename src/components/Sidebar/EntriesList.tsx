@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, lazy, Suspense } from 'react'
-import { db, generateId } from '../../store/db'
+import { db } from '../../store/db'
 import { SettingsPanel } from './SettingsPanel'
 import { useTranslation, getLanguageCode } from '../../i18n'
 import { useGlobalConfig } from '../../store/globalConfig'
@@ -10,7 +10,6 @@ const BodyMapTab = lazy(() => import('../BodyMap/BodyMapTab').then(m => ({ defau
 interface Props {
   activeEntryId: string
   onSelectEntry: (id: string) => void
-  onNewEntry: (id: string) => void
   navigateTo: (path: string) => void
   currentPath: string
 }
@@ -42,7 +41,7 @@ function useIsMobile() {
   return isMobile
 }
 
-export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry, navigateTo, currentPath }: Props) {
+export function EntriesList({ activeEntryId, onSelectEntry, navigateTo, currentPath }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [entries, setEntries] = useState<Entry[]>([])
@@ -54,11 +53,6 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry, navigate
   const t = useTranslation()
   const globalConfig = useGlobalConfig()
   const showBodyMap = globalConfig?.features?.bodyMap === true
-
-  const loadEntries = useCallback(async () => {
-    const data = await db.entries.orderBy('updatedAt').reverse().toArray()
-    setEntries(data as Entry[])
-  }, [])
 
   // Initial load + infrequent fallback refresh (60s instead of 3s)
   // Refresh on activeEntryId change (entry switches and content saves)
@@ -90,21 +84,6 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry, navigate
       clearInterval(interval)
     }
   }, [activeEntryId])
-
-  const handleNewEntry = async () => {
-    const id = generateId()
-    await db.entries.add({
-      id,
-      content: '',
-      plainText: '',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    })
-    onNewEntry(id)
-    loadEntries()
-    if (currentPath !== '/') navigateTo('/')
-    if (isMobile) setIsOpen(false)
-  }
 
   const handleSelect = useCallback(
     (id: string) => {
@@ -146,11 +125,6 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry, navigate
     const text = session.sessionNote || session.firstLine
     if (!text) return t['sessions.title']
     return text.slice(0, 40) + (text.length > 40 ? '...' : '')
-  }
-
-  const handleNewSession = () => {
-    navigateTo('/session/new')
-    if (isMobile) setIsOpen(false)
   }
 
   const handleSelectSession = (id: string) => {
@@ -245,11 +219,8 @@ export function EntriesList({ activeEntryId, onSelectEntry, onNewEntry, navigate
           ) : (
             <>
               <div className="sidebar-new-buttons">
-                <button className="new-entry-btn" onClick={handleNewEntry}>
-                  {t['entries.new']}
-                </button>
-                <button className="new-entry-btn" onClick={handleNewSession}>
-                  {t['sessions.new']}
+                <button className="new-entry-btn" onClick={() => { navigateTo('/new'); if (isMobile) setIsOpen(false) }}>
+                  {t['entries.newShort']}
                 </button>
               </div>
 
