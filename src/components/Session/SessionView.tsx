@@ -461,7 +461,9 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
                 correctSentence(originalSentence).then((corrected) => {
                   if (!corrected) return
                   const currentState = capturedEditor.state
-                  const currentText = currentState.doc.textBetween(absStart, absEnd)
+                  if (absEnd > currentState.doc.content.size) return
+                  let currentText: string
+                  try { currentText = currentState.doc.textBetween(absStart, absEnd) } catch { return }
                   if (currentText !== originalSentence) return
                   capturedEditor.view.dispatch(
                     currentState.tr.replaceWith(
