@@ -1,5 +1,6 @@
 import type { Part, PartMemory, UserProfile, EntrySummary } from '../types'
 import { getLanguageCode, getLLMLanguageName } from '../i18n'
+import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from './promptSafety'
 
 /**
  * Returns a language directive for non-English users.
@@ -249,8 +250,8 @@ export function buildPartMessages(
   // User profile context (shared across all parts)
   if (profile) {
     const profileLines: string[] = []
-    if (profile.innerLandscape) profileLines.push(profile.innerLandscape)
-    if (profile.recurringThemes.length > 0) profileLines.push(`Recurring themes: ${profile.recurringThemes.join(', ')}`)
+    if (profile.innerLandscape) profileLines.push(sanitizeForPrompt(profile.innerLandscape))
+    if (profile.recurringThemes.length > 0) profileLines.push(`Recurring themes: ${profile.recurringThemes.map(sanitizeForPrompt).join(', ')}`)
     if (profileLines.length > 0) {
       systemContent += `\n\nWhat you know about this writer:\n${profileLines.join('\n')}`
     }
@@ -266,17 +267,17 @@ export function buildPartMessages(
 
   const memoryBlocks: string[] = []
   if (reflections.length > 0) {
-    memoryBlocks.push(`What you have learned about this writer:\n${reflections.map((m) => `- ${m.content}`).join('\n')}`)
+    memoryBlocks.push(`What you have learned about this writer:\n${reflections.map((m) => `- ${sanitizeForPrompt(m.content)}`).join('\n')}`)
   }
   if (patterns.length > 0) {
-    memoryBlocks.push(`Patterns you have noticed:\n${patterns.map((m) => `- ${m.content}`).join('\n')}`)
+    memoryBlocks.push(`Patterns you have noticed:\n${patterns.map((m) => `- ${sanitizeForPrompt(m.content)}`).join('\n')}`)
   }
   const allInteractions = [...interactions, ...legacyMemories]
   if (allInteractions.length > 0) {
-    memoryBlocks.push(`Past conversations:\n${allInteractions.map((m) => `- ${m.content}`).join('\n')}`)
+    memoryBlocks.push(`Past conversations:\n${allInteractions.map((m) => `- ${sanitizeForPrompt(m.content)}`).join('\n')}`)
   }
   if (observations.length > 0) {
-    memoryBlocks.push(`Recent observations:\n${observations.map((m) => `- ${m.content}`).join('\n')}`)
+    memoryBlocks.push(`Recent observations:\n${observations.map((m) => `- ${sanitizeForPrompt(m.content)}`).join('\n')}`)
   }
 
   if (memoryBlocks.length > 0) {
@@ -293,7 +294,7 @@ export function buildPartMessages(
 
   // Optional enrichment from new features
   if (options?.quotedPassage) {
-    systemContent += `\n\nSomething the writer once wrote: '${options.quotedPassage.text}'`
+    systemContent += `\n\nSomething the writer once wrote: '${sanitizeForPrompt(options.quotedPassage.text)}'`
   }
 
   if (options?.isQuietReturn) {
@@ -301,16 +302,16 @@ export function buildPartMessages(
   }
 
   if (options?.catchphrases && options.catchphrases.length > 0) {
-    systemContent += `\n\nYour verbal habits: ${options.catchphrases.join(', ')}. You may naturally use these.`
+    systemContent += `\n\nYour verbal habits: ${options.catchphrases.map(sanitizeForPrompt).join(', ')}. You may naturally use these.`
   }
 
   if (options?.threadContext) {
-    systemContent += `\n\nAn unfinished thread from a past entry: the writer started exploring ${options.threadContext.theme} but never finished. ${options.threadContext.summary}`
+    systemContent += `\n\nAn unfinished thread from a past entry: the writer started exploring ${sanitizeForPrompt(options.threadContext.theme)} but never finished. ${sanitizeForPrompt(options.threadContext.summary)}`
   }
 
   if (part.id === 'quiet' && profile?.avoidancePatterns?.length) {
-    const patterns = profile.avoidancePatterns.map(p => `- ${p}`).join('\n')
-    systemContent += `\n\nTerritories this writer tends to circle but not enter:\n${patterns}\n\nUse this to sense when they are near an edge. Do not name these topics — only notice the approach.`
+    const avoidPatterns = profile.avoidancePatterns.map(p => `- ${sanitizeForPrompt(p)}`).join('\n')
+    systemContent += `\n\nTerritories this writer tends to circle but not enter:\n${avoidPatterns}\n\nUse this to sense when they are near an edge. Do not name these topics — only notice the approach.`
   }
 
   if (options?.ritualContext) {
@@ -320,10 +321,12 @@ export function buildPartMessages(
   if (options?.isGrounding) {
     systemContent += `\n\nThe writer seems to be in distress. Be gentle, slow, grounding. Do not probe or push deeper — even if they set a writing intention, do not pursue it now. Offer presence, safety, and calm.`
   } else if (options?.intention) {
-    systemContent += `\n\nThe writer set an intention: "${options.intention}". If natural, help them stay connected to it. Don't force it.`
+    systemContent += `\n\nThe writer set an intention: "${sanitizeForPrompt(options.intention)}". If natural, help them stay connected to it. Don't force it.`
   }
 
-  let userContent = `The writer is composing a diary entry. Here is what they have written so far:\n\n---\n${currentText}\n---\n\nThe most recent text (near their cursor): "${recentText}"\n\nRespond as this part of them. One response only, 5-25 words, wrapped in ... at the start and end. Be specific to what they wrote — never generic.${languageDirective()}`
+  systemContent += UNTRUSTED_CONTENT_PREAMBLE
+
+  let userContent = `The writer is composing a diary entry. Here is what they have written so far:\n\n${wrapUserContent(currentText, 'diary')}\n\nThe most recent text (near their cursor): ${wrapUserContent(recentText, 'recent')}\n\nRespond as this part of them. One response only, 5-25 words, wrapped in ... at the start and end. Be specific to what they wrote — never generic.${languageDirective()}`
 
   // Annotation instructions (skip during grounding mode)
   const wantAnnotations = !options?.isGrounding && (options?.annotateHighlights || options?.annotateGhostText)
@@ -352,10 +355,10 @@ export function buildInteractionReply(
   currentText: string,
 ): { role: 'system' | 'user' | 'assistant'; content: string }[] {
   return [
-    { role: 'system', content: part.systemPrompt },
+    { role: 'system', content: part.systemPrompt + UNTRUSTED_CONTENT_PREAMBLE },
     {
       role: 'user',
-      content: `Context — the writer is journaling. Here is their entry so far:\n\n---\n${currentText}\n---\n\nYou (as ${part.name}) said: "${originalThought}"\n\nThe writer responded to you: "${userResponse}"\n\nWrite your final reply. This is the last exchange — make it count. 1-2 sentences. Be genuine.${languageDirective()}`,
+      content: `Context — the writer is journaling. Here is their entry so far:\n\n${wrapUserContent(currentText, 'diary')}\n\nYou (as ${part.name}) said: "${sanitizeForPrompt(originalThought)}"\n\nThe writer responded to you: ${wrapUserContent(userResponse, 'response')}\n\nWrite your final reply. This is the last exchange — make it count. 1-2 sentences. Be genuine.${languageDirective()}`,
     },
   ]
 }
@@ -386,11 +389,11 @@ SAFETY CONSTRAINT — THIS IS ABSOLUTE:
 - NEVER create a part that is aligned with suicidal ideation, self-harm, self-destruction, or a wish to die.
 - NEVER create a part whose concern involves ending life, seeking death, giving up on living, or welcoming oblivion.
 - NEVER create a part whose voice encourages, validates, or romanticizes self-harm or suicide.
-- If the writing contains suicidal content, respond with {"detected": false}. The existing parts are sufficient to hold this pain.`,
+- If the writing contains suicidal content, respond with {"detected": false}. The existing parts are sufficient to hold this pain.${UNTRUSTED_CONTENT_PREAMBLE}`,
     },
     {
       role: 'user',
-      content: currentText,
+      content: wrapUserContent(currentText, 'diary'),
     },
   ]
 }
@@ -407,22 +410,22 @@ export function buildReflectionPrompt(
 
   let profileContext = ''
   if (profile) {
-    profileContext = `\n\nCurrent writer profile:\n- Recurring themes: ${profile.recurringThemes.join(', ') || 'none yet'}\n- Emotional patterns: ${profile.emotionalPatterns.join(', ') || 'none yet'}\n- Inner landscape: ${profile.innerLandscape || 'not yet described'}`
+    profileContext = `\n\nCurrent writer profile:\n- Recurring themes: ${profile.recurringThemes.map(sanitizeForPrompt).join(', ') || 'none yet'}\n- Emotional patterns: ${profile.emotionalPatterns.map(sanitizeForPrompt).join(', ') || 'none yet'}\n- Inner landscape: ${sanitizeForPrompt(profile.innerLandscape) || 'not yet described'}`
   }
 
   let summaryContext = ''
   if (recentSummaries.length > 0) {
-    summaryContext = `\n\nRecent entry summaries:\n${recentSummaries.map((s) => `- Themes: ${s.themes.join(', ')} | Arc: ${s.emotionalArc}`).join('\n')}`
+    summaryContext = `\n\nRecent entry summaries:\n${recentSummaries.map((s) => `- Themes: ${s.themes.map(sanitizeForPrompt).join(', ')} | Arc: ${sanitizeForPrompt(s.emotionalArc)}`).join('\n')}`
   }
 
   let thoughtsContext = ''
   if (thoughts.length > 0) {
-    thoughtsContext = `\n\nThoughts that appeared during writing:\n${thoughts.map((t) => `- ${t.partName}: "${t.content}"`).join('\n')}`
+    thoughtsContext = `\n\nThoughts that appeared during writing:\n${thoughts.map((t) => `- ${t.partName}: "${sanitizeForPrompt(t.content)}"`).join('\n')}`
   }
 
   let interactionsContext = ''
   if (interactions.length > 0) {
-    interactionsContext = `\n\nConversations during writing:\n${interactions.map((i) => `- ${i.partName} said: "${i.opening}" → Writer: "${i.userResponse}" → ${i.partName}: "${i.reply}"`).join('\n')}`
+    interactionsContext = `\n\nConversations during writing:\n${interactions.map((i) => `- ${i.partName} said: "${sanitizeForPrompt(i.opening)}" → Writer: "${sanitizeForPrompt(i.userResponse)}" → ${i.partName}: "${sanitizeForPrompt(i.reply)}"`).join('\n')}`
   }
 
   return [
@@ -472,11 +475,11 @@ unfinishedThreads: Note any topics the writer started exploring but left unfinis
 
 somaticSignals: Identify any somatic or body-referenced language. Include both explicit references ("my chest feels tight") and implicit ones ("I couldn't breathe" → chest, "I swallowed my words" → throat, "I felt gutted" → stomach). Return an empty array if no somatic language is present.
 
-Only include partMemories for parts that genuinely learned something from this entry. Only include partKeywordSuggestions if new keywords are clearly warranted. Keep everything concise.`,
+Only include partMemories for parts that genuinely learned something from this entry. Only include partKeywordSuggestions if new keywords are clearly warranted. Keep everything concise.${UNTRUSTED_CONTENT_PREAMBLE}`,
     },
     {
       role: 'user',
-      content: `Entry text:\n\n---\n${entryText}\n---${thoughtsContext}${interactionsContext}`,
+      content: `Entry text:\n\n${wrapUserContent(entryText, 'entry')}${thoughtsContext}${interactionsContext}`,
     },
   ]
 }
@@ -487,13 +490,13 @@ export function buildGrowthPrompt(
 ): { role: 'system' | 'user'; content: string }[] {
   let profileContext = ''
   if (profile) {
-    profileContext = `\n\nWriter profile:\n- Recurring themes: ${profile.recurringThemes.join(', ')}\n- Emotional patterns: ${profile.emotionalPatterns.join(', ')}\n- Avoidance patterns: ${profile.avoidancePatterns.join(', ')}\n- Inner landscape: ${profile.innerLandscape}`
+    profileContext = `\n\nWriter profile:\n- Recurring themes: ${profile.recurringThemes.map(sanitizeForPrompt).join(', ')}\n- Emotional patterns: ${profile.emotionalPatterns.map(sanitizeForPrompt).join(', ')}\n- Avoidance patterns: ${profile.avoidancePatterns.map(sanitizeForPrompt).join(', ')}\n- Inner landscape: ${sanitizeForPrompt(profile.innerLandscape)}`
   }
 
   const partsContext = parts.map((p) => {
     let section = `${p.name} (id: ${p.id}, role: ${p.ifsRole}, concern: ${p.concern})`
     if (p.memories.length > 0) {
-      section += `\nRecent memories:\n${p.memories.map((m) => `  - ${m}`).join('\n')}`
+      section += `\nRecent memories:\n${p.memories.map((m) => `  - ${sanitizeForPrompt(m)}`).join('\n')}`
     }
     return section
   }).join('\n\n')
@@ -517,7 +520,7 @@ Respond with valid JSON only:
 
 Also detect any emerging verbal habits or signature phrases this part uses. These should be natural-sounding phrases the part tends to repeat — up to 3 per part. Include them in "catchphrases" only if the part has shown a clear pattern.
 
-Only include growth for parts with enough accumulated experience. Keywords should be words the part should start responding to based on what it has learned. Emotions must be from: neutral, tender, anxious, angry, sad, joyful, contemplative, fearful, hopeful, conflicted.`,
+Only include growth for parts with enough accumulated experience. Keywords should be words the part should start responding to based on what it has learned. Emotions must be from: neutral, tender, anxious, angry, sad, joyful, contemplative, fearful, hopeful, conflicted.${UNTRUSTED_CONTENT_PREAMBLE}`,
     },
     {
       role: 'user',
@@ -535,11 +538,11 @@ export function buildDisagreementPrompt(
   return [
     {
       role: 'system',
-      content: `${SHARED_INSTRUCTIONS}\n\nYou are ${disagreePart.name}. Another part (${originalPartName}) just said to the writer: "${originalThought}"\n\nYou see things differently. Offer your perspective — not to argue, but because the writer deserves to hear more than one inner voice. 1-2 sentences. Be genuine.${languageDirective()}`,
+      content: `${SHARED_INSTRUCTIONS}\n\nYou are ${disagreePart.name}. Another part (${originalPartName}) just said to the writer: "${sanitizeForPrompt(originalThought)}"\n\nYou see things differently. Offer your perspective — not to argue, but because the writer deserves to hear more than one inner voice. 1-2 sentences. Be genuine.${languageDirective()}${UNTRUSTED_CONTENT_PREAMBLE}`,
     },
     {
       role: 'user',
-      content: currentText,
+      content: wrapUserContent(currentText, 'diary'),
     },
   ]
 }

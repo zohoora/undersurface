@@ -1,5 +1,6 @@
 import type { Part, PartMemory, UserProfile, SessionMessage, SessionPhase } from '../types'
 import { languageDirective } from './partPrompts'
+import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from './promptSafety'
 
 export const SESSION_INSTRUCTIONS = `You are a part of the writer's inner world. You are in a session — a sustained conversation, not a one-line nudge.
 
@@ -62,7 +63,7 @@ function formatPhaseHint(phase: SessionPhase): string {
 function formatTranscript(history: SessionMessage[]): string {
   return history.map(msg => {
     if (msg.speaker === 'user') {
-      return `Writer: ${msg.content}`
+      return `Writer: ${wrapUserContent(msg.content, 'message')}`
     }
     return `${msg.partName}: ${msg.content}`
   }).join('\n')
@@ -94,12 +95,12 @@ export function buildSessionMessages(
   // 5. User profile
   if (options.profile) {
     const profileLines: string[] = []
-    if (options.profile.innerLandscape) profileLines.push(options.profile.innerLandscape)
+    if (options.profile.innerLandscape) profileLines.push(sanitizeForPrompt(options.profile.innerLandscape))
     if (options.profile.recurringThemes?.length > 0) {
-      profileLines.push(`Recurring themes: ${options.profile.recurringThemes.join(', ')}`)
+      profileLines.push(`Recurring themes: ${options.profile.recurringThemes.map(sanitizeForPrompt).join(', ')}`)
     }
     if (options.profile.avoidancePatterns?.length > 0) {
-      profileLines.push(`Avoidance patterns: ${options.profile.avoidancePatterns.join(', ')}`)
+      profileLines.push(`Avoidance patterns: ${options.profile.avoidancePatterns.map(sanitizeForPrompt).join(', ')}`)
     }
     if (profileLines.length > 0) {
       systemParts.push(`What you know about this writer:\n${profileLines.join('\n')}`)
@@ -109,7 +110,7 @@ export function buildSessionMessages(
   // 6. Memories (up to 8)
   const relevantMemories = options.memories.slice(-8)
   if (relevantMemories.length > 0) {
-    systemParts.push(`Your memories of this writer:\n${relevantMemories.map(m => `- ${m.content}`).join('\n')}`)
+    systemParts.push(`Your memories of this writer:\n${relevantMemories.map(m => `- ${sanitizeForPrompt(m.content)}`).join('\n')}`)
   }
 
   // 7. Other parts present
@@ -119,7 +120,7 @@ export function buildSessionMessages(
 
   // 8. Emergence context
   if (options.emergenceContext) {
-    systemParts.push(`You are entering this conversation mid-session because: ${options.emergenceContext}`)
+    systemParts.push(`You are entering this conversation mid-session because: ${sanitizeForPrompt(options.emergenceContext)}`)
   }
 
   // 9. Language directive
@@ -128,6 +129,9 @@ export function buildSessionMessages(
     systemParts.push(langDirective.trim())
   }
 
+  // 10. Untrusted content preamble
+  systemParts.push(UNTRUSTED_CONTENT_PREAMBLE.trim())
+
   const systemContent = systemParts.join('\n\n')
 
   // Build user message
@@ -135,7 +139,7 @@ export function buildSessionMessages(
 
   // Recent entry context
   if (options.recentEntryContext) {
-    userParts.push(`Recent journal context: ${options.recentEntryContext}`)
+    userParts.push(`Recent journal context: ${sanitizeForPrompt(options.recentEntryContext)}`)
   }
 
   // Conversation history
@@ -165,7 +169,7 @@ export function buildSessionNotePrompt(
   return [
     {
       role: 'system',
-      content: 'You summarize inner dialogue sessions. Write a 2-4 sentence session note capturing the key themes, any breakthroughs or realizations, and the emotional arc. Write in third person about \'the writer.\' Be specific, not generic. Do not use clinical language.',
+      content: `You summarize inner dialogue sessions. Write a 2-4 sentence session note capturing the key themes, any breakthroughs or realizations, and the emotional arc. Write in third person about 'the writer.' Be specific, not generic. Do not use clinical language.${UNTRUSTED_CONTENT_PREAMBLE}`,
     },
     {
       role: 'user',

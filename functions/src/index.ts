@@ -121,9 +121,9 @@ export const chat = onRequest(
 
     if (!openRouterResponse.ok) {
       const errorBody = await openRouterResponse.text().catch(() => '')
+      console.error(`OpenRouter error: ${openRouterResponse.status}`, errorBody)
       res.status(openRouterResponse.status).json({
-        error: `OpenRouter error: ${openRouterResponse.status}`,
-        details: errorBody,
+        error: 'AI service temporarily unavailable',
       })
       return
     }
@@ -883,7 +883,6 @@ export const accountApi = onRequest(
       console.error('Account API error:', error)
       res.status(500).json({
         error: 'Request failed',
-        details: error instanceof Error ? error.message : String(error),
       })
     }
   },
@@ -969,7 +968,6 @@ export const adminApi = onRequest(
       console.error('Admin API error:', error)
       res.status(500).json({
         error: 'Internal error',
-        details: error instanceof Error ? error.message : String(error),
       })
     }
   },

@@ -119,7 +119,7 @@ describe('buildTherapistSessionNotePrompt', () => {
     const result = buildTherapistSessionNotePrompt(history)
     expect(result).toHaveLength(2)
     expect(result[1].content).toContain('Companion: Hello')
-    expect(result[1].content).toContain('Writer: Hi there')
+    expect(result[1].content).toContain('Hi there')
   })
 })
 

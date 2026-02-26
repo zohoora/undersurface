@@ -1,5 +1,6 @@
 import { getGlobalConfig } from '../store/globalConfig'
 import { chatCompletion } from '../ai/openrouter'
+import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from '../ai/promptSafety'
 import type { Part, IFSRole } from '../types'
 
 const ROLE_OPPOSITION: Record<IFSRole, IFSRole[]> = {
@@ -52,11 +53,11 @@ export class DisagreementEngine {
     const messages: { role: 'system' | 'user', content: string }[] = [
       {
         role: 'system',
-        content: `${disagreePart.systemPrompt}\n\nAnother part just said: "${originalThought}"\n\nYou see things differently. Offer your perspective — not to argue, but because you genuinely see something the other part missed. Be brief and true to your voice. 1-2 sentences only.`,
+        content: `${disagreePart.systemPrompt}\n\nAnother part just said: "${sanitizeForPrompt(originalThought)}"\n\nYou see things differently. Offer your perspective — not to argue, but because you genuinely see something the other part missed. Be brief and true to your voice. 1-2 sentences only.${UNTRUSTED_CONTENT_PREAMBLE}`,
       },
       {
         role: 'user',
-        content: `The writer is journaling. Here is what they have written:\n\n---\n${currentText}\n---\n\nRespond with your different perspective on what the other part said.`,
+        content: `The writer is journaling. Here is what they have written:\n\n${wrapUserContent(currentText, 'diary')}\n\nRespond with your different perspective on what the other part said.`,
       },
     ]
 

@@ -1,6 +1,7 @@
 import type { Part, PartMemory, EntrySummary, UserProfile } from '../types'
 import { buildReflectionPrompt } from '../ai/partPrompts'
 import { chatCompletion } from '../ai/openrouter'
+import { sanitizeForPrompt } from '../ai/promptSafety'
 import { db, generateId } from '../store/db'
 import { LetterEngine } from './letterEngine'
 
@@ -79,7 +80,7 @@ export class ReflectionEngine {
       }))
 
       const entryTextForReflection = entry.intention
-        ? `[Writer's intention: "${entry.intention}"]\n\n${entry.plainText}`
+        ? `[Writer's intention: "${sanitizeForPrompt(entry.intention)}"]\n\n${entry.plainText}`
         : entry.plainText
 
       const messages = buildReflectionPrompt(

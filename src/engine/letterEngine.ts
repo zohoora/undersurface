@@ -2,6 +2,7 @@ import { getGlobalConfig } from '../store/globalConfig'
 import { db, generateId } from '../store/db'
 import { chatCompletion } from '../ai/openrouter'
 import { SHARED_INSTRUCTIONS, languageDirective } from '../ai/partPrompts'
+import { sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from '../ai/promptSafety'
 import { getPartDisplayName } from '../i18n'
 import type { Part, EntrySummary, UserProfile, PartLetter, PartMemory } from '../types'
 
@@ -44,15 +45,15 @@ export class LetterEngine {
       const partNames = topParts.map((p) => `${getPartDisplayName(p)} (${p.ifsRole})`).join(', ')
 
       const summaryContext = recentSummaries.map((s) =>
-        `- Themes: ${s.themes.join(', ')} | Arc: ${s.emotionalArc} | Key moments: ${s.keyMoments.join(', ')}`
+        `- Themes: ${s.themes.map(sanitizeForPrompt).join(', ')} | Arc: ${sanitizeForPrompt(s.emotionalArc)} | Key moments: ${s.keyMoments.map(sanitizeForPrompt).join(', ')}`
       ).join('\n')
 
       let profileContext = ''
       if (profile) {
         const lines: string[] = []
-        if (profile.innerLandscape) lines.push(`Inner landscape: ${profile.innerLandscape}`)
-        if (profile.recurringThemes.length > 0) lines.push(`Recurring themes: ${profile.recurringThemes.join(', ')}`)
-        if (profile.growthSignals.length > 0) lines.push(`Growth signals: ${profile.growthSignals.join(', ')}`)
+        if (profile.innerLandscape) lines.push(`Inner landscape: ${sanitizeForPrompt(profile.innerLandscape)}`)
+        if (profile.recurringThemes.length > 0) lines.push(`Recurring themes: ${profile.recurringThemes.map(sanitizeForPrompt).join(', ')}`)
+        if (profile.growthSignals.length > 0) lines.push(`Growth signals: ${profile.growthSignals.map(sanitizeForPrompt).join(', ')}`)
         if (lines.length > 0) {
           profileContext = `\n\nWriter profile:\n${lines.join('\n')}`
         }
@@ -63,7 +64,7 @@ export class LetterEngine {
           role: 'system',
           content: `${SHARED_INSTRUCTIONS}
 
-You are writing a letter to a diary writer from the perspective of their inner parts. The letter should be warm, personal, and reference specific things from their writing. Write as a collaborative voice from these parts: ${partNames}. 3-5 paragraphs. Reference specific themes and growth you've witnessed. Sign off with the part names.${languageDirective()}`,
+You are writing a letter to a diary writer from the perspective of their inner parts. The letter should be warm, personal, and reference specific things from their writing. Write as a collaborative voice from these parts: ${partNames}. 3-5 paragraphs. Reference specific themes and growth you've witnessed. Sign off with the part names.${languageDirective()}${UNTRUSTED_CONTENT_PREAMBLE}`,
         },
         {
           role: 'user',

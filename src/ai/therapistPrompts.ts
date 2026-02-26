@@ -1,5 +1,6 @@
 import type { PartMemory, UserProfile, EntrySummary, SessionMessage, SessionPhase } from '../types'
 import { languageDirective } from './partPrompts'
+import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from './promptSafety'
 
 const THERAPIST_CORE = `You are an IFS-informed conversational companion. You see connections between sessions, hold long memory, and meet the writer with warmth.
 
@@ -66,18 +67,18 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
 
   if (options.profile) {
     const profileLines: string[] = []
-    if (options.profile.innerLandscape) profileLines.push(options.profile.innerLandscape)
+    if (options.profile.innerLandscape) profileLines.push(sanitizeForPrompt(options.profile.innerLandscape))
     if (options.profile.recurringThemes?.length > 0) {
-      profileLines.push(`Recurring themes: ${options.profile.recurringThemes.join(', ')}`)
+      profileLines.push(`Recurring themes: ${options.profile.recurringThemes.map(sanitizeForPrompt).join(', ')}`)
     }
     if (options.profile.emotionalPatterns?.length > 0) {
-      profileLines.push(`Emotional patterns: ${options.profile.emotionalPatterns.join(', ')}`)
+      profileLines.push(`Emotional patterns: ${options.profile.emotionalPatterns.map(sanitizeForPrompt).join(', ')}`)
     }
     if (options.profile.avoidancePatterns?.length > 0) {
-      profileLines.push(`Avoidance patterns: ${options.profile.avoidancePatterns.join(', ')}`)
+      profileLines.push(`Avoidance patterns: ${options.profile.avoidancePatterns.map(sanitizeForPrompt).join(', ')}`)
     }
     if (options.profile.growthSignals?.length > 0) {
-      profileLines.push(`Growth signals: ${options.profile.growthSignals.join(', ')}`)
+      profileLines.push(`Growth signals: ${options.profile.growthSignals.map(sanitizeForPrompt).join(', ')}`)
     }
     if (profileLines.length > 0) {
       parts.push(`What you know about this writer:\n${profileLines.join('\n')}`)
@@ -87,7 +88,7 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   if (options.recentSessionNotes && options.recentSessionNotes.length > 0) {
     const notes = options.recentSessionNotes
       .slice(0, 5)
-      .map(n => `- ${n.note}`)
+      .map(n => `- ${sanitizeForPrompt(n.note)}`)
       .join('\n')
     parts.push(`Notes from recent sessions:\n${notes}`)
   }
@@ -101,13 +102,13 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
 
     const memoryBlocks: string[] = []
     if (categorized.reflections.length > 0) {
-      memoryBlocks.push(`What you have learned about this writer:\n${categorized.reflections.map(m => `- ${m.content}`).join('\n')}`)
+      memoryBlocks.push(`What you have learned about this writer:\n${categorized.reflections.map(m => `- ${sanitizeForPrompt(m.content)}`).join('\n')}`)
     }
     if (categorized.patterns.length > 0) {
-      memoryBlocks.push(`Patterns you have noticed:\n${categorized.patterns.map(m => `- ${m.content}`).join('\n')}`)
+      memoryBlocks.push(`Patterns you have noticed:\n${categorized.patterns.map(m => `- ${sanitizeForPrompt(m.content)}`).join('\n')}`)
     }
     if (categorized.other.length > 0) {
-      memoryBlocks.push(`Observations:\n${categorized.other.map(m => `- ${m.content}`).join('\n')}`)
+      memoryBlocks.push(`Observations:\n${categorized.other.map(m => `- ${sanitizeForPrompt(m.content)}`).join('\n')}`)
     }
     if (memoryBlocks.length > 0) {
       parts.push(memoryBlocks.join('\n\n'))
@@ -115,7 +116,7 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   }
 
   if (options.currentEmotion && options.currentEmotion !== 'neutral') {
-    parts.push(`The writer's current emotional tone seems: ${options.currentEmotion}`)
+    parts.push(`The writer's current emotional tone seems: ${sanitizeForPrompt(options.currentEmotion)}`)
   }
 
   if (options.isGrounding) {
@@ -126,6 +127,8 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   if (langDirective) {
     parts.push(langDirective.trim())
   }
+
+  parts.push(UNTRUSTED_CONTENT_PREAMBLE.trim())
 
   return parts.join('\n\n')
 }
@@ -168,14 +171,14 @@ export function buildTherapistSessionNotePrompt(
   history: SessionMessage[],
 ): { role: 'system' | 'user'; content: string }[] {
   const transcript = history.map(msg => {
-    if (msg.speaker === 'user') return `Writer: ${msg.content}`
+    if (msg.speaker === 'user') return `Writer: ${wrapUserContent(msg.content, 'message')}`
     return `Companion: ${msg.content}`
   }).join('\n')
 
   return [
     {
       role: 'system',
-      content: 'You summarize inner dialogue sessions. Write a 2-4 sentence session note capturing the key themes, any breakthroughs or realizations, and the emotional arc. Write in third person about \'the writer.\' Be specific, not generic. Do not use clinical language.',
+      content: `You summarize inner dialogue sessions. Write a 2-4 sentence session note capturing the key themes, any breakthroughs or realizations, and the emotional arc. Write in third person about 'the writer.' Be specific, not generic. Do not use clinical language.${UNTRUSTED_CONTENT_PREAMBLE}`,
     },
     {
       role: 'user',
@@ -194,12 +197,12 @@ export function buildSessionReflectionPrompt(
 
   let profileContext = ''
   if (profile) {
-    profileContext = `\n\nCurrent writer profile:\n- Recurring themes: ${profile.recurringThemes.join(', ') || 'none yet'}\n- Emotional patterns: ${profile.emotionalPatterns.join(', ') || 'none yet'}\n- Inner landscape: ${profile.innerLandscape || 'not yet described'}`
+    profileContext = `\n\nCurrent writer profile:\n- Recurring themes: ${profile.recurringThemes.map(sanitizeForPrompt).join(', ') || 'none yet'}\n- Emotional patterns: ${profile.emotionalPatterns.map(sanitizeForPrompt).join(', ') || 'none yet'}\n- Inner landscape: ${sanitizeForPrompt(profile.innerLandscape) || 'not yet described'}`
   }
 
   let summaryContext = ''
   if (recentSummaries.length > 0) {
-    summaryContext = `\n\nRecent entry summaries:\n${recentSummaries.map(s => `- Themes: ${s.themes.join(', ')} | Arc: ${s.emotionalArc}`).join('\n')}`
+    summaryContext = `\n\nRecent entry summaries:\n${recentSummaries.map(s => `- Themes: ${s.themes.map(sanitizeForPrompt).join(', ')} | Arc: ${sanitizeForPrompt(s.emotionalArc)}`).join('\n')}`
   }
 
   return [
@@ -237,11 +240,11 @@ Respond with valid JSON only:
   ]
 }
 
-Only include partMemories for the "open" and "weaver" parts (the companion's source parts). Only include fields where genuine insights exist. Keep everything concise.`,
+Only include partMemories for the "open" and "weaver" parts (the companion's source parts). Only include fields where genuine insights exist. Keep everything concise.${UNTRUSTED_CONTENT_PREAMBLE}`,
     },
     {
       role: 'user',
-      content: `Session transcript:\n\n---\n${transcriptText}\n---`,
+      content: `Session transcript:\n\n${wrapUserContent(transcriptText, 'transcript')}`,
     },
   ]
 }

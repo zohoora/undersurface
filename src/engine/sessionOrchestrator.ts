@@ -29,10 +29,39 @@ const CRISIS_PATTERNS = [
   /\bswallow\s+(all\s+)?(the\s+)?pills\b/i,
   /\bhang\s+myself\b/i,
   /\bshoot\s+myself\b/i,
+  // Abbreviations and slang
+  /\bkms\b/i,
+  /\bkys\b/i,
+  /\bctb\b/i,
+  // Additional patterns
+  /\bslit\s+(my\s+)?wrists?\b/i,
+  /\boverdose\b/i,
+  /\bwanna\s+die\b/i,
+  /\bready\s+to\s+die\b/i,
+  /\bplanning\s+to\s+(end|kill|die)\b/i,
+  /\bno\s+point\s+in\s+living\b/i,
+  /\blife\s+isn'?t\s+worth\b/i,
+  /\bcan'?t\s+do\s+this\s+anymore\b/i,
+  /\bdon'?t\s+want\s+to\s+wake\s+up\b/i,
+  /\bhurt\s+myself\b/i,
+  /\bself[- ]?harm\b/i,
+  /\bdrown\s+myself\b/i,
 ]
 
+/**
+ * Normalizes text for crisis detection: NFKC normalization to defeat
+ * Unicode tricks (Cyrillic lookalikes, fullwidth chars), and strips
+ * zero-width/non-breaking whitespace.
+ */
+function normalizeForCrisisDetection(text: string): string {
+  return text
+    .normalize('NFKC')
+    .replace(/[\u00A0\u200B\u200C\u200D\uFEFF\u2060]/g, ' ')
+}
+
 export function detectCrisisKeywords(text: string): boolean {
-  return CRISIS_PATTERNS.some(p => p.test(text))
+  const normalized = normalizeForCrisisDetection(text)
+  return CRISIS_PATTERNS.some(p => p.test(normalized))
 }
 
 export class SessionOrchestrator {

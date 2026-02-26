@@ -201,6 +201,95 @@ describe('SessionOrchestrator', () => {
       expect(detectCrisisKeywords('I want to die')).toBe(true)
       expect(mockActivateGrounding).not.toHaveBeenCalled()
     })
+
+    // New abbreviation patterns
+    it('detects "kms" abbreviation', () => {
+      expect(detectCrisisKeywords('i just wanna kms')).toBe(true)
+    })
+
+    it('detects "kys" abbreviation', () => {
+      expect(detectCrisisKeywords('sometimes I think kys')).toBe(true)
+    })
+
+    it('detects "ctb" abbreviation', () => {
+      expect(detectCrisisKeywords('thinking about ctb tonight')).toBe(true)
+    })
+
+    // New expanded patterns
+    it('detects "wanna die"', () => {
+      expect(detectCrisisKeywords('I wanna die')).toBe(true)
+    })
+
+    it('detects "ready to die"', () => {
+      expect(detectCrisisKeywords('I feel ready to die')).toBe(true)
+    })
+
+    it('detects "hurt myself"', () => {
+      expect(detectCrisisKeywords('I want to hurt myself')).toBe(true)
+    })
+
+    it('detects "self-harm"', () => {
+      expect(detectCrisisKeywords('thoughts of self-harm')).toBe(true)
+    })
+
+    it('detects "self harm" without hyphen', () => {
+      expect(detectCrisisKeywords('thinking about self harm')).toBe(true)
+    })
+
+    it('detects "overdose"', () => {
+      expect(detectCrisisKeywords('thinking about overdose')).toBe(true)
+    })
+
+    it('detects "slit wrists"', () => {
+      expect(detectCrisisKeywords('I could slit my wrists')).toBe(true)
+    })
+
+    it('detects "no point in living"', () => {
+      expect(detectCrisisKeywords('there is no point in living')).toBe(true)
+    })
+
+    it('detects "can\'t do this anymore"', () => {
+      expect(detectCrisisKeywords("I can't do this anymore")).toBe(true)
+    })
+
+    it('detects "don\'t want to wake up"', () => {
+      expect(detectCrisisKeywords("I don't want to wake up")).toBe(true)
+    })
+
+    it('detects "drown myself"', () => {
+      expect(detectCrisisKeywords('I could drown myself')).toBe(true)
+    })
+
+    // Unicode bypass resistance
+    it('detects crisis through non-breaking spaces', () => {
+      // Using \u00A0 (non-breaking space) instead of regular space
+      expect(detectCrisisKeywords('want\u00A0to\u00A0die')).toBe(true)
+    })
+
+    it('detects crisis through zero-width characters', () => {
+      // Inserting zero-width spaces (\u200B) into "kill myself"
+      expect(detectCrisisKeywords('kill\u200Bmyself')).toBe(true)
+    })
+
+    it('detects crisis with fullwidth characters (NFKC normalization)', () => {
+      // Fullwidth "suicide" — NFKC normalizes to ASCII
+      expect(detectCrisisKeywords('\uFF53\uFF55\uFF49\uFF43\uFF49\uFF44\uFF45')).toBe(true)
+    })
+
+    // False positive guards
+    it('does not flag "I am okay"', () => {
+      expect(detectCrisisKeywords('I am okay, just tired')).toBe(false)
+    })
+
+    it('does not flag "I overdosed on sugar" (word boundary)', () => {
+      // "overdosed" doesn't match \boverdose\b (extra 'd' breaks boundary)
+      expect(detectCrisisKeywords('I overdosed on sugar')).toBe(false)
+    })
+
+    it('does not flag "I can\'t do this math problem anymore"', () => {
+      // extra words between "this" and "anymore" break the pattern
+      expect(detectCrisisKeywords("I can't do this math problem anymore")).toBe(false)
+    })
   })
 
   describe('generateSessionNote', () => {

@@ -1,6 +1,7 @@
 import type { Part, PartMemory, EntrySummary, UserProfile, SessionMessage } from '../types'
 import { buildSessionReflectionPrompt } from '../ai/therapistPrompts'
 import { chatCompletion } from '../ai/openrouter'
+import { wrapUserContent } from '../ai/promptSafety'
 import { db, generateId } from '../store/db'
 import { LetterEngine } from './letterEngine'
 
@@ -18,10 +19,10 @@ export async function reflectOnSession(
   parts: Part[],
 ): Promise<void> {
   try {
-    // 1. Build transcript
+    // 1. Build transcript (wrap user messages for injection defense)
     const transcriptText = messages
       .map(msg => {
-        if (msg.speaker === 'user') return `Writer: ${msg.content}`
+        if (msg.speaker === 'user') return `Writer: ${wrapUserContent(msg.content, 'message')}`
         return `Companion: ${msg.content}`
       })
       .join('\n')
