@@ -7,7 +7,7 @@ export class QuietTracker {
     try {
       await db.parts.update(partId, {
         lastActiveAt: Date.now(),
-        quietSince: undefined,
+        quietSince: null,
       })
     } catch (error) {
       console.error('QuietTracker updateLastActive error:', error)
