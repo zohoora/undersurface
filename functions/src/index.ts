@@ -9,6 +9,12 @@ initializeApp()
 const openRouterKey = defineSecret('OPENROUTER_API_KEY')
 const ADMIN_EMAILS = ['zohoora@gmail.com']
 
+const ALLOWED_ORIGINS = [
+  'https://undersurface.me',
+  'https://undersurfaceme.web.app',
+  'https://undersurfaceme.firebaseapp.com',
+]
+
 // ─── Chat API guardrails ──────────────────────────────────
 
 const ALLOWED_MODEL_PREFIXES = [
@@ -22,6 +28,8 @@ const ALLOWED_MODEL_PREFIXES = [
 ]
 
 const MAX_TOKENS_CAP = 500
+const MAX_MESSAGE_CHARS = 8000 // per-message content length cap
+const MAX_MESSAGES = 50 // max messages per request
 
 // Best-effort per-instance rate limiter (not shared across Cloud Function instances)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
@@ -46,7 +54,7 @@ function isModelAllowed(model: string): boolean {
 export const chat = onRequest(
   {
     secrets: [openRouterKey],
-    cors: true,
+    cors: ALLOWED_ORIGINS,
     memory: '512MiB',
     minInstances: 1,
     region: 'us-central1',
@@ -84,6 +92,22 @@ export const chat = onRequest(
     if (!Array.isArray(messages) || messages.length === 0) {
       res.status(400).json({ error: 'Invalid messages' })
       return
+    }
+
+    if (messages.length > MAX_MESSAGES) {
+      res.status(400).json({ error: `Too many messages (max ${MAX_MESSAGES})` })
+      return
+    }
+
+    for (const msg of messages) {
+      if (typeof msg.role !== 'string' || typeof msg.content !== 'string') {
+        res.status(400).json({ error: 'Invalid message format' })
+        return
+      }
+      if (msg.content.length > MAX_MESSAGE_CHARS) {
+        res.status(400).json({ error: `Message too long (max ${MAX_MESSAGE_CHARS} chars)` })
+        return
+      }
     }
 
     const resolvedModel = model || 'google/gemini-3-flash-preview'
@@ -133,11 +157,18 @@ export const chat = onRequest(
       res.setHeader('Cache-Control', 'no-cache, no-transform')
       res.setHeader('X-Accel-Buffering', 'no')
 
+      const MAX_STREAM_BYTES = 1_048_576 // 1 MiB safety cap
+      let totalBytes = 0
       const reader = openRouterResponse.body.getReader()
       try {
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
+          totalBytes += value.byteLength
+          if (totalBytes > MAX_STREAM_BYTES) {
+            console.warn(`Stream exceeded ${MAX_STREAM_BYTES} bytes for uid=${uid.slice(0, 8)}, aborting`)
+            break
+          }
           res.write(value)
         }
       } finally {
@@ -156,7 +187,7 @@ async function verifyAdmin(authHeader: string | undefined): Promise<string | nul
   if (!authHeader?.startsWith('Bearer ')) return null
   try {
     const decoded = await getAuth().verifyIdToken(authHeader.split('Bearer ')[1])
-    if (ADMIN_EMAILS.includes(decoded.email || '')) return decoded.email!
+    if (decoded.email && ADMIN_EMAILS.includes(decoded.email)) return decoded.email
     return null
   } catch {
     return null
@@ -668,13 +699,28 @@ async function handleGetConfig() {
   return { config: snap.exists ? snap.data() : null }
 }
 
+const ALLOWED_CONFIG_KEYS = new Set([
+  'features', 'tuning', 'defaultModel', 'grounding', 'announcement',
+])
+
 async function handleUpdateConfig(
   partial: Record<string, unknown>,
   adminEmail: string,
 ) {
+  // Strip unknown keys to prevent arbitrary field injection
+  const sanitized: Record<string, unknown> = {}
+  for (const key of Object.keys(partial)) {
+    if (ALLOWED_CONFIG_KEYS.has(key)) {
+      sanitized[key] = partial[key]
+    }
+  }
+  if (Object.keys(sanitized).length === 0) {
+    return { error: 'No valid config keys provided' }
+  }
+
   const docRef = getFirestore().collection('appConfig').doc('global')
   const merged = {
-    ...partial,
+    ...sanitized,
     updatedAt: Date.now(),
     updatedBy: adminEmail,
   }
@@ -785,7 +831,7 @@ async function deleteCollection(uid: string, collName: string) {
 
 export const accountApi = onRequest(
   {
-    cors: true,
+    cors: ALLOWED_ORIGINS,
     memory: '256MiB',
     timeoutSeconds: 60,
     region: 'us-central1',
@@ -893,7 +939,7 @@ export const accountApi = onRequest(
 export const adminApi = onRequest(
   {
     secrets: [openRouterKey],
-    cors: true,
+    cors: ALLOWED_ORIGINS,
     memory: '512MiB',
     timeoutSeconds: 120,
     region: 'us-central1',
