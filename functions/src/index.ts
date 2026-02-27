@@ -104,7 +104,9 @@ export const chat = onRequest(
         res.status(400).json({ error: 'Invalid message format' })
         return
       }
-      if (msg.content.length > MAX_MESSAGE_CHARS) {
+      // Only enforce length limit on user-authored messages — system/assistant
+      // prompts are built by the app and legitimately exceed 8k chars
+      if (msg.role === 'user' && msg.content.length > MAX_MESSAGE_CHARS) {
         res.status(400).json({ error: `Message too long (max ${MAX_MESSAGE_CHARS} chars)` })
         return
       }

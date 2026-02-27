@@ -9,8 +9,8 @@ import { submitContactMessage } from '../../api/accountApi'
 import { trackEvent } from '../../services/analytics'
 import { useTranslation, SUPPORTED_LANGUAGES } from '../../i18n'
 
-const PolicyModal = lazy(() => import('../PolicyModal'))
-const DeleteAccountModal = lazy(() => import('../DeleteAccountModal'))
+const PolicyModal = lazy(() => import('../PolicyModal').catch(() => { window.location.reload(); return new Promise(() => {}) }))
+const DeleteAccountModal = lazy(() => import('../DeleteAccountModal').catch(() => { window.location.reload(); return new Promise(() => {}) }))
 
 const dataButtonBase = {
   fontSize: 11,

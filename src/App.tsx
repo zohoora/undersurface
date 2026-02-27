@@ -8,9 +8,18 @@ import { AnnouncementBanner } from './components/AnnouncementBanner'
 import { useAuth } from './auth/useAuth'
 import { initializeDB, db, generateId } from './store/db'
 
-const AdminDashboard = lazy(() => import('./admin/AdminDashboard'))
-const LivingEditor = lazy(() => import('./components/Editor/LivingEditor'))
-const SessionView = lazy(() => import('./components/Session/SessionView'))
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function lazyWithRetry<T extends React.ComponentType<any>>(factory: () => Promise<{ default: T }>) {
+  return lazy(() => factory().catch(() => {
+    // Stale chunk after deployment — reload to get new assets
+    window.location.reload()
+    return new Promise<{ default: T }>(() => {}) // never resolves; reload takes over
+  }))
+}
+
+const AdminDashboard = lazyWithRetry(() => import('./admin/AdminDashboard'))
+const LivingEditor = lazyWithRetry(() => import('./components/Editor/LivingEditor'))
+const SessionView = lazyWithRetry(() => import('./components/Session/SessionView'))
 import { ReflectionEngine } from './engine/reflectionEngine'
 import { useSettings } from './store/settings'
 import { initGlobalConfig, useGlobalConfig, useNewVersionAvailable } from './store/globalConfig'

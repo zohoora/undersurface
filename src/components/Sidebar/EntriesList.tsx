@@ -5,7 +5,10 @@ import { useTranslation, getLanguageCode } from '../../i18n'
 import { useGlobalConfig } from '../../store/globalConfig'
 import type { Session } from '../../types'
 
-const BodyMapTab = lazy(() => import('../BodyMap/BodyMapTab').then(m => ({ default: m.BodyMapTab })))
+const BodyMapTab = lazy(() => import('../BodyMap/BodyMapTab').then(m => ({ default: m.BodyMapTab })).catch(() => {
+  window.location.reload()
+  return new Promise(() => {})
+}))
 
 interface Props {
   activeEntryId: string
