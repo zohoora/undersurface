@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { adminFetch } from './adminApi'
-import type { AdminUserDetailResponse } from './adminTypes'
+import type { AdminUserDetailResponse, AdminConversation, AdminSessionMessage } from './adminTypes'
 
-type DetailTab = 'entries' | 'parts' | 'thoughts' | 'profile' | 'sessions' | 'weather' | 'letters' | 'fossils'
+type DetailTab = 'entries' | 'parts' | 'conversations' | 'thoughts' | 'memories' | 'profile' | 'sessions' | 'weather' | 'letters' | 'fossils'
 
 interface Props {
   uid: string
@@ -26,9 +26,11 @@ export function AdminUserDetail({ uid, onBack }: Props) {
   const detailTabs: { id: DetailTab; label: string }[] = [
     { id: 'entries', label: `Entries (${data.entries.length})` },
     { id: 'parts', label: `Parts (${data.parts.length})` },
+    { id: 'conversations', label: `Conversations (${data.conversations.length})` },
     { id: 'thoughts', label: `Thoughts (${data.thoughts.length})` },
+    { id: 'memories', label: `Memories (${data.memories.length})` },
     { id: 'profile', label: 'Profile' },
-    { id: 'sessions', label: `Sessions (${data.sessions.length})` },
+    { id: 'sessions', label: `Writing Log (${data.sessions.length})` },
     { id: 'weather', label: `Weather (${data.weather.length})` },
     { id: 'letters', label: `Letters (${data.letters.length})` },
     { id: 'fossils', label: `Fossils (${data.fossils.length})` },
@@ -129,6 +131,10 @@ export function AdminUserDetail({ uid, onBack }: Props) {
         </div>
       )}
 
+      {tab === 'conversations' && (
+        <ConversationsTab conversations={data.conversations} uid={uid} parts={data.parts} />
+      )}
+
       {tab === 'thoughts' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {data.thoughts.slice(0, 50).map((t) => (
@@ -148,6 +154,48 @@ export function AdminUserDetail({ uid, onBack }: Props) {
           {data.thoughts.length === 0 && <div style={{ fontSize: 13, color: '#A09A94' }}>No thoughts</div>}
           {data.thoughts.length > 50 && (
             <div style={{ fontSize: 12, color: '#A09A94' }}>Showing first 50 of {data.thoughts.length}</div>
+          )}
+        </div>
+      )}
+
+      {tab === 'memories' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {data.memories.length === 0 ? (
+            <div style={{ fontSize: 13, color: '#A09A94' }}>No memories</div>
+          ) : (
+            [...data.memories]
+              .sort((a, b) => b.timestamp - a.timestamp)
+              .slice(0, 50)
+              .map((m) => (
+                <div key={m.id} style={{
+                  background: '#FFFFFF',
+                  borderRadius: 6,
+                  padding: '10px 16px',
+                  border: '1px solid #E8E4DF',
+                  fontSize: 13,
+                }}>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+                    <span style={{ color: '#A09A94', fontSize: 11 }}>
+                      {new Date(m.timestamp).toLocaleDateString()}
+                    </span>
+                    {m.type && (
+                      <span style={{
+                        fontSize: 10,
+                        background: '#F0EDE9',
+                        color: '#8B8580',
+                        padding: '1px 6px',
+                        borderRadius: 6,
+                      }}>
+                        {m.type}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ color: '#6B6560', lineHeight: 1.5 }}>{m.content}</div>
+                </div>
+              ))
+          )}
+          {data.memories.length > 50 && (
+            <div style={{ fontSize: 12, color: '#A09A94', marginTop: 4 }}>Showing first 50 of {data.memories.length}</div>
           )}
         </div>
       )}
@@ -174,7 +222,7 @@ export function AdminUserDetail({ uid, onBack }: Props) {
       {tab === 'sessions' && (
         <div>
           {data.sessions.length === 0 ? (
-            <div style={{ fontSize: 13, color: '#A09A94' }}>No sessions recorded</div>
+            <div style={{ fontSize: 13, color: '#A09A94' }}>No writing sessions recorded</div>
           ) : (
             <table style={{
               width: '100%',
@@ -323,7 +371,194 @@ export function AdminUserDetail({ uid, onBack }: Props) {
   )
 }
 
-function EntryCard({ entry }: { entry: { id: string; plainText: string; createdAt: number; updatedAt: number } }) {
+function ConversationsTab({ conversations, uid, parts }: {
+  conversations: AdminConversation[]
+  uid: string
+  parts: Array<{ id: string; name: string; color: string }>
+}) {
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [messages, setMessages] = useState<Record<string, AdminSessionMessage[]>>({})
+  const [loadingId, setLoadingId] = useState<string | null>(null)
+  const [errorId, setErrorId] = useState<string | null>(null)
+
+  const sorted = useMemo(
+    () => [...conversations].sort((a, b) => b.startedAt - a.startedAt),
+    [conversations],
+  )
+
+  const partMap = useMemo(
+    () => new Map(parts.map((p) => [p.id, p])),
+    [parts],
+  )
+
+  const handleExpand = async (convo: AdminConversation) => {
+    if (expandedId === convo.id) {
+      setExpandedId(null)
+      return
+    }
+    setExpandedId(convo.id)
+    setErrorId(null)
+    if (!messages[convo.id]) {
+      setLoadingId(convo.id)
+      try {
+        const result = await adminFetch<{ messages: AdminSessionMessage[] }>('getSessionMessages', { uid, sessionId: convo.id })
+        setMessages((prev) => ({ ...prev, [convo.id]: result.messages }))
+      } catch {
+        setErrorId(convo.id)
+      } finally {
+        setLoadingId(null)
+      }
+    }
+  }
+
+  const getPartName = (partId: string | null) => {
+    if (!partId) return null
+    return partMap.get(partId)?.name || partId
+  }
+
+  const getPartColor = (partId: string | null) => {
+    if (!partId) return undefined
+    return partMap.get(partId)?.color
+  }
+
+  const formatDuration = (convo: AdminConversation) => {
+    if (!convo.endedAt) return 'active'
+    const mins = Math.round((convo.endedAt - convo.startedAt) / 60000)
+    if (mins < 60) return `${mins}m`
+    return `${Math.floor(mins / 60)}h ${mins % 60}m`
+  }
+
+  const hostLabel = (convo: AdminConversation) => {
+    if (convo.isTherapistSession) return 'Therapist'
+    return getPartName(convo.hostPartId) || convo.hostPartId
+  }
+
+  if (sorted.length === 0) {
+    return <div style={{ fontSize: 13, color: '#A09A94' }}>No conversations</div>
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {sorted.map((convo) => (
+        <div key={convo.id} style={{
+          background: '#FFFFFF',
+          borderRadius: 8,
+          border: '1px solid #E8E4DF',
+          overflow: 'hidden',
+        }}>
+          <div
+            onClick={() => handleExpand(convo)}
+            style={{
+              padding: '14px 20px',
+              cursor: 'pointer',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 13, fontWeight: 500 }}>{hostLabel(convo)}</span>
+                <span style={{
+                  fontSize: 10,
+                  padding: '1px 6px',
+                  borderRadius: 6,
+                  background: convo.status === 'active' ? '#E8F5E9' : '#F0EDE9',
+                  color: convo.status === 'active' ? '#2E7D32' : '#8B8580',
+                }}>
+                  {convo.status}
+                </span>
+                <span style={{ fontSize: 10, color: '#C4BEB8', background: '#F8F6F3', padding: '1px 6px', borderRadius: 6 }}>
+                  {convo.phase}
+                </span>
+                {convo.favorited && (
+                  <span style={{ fontSize: 10, color: '#E6A817' }}>&#9733;</span>
+                )}
+              </div>
+              <div style={{ fontSize: 12, color: '#A09A94', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {convo.firstLine || 'No preview'}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 16 }}>
+              <div style={{ fontSize: 11, color: '#A09A94' }}>
+                {convo.messageCount} msgs &middot; {formatDuration(convo)}
+              </div>
+              <div style={{ fontSize: 11, color: '#C4BEB8' }}>
+                {new Date(convo.startedAt).toLocaleDateString()}
+              </div>
+            </div>
+          </div>
+
+          {expandedId === convo.id && (
+            <div style={{ borderTop: '1px solid #E8E4DF', padding: '16px 20px' }}>
+              {convo.sessionNote && (
+                <div style={{
+                  fontSize: 12,
+                  fontStyle: 'italic',
+                  color: '#8B8580',
+                  marginBottom: 12,
+                  padding: '8px 12px',
+                  background: '#FAF8F5',
+                  borderRadius: 6,
+                }}>
+                  {convo.sessionNote}
+                </div>
+              )}
+              {loadingId === convo.id ? (
+                <div style={{ fontSize: 12, color: '#A09A94' }}>Loading messages...</div>
+              ) : errorId === convo.id ? (
+                <div style={{ fontSize: 12, color: '#B91C1C' }}>Failed to load messages. Click to retry.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {(messages[convo.id] || []).map((msg) => {
+                    const isUser = msg.speaker === 'user'
+                    const speakerColor = isUser
+                      ? '#2D2B29'
+                      : msg.speaker === 'therapist'
+                        ? '#7C5CBA'
+                        : getPartColor(msg.partId) || '#8B8580'
+                    const speakerLabel = isUser
+                      ? 'User'
+                      : msg.speaker === 'therapist'
+                        ? 'Therapist'
+                        : msg.partName || getPartName(msg.partId) || 'Part'
+
+                    return (
+                      <div key={msg.id} style={{
+                        padding: '8px 12px',
+                        borderLeft: `2px solid ${speakerColor}`,
+                        background: isUser ? '#FAF8F5' : '#FFFFFF',
+                        borderRadius: 4,
+                      }}>
+                        <div style={{ fontSize: 10, color: '#A09A94', marginBottom: 2 }}>
+                          <span style={{ fontWeight: 500, color: speakerColor }}>{speakerLabel}</span>
+                          <span style={{ marginLeft: 8 }}>{new Date(msg.timestamp).toLocaleTimeString()}</span>
+                          {msg.isEmergence && (
+                            <span style={{ marginLeft: 6, background: '#FFF3E0', color: '#E65100', padding: '0 4px', borderRadius: 4, fontSize: 9 }}>
+                              emergence
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#6B6560', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                          {msg.content}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {(messages[convo.id] || []).length === 0 && (
+                    <div style={{ fontSize: 12, color: '#A09A94' }}>No messages found</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function EntryCard({ entry }: { entry: { id: string; plainText: string; createdAt: number; updatedAt: number; intention?: string | null } }) {
   const [expanded, setExpanded] = useState(false)
   const truncated = entry.plainText.length > 300
 
@@ -341,6 +576,11 @@ function EntryCard({ entry }: { entry: { id: string; plainText: string; createdA
       <div style={{ fontSize: 11, color: '#C4BEB8', marginBottom: 6 }}>
         {new Date(entry.createdAt).toLocaleDateString()} &middot; {new Date(entry.updatedAt).toLocaleTimeString()}
       </div>
+      {entry.intention && (
+        <div style={{ fontSize: 12, fontStyle: 'italic', color: '#8B8580', marginBottom: 6 }}>
+          {entry.intention}
+        </div>
+      )}
       <div style={{ fontSize: 13, color: '#6B6560', lineHeight: 1.6, whiteSpace: expanded ? 'pre-wrap' : undefined }}>
         {expanded ? entry.plainText : entry.plainText.slice(0, 300)}{!expanded && truncated ? '...' : ''}
       </div>

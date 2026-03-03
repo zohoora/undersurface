@@ -18,6 +18,7 @@ export function AdminOverview() {
   const metrics = [
     { label: 'Users', value: data.userCount },
     { label: 'Entries', value: data.totalEntries },
+    { label: 'Conversations', value: data.totalConversations },
     { label: 'Thoughts', value: data.totalThoughts },
     { label: 'Interactions', value: data.totalInteractions },
   ]
@@ -26,7 +27,7 @@ export function AdminOverview() {
     <div>
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
+        gridTemplateColumns: 'repeat(5, 1fr)',
         gap: 16,
         marginBottom: 16,
       }}>
@@ -52,9 +53,9 @@ export function AdminOverview() {
       {data.writingHabits && (
         <MetricSection title="Writing Habits">
           <MetricGrid items={[
-            { label: 'Total Sessions', value: data.writingHabits.totalSessions.toLocaleString() },
+            { label: 'Writing Sessions', value: data.writingHabits.totalSessions.toLocaleString() },
             { label: 'Avg Duration', value: data.writingHabits.avgSessionDuration > 0 ? formatDuration(data.writingHabits.avgSessionDuration) : '\u2014' },
-            { label: 'Avg Sessions / User', value: String(data.writingHabits.avgSessionsPerUser) },
+            { label: 'Avg Writing Sessions / User', value: String(data.writingHabits.avgSessionsPerUser) },
             { label: 'Peak Hour', value: data.writingHabits.peakWritingHour != null ? formatHour(data.writingHabits.peakWritingHour) : '\u2014' },
           ]} />
         </MetricSection>
@@ -91,6 +92,8 @@ export function AdminOverview() {
         <MetricSection title="Feature Adoption">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <AdoptionBar label="User Profiles" percent={data.featureAdoption.profileAdoptionPercent} />
+            <AdoptionBar label="Conversation Sessions" percent={data.featureAdoption.sessionAdoptionPercent} />
+            <AdoptionBar label="Intentions" percent={data.featureAdoption.intentionUsagePercent} />
             <AdoptionBar label="Part Letters" percent={data.featureAdoption.letterAdoptionPercent} />
             <AdoptionBar label="Entry Fossils" percent={data.featureAdoption.fossilAdoptionPercent} />
           </div>

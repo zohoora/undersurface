@@ -78,6 +78,8 @@ export function AdminAnalytics() {
   const engagementMetrics = [
     { label: 'Avg words / entry', value: data.averageWordsPerEntry },
     { label: 'Avg entries / user', value: data.averageEntriesPerUser },
+    { label: 'Avg convos / user', value: data.averageConversationsPerUser },
+    { label: 'Total conversations', value: data.totalConversations.toLocaleString() },
     { label: 'Total words', value: data.totalWords.toLocaleString() },
   ]
 
@@ -125,7 +127,7 @@ export function AdminAnalytics() {
       {/* Engagement */}
       <div>
         <h3 style={{ fontSize: 14, fontWeight: 500, marginBottom: 12 }}>Engagement</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16 }}>
           {engagementMetrics.map((m) => (
             <div key={m.label} style={cardStyle}>
               <div style={{ fontSize: 12, color: '#A09A94', marginBottom: 8 }}>{m.label}</div>
@@ -141,6 +143,16 @@ export function AdminAnalytics() {
           <h3 style={{ fontSize: 14, fontWeight: 500, marginBottom: 12 }}>Entries (last 14 days)</h3>
           <div style={cardStyle}>
             <BarChart items={data.entriesByDay} labelKey="date" valueKey="count" />
+          </div>
+        </div>
+      )}
+
+      {/* Conversations by day */}
+      {data.conversationsByDay && data.conversationsByDay.length > 0 && (
+        <div>
+          <h3 style={{ fontSize: 14, fontWeight: 500, marginBottom: 12 }}>Conversations (last 14 days)</h3>
+          <div style={cardStyle}>
+            <BarChart items={data.conversationsByDay} labelKey="date" valueKey="count" />
           </div>
         </div>
       )}

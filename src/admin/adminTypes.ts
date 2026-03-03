@@ -123,6 +123,8 @@ export interface FeatureAdoption {
   letterAdoptionPercent: number
   fossilAdoptionPercent: number
   avgPartsPerUser: number
+  sessionAdoptionPercent: number
+  intentionUsagePercent: number
 }
 
 export interface AdminOverviewResponse {
@@ -130,6 +132,7 @@ export interface AdminOverviewResponse {
   totalEntries: number
   totalThoughts: number
   totalInteractions: number
+  totalConversations: number
   recentActivity: RecentActivity[]
   refreshedAt?: number
   writingHabits: WritingHabits | null
@@ -206,6 +209,7 @@ export interface AdminUserDetailResponse {
   userProfile: AdminUserProfile | null
   entrySummaries: AdminEntrySummary[]
   sessions: AdminSession[]
+  conversations: AdminConversation[]
   weather: AdminWeather[]
   letters: AdminLetter[]
   fossils: AdminFossil[]
@@ -216,6 +220,7 @@ export interface AdminEntry {
   plainText: string
   createdAt: number
   updatedAt: number
+  intention?: string | null
 }
 
 export interface AdminPart {
@@ -300,11 +305,41 @@ export interface AdminAnalyticsResponse {
   }
   signupsByWeek: Array<{ week: string; count: number }>
   entriesByDay: Array<{ date: string; count: number }>
+  conversationsByDay: Array<{ date: string; count: number }>
   partUsage: Array<{ name: string; color: string; count: number }>
   averageWordsPerEntry: number
   averageEntriesPerUser: number
+  averageConversationsPerUser: number
   totalWords: number
+  totalConversations: number
   refreshedAt?: number
+}
+
+// Real conversation session (from sessions/{id})
+export interface AdminConversation {
+  id: string
+  startedAt: number
+  endedAt: number | null
+  status: 'active' | 'closed'
+  hostPartId: string
+  phase: 'opening' | 'deepening' | 'closing'
+  sessionNote: string | null
+  messageCount: number
+  firstLine: string
+  isTherapistSession?: boolean
+  favorited?: boolean
+}
+
+// Lazy-loaded message within a conversation
+export interface AdminSessionMessage {
+  id: string
+  speaker: 'user' | 'part' | 'therapist'
+  partId: string | null
+  partName: string | null
+  content: string
+  timestamp: number
+  phase: string
+  isEmergence: boolean
 }
 
 export type AdminAction =
@@ -317,3 +352,4 @@ export type AdminAction =
   | 'getContactMessages'
   | 'getAnalytics'
   | 'refreshAnalytics'
+  | 'getSessionMessages'

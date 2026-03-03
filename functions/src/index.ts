@@ -230,6 +230,7 @@ async function handleGetOverview() {
   const totalEntries = (cached?.totalEntries as number) || 0
   const totalThoughts = (cached?.totalThoughts as number) || 0
   const totalInteractions = (cached?.totalInteractions as number) || 0
+  const totalConversations = (cached?.totalConversations as number) || 0
   const refreshedAt = cached?.refreshedAt as number | undefined
 
   // Rich metrics from cache (populated by computeAndCacheAnalytics)
@@ -279,6 +280,7 @@ async function handleGetOverview() {
     totalEntries,
     totalThoughts,
     totalInteractions,
+    totalConversations,
     recentActivity,
     refreshedAt,
     writingHabits,
@@ -297,7 +299,7 @@ async function handleGetUserList() {
       getCollectionCount(user.uid, 'thoughts'),
       getCollectionCount(user.uid, 'interactions'),
       getCollectionCount(user.uid, 'parts'),
-      getCollectionCount(user.uid, 'sessionLog'),
+      getCollectionCount(user.uid, 'sessions'),
     ])
 
     // Get total words and last active from entries
@@ -338,7 +340,7 @@ async function handleGetUserDetail(uid: string) {
   // Get user info from Auth
   const userRecord = await getAuth().getUser(uid)
 
-  const [entries, parts, thoughts, interactions, memories, entrySummaries, userProfileDocs, sessionLog, innerWeather, letters, fossils] =
+  const [entries, parts, thoughts, interactions, memories, entrySummaries, userProfileDocs, sessionLog, sessions, innerWeather, letters, fossils] =
     await Promise.all([
       getCollectionDocs(uid, 'entries'),
       getCollectionDocs(uid, 'parts'),
@@ -348,6 +350,7 @@ async function handleGetUserDetail(uid: string) {
       getCollectionDocs(uid, 'entrySummaries'),
       getCollectionDocs(uid, 'userProfile'),
       getCollectionDocs(uid, 'sessionLog'),
+      getCollectionDocs(uid, 'sessions'),
       getCollectionDocs(uid, 'innerWeather'),
       getCollectionDocs(uid, 'letters'),
       getCollectionDocs(uid, 'fossils'),
@@ -383,6 +386,7 @@ async function handleGetUserDetail(uid: string) {
       plainText: e.plainText || '',
       createdAt: e.createdAt || 0,
       updatedAt: e.updatedAt || 0,
+      intention: e.intention || null,
     })),
     parts: parts.map((p) => ({
       id: p.id,
@@ -440,6 +444,19 @@ async function handleGetUserDetail(uid: string) {
       timeOfDay: s.timeOfDay || '',
       dayOfWeek: s.dayOfWeek ?? 0,
     })),
+    conversations: sessions.map((c) => ({
+      id: c.id,
+      startedAt: c.startedAt || 0,
+      endedAt: c.endedAt || null,
+      status: c.status || 'closed',
+      hostPartId: c.hostPartId || '',
+      phase: c.phase || 'opening',
+      sessionNote: c.sessionNote || null,
+      messageCount: c.messageCount || 0,
+      firstLine: c.firstLine || '',
+      isTherapistSession: c.isTherapistSession ?? false,
+      favorited: c.favorited ?? false,
+    })),
     weather: innerWeather.map((w) => ({
       id: w.id,
       dominantEmotion: w.dominantEmotion || '',
@@ -464,6 +481,29 @@ async function handleGetUserDetail(uid: string) {
       createdAt: f.createdAt || 0,
     })),
   }
+}
+
+async function handleGetSessionMessages(uid: string, sessionId: string) {
+  const snap = await getFirestore()
+    .collection('users').doc(uid).collection('sessions').doc(sessionId).collection('messages')
+    .orderBy('timestamp', 'asc')
+    .get()
+
+  const messages = snap.docs.map((d) => {
+    const m = d.data()
+    return {
+      id: m.id || d.id,
+      speaker: m.speaker || 'user',
+      partId: m.partId || null,
+      partName: m.partName || null,
+      content: m.content || '',
+      timestamp: m.timestamp || 0,
+      phase: m.phase || 'opening',
+      isEmergence: m.isEmergence ?? false,
+    }
+  })
+
+  return { messages }
 }
 
 // Full analytics computation — expensive, writes result to appConfig/analytics
@@ -502,7 +542,11 @@ async function computeAndCacheAnalytics() {
   let usersWithProfile = 0
   let usersWithLetters = 0
   let usersWithFossils = 0
+  let usersWithSessions = 0
+  let usersWithIntentions = 0
   let totalParts = 0
+  let totalConversations = 0
+  const conversationBuckets: Record<string, number> = {}
 
   for (const user of users) {
     // Track signups by week
@@ -525,6 +569,7 @@ async function computeAndCacheAnalytics() {
     totalInteractions += interactionCount
 
     let userLastActive = 0
+    let hasIntention = false
     for (const doc of entriesSnap.docs) {
       const data = doc.data()
       totalEntries++
@@ -532,6 +577,7 @@ async function computeAndCacheAnalytics() {
       totalWords += text.split(/\s+/).filter((w: string) => w.length > 0).length
       const updatedAt = (data.updatedAt as number) || 0
       if (updatedAt > userLastActive) userLastActive = updatedAt
+      if (data.intention) hasIntention = true
 
       // Track entries by day (last 14 days)
       const entryCreated = (data.createdAt as number) || 0
@@ -540,6 +586,7 @@ async function computeAndCacheAnalytics() {
         entryBuckets[dayKey] = (entryBuckets[dayKey] || 0) + 1
       }
     }
+    if (hasIntention) usersWithIntentions++
 
     if (now - userLastActive < oneDay) dailyActive++
     if (now - userLastActive < oneWeek) weeklyActive++
@@ -606,15 +653,31 @@ async function computeAndCacheAnalytics() {
       }
     }
 
-    // Feature adoption checks
-    const [profileCount, letterCount, fossilCount] = await Promise.all([
+    // Feature adoption checks (sessions query runs in parallel to avoid N+1)
+    const [profileCount, letterCount, fossilCount, conversationCount, convRecentSnap] = await Promise.all([
       getCollectionCount(user.uid, 'userProfile'),
       getCollectionCount(user.uid, 'letters'),
       getCollectionCount(user.uid, 'fossils'),
+      getCollectionCount(user.uid, 'sessions'),
+      getFirestore()
+        .collection('users').doc(user.uid).collection('sessions')
+        .where('startedAt', '>', now - 14 * oneDay)
+        .get(),
     ])
     if (profileCount > 0) usersWithProfile++
     if (letterCount > 0) usersWithLetters++
     if (fossilCount > 0) usersWithFossils++
+    if (conversationCount > 0) usersWithSessions++
+    totalConversations += conversationCount
+
+    // Track conversations by day (last 14 days) — reuse already-fetched snapshot
+    for (const doc of convRecentSnap.docs) {
+      const startedAt = doc.data().startedAt as number
+      if (startedAt) {
+        const dayKey = new Date(startedAt).toISOString().split('T')[0]
+        conversationBuckets[dayKey] = (conversationBuckets[dayKey] || 0) + 1
+      }
+    }
   }
 
   // Build sorted arrays
@@ -623,6 +686,10 @@ async function computeAndCacheAnalytics() {
     .sort((a, b) => a.week.localeCompare(b.week))
 
   const entriesByDay = Object.entries(entryBuckets)
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  const conversationsByDay = Object.entries(conversationBuckets)
     .map(([date, count]) => ({ date, count }))
     .sort((a, b) => a.date.localeCompare(b.date))
 
@@ -655,10 +722,13 @@ async function computeAndCacheAnalytics() {
     activeUsers: { daily: dailyActive, weekly: weeklyActive, monthly: monthlyActive },
     signupsByWeek,
     entriesByDay,
+    conversationsByDay,
     partUsage,
     averageWordsPerEntry: totalEntries > 0 ? Math.round(totalWords / totalEntries) : 0,
     averageEntriesPerUser: userCount > 0 ? Math.round((totalEntries / userCount) * 10) / 10 : 0,
+    averageConversationsPerUser: userCount > 0 ? Math.round((totalConversations / userCount) * 10) / 10 : 0,
     totalWords,
+    totalConversations,
     writingHabits: {
       totalSessions,
       avgSessionDuration: sessionsWithDuration > 0 ? Math.round(totalSessionDuration / sessionsWithDuration) : 0,
@@ -675,6 +745,8 @@ async function computeAndCacheAnalytics() {
       letterAdoptionPercent: userCount > 0 ? Math.round((usersWithLetters / userCount) * 100) : 0,
       fossilAdoptionPercent: userCount > 0 ? Math.round((usersWithFossils / userCount) * 100) : 0,
       avgPartsPerUser: userCount > 0 ? Math.round((totalParts / userCount) * 10) / 10 : 0,
+      sessionAdoptionPercent: userCount > 0 ? Math.round((usersWithSessions / userCount) * 100) : 0,
+      intentionUsagePercent: userCount > 0 ? Math.round((usersWithIntentions / userCount) * 100) : 0,
     },
     refreshedAt: Date.now(),
   }
@@ -998,6 +1070,13 @@ export const adminApi = onRequest(
           return
         case 'generateInsights':
           res.json(await handleGenerateInsights(openRouterKey.value()))
+          return
+        case 'getSessionMessages':
+          if (!params.uid || !params.sessionId) {
+            res.status(400).json({ error: 'Missing uid or sessionId' })
+            return
+          }
+          res.json(await handleGetSessionMessages(params.uid, params.sessionId))
           return
         case 'getContactMessages': {
           const snap = await getFirestore()
