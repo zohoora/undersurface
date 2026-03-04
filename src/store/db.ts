@@ -121,6 +121,7 @@ export const db = {
   innerWeather: createCollectionProxy('innerWeather'),
   consent: createCollectionProxy('consent'),
   sessions: createCollectionProxy('sessions'),
+  apiKeys: createCollectionProxy('apiKeys'),
 }
 
 export const sessionMessages = {
