@@ -44,6 +44,10 @@
         "function": "accountApi"
       },
       {
+        "source": "/api/mcp",
+        "function": "mcpApi"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
