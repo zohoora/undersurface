@@ -80,12 +80,64 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
   const [contactSending, setContactSending] = useState(false)
   const [contactSent, setContactSent] = useState(false)
   const [contactError, setContactError] = useState<string | null>(null)
+  const [apiKey, setApiKey] = useState<{ id: string; name: string; createdAt: number } | null>(null)
+  const [apiKeyLoading, setApiKeyLoading] = useState(true)
+  const [generatedKey, setGeneratedKey] = useState<string | null>(null)
+  const [keyCopied, setKeyCopied] = useState(false)
 
   useEffect(() => {
     if (!contactSent) return
     const timer = setTimeout(() => setContactSent(false), 3000)
     return () => clearTimeout(timer)
   }, [contactSent])
+
+  useEffect(() => {
+    if (!user) return
+    import('../../store/db').then(({ db }) => {
+      db.apiKeys.toArray().then((keys: Array<Record<string, unknown>>) => {
+        if (keys.length > 0) {
+          const k = keys[0]
+          setApiKey({
+            id: k.id as string,
+            name: (k.name as string) || 'Default',
+            createdAt: k.createdAt as number,
+          })
+        }
+        setApiKeyLoading(false)
+      }).catch(() => setApiKeyLoading(false))
+    })
+  }, [user])
+
+  const handleGenerateKey = async () => {
+    const bytes = crypto.getRandomValues(new Uint8Array(32))
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+    const rawKey = `us_${hex}`
+
+    const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawKey))
+    const hash = Array.from(new Uint8Array(hashBuffer), (b) => b.toString(16).padStart(2, '0')).join('')
+
+    const keyId = crypto.randomUUID()
+    const now = Date.now()
+    const { db } = await import('../../store/db')
+    await db.apiKeys.add({
+      id: keyId,
+      hash,
+      name: 'Default',
+      createdAt: now,
+      lastUsedAt: null,
+    })
+
+    setApiKey({ id: keyId, name: 'Default', createdAt: now })
+    setGeneratedKey(rawKey)
+  }
+
+  const handleRevokeKey = async () => {
+    if (!apiKey) return
+    const { db } = await import('../../store/db')
+    await db.apiKeys.delete(apiKey.id)
+    setApiKey(null)
+    setGeneratedKey(null)
+  }
 
   const set = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     updateSettings({ [key]: value })
@@ -233,6 +285,107 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
             <SettingRow label={t['settings.autocorrect']}>
               <Toggle checked={settings.autocorrect} onChange={(v) => { set('autocorrect', v); set('autoCapitalize', v) }} />
             </SettingRow>
+          </div>
+
+          {/* Developer */}
+          <div className="settings-section">
+            <div className="settings-section-label">Developer</div>
+            {apiKeyLoading ? (
+              <div style={{ fontSize: 11, color: 'var(--text-ghost)', padding: '4px 0' }}>
+                Loading...
+              </div>
+            ) : generatedKey ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 11, color: 'var(--color-tender)', lineHeight: 1.4 }}>
+                  Copy this key now — it won't be shown again.
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    readOnly
+                    value={generatedKey}
+                    style={{
+                      flex: 1,
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      padding: '6px 8px',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 4,
+                      background: 'var(--surface-primary)',
+                      color: 'var(--text-primary)',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => e.target.select()}
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedKey)
+                      setKeyCopied(true)
+                      setTimeout(() => setKeyCopied(false), 2000)
+                    }}
+                    style={{
+                      fontSize: 10,
+                      fontFamily: "'Inter', sans-serif",
+                      padding: '4px 10px',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 4,
+                      background: 'var(--surface-primary)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {keyCopied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+                <button
+                  onClick={() => setGeneratedKey(null)}
+                  style={{
+                    fontSize: 11,
+                    fontFamily: "'Inter', sans-serif",
+                    color: 'var(--text-ghost)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                    textAlign: 'left',
+                  }}
+                >
+                  Done
+                </button>
+              </div>
+            ) : apiKey ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                  API key active — created{' '}
+                  {new Date(apiKey.createdAt).toLocaleDateString()}
+                </div>
+                <button
+                  onClick={handleRevokeKey}
+                  style={{
+                    ...dataButtonBase,
+                    color: 'var(--color-tender)',
+                    borderColor: 'var(--color-tender)',
+                  }}
+                >
+                  Revoke Key
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-ghost)', lineHeight: 1.4 }}>
+                  Generate an API key to connect AI agents to your diary via MCP.
+                </div>
+                <button
+                  onClick={handleGenerateKey}
+                  style={{
+                    ...dataButtonBase,
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  Generate API Key
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Contact Us */}
