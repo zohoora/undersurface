@@ -1128,7 +1128,7 @@ async function resolveApiKey(bearer: string): Promise<{ uid: string; keyHash: st
 
   // Query across all users' apiKeys subcollections
   const snap = await db.collectionGroup('apiKeys')
-    .where('keyHash', '==', keyHash)
+    .where('hash', '==', keyHash)
     .limit(1)
     .get()
 
@@ -1147,7 +1147,7 @@ async function resolveApiKey(bearer: string): Promise<{ uid: string; keyHash: st
 
 export const mcpApi = onRequest(
   {
-    cors: true,
+    cors: true, // MCP clients connect from anywhere (not browser-based)
     memory: '256MiB',
     timeoutSeconds: 30,
     region: 'us-central1',
@@ -1209,14 +1209,11 @@ export const mcpApi = onRequest(
       'list-entries',
       'List diary entries with optional filtering',
       {
-        limit: z.number().optional(),
-        offset: z.number().optional(),
+        limit: z.number().int().min(1).max(100).default(20),
+        offset: z.number().int().min(0).default(0),
         since: z.string().optional(),
       },
       async (args) => {
-        const limit = args.limit ?? 20
-        const offset = args.offset ?? 0
-
         let query = db.collection('users').doc(uid).collection('entries')
           .orderBy('createdAt', 'desc') as FirebaseFirestore.Query
 
@@ -1227,9 +1224,8 @@ export const mcpApi = onRequest(
           }
         }
 
-        // Fetch offset + limit, then slice for offset
-        const snap = await query.limit(offset + limit).get()
-        const docs = snap.docs.slice(offset)
+        const snap = await query.offset(args.offset).limit(args.limit).get()
+        const docs = snap.docs
 
         const entries = docs.map((d) => {
           const data = d.data()
@@ -1258,21 +1254,18 @@ export const mcpApi = onRequest(
         entryId: z.string(),
       },
       async (args) => {
-        const snap = await db.collection('users').doc(uid).collection('entries')
-          .where('id', '==', args.entryId)
-          .limit(1)
-          .get()
+        const snap = await db.collection('users').doc(uid).collection('entries').doc(args.entryId).get()
 
-        if (snap.empty) {
+        if (!snap.exists) {
           return {
             isError: true,
             content: [{ type: 'text' as const, text: `Entry not found: ${args.entryId}` }],
           }
         }
 
-        const data = snap.docs[0].data()
+        const data = snap.data()!
         const entry = {
-          id: (data.id as string) || snap.docs[0].id,
+          id: snap.id,
           plainText: (data.plainText as string) || '',
           createdAt: data.createdAt || 0,
           updatedAt: data.updatedAt || 0,
@@ -1292,12 +1285,11 @@ export const mcpApi = onRequest(
       'list-conversations',
       'List conversation sessions with optional filtering',
       {
-        limit: z.number().optional(),
+        limit: z.number().int().min(1).max(100).default(20),
         since: z.string().optional(),
-        status: z.string().optional(),
+        status: z.enum(['active', 'closed']).optional(),
       },
       async (args) => {
-        const limit = args.limit ?? 20
 
         let query = db.collection('users').doc(uid).collection('sessions')
           .orderBy('startedAt', 'desc') as FirebaseFirestore.Query
@@ -1313,7 +1305,7 @@ export const mcpApi = onRequest(
           query = query.where('status', '==', args.status)
         }
 
-        const snap = await query.limit(limit).get()
+        const snap = await query.limit(args.limit).get()
 
         const conversations = snap.docs.map((d) => {
           const data = d.data()
