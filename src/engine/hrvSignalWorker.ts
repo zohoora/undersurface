@@ -179,7 +179,6 @@ export function classifyAutonomicState(hr: number, rmssd: number): AutonomicStat
 // ---------------------------------------------------------------------------
 
 const CALIBRATION_MIN_MS = 60_000
-const CALIBRATION_MAX_MS = 120_000
 const SAMPLE_RATE = 30  // expected fps
 const BUFFER_SECONDS = 10
 const BUFFER_SIZE = SAMPLE_RATE * BUFFER_SECONDS
@@ -246,7 +245,8 @@ function computeConfidence(ibis: number[]): number {
 // Worker message handler (only attached in a Worker context)
 // ---------------------------------------------------------------------------
 
-if (typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope) {
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessage' in self) {
   self.onmessage = (event: MessageEvent) => {
     const { type, data } = event.data as { type: string; data: unknown }
 

@@ -489,7 +489,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
         flushHrvData().catch(console.error)
       }, 5 * 60 * 1000)
 
-      trackEvent('hrv_enabled', { session_id: sessionRef.current?.id })
+      trackEvent('hrv_enabled', { session_id: sessionRef.current?.id ?? '' })
     } catch (err) {
       const hrvErr = err as HrvError
       if (hrvErr.type === 'camera_denied') {
