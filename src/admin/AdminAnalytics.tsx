@@ -79,8 +79,8 @@ export function AdminAnalytics() {
     { label: 'Avg words / entry', value: data.averageWordsPerEntry },
     { label: 'Avg entries / user', value: data.averageEntriesPerUser },
     { label: 'Avg convos / user', value: data.averageConversationsPerUser },
-    { label: 'Total conversations', value: data.totalConversations.toLocaleString() },
-    { label: 'Total words', value: data.totalWords.toLocaleString() },
+    { label: 'Total conversations', value: data.totalConversations?.toLocaleString() ?? '—' },
+    { label: 'Total words', value: data.totalWords?.toLocaleString() ?? '—' },
   ]
 
   return (

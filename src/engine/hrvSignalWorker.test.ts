@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   extractGreenChannel,
+  chromPulseExtraction,
+  findHeartRateFFT,
   butterworthBandpass,
   detectPeaks,
   computeHrvMetrics,
@@ -10,46 +12,58 @@ import {
 // --- extractGreenChannel ---
 
 describe('extractGreenChannel', () => {
-  it('extracts average green value from RGBA pixel data', () => {
-    // 4x4 image, RGBA format: all pixels have green=100
+  it('extracts average green from skin-colored pixels', () => {
+    // 4x4 image: all pixels are skin-toned (R>G>B)
     const width = 4
     const height = 4
     const data = new Uint8ClampedArray(width * height * 4)
     for (let i = 0; i < width * height; i++) {
-      data[i * 4 + 0] = 50   // R
-      data[i * 4 + 1] = 100  // G
-      data[i * 4 + 2] = 30   // B
+      data[i * 4 + 0] = 180  // R (skin-like)
+      data[i * 4 + 1] = 140  // G
+      data[i * 4 + 2] = 100  // B
       data[i * 4 + 3] = 255  // A
     }
     const result = extractGreenChannel(data, width, height)
-    expect(result).toBeCloseTo(100, 1)
+    expect(result).toBeCloseTo(140, 1)
   })
 
-  it('samples only the center ROI (0.2 margin)', () => {
-    // 10x10 image: center pixels have green=200, border pixels have green=0
-    const width = 10
-    const height = 10
-    const data = new Uint8ClampedArray(width * height * 4)
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const idx = (y * width + x) * 4
-        const inCenter = x >= 2 && x < 8 && y >= 2 && y < 8
-        data[idx + 1] = inCenter ? 200 : 0  // G channel
-        data[idx + 3] = 255
-      }
-    }
-    const result = extractGreenChannel(data, width, height)
-    // Center ROI averages ~200, border averages 0 — result must be clearly above 100
-    expect(result).toBeGreaterThan(100)
-  })
-
-  it('returns a number between 0 and 255', () => {
+  it('ignores non-skin pixels', () => {
+    // 4x4 image: mix of skin and non-skin (blue wall)
     const width = 4
     const height = 4
-    const data = new Uint8ClampedArray(width * height * 4).fill(128)
+    const data = new Uint8ClampedArray(width * height * 4)
+    for (let i = 0; i < width * height; i++) {
+      if (i < 8) {
+        // Skin pixels: green=140
+        data[i * 4 + 0] = 180
+        data[i * 4 + 1] = 140
+        data[i * 4 + 2] = 100
+      } else {
+        // Blue wall: should be ignored
+        data[i * 4 + 0] = 80
+        data[i * 4 + 1] = 100
+        data[i * 4 + 2] = 180
+      }
+      data[i * 4 + 3] = 255
+    }
     const result = extractGreenChannel(data, width, height)
-    expect(result).toBeGreaterThanOrEqual(0)
-    expect(result).toBeLessThanOrEqual(255)
+    // Should only average skin pixels (green=140), not blue wall
+    expect(result).toBeCloseTo(140, 0)
+  })
+
+  it('returns 0 when no skin pixels found', () => {
+    const width = 4
+    const height = 4
+    const data = new Uint8ClampedArray(width * height * 4)
+    // All blue (non-skin)
+    for (let i = 0; i < width * height; i++) {
+      data[i * 4 + 0] = 50
+      data[i * 4 + 1] = 50
+      data[i * 4 + 2] = 200
+      data[i * 4 + 3] = 255
+    }
+    const result = extractGreenChannel(data, width, height)
+    expect(result).toBe(0)
   })
 })
 
@@ -195,34 +209,84 @@ describe('computeHrvMetrics', () => {
   })
 })
 
-// --- classifyAutonomicState ---
+// --- classifyAutonomicState (rmssd, baseline) ---
 
 describe('classifyAutonomicState', () => {
-  it('returns "calm" when ratio > 1.2', () => {
-    // High RMSSD relative to HR → parasympathetic dominance → calm
-    expect(classifyAutonomicState(60, 80)).toBe('calm')   // ratio = 80/60 ≈ 1.33
-    expect(classifyAutonomicState(50, 100)).toBe('calm')  // ratio = 100/50 = 2.0
+  it('returns "calm" when rmssd > 1.3x baseline', () => {
+    expect(classifyAutonomicState(80, 50)).toBe('calm')   // ratio = 1.6
+    expect(classifyAutonomicState(70, 50)).toBe('calm')   // ratio = 1.4
   })
 
-  it('returns "activated" when ratio < 0.7', () => {
-    // Low RMSSD relative to HR → sympathetic dominance → activated
-    expect(classifyAutonomicState(100, 60)).toBe('activated')  // ratio = 60/100 = 0.6
-    expect(classifyAutonomicState(80, 40)).toBe('activated')   // ratio = 40/80 = 0.5
+  it('returns "activated" when rmssd < 0.7x baseline', () => {
+    expect(classifyAutonomicState(30, 50)).toBe('activated')  // ratio = 0.6
+    expect(classifyAutonomicState(20, 50)).toBe('activated')  // ratio = 0.4
   })
 
-  it('returns "transitioning" when ratio is between 0.7 and 1.2', () => {
-    expect(classifyAutonomicState(70, 70)).toBe('transitioning')   // ratio = 1.0
-    expect(classifyAutonomicState(100, 90)).toBe('transitioning')  // ratio = 0.9
-    expect(classifyAutonomicState(60, 70)).toBe('transitioning')   // ratio ≈ 1.17
+  it('returns "transitioning" when rmssd is near baseline', () => {
+    expect(classifyAutonomicState(50, 50)).toBe('transitioning')  // ratio = 1.0
+    expect(classifyAutonomicState(55, 50)).toBe('transitioning')  // ratio = 1.1
+    expect(classifyAutonomicState(40, 50)).toBe('transitioning')  // ratio = 0.8
   })
 
-  it('handles edge cases at boundaries', () => {
-    // Exactly 1.2 ratio — boundary; calm requires strictly > 1.2
-    const at1_2 = classifyAutonomicState(100, 120) // ratio = 1.2
-    expect(['calm', 'transitioning']).toContain(at1_2)
+  it('returns "transitioning" for zero baseline', () => {
+    expect(classifyAutonomicState(50, 0)).toBe('transitioning')
+  })
+})
 
-    // Exactly 0.7 ratio — boundary
-    const at0_7 = classifyAutonomicState(100, 70) // ratio = 0.7
-    expect(['activated', 'transitioning']).toContain(at0_7)
+// --- CHROM pulse extraction ---
+
+describe('chromPulseExtraction', () => {
+  it('returns pulse signal of same length as input', () => {
+    const r = Array.from({ length: 100 }, () => 150 + Math.random())
+    const g = Array.from({ length: 100 }, () => 120 + Math.random())
+    const b = Array.from({ length: 100 }, () => 90 + Math.random())
+    const pulse = chromPulseExtraction(r, g, b)
+    expect(pulse).toHaveLength(100)
+  })
+
+  it('returns empty for single-sample input', () => {
+    expect(chromPulseExtraction([150], [120], [90])).toHaveLength(0)
+  })
+
+  it('extracts periodic signal from synthetic pulse in green channel', () => {
+    const fps = 60
+    const n = fps * 5
+    const freq = 1.2 // 72 BPM
+    const r = Array.from({ length: n }, () => 150)
+    const g = Array.from({ length: n }, (_, i) => 120 + 0.5 * Math.sin(2 * Math.PI * freq * i / fps))
+    const b = Array.from({ length: n }, () => 90)
+    const pulse = chromPulseExtraction(r, g, b)
+    // Pulse should have non-zero variance (detected the oscillation)
+    const mean = pulse.reduce((a, c) => a + c, 0) / pulse.length
+    const variance = pulse.reduce((a, c) => a + (c - mean) ** 2, 0) / pulse.length
+    expect(variance).toBeGreaterThan(0)
+  })
+})
+
+// --- FFT heart rate detection ---
+
+describe('findHeartRateFFT', () => {
+  it('detects 72 BPM from a 1.2 Hz sine wave', () => {
+    const fps = 60
+    const n = fps * 10
+    const signal = Array.from({ length: n }, (_, i) => Math.sin(2 * Math.PI * 1.2 * i / fps))
+    const result = findHeartRateFFT(signal, fps)
+    expect(result).not.toBeNull()
+    expect(result!.hr).toBeGreaterThan(65)
+    expect(result!.hr).toBeLessThan(80)
+  })
+
+  it('returns null for flat signal', () => {
+    const signal = Array.from({ length: 256 }, () => 0)
+    const result = findHeartRateFFT(signal, 60)
+    expect(result).toBeNull()
+  })
+
+  it('returns confidence > 0 for clean signal', () => {
+    const fps = 60
+    const signal = Array.from({ length: fps * 10 }, (_, i) => Math.sin(2 * Math.PI * 1.0 * i / fps))
+    const result = findHeartRateFFT(signal, fps)
+    expect(result).not.toBeNull()
+    expect(result!.confidence).toBeGreaterThan(0)
   })
 })

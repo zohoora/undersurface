@@ -677,12 +677,56 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
   const canEnd = !isStreaming && messages.length >= 2 && !isClosed
 
   return (
+    <>
+    {/* HRV Ambient Bar — fixed at top */}
+    {hrvEnabled && (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        padding: '8px 16px',
+        background: 'var(--bg-primary, #1a1a1a)',
+        borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
+      }}>
+        <div style={{ maxWidth: 800, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <HrvAmbientBar
+              measurements={hrvMeasurements}
+              stream={hrvEngineRef.current?.getStream() ?? null}
+              isCalibrating={hrvCalibrating}
+              error={hrvError}
+              faceROI={hrvEngineRef.current?.getFaceROI() ?? null}
+              videoWidth={hrvEngineRef.current?.getVideoSize()?.width ?? 320}
+              videoHeight={hrvEngineRef.current?.getVideoSize()?.height ?? 240}
+            />
+          </div>
+          <button
+            onClick={handleHrvToggle}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 6,
+              border: '1px solid var(--border-subtle)',
+              background: 'rgba(178,93,93,0.15)',
+              color: 'var(--text-secondary)',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 11,
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            Stop
+          </button>
+        </div>
+      </div>
+    )}
     <div style={{
       position: 'relative',
       zIndex: 2,
       maxWidth: 640,
       margin: '0 auto',
-      paddingTop: 80,
+      paddingTop: hrvEnabled ? 140 : 80,
       paddingBottom: 80,
       paddingLeft: 24,
       paddingRight: 24,
@@ -721,45 +765,34 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
         </div>
       )}
 
-      {/* HRV Controls */}
-      {getGlobalConfig()?.features?.webcamHrv === true && !isClosed && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: hrvEnabled ? 8 : 16 }}>
-            <button
-              onClick={handleHrvToggle}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 12px',
-                borderRadius: 8,
-                border: '1px solid var(--border-subtle)',
-                background: hrvEnabled ? 'rgba(107,143,113,0.15)' : 'transparent',
-                color: 'var(--text-secondary)',
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 12,
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                <circle cx="12" cy="13" r="4" />
-                {!hrvEnabled && <line x1="1" y1="1" x2="23" y2="23" />}
-              </svg>
-              HRV {hrvEnabled ? 'On' : 'Off'}
-            </button>
-          </div>
-
-          {hrvEnabled && (
-            <HrvAmbientBar
-              measurements={hrvMeasurements}
-              stream={hrvEngineRef.current?.getStream() ?? null}
-              isCalibrating={hrvCalibrating}
-              error={hrvError}
-            />
-          )}
-        </>
+      {/* HRV Toggle (inline, non-fixed) */}
+      {getGlobalConfig()?.features?.webcamHrv === true && !isClosed && !hrvEnabled && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+          <button
+            onClick={handleHrvToggle}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--border-subtle)',
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 12,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+              <line x1="1" y1="1" x2="23" y2="23" />
+            </svg>
+            HRV Off
+          </button>
+        </div>
       )}
 
       {/* Messages list */}
@@ -884,6 +917,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
         />
       )}
     </div>
+    </>
   )
 }
 

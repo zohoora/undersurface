@@ -4,6 +4,14 @@ type MeasurementCallback = (m: HrvMeasurement) => void
 type CalibrationCallback = (baseline: number) => void
 type ErrorCallback = (error: HrvError) => void
 
+// Face bounding box for ROI targeting
+interface FaceROI {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export class HrvEngine {
   private stream: MediaStream | null = null
   private video: HTMLVideoElement | null = null
@@ -17,6 +25,12 @@ export class HrvEngine {
   private baseline: number | null = null
   private greenBuffer: number[] = []
 
+  // Face detection
+  private faceDetector: unknown = null
+  private faceROI: FaceROI | null = null
+  private faceDetectInterval: ReturnType<typeof setInterval> | null = null
+  private lastFaceLog = 0
+
   private measurementCallbacks: MeasurementCallback[] = []
   private calibrationCallbacks: CalibrationCallback[] = []
   private errorCallbacks: ErrorCallback[] = []
@@ -24,7 +38,7 @@ export class HrvEngine {
   async start(): Promise<void> {
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: 320, height: 240 },
+        video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } },
       })
     } catch (err) {
       const name = (err as DOMException)?.name
@@ -48,12 +62,18 @@ export class HrvEngine {
     this.video.muted = true
     await this.video.play()
 
-    // Set up offscreen canvas
-    this.canvas = new OffscreenCanvas(320, 240)
-    this.ctx = this.canvas.getContext('2d')!
+    // Log actual resolution
+    const vw = this.video.videoWidth
+    const vh = this.video.videoHeight
+    console.log(`[HRV Engine] Camera resolution: ${vw}x${vh}`)
+
+    // Canvas matches video dimensions for full-res pixel access
+    this.canvas = new OffscreenCanvas(vw, vh)
+    this.ctx = this.canvas.getContext('2d', { willReadFrequently: true })!
 
     // Start worker
     try {
+      console.log('[HRV Engine] Creating worker...')
       this.worker = new Worker(
         new URL('./hrvSignalWorker.ts', import.meta.url),
         { type: 'module' },
@@ -62,29 +82,42 @@ export class HrvEngine {
       this.worker.onmessage = (e: MessageEvent) => {
         const { type, data } = e.data
         if (type === 'measurement' && data) {
+          console.log('[HRV Engine] Received measurement from worker:', data)
           this.latest = data as HrvMeasurement
           this.measurementCallbacks.forEach(cb => cb(this.latest!))
         }
         if (type === 'calibration_complete') {
+          console.log('[HRV Engine] Calibration complete, baseline:', data?.baseline)
           this.calibrating = false
-          this.calibrationCallbacks.forEach(cb => cb(data.baseline))
+          this.calibrationCallbacks.forEach(cb => cb(data?.baseline ?? 50))
+        }
+        if (type === 'calibration_progress') {
+          const pct = Math.round((data?.progress ?? 0) * 100)
+          if (pct % 10 === 0) console.log(`[HRV Engine] Calibration progress: ${pct}%`)
         }
       }
 
       this.worker.onerror = (err) => {
-        console.warn('HRV worker error, falling back to main thread:', err)
+        console.error('[HRV Engine] Worker error:', err)
         this.errorCallbacks.forEach(cb => cb({ type: 'worker_error', message: err.message }))
       }
-    } catch {
-      console.warn('Failed to create HRV worker, running on main thread')
+
+      console.log('[HRV Engine] Worker created successfully')
+    } catch (err) {
+      console.warn('[HRV Engine] Failed to create worker, running on main thread:', err)
     }
 
+    // Initialize face detection (Chrome/Edge FaceDetector API)
+    await this.initFaceDetector()
+
     // Start frame capture loop
+    console.log('[HRV Engine] Starting frame capture loop')
     this.captureFrames()
 
     // Request computation every 5 seconds
     this.computeInterval = setInterval(() => {
       if (this.worker) {
+        console.log('[HRV Engine] Requesting computation from worker')
         this.worker.postMessage({ type: 'compute' })
       } else {
         // Main-thread fallback: import and run signal processing directly
@@ -104,7 +137,7 @@ export class HrvEngine {
             timestamp: Date.now(),
             hr: Math.round(metrics.hr),
             rmssd: Math.round(metrics.rmssd * 10) / 10,
-            autonomicState: classifyAutonomicState(metrics.hr, metrics.rmssd),
+            autonomicState: classifyAutonomicState(metrics.rmssd, this.baseline ?? 50),
             trend: 'steady',
             confidence: Math.round(confidence * 100) / 100,
           }
@@ -135,6 +168,11 @@ export class HrvEngine {
     this.ctx = null
     this.latest = null
     this.calibrating = true
+    this.faceROI = null
+    if (this.faceDetectInterval) {
+      clearInterval(this.faceDetectInterval)
+      this.faceDetectInterval = null
+    }
   }
 
   getLatest(): HrvMeasurement | null {
@@ -161,29 +199,180 @@ export class HrvEngine {
     this.errorCallbacks.push(cb)
   }
 
+  getFaceROI(): FaceROI | null {
+    return this.faceROI
+  }
+
+  hasFaceDetection(): boolean {
+    return this.faceDetector !== null
+  }
+
+  getVideoSize(): { width: number; height: number } | null {
+    if (!this.video) return null
+    return { width: this.video.videoWidth, height: this.video.videoHeight }
+  }
+
+  private async initFaceDetector(): Promise<void> {
+    // FaceDetector is part of Chrome's Shape Detection API
+    // Available in Chrome 94+ on macOS/Windows/ChromeOS (uses platform vision APIs)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const FaceDetectorClass = (window as any).FaceDetector
+
+    if (!FaceDetectorClass) {
+      console.warn(
+        '[HRV Engine] FaceDetector API not available.',
+        'Using skin-color filter as fallback.',
+        'To enable face detection: chrome://flags/#enable-experimental-web-platform-features',
+      )
+      return
+    }
+
+    try {
+      this.faceDetector = new FaceDetectorClass()
+      console.log('[HRV Engine] FaceDetector initialized successfully')
+
+      // Run face detection periodically (every 200ms for responsive tracking)
+      this.faceDetectInterval = setInterval(() => this.detectFace(), 200)
+      // Run once immediately
+      await this.detectFace()
+    } catch (err) {
+      console.warn('[HRV Engine] FaceDetector failed to initialize:', err)
+      this.faceDetector = null
+    }
+  }
+
+  private async detectFace(): Promise<void> {
+    if (!this.faceDetector || !this.video) return
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const detector = this.faceDetector as any
+      const faces = await detector.detect(this.video) as Array<{ boundingBox: DOMRectReadOnly }>
+
+      if (faces.length > 0) {
+        const face = faces[0].boundingBox
+        // Face detection runs on the video element at native resolution
+        // but we store ROI in 320x240 coordinate space for consistency
+        const videoW = this.video.videoWidth || 320
+        const videoH = this.video.videoHeight || 240
+        const scaleX = 320 / videoW
+        const scaleY = 240 / videoH
+
+        // Use the full face bounding box with small margin
+        // (more skin pixels = better signal averaging)
+        const faceX = face.x * scaleX
+        const faceY = face.y * scaleY
+        const faceW = face.width * scaleX
+        const faceH = face.height * scaleY
+
+        const targetROI = {
+          x: faceX + faceW * 0.1,
+          y: faceY + faceH * 0.05,
+          width: faceW * 0.8,
+          height: faceH * 0.85,
+        }
+
+        // Smooth the ROI position with exponential moving average
+        // Balances responsive tracking with signal stability
+        const alpha = 0.35
+        if (this.faceROI) {
+          this.faceROI = {
+            x: Math.round(this.faceROI.x + alpha * (targetROI.x - this.faceROI.x)),
+            y: Math.round(this.faceROI.y + alpha * (targetROI.y - this.faceROI.y)),
+            width: Math.round(this.faceROI.width + alpha * (targetROI.width - this.faceROI.width)),
+            height: Math.round(this.faceROI.height + alpha * (targetROI.height - this.faceROI.height)),
+          }
+        } else {
+          // First detection — snap to position
+          this.faceROI = {
+            x: Math.round(targetROI.x),
+            y: Math.round(targetROI.y),
+            width: Math.round(targetROI.width),
+            height: Math.round(targetROI.height),
+          }
+        }
+
+        const now = Date.now()
+        if (now - this.lastFaceLog > 5000) {
+          console.log(`[HRV Engine] Face detected: ROI x=${this.faceROI.x} y=${this.faceROI.y} w=${this.faceROI.width} h=${this.faceROI.height} (video ${videoW}x${videoH})`)
+          this.lastFaceLog = now
+        }
+      } else {
+        // No face — clear ROI so worker falls back to center
+        if (this.faceROI) {
+          console.log('[HRV Engine] Face lost — falling back to center ROI')
+          this.faceROI = null
+        }
+      }
+    } catch (err) {
+      // Silently ignore — face detection is best-effort
+      console.warn('[HRV Engine] Face detection error:', err)
+    }
+  }
+
   private captureFrames(): void {
     if (!this.video || !this.ctx || !this.canvas) return
 
-    this.ctx.drawImage(this.video, 0, 0, 320, 240)
-    const imageData = this.ctx.getImageData(0, 0, 320, 240)
+    const vw = this.canvas.width
+    const vh = this.canvas.height
+
+    this.ctx.drawImage(this.video, 0, 0, vw, vh)
+
+    // Extract RGB averages from skin pixels on the main thread
+    // Only read the face ROI region (not the full frame) for performance
+    const roi = this.faceROI
+    let x0: number, y0: number, x1: number, y1: number
+
+    if (roi && roi.width > 0 && roi.height > 0) {
+      // Scale face ROI from 320x240 detection space to actual resolution
+      const scaleX = vw / 320
+      const scaleY = vh / 240
+      x0 = Math.max(0, Math.floor(roi.x * scaleX))
+      y0 = Math.max(0, Math.floor(roi.y * scaleY))
+      x1 = Math.min(vw, Math.floor((roi.x + roi.width) * scaleX))
+      y1 = Math.min(vh, Math.floor((roi.y + roi.height) * scaleY))
+    } else {
+      // Fallback: center 60%
+      const margin = 0.2
+      x0 = Math.floor(vw * margin)
+      y0 = Math.floor(vh * margin)
+      x1 = Math.floor(vw * (1 - margin))
+      y1 = Math.floor(vh * (1 - margin))
+    }
+
+    // Only read the ROI pixels from the canvas (much less data than full frame)
+    const roiW = x1 - x0
+    const roiH = y1 - y0
+    if (roiW <= 0 || roiH <= 0) {
+      this.animFrameId = requestAnimationFrame(() => this.captureFrames())
+      return
+    }
+
+    const imageData = this.ctx.getImageData(x0, y0, roiW, roiH)
+    const pixels = imageData.data
+
+    // Extract RGB averages from ALL pixels in the face ROI (no skin filtering)
+    const totalPixels = roiW * roiH
+    let sumR = 0, sumG = 0, sumB = 0
+    for (let i = 0; i < pixels.length; i += 4) {
+      sumR += pixels[i]
+      sumG += pixels[i + 1]
+      sumB += pixels[i + 2]
+    }
+
+    const msg = {
+      type: 'rgb',
+      data: {
+        r: sumR / totalPixels,
+        g: sumG / totalPixels,
+        b: sumB / totalPixels,
+        skinCount: totalPixels,
+        roiPixels: totalPixels,
+      },
+    }
 
     if (this.worker) {
-      this.worker.postMessage({
-        type: 'frame',
-        data: {
-          imageData: imageData.data.buffer,
-          width: 320,
-          height: 240,
-          fps: 30,
-        },
-      }, [imageData.data.buffer])
-    } else {
-      // Main-thread fallback: extract green channel directly
-      import('./hrvSignalWorker').then(({ extractGreenChannel }) => {
-        const green = extractGreenChannel(imageData.data, 320, 240)
-        this.greenBuffer.push(green)
-        if (this.greenBuffer.length > 300) this.greenBuffer = this.greenBuffer.slice(-300)
-      })
+      this.worker.postMessage(msg)
     }
 
     this.animFrameId = requestAnimationFrame(() => this.captureFrames())

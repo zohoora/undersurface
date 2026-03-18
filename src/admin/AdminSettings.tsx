@@ -34,6 +34,7 @@ const DEFAULTS: GlobalConfig = {
     emergencyGrounding: false,
     intentionsEnabled: false,
     guidedExplorations: false,
+    webcamHrv: false,
   },
   atmosphere: {
     timeShiftIntensity: 0.3,
@@ -746,6 +747,20 @@ export function AdminSettings() {
             onChange={(v) => setExplore('maxPrompts', v)}
           />
         )}
+      </CollapsibleSection>
+
+      {/* Biometric */}
+      <CollapsibleSection
+        title="Biometric"
+        isExpanded={!!expanded.biometric}
+        onToggle={() => toggle('biometric')}
+        style={sectionStyle}
+      >
+        <ToggleRow
+          label="Webcam HRV (Session Mode)"
+          checked={!!config.features.webcamHrv}
+          onChange={(v) => setFeature('webcamHrv', v)}
+        />
       </CollapsibleSection>
 
       <div style={sectionStyle}>

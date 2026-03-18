@@ -32,10 +32,11 @@ npm run build && firebase deploy --only hosting
 
 ### 2. Cloud Functions (Firebase Functions, Node.js 22)
 
-Three functions in `functions/src/index.ts`:
+Four functions in `functions/src/index.ts`:
 - **`chat`** — proxies AI requests to OpenRouter (512MiB, minInstances: 1)
 - **`accountApi`** — account deletion + contact form (256MiB, 60s)
 - **`adminApi`** — admin dashboard backend (512MiB, 120s)
+- **`mcpApi`** — MCP server with 4 read-only tools (512MiB, 120s)
 
 ```bash
 cd functions && npx tsc && cd .. && firebase deploy --only functions
@@ -88,11 +89,11 @@ Account: Settings → accountApi Cloud Function → delete/contact
 
 Detailed file-by-file reference: `.claude/docs/key-files.md`
 
-Core entry points: `src/ai/openrouter.ts` (API calls), `src/ai/partPrompts.ts` (system prompts + `SHARED_INSTRUCTIONS`), `src/ai/sessionPrompts.ts` (session mode part prompts), `src/ai/therapistPrompts.ts` (therapist companion prompts), `src/engine/partOrchestrator.ts` (part selection + scoring), `src/engine/sessionOrchestrator.ts` (session phase detection + crisis keywords + emotion check), `src/engine/pauseDetector.ts` (pause detection), `src/components/Editor/LivingEditor.tsx` (TipTap editor), `src/components/Session/SessionView.tsx` (session/conversation mode UI), `src/store/db.ts` (Firestore wrapper), `functions/src/index.ts` (Cloud Functions).
+Core entry points: `src/ai/openrouter.ts` (API calls), `src/ai/partPrompts.ts` (system prompts + `SHARED_INSTRUCTIONS`), `src/ai/sessionPrompts.ts` (session mode part prompts), `src/ai/therapistPrompts.ts` (therapist companion prompts), `src/engine/partOrchestrator.ts` (part selection + scoring), `src/engine/sessionOrchestrator.ts` (session phase detection + crisis keywords + emotion check), `src/engine/pauseDetector.ts` (pause detection), `src/engine/hrvEngine.ts` (webcam HRV biofeedback), `src/engine/hrvSignalWorker.ts` (CHROM rPPG signal processing Web Worker), `src/engine/hrvTimeline.ts` (HRV timeline + shift detection + prompt context), `src/components/Editor/LivingEditor.tsx` (TipTap editor), `src/components/Session/SessionView.tsx` (session/conversation mode UI), `src/store/db.ts` (Firestore wrapper), `functions/src/index.ts` (Cloud Functions).
 
 ### Data storage
 
-- **Firestore** `users/{uid}/` — 12 subcollections: entries, parts, memories, thoughts, interactions, entrySummaries, userProfile, fossils, letters, sessionLog, innerWeather, consent
+- **Firestore** `users/{uid}/` — 14 subcollections: entries, parts, memories, thoughts, interactions, entrySummaries, userProfile, fossils, letters, sessionLog, innerWeather, consent, apiKeys, hrvSessions
 - **Firestore** `appConfig/global` — readable by all authenticated, writable only via adminApi
 - **Firestore** `contactMessages` — top-level, deny-all in client rules, written/read via Cloud Functions
 - **localStorage** — device settings (theme, model, visual effects, speed, language)
@@ -109,7 +110,7 @@ SPA in `App.tsx` using `pushState`-based client-side routing (no router library)
 ### Feature flags
 
 7 core flags (default enabled, `!== false`): `partsEnabled`, `visualEffectsEnabled`, `autocorrectEnabled`, `paragraphFade`, `inkWeight`, `colorBleed`, `breathingBackground`.
-24 experimental flags (default disabled, `=== true`) across 5 categories: Atmosphere, Part Intelligence, Memory/Engagement, Text Interaction, Safety & Guidance.
+25 experimental flags (default disabled, `=== true`) across 6 categories: Atmosphere, Part Intelligence, Memory/Engagement, Text Interaction, Safety & Guidance, Biometric (`webcamHrv`).
 
 Full list + settings cascade + tuning params: `.claude/docs/feature-flags.md`
 
@@ -119,7 +120,19 @@ At `/admin` for admins only. Lazy-loaded. 6 tabs, 9 API actions. Overview shows 
 
 ### Subsystems
 
-Dark mode, adaptive parts, i18n (17 languages), emergency grounding, bundle splitting, intentions, explorations, session closing, autocorrect, body map, data export — all documented in `.claude/docs/subsystems.md`
+Dark mode, adaptive parts, i18n (17 languages), emergency grounding, bundle splitting, intentions, explorations, session closing, autocorrect, body map, data export, webcam HRV biofeedback — all documented in `.claude/docs/subsystems.md`
+
+### HRV Biofeedback (Session Mode)
+
+Webcam-based heart rate variability monitoring using remote photoplethysmography (rPPG). Session mode only, gated behind `webcamHrv` feature flag + explicit camera consent.
+
+**Pipeline:** Camera (max resolution) → main thread extracts RGB from face ROI → Web Worker runs CHROM algorithm (chrominance-based pulse extraction) → FFT for heart rate → temporal smoothing → `HrvMeasurement` emitted every 5s.
+
+**Key components:** `hrvEngine.ts` (camera + face detection + frame capture), `hrvSignalWorker.ts` (CHROM + FFT + peak detection in Web Worker), `hrvTimeline.ts` (shift detection + message correlation + prompt context builder), `HrvAmbientBar.tsx` (fixed-position data bar with face thumbnail + HRV trace), `HrvConsentDialog.tsx` (one-time consent).
+
+**Data flow:** HRV context injected into therapist system prompt via `hrvContext` field on `TherapistPromptOptions`. Full measurement log persisted to `hrvSessions/{sessionId}` in Firestore.
+
+**Face detection:** Uses Chrome's `FaceDetector` API (Shape Detection) with EMA-smoothed ROI tracking. Falls back to center-of-frame if unavailable.
 
 ### Analytics & tracking
 
@@ -131,7 +144,7 @@ Dark mode, adaptive parts, i18n (17 languages), emergency grounding, bundle spli
 
 ## Testing
 
-Vitest (~319 tests, 14 test files). Tests cover: `llmCorrect` (sentence extraction, CJK/Hindi/Thai, trigger logic, correction validation), `annotationParser` (parsing, ghost capitalization, delimiter), `bodyMapEngine` (emotion-to-color mapping, homunculus state computation), `ritualEngine`, `pauseDetector`, `partOrchestrator`, `weatherEngine`, `settings`, `sessionOrchestrator` (phase detection, crisis keywords, emotion check, grounding activation), `sessionReflectionEngine`, `sessionPrompts`, `therapistPrompts`, `SessionView`.
+Vitest (~404 tests, 17 test files). Tests cover: `llmCorrect` (sentence extraction, CJK/Hindi/Thai, trigger logic, correction validation), `annotationParser` (parsing, ghost capitalization, delimiter), `bodyMapEngine` (emotion-to-color mapping, homunculus state computation), `ritualEngine`, `pauseDetector`, `partOrchestrator`, `weatherEngine`, `settings`, `sessionOrchestrator` (phase detection, crisis keywords, emotion check, grounding activation), `sessionReflectionEngine`, `sessionPrompts`, `therapistPrompts`, `SessionView`, `hrvSignalWorker` (CHROM extraction, FFT, bandpass filter, peak detection), `hrvTimeline` (shift detection, prompt context builder), `promptSafety`.
 
 ```bash
 npm run test             # Run all tests
@@ -172,9 +185,10 @@ Add to `SEEDED_PARTS` in `partPrompts.ts`. Scoring is role-based (`ifsRole`) —
 
 ### Adding a new Firestore collection
 
-1. Add proxy in `db.ts`
+1. Add proxy in `db.ts` (add to the `db` object literal)
 2. Add interface in `src/types/index.ts`
-3. Add to `exportAllData()` in `db.ts` and `deleteAccount` in `functions/src/index.ts`
+3. Add `'collectionName'` to `collectionNames` array in `exportAllData()` in `db.ts`
+4. Add to `deleteAccount` collections array in `functions/src/index.ts`
 
 ### Toggling features without deploying
 
@@ -200,6 +214,9 @@ Add to `SEEDED_PARTS` in `partPrompts.ts`. Scoring is role-based (`ifsRole`) —
 - **Firebase offline persistence** — `persistentLocalCache` + `persistentMultipleTabManager` must init before any Firestore calls
 - **`chat` function `minInstances: 1`** requires `firebase deploy --force`
 - **Analytics `refreshAnalytics`** iterates all users + their subcollections (sessions, weather, parts, profiles, letters, fossils) — needs optimization at scale
+- **CSP headers in `firebase.json`** — when adding new external scripts/connections/images, must update the Content-Security-Policy header. Google Ads and Firebase Auth both require specific CSP entries (`apis.google.com` for auth, `googleads.g.doubleclick.net` / `googleadservices.com` for ads). CSP violations show in browser console as "violates Content Security Policy directive"
+- **`authDomain` must be `undersurfaceme.firebaseapp.com`** — do NOT change to custom domain without also adding `https://undersurface.me/__/auth/handler` as an authorized redirect URI in Google Cloud Console OAuth settings. Third-party cookie blocking can break `signInWithPopup` on some browsers
+- **Permissions-Policy** — `camera=(self)` is enabled for HRV biofeedback. `microphone=()` and `geolocation=()` remain blocked
 
 ### React & Editor
 - **Refs in setState callbacks** — capture ref values before calling setState (React batches updates)
@@ -222,6 +239,14 @@ Add to `SEEDED_PARTS` in `partPrompts.ts`. Scoring is role-based (`ifsRole`) —
 - **`typewriterScroll` is admin-controlled** — in `ADMIN_CONTROLLED_KEYS`, localStorage stripped
 - **Feature flags** — core use `=== false`, experimental use `=== true`. `getGlobalConfig()` returns `null` before first admin save
 - **Grounding suppresses intention** in prompts — intentional during distress
+
+### HRV / Biometric
+- **Face detection requires Chrome 94+** — uses `FaceDetector` API (Shape Detection). Falls back to center-of-frame ROI if unavailable. Can be enabled via `chrome://flags/#enable-experimental-web-platform-features` on older Chrome
+- **Camera resolution** — requests `ideal: 1920x1080` but main thread only reads the face ROI pixels (not full frame) to minimize data transfer to worker
+- **CHROM signal quality** — rPPG accuracy depends heavily on lighting, stillness, and face visibility. RMSSD values of 200+ ms indicate noise (real RMSSD is 20-80 ms). HR accuracy is ±15-20 BPM compared to medical devices
+- **Face ROI smoothing** — EMA with alpha=0.35 prevents green channel step-changes from ROI jitter. Too low = sluggish tracking. Too high = signal noise from position jumps
+- **FFT range restricted to 0.7-2.5 Hz** (42-150 BPM) to avoid 2nd harmonic detection (e.g., 170 BPM when actual is 85 BPM)
+- **HR temporal smoothing** — confidence-weighted EMA + outlier rejection (>30% from median replaced). Raw FFT HR can jump wildly; smoothed output is shown to user
 
 ### PWA & Build
 - **PWA API calls not cached** — go through Firebase rewrites
