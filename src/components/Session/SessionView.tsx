@@ -17,7 +17,11 @@ import { WeatherEngine } from '../../engine/weatherEngine'
 import { isGroundingActive } from '../../hooks/useGroundingMode'
 import { trackEvent } from '../../services/analytics'
 import { SessionMessageBubble } from './SessionMessage'
-import type { Session, SessionMessage, Part, EmotionalTone } from '../../types'
+import { HrvEngine } from '../../engine/hrvEngine'
+import { HrvTimeline } from '../../engine/hrvTimeline'
+import { HrvAmbientBar } from './HrvAmbientBar'
+import { HrvConsentDialog } from './HrvConsentDialog'
+import type { Session, SessionMessage, Part, EmotionalTone, HrvMeasurement, HrvError, HrvSessionData } from '../../types'
 
 interface Props {
   sessionId: string | null
@@ -45,6 +49,18 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
     delimiter: string
   } | null>(null)
   const handleSendRef = useRef<() => void>(() => {})
+
+  // HRV biometric state
+  const [hrvEnabled, setHrvEnabled] = useState(false)
+  const [hrvMeasurements, setHrvMeasurements] = useState<HrvMeasurement[]>([])
+  const [hrvCalibrating, setHrvCalibrating] = useState(true)
+  const [hrvError, setHrvError] = useState<string | null>(null)
+  const [showHrvConsent, setShowHrvConsent] = useState(false)
+  const hrvEngineRef = useRef<HrvEngine | null>(null)
+  const hrvTimelineRef = useRef(new HrvTimeline())
+  const hrvStartTimeRef = useRef<number>(0)
+  const hrvFlushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const hrvResponseStartedRef = useRef(false)
 
   // Typewriter effect: buffer incoming tokens, reveal character by character
   const streamBufferRef = useRef('')
@@ -114,6 +130,11 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
         clearTimeout(typingTimerRef.current)
         typingTimerRef.current = null
       }
+      // Clean up HRV engine
+      hrvEngineRef.current?.stop()
+      if (hrvFlushIntervalRef.current) {
+        clearInterval(hrvFlushIntervalRef.current)
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
@@ -167,12 +188,14 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
     const maxTokens = orchestrator.getMaxTokens(phase)
 
     const context = therapistContextRef.current
+    const hrvContext = hrvEnabled ? hrvTimelineRef.current.buildPromptContext() : undefined
     const promptMessages = buildTherapistMessages(currentMessages, {
       phase,
       recentSessionNotes: context?.recentSessionNotes,
       relevantMemories: context?.relevantMemories,
       profile: context?.userProfile,
       isGrounding: isGroundingActive(),
+      hrvContext,
     })
 
     // Reset typewriter buffer
@@ -228,6 +251,8 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
       resolveMessages(updatedMessages)
     }
 
+    hrvResponseStartedRef.current = false
+
     await streamChatCompletion(
       promptMessages,
       {
@@ -236,11 +261,20 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
           if (!typingTimerRef.current) {
             revealNextChar()
           }
+          // Track HRV timeline: first token = response start
+          if (hrvEnabled && !hrvResponseStartedRef.current) {
+            hrvResponseStartedRef.current = true
+            hrvTimelineRef.current.addConversationEvent('ai_response_start', currentMessages.length)
+          }
         },
         onComplete: () => {
           onStreamCompleteRef.current = finalizeMessage
           if (!typingTimerRef.current) {
             revealNextChar()
+          }
+          // Track HRV timeline: response complete
+          if (hrvEnabled) {
+            hrvTimelineRef.current.addConversationEvent('ai_response_complete', currentMessages.length)
           }
         },
         onError: (error) => {
@@ -259,7 +293,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
     )
 
     return messagesPromise
-  }, [revealNextChar])
+  }, [revealNextChar, hrvEnabled])
 
   const handleSend = useCallback(async (editorInstance?: ReturnType<typeof useEditor>) => {
     const ed = editorInstance
@@ -284,6 +318,11 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
     }
 
     await sessionMessagesDb.add(currentSession.id, userMessage)
+
+    // Record HRV timeline event
+    if (hrvEnabled) {
+      hrvTimelineRef.current.addConversationEvent('user_message', currentMessages.length)
+    }
 
     const updatedMessages = [...currentMessages, userMessage]
     const firstLine = currentSession.firstLine || trimmed.slice(0, 100)
@@ -317,7 +356,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
       messageCount: updatedMessages.length,
       firstLine,
     })
-  }, [isStreaming, generateTherapistMessage])
+  }, [isStreaming, generateTherapistMessage, hrvEnabled])
 
   const handleEndSession = useCallback(async () => {
     const currentSession = sessionRef.current
@@ -357,12 +396,139 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
     // Persist weather
     weatherEngineRef.current.persist().catch(console.error)
 
+    // Save HRV data and stop engine
+    if (hrvEnabled && hrvEngineRef.current) {
+      if (!hrvEngineRef.current.isCalibrating()) {
+        await flushHrvData()
+      }
+      hrvEngineRef.current.stop()
+      hrvEngineRef.current = null
+      setHrvEnabled(false)
+      if (hrvFlushIntervalRef.current) {
+        clearInterval(hrvFlushIntervalRef.current)
+        hrvFlushIntervalRef.current = null
+      }
+    }
+
     trackEvent('session_closed', {
       session_id: currentSession.id,
       message_count: finalMessages.length,
       duration_ms: endedAt - currentSession.startedAt,
     })
-  }, [isStreaming, generateTherapistMessage])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStreaming, generateTherapistMessage, hrvEnabled])
+
+  const flushHrvData = useCallback(async () => {
+    const currentSession = sessionRef.current
+    const timeline = hrvTimelineRef.current
+    if (!currentSession || timeline.getMeasurements().length === 0) return
+
+    const measurements = timeline.getMeasurements()
+    const shifts = timeline.getRecentShifts(99999)
+
+    const avgHr = measurements.reduce((s, m) => s + m.hr, 0) / measurements.length
+    const avgRmssd = measurements.reduce((s, m) => s + m.rmssd, 0) / measurements.length
+    const avgConf = measurements.reduce((s, m) => s + m.confidence, 0) / measurements.length
+
+    const stateCounts: Record<string, number> = {}
+    for (const m of measurements) {
+      stateCounts[m.autonomicState] = (stateCounts[m.autonomicState] || 0) + 1
+    }
+    const dominantState = Object.entries(stateCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'transitioning'
+
+    const data: HrvSessionData = {
+      id: currentSession.id,
+      startedAt: hrvStartTimeRef.current,
+      endedAt: Date.now(),
+      calibrationBaseline: timeline.baselineRmssd || 0,
+      measurements,
+      shifts,
+      summary: {
+        dominantState: dominantState as HrvSessionData['summary']['dominantState'],
+        averageHr: Math.round(avgHr),
+        averageRmssd: Math.round(avgRmssd * 10) / 10,
+        shiftCount: shifts.length,
+        avgConfidence: Math.round(avgConf * 100) / 100,
+      },
+    }
+
+    await db.hrvSessions.add(data)
+  }, [])
+
+  const startHrvEngine = useCallback(async () => {
+    const engine = new HrvEngine()
+    hrvEngineRef.current = engine
+    hrvTimelineRef.current = new HrvTimeline()
+    hrvStartTimeRef.current = Date.now()
+
+    engine.onMeasurement((m) => {
+      hrvTimelineRef.current.addMeasurement(m)
+      setHrvMeasurements(prev => [...prev, m])
+    })
+
+    engine.onCalibrationComplete((baseline) => {
+      hrvTimelineRef.current.setBaseline(baseline)
+      setHrvCalibrating(false)
+    })
+
+    engine.onError((err) => {
+      if (err.type === 'camera_lost') {
+        setHrvError('Camera disconnected')
+      } else if (err.type === 'worker_error') {
+        console.warn('HRV worker error:', err.message)
+      }
+    })
+
+    try {
+      await engine.start()
+      setHrvEnabled(true)
+      setHrvError(null)
+
+      // Safety flush every 5 minutes
+      hrvFlushIntervalRef.current = setInterval(() => {
+        flushHrvData().catch(console.error)
+      }, 5 * 60 * 1000)
+
+      trackEvent('hrv_enabled', { session_id: sessionRef.current?.id })
+    } catch (err) {
+      const hrvErr = err as HrvError
+      if (hrvErr.type === 'camera_denied') {
+        setHrvError('Camera access denied')
+      } else {
+        setHrvError('Camera not available')
+      }
+      hrvEngineRef.current = null
+    }
+  }, [flushHrvData])
+
+  const handleHrvToggle = useCallback(async () => {
+    const config = getGlobalConfig()
+    if (config?.features?.webcamHrv !== true) return
+
+    if (hrvEnabled) {
+      // Disable
+      hrvEngineRef.current?.stop()
+      hrvEngineRef.current = null
+      setHrvEnabled(false)
+      setHrvMeasurements([])
+      setHrvCalibrating(true)
+      setHrvError(null)
+      if (hrvFlushIntervalRef.current) {
+        clearInterval(hrvFlushIntervalRef.current)
+        hrvFlushIntervalRef.current = null
+      }
+      return
+    }
+
+    // Check consent
+    const consent = await db.consent.get('camera-hrv')
+    if (!consent) {
+      setShowHrvConsent(true)
+      return
+    }
+
+    await startHrvEngine()
+  }, [hrvEnabled, startHrvEngine])
 
   const inputEditor = useEditor({
     extensions: [
@@ -555,6 +721,47 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
         </div>
       )}
 
+      {/* HRV Controls */}
+      {getGlobalConfig()?.features?.webcamHrv === true && !isClosed && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: hrvEnabled ? 8 : 16 }}>
+            <button
+              onClick={handleHrvToggle}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 12px',
+                borderRadius: 8,
+                border: '1px solid var(--border-subtle)',
+                background: hrvEnabled ? 'rgba(107,143,113,0.15)' : 'transparent',
+                color: 'var(--text-secondary)',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 12,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+                {!hrvEnabled && <line x1="1" y1="1" x2="23" y2="23" />}
+              </svg>
+              HRV {hrvEnabled ? 'On' : 'Off'}
+            </button>
+          </div>
+
+          {hrvEnabled && (
+            <HrvAmbientBar
+              measurements={hrvMeasurements}
+              stream={hrvEngineRef.current?.getStream() ?? null}
+              isCalibrating={hrvCalibrating}
+              error={hrvError}
+            />
+          )}
+        </>
+      )}
+
       {/* Messages list */}
       {messages.map(msg => (
         <SessionMessageBubble key={msg.id} message={msg} />
@@ -589,7 +796,6 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
       {isStreaming && !streamingContent && (
         <div style={{
           marginBottom: 20,
-          opacity: 0.5,
         }}>
           <div style={{
             fontFamily: "'Spectral', Georgia, 'Times New Roman', serif",
@@ -598,8 +804,20 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
             lineHeight: 1.85,
             color: 'var(--text-secondary)',
             fontStyle: 'italic',
+            display: 'flex',
+            gap: 3,
           }}>
-            ...
+            {[0, 1, 2].map((i) => (
+              <span key={i} style={{
+                display: 'inline-block',
+                width: 5,
+                height: 5,
+                borderRadius: '50%',
+                background: 'var(--text-secondary)',
+                opacity: 0.4,
+                animation: `dotPulse 1.4s ease-in-out ${i * 0.2}s infinite`,
+              }} />
+            ))}
           </div>
         </div>
       )}
@@ -653,6 +871,17 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
         }}>
           session closed
         </div>
+      )}
+
+      {/* HRV Consent Dialog */}
+      {showHrvConsent && (
+        <HrvConsentDialog
+          onAccept={() => {
+            setShowHrvConsent(false)
+            startHrvEngine()
+          }}
+          onDecline={() => setShowHrvConsent(false)}
+        />
       )}
     </div>
   )
