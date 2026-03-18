@@ -57,6 +57,7 @@ export interface TherapistPromptOptions {
   profile?: UserProfile | null
   currentEmotion?: string
   isGrounding?: boolean
+  hrvContext?: string
 }
 
 export function buildTherapistSystemPrompt(options: TherapistPromptOptions): string {
@@ -121,6 +122,16 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
 
   if (options.isGrounding) {
     parts.push('The writer seems to be in distress. Be gentle, slow, grounding. Do not probe or push deeper. Offer presence, safety, and calm.')
+  }
+
+  if (options.hrvContext) {
+    parts.push(options.hrvContext)
+    parts.push(`When biometric context is available:
+- Use it to notice what the user might not be saying ("I notice you might be feeling more activated right now — does that resonate?")
+- Never state biometric data as fact about emotions ("Your heart rate shows you're anxious") — offer it as an invitation to explore
+- If a shift correlates with a specific topic, gently name the connection
+- Don't reference biometrics every message — use sparingly when it adds genuine insight
+- During grounding: note if biometrics show the user is settling (or not), adjust approach accordingly`)
   }
 
   const langDirective = languageDirective()

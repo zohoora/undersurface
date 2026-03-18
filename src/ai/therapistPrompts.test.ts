@@ -71,6 +71,23 @@ describe('buildTherapistSystemPrompt', () => {
     expect(prompt).toContain('distress')
     expect(prompt).toContain('gentle')
   })
+
+  it('includes HRV context when provided', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      hrvContext: '[Biometric context]\nCurrent autonomic state: activated (trend: rising, 45s)\nHeart rate: 82 bpm',
+    })
+    expect(prompt).toContain('[Biometric context]')
+    expect(prompt).toContain('autonomic state: activated')
+    expect(prompt).toContain('Heart rate: 82 bpm')
+    expect(prompt).toContain('biometric data as fact')
+  })
+
+  it('omits HRV section when no context provided', () => {
+    const prompt = buildTherapistSystemPrompt({ phase: 'opening' })
+    expect(prompt).not.toContain('[Biometric context]')
+    expect(prompt).not.toContain('biometric')
+  })
 })
 
 describe('buildTherapistMessages', () => {
