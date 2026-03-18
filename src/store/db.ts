@@ -122,6 +122,7 @@ export const db = {
   consent: createCollectionProxy('consent'),
   sessions: createCollectionProxy('sessions'),
   apiKeys: createCollectionProxy('apiKeys'),
+  hrvSessions: createCollectionProxy('hrvSessions'),
 }
 
 export const sessionMessages = {
@@ -422,6 +423,7 @@ export async function exportAllData() {
     'entries', 'parts', 'memories', 'thoughts', 'interactions',
     'entrySummaries', 'userProfile', 'fossils', 'letters',
     'sessionLog', 'innerWeather', 'consent', 'sessions',
+    'hrvSessions',
   ] as const
 
   const results = await Promise.all(

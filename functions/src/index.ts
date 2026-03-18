@@ -207,6 +207,26 @@ async function getCollectionCount(uid: string, name: string): Promise<number> {
   return snap.data().count
 }
 
+function countWords(text: string): number {
+  return text.split(/\s+/).filter((w: string) => w.length > 0).length
+}
+
+function computeLastActive(
+  entries: Array<{ updatedAt?: number }>,
+  sessions: Array<{ startedAt?: number }>,
+): number | null {
+  let lastActive: number | null = null
+  for (const e of entries) {
+    const t = e.updatedAt || 0
+    if (!lastActive || t > lastActive) lastActive = t
+  }
+  for (const s of sessions) {
+    const t = s.startedAt || 0
+    if (!lastActive || t > lastActive) lastActive = t
+  }
+  return lastActive
+}
+
 // Paginate through all Firebase Auth users (listUsers returns max 1000 per call)
 async function getAllUsers() {
   const allUsers: import('firebase-admin/auth').UserRecord[] = []
@@ -220,46 +240,59 @@ async function getAllUsers() {
 }
 
 async function handleGetOverview() {
-  // Always get live user count from Firebase Auth
-  const allAuthUsers = await getAllUsers()
+  const db = getFirestore()
+
+  // Live counts in parallel: Auth users + collectionGroup aggregations + cached rich metrics
+  const [allAuthUsers, entryCountSnap, thoughtCountSnap, interactionCountSnap, conversationCountSnap, analyticsSnap, recentEntriesSnap, recentConversationsSnap] = await Promise.all([
+    getAllUsers(),
+    db.collectionGroup('entries').count().get(),
+    db.collectionGroup('thoughts').count().get(),
+    db.collectionGroup('interactions').count().get(),
+    db.collectionGroup('sessions').count().get(),
+    db.collection('appConfig').doc('analytics').get(),
+    db.collectionGroup('entries').orderBy('updatedAt', 'desc').limit(10).get(),
+    db.collectionGroup('sessions').orderBy('startedAt', 'desc').limit(10).get(),
+  ])
+
   const userCount = allAuthUsers.length
-
-  // Read cached totals from appConfig/analytics (1 read instead of N user scans)
-  const analyticsSnap = await getFirestore().collection('appConfig').doc('analytics').get()
-  const cached = analyticsSnap.exists ? analyticsSnap.data() : null
-
-  const totalEntries = (cached?.totalEntries as number) || 0
-  const totalThoughts = (cached?.totalThoughts as number) || 0
-  const totalInteractions = (cached?.totalInteractions as number) || 0
-  const totalConversations = (cached?.totalConversations as number) || 0
-  const refreshedAt = cached?.refreshedAt as number | undefined
+  const totalEntries = entryCountSnap.data().count
+  const totalThoughts = thoughtCountSnap.data().count
+  const totalInteractions = interactionCountSnap.data().count
+  const totalConversations = conversationCountSnap.data().count
 
   // Rich metrics from cache (populated by computeAndCacheAnalytics)
+  const cached = analyticsSnap.exists ? analyticsSnap.data() : null
+  const refreshedAt = cached?.refreshedAt as number | undefined
   const writingHabits = cached?.writingHabits || null
   const emotionalLandscape = cached?.emotionalLandscape || null
   const featureAdoption = cached?.featureAdoption || null
 
-  // Recent activity via collection group query (bounded, fast)
-  const recentSnap = await getFirestore()
-    .collectionGroup('entries')
-    .orderBy('updatedAt', 'desc')
-    .limit(10)
-    .get()
-
-  // Collect unique user IDs from doc paths
+  // Merge recent entries + conversations into one activity feed
   const userIds = new Set<string>()
-  const rawActivity: Array<{ uid: string; entryId: string; preview: string; updatedAt: number }> = []
-  for (const doc of recentSnap.docs) {
-    const uid = doc.ref.parent.parent!.id
-    userIds.add(uid)
-    const data = doc.data()
-    rawActivity.push({
-      uid,
-      entryId: (data.id as string) || doc.id,
-      preview: ((data.plainText as string) || '').slice(0, 100),
-      updatedAt: (data.updatedAt as number) || 0,
-    })
+  const rawActivity: Array<{ uid: string; itemId: string; preview: string; updatedAt: number; type: 'entry' | 'conversation' }> = []
+
+  const activitySources = [
+    { snap: recentEntriesSnap, previewField: 'plainText', timeField: 'updatedAt', type: 'entry' as const, fallback: '' },
+    { snap: recentConversationsSnap, previewField: 'firstLine', timeField: 'startedAt', type: 'conversation' as const, fallback: 'Conversation' },
+  ]
+  for (const { snap, previewField, timeField, type, fallback } of activitySources) {
+    for (const doc of snap.docs) {
+      const uid = doc.ref.parent.parent!.id
+      userIds.add(uid)
+      const data = doc.data()
+      rawActivity.push({
+        uid,
+        itemId: (type === 'entry' ? (data.id as string) : null) || doc.id,
+        preview: ((data[previewField] as string) || fallback).slice(0, 100),
+        updatedAt: (data[timeField] as number) || 0,
+        type,
+      })
+    }
   }
+
+  // Sort merged activity by time, take top 10
+  rawActivity.sort((a, b) => b.updatedAt - a.updatedAt)
+  const topActivity = rawActivity.slice(0, 10)
 
   // Batch-fetch display names from Auth
   const displayNames: Record<string, string> = {}
@@ -271,7 +304,7 @@ async function handleGetOverview() {
     }
   }
 
-  const recentActivity = rawActivity.map((item) => ({
+  const recentActivity = topActivity.map((item) => ({
     ...item,
     displayName: displayNames[item.uid] || 'Unknown',
   }))
@@ -292,42 +325,40 @@ async function handleGetOverview() {
 
 async function handleGetUserList() {
   const allAuthUsers = await getAllUsers()
+  const db = getFirestore()
   const users = []
 
   for (const user of allAuthUsers) {
-    const [entryCount, thoughtCount, interactionCount, partCount, sessionCount] = await Promise.all([
-      getCollectionCount(user.uid, 'entries'),
+    const userRef = db.collection('users').doc(user.uid)
+
+    const [thoughtCount, interactionCount, partCount, writingSessionCount, entriesSnap, conversationsSnap] = await Promise.all([
       getCollectionCount(user.uid, 'thoughts'),
       getCollectionCount(user.uid, 'interactions'),
       getCollectionCount(user.uid, 'parts'),
-      getCollectionCount(user.uid, 'sessions'),
+      getCollectionCount(user.uid, 'sessionLog'),
+      userRef.collection('entries').select('plainText', 'updatedAt').get(),
+      userRef.collection('sessions').select('startedAt').get(),
     ])
 
-    // Get total words and last active from entries
-    const entries = await getFirestore()
-      .collection('users').doc(user.uid).collection('entries')
-      .get()
-
     let totalWords = 0
-    let lastActive: number | null = null
-    for (const doc of entries.docs) {
+    const entryData = entriesSnap.docs.map((doc) => {
       const data = doc.data()
-      const text = data.plainText || ''
-      totalWords += text.split(/\s+/).filter((w: string) => w.length > 0).length
-      const updated = data.updatedAt || 0
-      if (!lastActive || updated > lastActive) lastActive = updated
-    }
+      totalWords += countWords(data.plainText || '')
+      return { updatedAt: data.updatedAt || 0 }
+    })
+    const sessionData = conversationsSnap.docs.map((doc) => ({ startedAt: doc.data().startedAt || 0 }))
+    const lastActive = computeLastActive(entryData, sessionData)
 
     users.push({
       uid: user.uid,
       email: user.email || '',
       displayName: user.displayName || '',
       photoURL: user.photoURL || null,
-      entryCount,
+      entryCount: entriesSnap.size,
       thoughtCount,
       interactionCount,
       partCount,
-      sessionCount,
+      sessionCount: conversationsSnap.size + writingSessionCount,
       totalWords,
       lastActive,
       createdAt: new Date(user.metadata.creationTime).getTime(),
@@ -357,15 +388,14 @@ async function handleGetUserDetail(uid: string) {
       getCollectionDocs(uid, 'fossils'),
     ])
 
-  // Compute counts and words from raw entries
   let totalWords = 0
-  let lastActive: number | null = null
   for (const entry of entries) {
-    const text = (entry.plainText as string) || ''
-    totalWords += text.split(/\s+/).filter((w: string) => w.length > 0).length
-    const updated = (entry.updatedAt as number) || 0
-    if (!lastActive || updated > lastActive) lastActive = updated
+    totalWords += countWords((entry.plainText as string) || '')
   }
+  const lastActive = computeLastActive(
+    entries.map((e) => ({ updatedAt: (e.updatedAt as number) || 0 })),
+    sessions.map((s) => ({ startedAt: (s.startedAt as number) || 0 })),
+  )
 
   return {
     user: {
@@ -377,7 +407,7 @@ async function handleGetUserDetail(uid: string) {
       thoughtCount: thoughts.length,
       interactionCount: interactions.length,
       partCount: parts.length,
-      sessionCount: sessionLog.length,
+      sessionCount: sessionLog.length + sessions.length,
       totalWords,
       lastActive,
       createdAt: new Date(userRecord.metadata.creationTime).getTime(),
@@ -946,6 +976,7 @@ export const accountApi = onRequest(
             'entries', 'parts', 'memories', 'thoughts', 'interactions',
             'entrySummaries', 'userProfile', 'fossils', 'letters',
             'sessionLog', 'innerWeather', 'consent', 'sessions',
+            'hrvSessions',
           ]
           for (const coll of collections) {
             await deleteCollection(uid, coll)
