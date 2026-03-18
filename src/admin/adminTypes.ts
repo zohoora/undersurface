@@ -40,6 +40,8 @@ export interface GlobalConfig {
     emergencyGrounding?: boolean
     intentionsEnabled?: boolean
     guidedExplorations?: boolean
+    // Biometric
+    webcamHrv?: boolean
   }
   announcement: {
     message: string
@@ -143,9 +145,10 @@ export interface AdminOverviewResponse {
 export interface RecentActivity {
   uid: string
   displayName: string
-  entryId: string
+  itemId: string
   preview: string
   updatedAt: number
+  type: 'entry' | 'conversation'
 }
 
 export interface AdminUser {
