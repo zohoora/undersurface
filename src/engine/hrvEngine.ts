@@ -1,5 +1,11 @@
 import type { HrvMeasurement, HrvError, HrvSignalDump } from '../types/hrv'
 
+// Module-level HR accessor for cross-component use (like isGroundingActive)
+let currentHeartRate: number | null = null
+export function getCurrentHeartRate(): number | null {
+  return currentHeartRate
+}
+
 type MeasurementCallback = (m: HrvMeasurement) => void
 type CalibrationCallback = (baseline: number) => void
 type ErrorCallback = (error: HrvError) => void
@@ -113,6 +119,7 @@ export class HrvEngine {
           const m = data as HrvMeasurement
           console.log('[HRV Engine] Received measurement from worker:', m)
           this.latest = m
+          currentHeartRate = m.hr
           this.measurementCallbacks.forEach(cb => cb(this.latest!))
           // Capture signal dump for offline analysis
           if (signalDump) {
@@ -207,6 +214,7 @@ export class HrvEngine {
     this.ctx = null
     this.latest = null
     this.calibrating = true
+    currentHeartRate = null
     this.faceROI = null
     if (this.faceDetectInterval) {
       clearInterval(this.faceDetectInterval)

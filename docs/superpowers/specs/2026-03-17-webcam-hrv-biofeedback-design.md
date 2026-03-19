@@ -1,7 +1,8 @@
 # Webcam HRV Biofeedback for Session Mode
 
 **Date:** 2026-03-17
-**Status:** Approved design
+**Status:** Implemented (2026-03-19)
+**Accuracy:** HR within ±5-15 BPM of Apple Watch in ambient lighting
 
 ## Overview
 
