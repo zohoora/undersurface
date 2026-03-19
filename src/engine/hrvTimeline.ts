@@ -45,7 +45,12 @@ export class HrvTimeline {
     if (latest.respiratoryRate) {
       lines.push(`Respiratory rate: ${latest.respiratoryRate} breaths/min`)
     }
-
+    if (latest.derived) {
+      const d = latest.derived
+      if (d.stressIndex > 0) lines.push(`Stress index: ${d.stressIndex} (${d.stressIndex < 100 ? 'low' : d.stressIndex < 200 ? 'moderate' : 'high'})`)
+      if (d.lfHfRatio != null) lines.push(`Autonomic balance (LF/HF): ${d.lfHfRatio} (${d.lfHfRatio < 1 ? 'parasympathetic dominant' : d.lfHfRatio < 2 ? 'balanced' : 'sympathetic dominant'})`)
+      if (d.coherence > 0) lines.push(`Cardiac coherence: ${d.coherence} (${d.coherence > 0.5 ? 'high' : d.coherence > 0.3 ? 'moderate' : 'low'})`)
+    }
     if (this.baselineRmssd) {
       const baselineState = latest.rmssd > this.baselineRmssd * 1.2 ? 'calm'
         : latest.rmssd < this.baselineRmssd * 0.7 ? 'activated' : 'near baseline'
@@ -65,11 +70,86 @@ export class HrvTimeline {
       }
     }
 
+    // Behavioral correlations
+    const behavioral = this.computeBehavioralCorrelations()
+    if (behavioral.length > 0) {
+      lines.push('Behavioral correlations:')
+      for (const b of behavioral) lines.push(`- ${b}`)
+    }
+
     const confLabel = latest.confidence >= 0.7 ? 'high'
       : latest.confidence >= 0.4 ? 'medium' : 'low'
     lines.push(`Signal confidence: ${confLabel}`)
 
     return lines.join('\n')
+  }
+
+  /** Analyze physiological responses to conversation events */
+  private computeBehavioralCorrelations(): string[] {
+    const results: string[] = []
+    const measurements = this.getMeasurements()
+    if (measurements.length < 4) return results
+
+    // 1. Post-response reaction: compare HR in 30s after AI response vs 30s before
+    const aiResponses = this.events.filter(e => e.type === 'ai_response_complete' && e.messageIndex != null)
+    for (const resp of aiResponses.slice(-3)) { // last 3 responses
+      const respTime = resp.timestamp
+      const before = measurements.filter(m => m.timestamp >= respTime - 30000 && m.timestamp < respTime)
+      const after = measurements.filter(m => m.timestamp > respTime && m.timestamp <= respTime + 30000)
+
+      if (before.length >= 2 && after.length >= 2) {
+        const hrBefore = before.reduce((s, m) => s + m.hr, 0) / before.length
+        const hrAfter = after.reduce((s, m) => s + m.hr, 0) / after.length
+        const delta = hrAfter - hrBefore
+
+        if (Math.abs(delta) >= 5) {
+          const direction = delta > 0 ? 'increased' : 'decreased'
+          results.push(`Heart rate ${direction} by ${Math.abs(Math.round(delta))} bpm after therapist response #${resp.messageIndex}`)
+        }
+      }
+    }
+
+    // 2. User message physiological state: what was HR when they sent each message
+    const userMessages = this.events.filter(e => e.type === 'user_message' && e.messageIndex != null)
+    const messageHrs: Array<{ index: number; hr: number }> = []
+    for (const msg of userMessages.slice(-5)) {
+      // Find nearest measurement to message timestamp
+      const nearest = measurements.reduce((best, m) =>
+        Math.abs(m.timestamp - msg.timestamp) < Math.abs(best.timestamp - msg.timestamp) ? m : best
+      )
+      if (Math.abs(nearest.timestamp - msg.timestamp) < 15000) {
+        messageHrs.push({ index: msg.messageIndex!, hr: nearest.hr })
+      }
+    }
+
+    if (messageHrs.length >= 2) {
+      const hrValues = messageHrs.map(m => m.hr)
+      const minHr = Math.min(...hrValues)
+      const maxHr = Math.max(...hrValues)
+      if (maxHr - minHr >= 8) {
+        const peakMsg = messageHrs.find(m => m.hr === maxHr)
+        results.push(`Highest activation while writing message #${peakMsg?.index} (HR ${Math.round(maxHr)} bpm)`)
+      }
+    }
+
+    // 3. Session trajectory: is the user calming down or escalating over time?
+    if (measurements.length >= 6) {
+      const firstThird = measurements.slice(0, Math.floor(measurements.length / 3))
+      const lastThird = measurements.slice(-Math.floor(measurements.length / 3))
+      const earlyHr = firstThird.reduce((s, m) => s + m.hr, 0) / firstThird.length
+      const lateHr = lastThird.reduce((s, m) => s + m.hr, 0) / lastThird.length
+      const sessionDelta = lateHr - earlyHr
+
+      if (Math.abs(sessionDelta) >= 5) {
+        if (sessionDelta > 0) {
+          results.push(`Session trajectory: activation increasing (+${Math.round(sessionDelta)} bpm over session)`)
+        } else {
+          results.push(`Session trajectory: settling down (${Math.round(sessionDelta)} bpm over session)`)
+        }
+      }
+    }
+
+    return results
   }
 
   private getTrendDuration(currentTrend: string): string {

@@ -30,8 +30,9 @@ export class HrvEngine {
   private faceROI: FaceROI | null = null
   private faceDetectInterval: ReturnType<typeof setInterval> | null = null
   private lastFaceLog = 0
-  private frameSkipToggle = false // skip every other frame for ~30fps effective rate
+  private frameSkipToggle = false
   private signalDumps: HrvSignalDump[] = []
+
 
   private measurementCallbacks: MeasurementCallback[] = []
   private calibrationCallbacks: CalibrationCallback[] = []
@@ -109,8 +110,9 @@ export class HrvEngine {
       this.worker.onmessage = (e: MessageEvent) => {
         const { type, data, signalDump } = e.data
         if (type === 'measurement' && data) {
-          console.log('[HRV Engine] Received measurement from worker:', data)
-          this.latest = data as HrvMeasurement
+          const m = data as HrvMeasurement
+          console.log('[HRV Engine] Received measurement from worker:', m)
+          this.latest = m
           this.measurementCallbacks.forEach(cb => cb(this.latest!))
           // Capture signal dump for offline analysis
           if (signalDump) {
@@ -176,6 +178,7 @@ export class HrvEngine {
             trend: 'steady',
             confidence: Math.round(confidence * 100) / 100,
             respiratoryRate: null,
+            derived: null,
           }
           this.latest = measurement
           this.measurementCallbacks.forEach(cb => cb(measurement))
@@ -247,6 +250,7 @@ export class HrvEngine {
     if (!this.video) return null
     return { width: this.video.videoWidth, height: this.video.videoHeight }
   }
+
 
   getSignalDumps(): HrvSignalDump[] {
     return this.signalDumps

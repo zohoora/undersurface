@@ -264,7 +264,7 @@ export interface HomunculusRegionState {
 export type HomunculusState = Record<BodyRegion, HomunculusRegionState>
 
 export type {
-  AutonomicState, HrvTrend, HrvMeasurement, HrvError,
+  AutonomicState, HrvTrend, HrvDerivedMetrics, HrvMeasurement, HrvError,
   HrvConversationEventType, HrvTimelineEvent, HrvShift,
   HrvSignalDump, HrvSessionData, CameraHrvConsent,
 } from './hrv'

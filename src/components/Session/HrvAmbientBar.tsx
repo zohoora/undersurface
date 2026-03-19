@@ -201,16 +201,24 @@ export function HrvAmbientBar({ measurements, stream, isCalibrating, error, face
           </div>
         </div>
 
-        {/* Trend */}
-        <div style={{ minWidth: 50 }}>
-          <div style={labelStyle}>Trend</div>
+        {/* Stress Index */}
+        <div style={{ minWidth: 45 }}>
+          <div style={labelStyle}>Stress</div>
           <div style={valueStyle}>
-            {latest ? `${latest.trend === 'rising' ? '\u2197' : latest.trend === 'falling' ? '\u2198' : '\u2192'} ${latest.trend}` : '--'}
+            {latest?.derived ? `${latest.derived.stressIndex}` : '--'}
+          </div>
+        </div>
+
+        {/* LF/HF */}
+        <div style={{ minWidth: 40 }}>
+          <div style={labelStyle}>LF/HF</div>
+          <div style={valueStyle}>
+            {latest?.derived?.lfHfRatio != null ? `${latest.derived.lfHfRatio}` : '--'}
           </div>
         </div>
 
         {/* Confidence */}
-        <div style={{ minWidth: 60 }}>
+        <div style={{ minWidth: 50 }}>
           <div style={labelStyle}>Signal</div>
           <div style={{ ...valueStyle, color: confidenceColor }}>
             {latest ? `${confidencePercent}%` : '--'}

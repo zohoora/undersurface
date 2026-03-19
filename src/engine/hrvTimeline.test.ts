@@ -11,6 +11,7 @@ function makeMeasurement(overrides: Partial<HrvMeasurement> = {}): HrvMeasuremen
     trend: 'steady',
     confidence: 0.8,
     respiratoryRate: null,
+    derived: null,
     ...overrides,
   }
 }

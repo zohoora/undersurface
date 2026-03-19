@@ -1,6 +1,14 @@
 export type AutonomicState = 'calm' | 'activated' | 'transitioning'
 export type HrvTrend = 'rising' | 'falling' | 'steady'
 
+export interface HrvDerivedMetrics {
+  sdnn: number             // overall HRV — std deviation of IBIs (ms)
+  pnn50: number            // parasympathetic index — % of successive IBIs differing >50ms
+  lfHfRatio: number | null // sympathetic/parasympathetic balance (LF 0.04-0.15 Hz / HF 0.15-0.4 Hz)
+  stressIndex: number      // Baevsky stress index — higher = more stress
+  coherence: number        // cardiac coherence 0-1 — how regular/sinusoidal HRV is
+}
+
 export interface HrvMeasurement {
   timestamp: number
   hr: number
@@ -9,6 +17,7 @@ export interface HrvMeasurement {
   trend: HrvTrend
   confidence: number
   respiratoryRate: number | null
+  derived: HrvDerivedMetrics | null
 }
 
 export type HrvError =

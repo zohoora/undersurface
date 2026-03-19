@@ -126,13 +126,17 @@ Dark mode, adaptive parts, i18n (17 languages), emergency grounding, bundle spli
 
 Webcam-based heart rate variability monitoring using remote photoplethysmography (rPPG). Session mode only, gated behind `webcamHrv` feature flag + explicit camera consent.
 
-**Pipeline:** Camera (max resolution) → main thread extracts RGB from face ROI → Web Worker runs CHROM algorithm (chrominance-based pulse extraction) → FFT for heart rate → temporal smoothing → `HrvMeasurement` emitted every 5s.
+**Pipeline:** Camera (max resolution, 60fps) → main thread extracts RGB from skin-colored pixels in center 60% of frame (3 sub-regions: forehead + left/right cheeks) → Web Worker runs windowed CHROM algorithm (1.6s windows, 50% overlap, Hann OLA) → 4th-order Butterworth bandpass (1.2-2.5 Hz) → FFT with parabolic interpolation → confidence-weighted EMA smoothing → `HrvMeasurement` emitted every 5s.
 
-**Key components:** `hrvEngine.ts` (camera + face detection + frame capture), `hrvSignalWorker.ts` (CHROM + FFT + peak detection in Web Worker), `hrvTimeline.ts` (shift detection + message correlation + prompt context builder), `HrvAmbientBar.tsx` (fixed-position data bar with face thumbnail + HRV trace), `HrvConsentDialog.tsx` (one-time consent).
+**Derived metrics from IBI series:** SDNN (overall HRV), pNN50 (parasympathetic index), LF/HF ratio (autonomic balance via FFT on IBI series), Baevsky Stress Index (histogram-based), cardiac coherence (HRV regularity).
 
-**Data flow:** HRV context injected into therapist system prompt via `hrvContext` field on `TherapistPromptOptions`. Full measurement log persisted to `hrvSessions/{sessionId}` in Firestore.
+**Behavioral correlations:** Post-response physiological reaction (HR change after therapist speaks), per-message activation level (HR when user writes), session trajectory (calming vs escalating over time). All injected into therapist system prompt.
 
-**Face detection:** Uses Chrome's `FaceDetector` API (Shape Detection) with EMA-smoothed ROI tracking. Falls back to center-of-frame if unavailable.
+**Key components:** `hrvEngine.ts` (camera + frame capture + skin filtering), `hrvSignalWorker.ts` (CHROM + FFT + derived metrics in Web Worker), `hrvTimeline.ts` (shift detection + behavioral correlations + prompt context builder), `HrvAmbientBar.tsx` (fixed-position data bar with HRV trace + metrics), `HrvConsentDialog.tsx` (one-time consent).
+
+**Data flow:** HRV context injected into therapist system prompt via `hrvContext` field on `TherapistPromptOptions`. Full measurement log + signal dumps persisted to `hrvSessions/{sessionId}` in Firestore every 10s.
+
+**Signal processing:** Skin color filtering (R>G>B heuristic) replaces face detection for ROI — wider coverage, no jitter. Camera auto-exposure/white-balance locked to manual. Multi-ROI (forehead + cheeks) with confidence-weighted merge. Respiratory rate via 0.15-0.45 Hz bandpass on same CHROM signal.
 
 ### Analytics & tracking
 
@@ -241,12 +245,18 @@ Add to `SEEDED_PARTS` in `partPrompts.ts`. Scoring is role-based (`ifsRole`) —
 - **Grounding suppresses intention** in prompts — intentional during distress
 
 ### HRV / Biometric
-- **Face detection requires Chrome 94+** — uses `FaceDetector` API (Shape Detection). Falls back to center-of-frame ROI if unavailable. Can be enabled via `chrome://flags/#enable-experimental-web-platform-features` on older Chrome
-- **Camera resolution** — requests `ideal: 1920x1080` but main thread only reads the face ROI pixels (not full frame) to minimize data transfer to worker
-- **CHROM signal quality** — rPPG accuracy depends heavily on lighting, stillness, and face visibility. RMSSD values of 200+ ms indicate noise (real RMSSD is 20-80 ms). HR accuracy is ±15-20 BPM compared to medical devices
-- **Face ROI smoothing** — EMA with alpha=0.35 prevents green channel step-changes from ROI jitter. Too low = sluggish tracking. Too high = signal noise from position jumps
-- **FFT range restricted to 0.7-2.5 Hz** (42-150 BPM) to avoid 2nd harmonic detection (e.g., 170 BPM when actual is 85 BPM)
-- **HR temporal smoothing** — confidence-weighted EMA + outlier rejection (>30% from median replaced). Raw FFT HR can jump wildly; smoothed output is shown to user
+- **Skin color filtering replaces face detection** — R>G>B heuristic on center 60% of frame outperforms FaceDetector API. Face detection's tight bounding box + ROI jitter degraded signal quality. Skin filter provides wider stable coverage
+- **Camera resolution** — requests `ideal: 1920x1080` but main thread only reads skin pixels from 3 sub-regions (forehead, left cheek, right cheek), sending just RGB averages to worker
+- **Camera auto-exposure must be locked** — auto-exposure creates 0.5-1.1 Hz color drift that is 50-100x stronger than the cardiac signal. Engine locks `exposureMode` and `whiteBalanceMode` to manual via `applyConstraints`
+- **60fps required** — 30fps causes fluorescent light flicker (at harmonics of 60 Hz grid) to alias into the cardiac frequency range. 60fps prevents this aliasing
+- **CHROM windowed processing** — 1.6s windows with 50% overlap and Hann overlap-add (per rPPG-Toolbox reference). Per-window alpha adapts to lighting changes. Single-window CHROM over the full buffer produces worse results
+- **4th-order highpass at 1.2 Hz** — 2 cascaded Butterworth stages. Environmental noise dominates 0.5-1.1 Hz; the cardiac signal at 1.5+ Hz is 50-100x weaker without aggressive filtering. Restricts detection to 72-150 BPM (safe for seated users)
+- **RMSSD > 200ms is noise** — real RMSSD is 20-80 ms. Values above 200ms indicate noisy IBI detection; reported as 0
+- **HR temporal smoothing** — confidence-weighted EMA (alpha scales 0.05-0.50 with FFT confidence) + outlier rejection (>30% from median replaced). Takes ~30s to converge from initial reading
+- **HR accuracy** — within ±5-15 BPM of Apple Watch in ambient lighting. Accuracy depends on lighting stability, stillness, and skin visibility. Direct/diffuse light best; fluorescent worst
+- **Signal dumps saved every 10s** — full RGB buffers, CHROM pulse, FFT spectrum, IBIs saved to Firestore for offline algorithm analysis. Trimmed to last 10 dumps + 5s RGB to stay under 1MB doc limit
+- **Derived metrics** — SDNN, pNN50, LF/HF ratio, Baevsky Stress Index, cardiac coherence computed from IBI series. LF/HF uses 4 Hz interpolated IBI series + FFT
+- **Behavioral correlations** — post-response HR change, per-message activation, session trajectory (calming vs escalating) computed from HRV timeline events and injected into therapist prompt
 
 ### PWA & Build
 - **PWA API calls not cached** — go through Firebase rewrites

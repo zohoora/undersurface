@@ -1,4 +1,4 @@
-import type { AutonomicState, HrvMeasurement, HrvTrend } from '../types/hrv'
+import type { AutonomicState, HrvDerivedMetrics, HrvMeasurement, HrvTrend } from '../types/hrv'
 
 // ---------------------------------------------------------------------------
 // Pure signal-processing functions (exported for testing)
@@ -394,6 +394,160 @@ export function classifyAutonomicState(rmssd: number, baseline: number): Autonom
 }
 
 // ---------------------------------------------------------------------------
+// Derived HRV metrics (computed from IBI series)
+// ---------------------------------------------------------------------------
+
+/** Compute advanced HRV metrics from inter-beat intervals */
+export function computeDerivedMetrics(ibis: number[]): HrvDerivedMetrics | null {
+  if (ibis.length < 4) return null
+
+  // SDNN: standard deviation of all IBIs
+  const mean = ibis.reduce((a, b) => a + b, 0) / ibis.length
+  const sdnn = Math.sqrt(ibis.reduce((a, b) => a + (b - mean) ** 2, 0) / ibis.length)
+
+  // pNN50: percentage of successive IBI differences > 50ms
+  let nn50Count = 0
+  for (let i = 1; i < ibis.length; i++) {
+    if (Math.abs(ibis[i] - ibis[i - 1]) > 50) nn50Count++
+  }
+  const pnn50 = (nn50Count / (ibis.length - 1)) * 100
+
+  // LF/HF ratio via FFT on the IBI series
+  // Resample IBIs to evenly-spaced series at 4 Hz (standard for HRV frequency analysis)
+  const lfHfRatio = computeLfHfRatio(ibis)
+
+  // Baevsky Stress Index: AMo / (2 * Mo * MxDMn)
+  // AMo = amplitude of the mode (% of IBIs in the modal bin)
+  // Mo = mode value (most common IBI)
+  // MxDMn = range (max - min IBI)
+  const stressIndex = computeStressIndex(ibis)
+
+  // Cardiac coherence: how sinusoidal the IBI variation is (0-1)
+  const coherence = computeCoherence(ibis)
+
+  return {
+    sdnn: Math.round(sdnn * 10) / 10,
+    pnn50: Math.round(pnn50 * 10) / 10,
+    lfHfRatio,
+    stressIndex: Math.round(stressIndex * 10) / 10,
+    coherence: Math.round(coherence * 100) / 100,
+  }
+}
+
+function computeLfHfRatio(ibis: number[]): number | null {
+  if (ibis.length < 10) return null
+
+  // Interpolate IBIs to 4 Hz evenly-spaced signal
+  // Build cumulative time axis
+  const times: number[] = [0]
+  for (let i = 0; i < ibis.length; i++) {
+    times.push(times[i] + ibis[i] / 1000) // seconds
+  }
+
+  const totalTime = times[times.length - 1]
+  const interpRate = 4 // Hz
+  const n = Math.floor(totalTime * interpRate)
+  if (n < 16) return null
+
+  // Linear interpolation of IBI values
+  const interp: number[] = []
+  let ibiIdx = 0
+  for (let i = 0; i < n; i++) {
+    const t = i / interpRate
+    while (ibiIdx < times.length - 2 && times[ibiIdx + 1] < t) ibiIdx++
+    interp.push(ibis[Math.min(ibiIdx, ibis.length - 1)])
+  }
+
+  // Detrend
+  const interpMean = interp.reduce((a, b) => a + b, 0) / interp.length
+  const detrended = interp.map(v => v - interpMean)
+
+  // FFT
+  let fftSize = 1
+  while (fftSize < detrended.length) fftSize <<= 1
+  const re = new Float64Array(fftSize)
+  const im = new Float64Array(fftSize)
+  for (let i = 0; i < detrended.length; i++) {
+    re[i] = detrended[i] * 0.5 * (1 - Math.cos(2 * Math.PI * i / (detrended.length - 1)))
+  }
+  fft(re, im)
+
+  // Sum power in LF (0.04-0.15 Hz) and HF (0.15-0.4 Hz)
+  let lfPower = 0, hfPower = 0
+  for (let i = 1; i < fftSize / 2; i++) {
+    const freq = i * interpRate / fftSize
+    const power = re[i] * re[i] + im[i] * im[i]
+    if (freq >= 0.04 && freq < 0.15) lfPower += power
+    else if (freq >= 0.15 && freq <= 0.4) hfPower += power
+  }
+
+  if (hfPower === 0) return null
+  return Math.round((lfPower / hfPower) * 100) / 100
+}
+
+function computeStressIndex(ibis: number[]): number {
+  // Histogram with 50ms bins
+  const binWidth = 50
+  const minIbi = Math.min(...ibis)
+  const maxIbi = Math.max(...ibis)
+  const range = maxIbi - minIbi
+  if (range === 0) return 0
+
+  const nBins = Math.max(1, Math.ceil(range / binWidth))
+  const bins = new Array(nBins).fill(0)
+  for (const ibi of ibis) {
+    const bin = Math.min(nBins - 1, Math.floor((ibi - minIbi) / binWidth))
+    bins[bin]++
+  }
+
+  // Mode: most common bin
+  let maxCount = 0, modeBin = 0
+  for (let i = 0; i < nBins; i++) {
+    if (bins[i] > maxCount) { maxCount = bins[i]; modeBin = i }
+  }
+
+  const amo = (maxCount / ibis.length) * 100 // amplitude of mode (%)
+  const mo = (minIbi + modeBin * binWidth + binWidth / 2) / 1000 // mode value (seconds)
+  const mxdmn = range / 1000 // range (seconds)
+
+  if (mo === 0 || mxdmn === 0) return 0
+  return amo / (2 * mo * mxdmn)
+}
+
+function computeCoherence(ibis: number[]): number {
+  if (ibis.length < 8) return 0
+
+  // Coherence = power of dominant frequency / total power in 0.04-0.4 Hz
+  // High coherence = very regular, sinusoidal HRV (sign of good autonomic regulation)
+  const mean = ibis.reduce((a, b) => a + b, 0) / ibis.length
+  const detrended = ibis.map(v => v - mean)
+
+  let fftSize = 1
+  while (fftSize < detrended.length) fftSize <<= 1
+  const re = new Float64Array(fftSize)
+  const im = new Float64Array(fftSize)
+  for (let i = 0; i < detrended.length; i++) {
+    re[i] = detrended[i] * 0.5 * (1 - Math.cos(2 * Math.PI * i / (detrended.length - 1)))
+  }
+  fft(re, im)
+
+  // Approximate sample rate of IBI series (~1 per heartbeat)
+  const ibiRate = 1000 / mean // beats per second
+
+  let peakPower = 0, totalPower = 0
+  for (let i = 1; i < fftSize / 2; i++) {
+    const freq = i * ibiRate / fftSize
+    const power = re[i] * re[i] + im[i] * im[i]
+    if (freq >= 0.04 && freq <= 0.4) {
+      totalPower += power
+      if (power > peakPower) peakPower = power
+    }
+  }
+
+  return totalPower > 0 ? Math.min(1, peakPower / totalPower) : 0
+}
+
+// ---------------------------------------------------------------------------
 // Worker state & message handler
 // ---------------------------------------------------------------------------
 
@@ -708,6 +862,9 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
         }
       }
 
+      // Compute derived HRV metrics from IBI series
+      const derived = computeDerivedMetrics(state.ibis)
+
       const measurement: HrvMeasurement = {
         timestamp: Date.now(),
         hr: Math.round(state.smoothedHr * 10) / 10,
@@ -716,6 +873,7 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
         trend,
         confidence,
         respiratoryRate,
+        derived,
       }
 
       // Signal dump (from best region)
