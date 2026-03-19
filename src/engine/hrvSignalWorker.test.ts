@@ -240,12 +240,12 @@ describe('chromPulseExtraction', () => {
     const r = Array.from({ length: 100 }, () => 150 + Math.random())
     const g = Array.from({ length: 100 }, () => 120 + Math.random())
     const b = Array.from({ length: 100 }, () => 90 + Math.random())
-    const pulse = chromPulseExtraction(r, g, b)
+    const pulse = chromPulseExtraction(r, g, b, 30)
     expect(pulse).toHaveLength(100)
   })
 
   it('returns empty for single-sample input', () => {
-    expect(chromPulseExtraction([150], [120], [90])).toHaveLength(0)
+    expect(chromPulseExtraction([150], [120], [90], 30)).toHaveLength(0)
   })
 
   it('extracts periodic signal from synthetic pulse in green channel', () => {
@@ -255,7 +255,7 @@ describe('chromPulseExtraction', () => {
     const r = Array.from({ length: n }, () => 150)
     const g = Array.from({ length: n }, (_, i) => 120 + 0.5 * Math.sin(2 * Math.PI * freq * i / fps))
     const b = Array.from({ length: n }, () => 90)
-    const pulse = chromPulseExtraction(r, g, b)
+    const pulse = chromPulseExtraction(r, g, b, fps)
     // Pulse should have non-zero variance (detected the oscillation)
     const mean = pulse.reduce((a, c) => a + c, 0) / pulse.length
     const variance = pulse.reduce((a, c) => a + (c - mean) ** 2, 0) / pulse.length

@@ -42,6 +42,9 @@ export class HrvTimeline {
     const trendDuration = this.getTrendDuration(latest.trend)
     lines.push(`Current autonomic state: ${latest.autonomicState} (trend: ${latest.trend}${trendDuration ? `, ${trendDuration}` : ''})`)
     lines.push(`Heart rate: ${latest.hr} bpm`)
+    if (latest.respiratoryRate) {
+      lines.push(`Respiratory rate: ${latest.respiratoryRate} breaths/min`)
+    }
 
     if (this.baselineRmssd) {
       const baselineState = latest.rmssd > this.baselineRmssd * 1.2 ? 'calm'

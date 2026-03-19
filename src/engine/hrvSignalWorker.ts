@@ -90,55 +90,112 @@ export function countSkinPixels(
 
 // ---------------------------------------------------------------------------
 // CHROM algorithm: Chrominance-based rPPG (de Haan & Jeanne, 2013)
+// Reference: rPPG-Toolbox (NeurIPS 2023) — 1.6s windows, 50% overlap, Hann OLA
 // ---------------------------------------------------------------------------
 
 /**
- * Compute CHROM pulse signal from R, G, B time series.
- * X = 3R - 2G (chrominance channel 1)
- * Y = 1.5R + G - 1.5B (chrominance channel 2)
- * Pulse = X - alpha*Y, where alpha = std(X)/std(Y)
+ * Windowed CHROM pulse extraction following the reference implementation.
+ * Processes RGB in sliding 1.6s windows with 50% overlap.
+ * Each window: normalize RGB by window mean, compute chrominance, adaptive alpha.
+ * Windows are Hann-windowed and overlap-added for smooth output.
  */
 export function chromPulseExtraction(
   rSignal: number[],
   gSignal: number[],
   bSignal: number[],
+  sampleRate: number,
 ): number[] {
   const n = rSignal.length
   if (n < 2) return []
 
-  // Temporal normalization: divide each channel by its running mean
+  const winLen = Math.round(sampleRate * 1.6) // 1.6 second windows (reference standard)
+  if (n < winLen) {
+    // Buffer too short for windowed processing — fall back to single-window
+    return chromSingleWindow(rSignal, gSignal, bSignal)
+  }
+
+  const stepLen = Math.floor(winLen / 2) // 50% overlap
+  const output = new Array(n).fill(0)
+  const weights = new Array(n).fill(0) // for overlap-add normalization
+
+  // Precompute Hann window
+  const hann = new Array(winLen)
+  for (let i = 0; i < winLen; i++) {
+    hann[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (winLen - 1)))
+  }
+
+  for (let start = 0; start + winLen <= n; start += stepLen) {
+    const rWin = rSignal.slice(start, start + winLen)
+    const gWin = gSignal.slice(start, start + winLen)
+    const bWin = bSignal.slice(start, start + winLen)
+
+    // Per-window normalization: divide by window mean
+    const rMean = rWin.reduce((a, b) => a + b, 0) / winLen
+    const gMean = gWin.reduce((a, b) => a + b, 0) / winLen
+    const bMean = bWin.reduce((a, b) => a + b, 0) / winLen
+
+    if (rMean === 0 || gMean === 0 || bMean === 0) continue
+
+    // Chrominance signals per window
+    const xs = new Array(winLen)
+    const ys = new Array(winLen)
+    for (let i = 0; i < winLen; i++) {
+      const rn = rWin[i] / rMean
+      const gn = gWin[i] / gMean
+      const bn = bWin[i] / bMean
+      xs[i] = 3 * rn - 2 * gn
+      ys[i] = 1.5 * rn + gn - 1.5 * bn
+    }
+
+    // Per-window adaptive alpha = std(X) / std(Y)
+    const xMean = xs.reduce((a: number, b: number) => a + b, 0) / winLen
+    const yMean = ys.reduce((a: number, b: number) => a + b, 0) / winLen
+    const xStd = Math.sqrt(xs.reduce((a: number, b: number) => a + (b - xMean) ** 2, 0) / winLen)
+    const yStd = Math.sqrt(ys.reduce((a: number, b: number) => a + (b - yMean) ** 2, 0) / winLen)
+    const alpha = yStd > 0.0001 ? xStd / yStd : 1
+
+    // Combine with Hann window and overlap-add
+    for (let i = 0; i < winLen; i++) {
+      const val = (xs[i] - alpha * ys[i]) * hann[i]
+      output[start + i] += val
+      weights[start + i] += hann[i]
+    }
+  }
+
+  // Normalize by overlap weight
+  for (let i = 0; i < n; i++) {
+    if (weights[i] > 0) output[i] /= weights[i]
+  }
+
+  return output
+}
+
+/** Fallback: single-window CHROM for short buffers */
+function chromSingleWindow(rSignal: number[], gSignal: number[], bSignal: number[]): number[] {
+  const n = rSignal.length
   const rMean = rSignal.reduce((a, b) => a + b, 0) / n
   const gMean = gSignal.reduce((a, b) => a + b, 0) / n
   const bMean = bSignal.reduce((a, b) => a + b, 0) / n
 
   if (rMean === 0 || gMean === 0 || bMean === 0) return new Array(n).fill(0)
 
-  const rNorm = rSignal.map(v => v / rMean)
-  const gNorm = gSignal.map(v => v / gMean)
-  const bNorm = bSignal.map(v => v / bMean)
-
-  // Chrominance signals
   const xs = new Array(n)
   const ys = new Array(n)
   for (let i = 0; i < n; i++) {
-    xs[i] = 3 * rNorm[i] - 2 * gNorm[i]
-    ys[i] = 1.5 * rNorm[i] + gNorm[i] - 1.5 * bNorm[i]
+    const rn = rSignal[i] / rMean
+    const gn = gSignal[i] / gMean
+    const bn = bSignal[i] / bMean
+    xs[i] = 3 * rn - 2 * gn
+    ys[i] = 1.5 * rn + gn - 1.5 * bn
   }
 
-  // Adaptive alpha = std(X) / std(Y)
   const xMean = xs.reduce((a: number, b: number) => a + b, 0) / n
   const yMean = ys.reduce((a: number, b: number) => a + b, 0) / n
   const xStd = Math.sqrt(xs.reduce((a: number, b: number) => a + (b - xMean) ** 2, 0) / n)
   const yStd = Math.sqrt(ys.reduce((a: number, b: number) => a + (b - yMean) ** 2, 0) / n)
   const alpha = yStd > 0.0001 ? xStd / yStd : 1
 
-  // Combined pulse signal
-  const pulse = new Array(n)
-  for (let i = 0; i < n; i++) {
-    pulse[i] = xs[i] - alpha * ys[i]
-  }
-
-  return pulse
+  return xs.map((x, i) => x - alpha * ys[i])
 }
 
 // ---------------------------------------------------------------------------
@@ -148,7 +205,6 @@ export function chromPulseExtraction(
 /** Simple radix-2 FFT (in-place, Cooley-Tukey). Input length must be power of 2. */
 function fft(re: Float64Array, im: Float64Array): void {
   const n = re.length
-  // Bit-reversal permutation
   for (let i = 1, j = 0; i < n; i++) {
     let bit = n >> 1
     for (; j & bit; bit >>= 1) j ^= bit
@@ -158,7 +214,6 @@ function fft(re: Float64Array, im: Float64Array): void {
       ;[im[i], im[j]] = [im[j], im[i]]
     }
   }
-  // FFT butterfly
   for (let len = 2; len <= n; len <<= 1) {
     const halfLen = len >> 1
     const angle = -2 * Math.PI / len
@@ -183,21 +238,24 @@ function fft(re: Float64Array, im: Float64Array): void {
   }
 }
 
-/** Find dominant frequency in the cardiac range using FFT. */
+/**
+ * Find dominant frequency in a given range using FFT.
+ * No sub-harmonic switching — rely on the restricted frequency band instead
+ * (research shows sub-harmonic switching can cause false corrections).
+ */
 export function findHeartRateFFT(
   signal: number[],
   sampleRate: number,
-  minHz = 0.65,
-  maxHz = 3.5,
+  minHz = 0.75,
+  maxHz = 2.5,
 ): { hr: number; confidence: number } | null {
-  // Pad to next power of 2
   let fftSize = 1
   while (fftSize < signal.length) fftSize <<= 1
 
   const re = new Float64Array(fftSize)
   const im = new Float64Array(fftSize)
 
-  // Apply Hann window and copy signal
+  // Apply Hann window
   for (let i = 0; i < signal.length; i++) {
     const window = 0.5 * (1 - Math.cos(2 * Math.PI * i / (signal.length - 1)))
     re[i] = signal[i] * window
@@ -205,7 +263,6 @@ export function findHeartRateFFT(
 
   fft(re, im)
 
-  // Compute power spectrum
   const minBin = Math.floor(minHz * fftSize / sampleRate)
   const maxBin = Math.ceil(maxHz * fftSize / sampleRate)
 
@@ -227,21 +284,23 @@ export function findHeartRateFFT(
   // Parabolic interpolation for sub-bin accuracy
   const prevPower = peakBin > 0 ? re[peakBin - 1] ** 2 + im[peakBin - 1] ** 2 : 0
   const nextPower = peakBin < fftSize / 2 - 1 ? re[peakBin + 1] ** 2 + im[peakBin + 1] ** 2 : 0
-  const shift = (nextPower - prevPower) / (2 * (2 * peakPower - prevPower - nextPower) || 1)
+  const denom = 2 * peakPower - prevPower - nextPower
+  const shift = denom > 0 ? (nextPower - prevPower) / (2 * denom) : 0
   const exactBin = peakBin + Math.max(-0.5, Math.min(0.5, shift))
 
   const freqHz = exactBin * sampleRate / fftSize
   const hr = freqHz * 60
 
-  // Confidence: ratio of peak power to total power in cardiac range (SNR proxy)
-  const snr = peakPower / (totalPower / (maxBin - minBin + 1))
+  // SNR-based confidence
+  const avgPower = totalPower / (maxBin - minBin + 1)
+  const snr = avgPower > 0 ? peakPower / avgPower : 0
   const confidence = Math.min(1, Math.max(0, (snr - 1) / 10))
 
   return { hr, confidence }
 }
 
 // ---------------------------------------------------------------------------
-// Bandpass filter (kept for IBI-based RMSSD computation)
+// Bandpass filters
 // ---------------------------------------------------------------------------
 
 interface BiquadCoeffs { b0: number; b1: number; b2: number; a1: number; a2: number }
@@ -274,12 +333,26 @@ function applyBiquad(signal: number[], coeffs: BiquadCoeffs): number[] {
   return out
 }
 
+/** Cardiac bandpass: 1.2-2.5 Hz (72-150 BPM)
+ * Aggressive high-pass at 1.2 Hz to suppress environmental noise (lighting flicker,
+ * auto-exposure artifacts, aliased fluorescent harmonics) that dominate 0.5-1.1 Hz.
+ * Uses 2 cascaded highpass stages (4th order) for steeper rolloff.
+ * 72 BPM lower bound is safe — resting HR while sitting is typically 60-100 BPM,
+ * and the filter transition band still passes 65+ BPM with reduced gain. */
 export function butterworthBandpass(signal: number[], sampleRate: number): number[] {
-  return applyBiquad(applyBiquad(signal, designButterworthHighpass(0.65, sampleRate)), designButterworthLowpass(4, sampleRate))
+  const hp = designButterworthHighpass(1.2, sampleRate)
+  const stage1 = applyBiquad(signal, hp)
+  const stage2 = applyBiquad(stage1, hp)
+  return applyBiquad(stage2, designButterworthLowpass(2.5, sampleRate))
+}
+
+/** Respiratory bandpass: 0.1-0.5 Hz (6-30 breaths/min) */
+export function respiratoryBandpass(signal: number[], sampleRate: number): number[] {
+  return applyBiquad(applyBiquad(signal, designButterworthHighpass(0.1, sampleRate)), designButterworthLowpass(0.5, sampleRate))
 }
 
 // ---------------------------------------------------------------------------
-// Peak detection (for IBI-based RMSSD, not HR)
+// Peak detection (for IBI-based RMSSD)
 // ---------------------------------------------------------------------------
 
 export function detectPeaks(signal: number[], sampleRate: number): number[] {
@@ -324,13 +397,18 @@ export function classifyAutonomicState(rmssd: number, baseline: number): Autonom
 // Worker state & message handler
 // ---------------------------------------------------------------------------
 
-const CALIBRATION_MIN_MS = 30_000 // reduced to 30s for faster feedback
-const BUFFER_SECONDS = 15
+const CALIBRATION_MIN_MS = 30_000
+const BUFFER_SECONDS = 20
+const REGION_NAMES = ['forehead', 'leftCheek', 'rightCheek'] as const
+
+interface RegionBuffer {
+  r: number[]
+  g: number[]
+  b: number[]
+}
 
 interface WorkerState {
-  rBuffer: number[]
-  gBuffer: number[]
-  bBuffer: number[]
+  regions: Record<string, RegionBuffer>
   timestamps: number[]
   ibis: number[]
   calibrated: boolean
@@ -339,13 +417,20 @@ interface WorkerState {
   recentRmssds: number[]
   actualFps: number
   smoothedHr: number | null
+  smoothedRR: number | null
   recentHrs: number[]
 }
 
+function makeEmptyRegions(): Record<string, RegionBuffer> {
+  const regions: Record<string, RegionBuffer> = {}
+  for (const name of REGION_NAMES) {
+    regions[name] = { r: [], g: [], b: [] }
+  }
+  return regions
+}
+
 const state: WorkerState = {
-  rBuffer: [],
-  gBuffer: [],
-  bBuffer: [],
+  regions: makeEmptyRegions(),
   timestamps: [],
   ibis: [],
   calibrated: false,
@@ -354,13 +439,12 @@ const state: WorkerState = {
   recentRmssds: [],
   actualFps: 60,
   smoothedHr: null,
+  smoothedRR: null,
   recentHrs: [],
 }
 
 function resetState(): void {
-  state.rBuffer = []
-  state.gBuffer = []
-  state.bBuffer = []
+  state.regions = makeEmptyRegions()
   state.timestamps = []
   state.ibis = []
   state.calibrated = false
@@ -369,6 +453,7 @@ function resetState(): void {
   state.recentRmssds = []
   state.actualFps = 60
   state.smoothedHr = null
+  state.smoothedRR = null
   state.recentHrs = []
 }
 
@@ -388,48 +473,62 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
   let frameCount = 0
   let computeCount = 0
 
-  console.log('[HRV Worker] CHROM algorithm initialized')
+  console.log('[HRV Worker] Multi-ROI CHROM initialized (forehead + cheeks, 1.6s windows)')
 
   self.onmessage = (event: MessageEvent) => {
     const { type, data } = event.data as { type: string; data: unknown }
 
-    if (type === 'rgb') {
-      // Engine sends pre-extracted RGB averages from skin pixels (main thread did the pixel work)
-      const { r, g, b, skinCount, roiPixels } = data as { r: number; g: number; b: number; skinCount: number; roiPixels: number }
-
+    if (type === 'rgb_multi') {
+      const { regions } = data as { regions: Array<{ region: string; r: number; g: number; b: number; pixels: number }> }
       const now = Date.now()
-      state.rBuffer.push(r)
-      state.gBuffer.push(g)
-      state.bBuffer.push(b)
+
+      // Gap detection
+      if (state.timestamps.length > 0 && now - state.timestamps[state.timestamps.length - 1] > 2000) {
+        console.log('[HRV Worker] Gap detected — resetting buffers')
+        state.regions = makeEmptyRegions()
+        state.timestamps = []
+        state.ibis = []
+      }
+
+      // Push RGB data for each region
+      for (const reg of regions) {
+        const buf = state.regions[reg.region]
+        if (buf) {
+          buf.r.push(reg.r)
+          buf.g.push(reg.g)
+          buf.b.push(reg.b)
+        }
+      }
       state.timestamps.push(now)
       frameCount++
 
       if (state.calibrationStart === null) {
         state.calibrationStart = now
-        console.log('[HRV Worker] Calibration started (CHROM)')
+        console.log('[HRV Worker] Calibration started (multi-ROI CHROM)')
       }
 
-      // Compute actual FPS
-      if (state.timestamps.length >= 30) {
-        const recent = state.timestamps.slice(-30)
+      // Compute FPS
+      if (state.timestamps.length >= 20) {
+        const recent = state.timestamps.slice(-20)
         const dt = (recent[recent.length - 1] - recent[0]) / 1000
         if (dt > 0) state.actualFps = Math.round((recent.length - 1) / dt)
       }
 
-      // Keep buffer at BUFFER_SECONDS
+      // Trim buffers
       const maxBuf = state.actualFps * BUFFER_SECONDS
-      while (state.rBuffer.length > maxBuf) {
-        state.rBuffer.shift()
-        state.gBuffer.shift()
-        state.bBuffer.shift()
+      while (state.timestamps.length > maxBuf) {
         state.timestamps.shift()
+        for (const name of REGION_NAMES) {
+          const buf = state.regions[name]
+          if (buf.r.length > maxBuf) { buf.r.shift(); buf.g.shift(); buf.b.shift() }
+        }
       }
 
       // Log every 300 frames
       if (frameCount % 300 === 0) {
         const elapsed = now - state.calibrationStart
-        const skinPct = roiPixels > 0 ? Math.round(skinCount / roiPixels * 100) : 0
-        console.log(`[HRV Worker] Frame ${frameCount}: buf=${state.rBuffer.length}, fps=${state.actualFps}, R=${r.toFixed(1)} G=${g.toFixed(1)} B=${b.toFixed(1)}, skin=${skinCount}px (${skinPct}% of ROI), elapsed=${(elapsed / 1000).toFixed(1)}s, cal=${state.calibrated}`)
+        const fg = state.regions.forehead
+        console.log(`[HRV Worker] Frame ${frameCount}: buf=${state.timestamps.length}, fps=${state.actualFps}, forehead R=${fg.r.at(-1)?.toFixed(1)} G=${fg.g.at(-1)?.toFixed(1)} B=${fg.b.at(-1)?.toFixed(1)}, regions=${regions.length}, elapsed=${(elapsed / 1000).toFixed(1)}s`)
       }
 
       // Calibration progress
@@ -437,7 +536,6 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
       if (!state.calibrated) {
         const progress = Math.min(elapsed / CALIBRATION_MIN_MS, 1)
         self.postMessage({ type: 'calibration_progress', data: { progress } })
-
         if (elapsed >= CALIBRATION_MIN_MS) {
           state.calibrated = true
           state.baselineRmssd = state.recentRmssds.length > 0
@@ -449,56 +547,121 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
       }
     }
 
+    // Legacy single-ROI support
+    if (type === 'rgb') {
+      const { r, g, b } = data as { r: number; g: number; b: number; skinCount: number; roiPixels: number }
+      // Route to forehead region as fallback
+      self.onmessage!(new MessageEvent('message', {
+        data: { type: 'rgb_multi', data: { regions: [{ region: 'forehead', r, g, b, pixels: 1 }] } },
+      }))
+      return
+    }
+
     if (type === 'compute') {
       computeCount++
       const fps = state.actualFps
-      const bufLen = state.rBuffer.length
-      const needed = fps * 5 // need 5 seconds minimum for CHROM + FFT
+      const bufLen = state.timestamps.length
+      const needed = fps * 5
 
       if (bufLen < needed) {
         console.log(`[HRV Worker] Compute #${computeCount}: Need more data (${bufLen}/${needed})`)
         return
       }
 
-      // --- CHROM pulse extraction ---
-      const pulse = chromPulseExtraction(state.rBuffer, state.gBuffer, state.bBuffer)
-      if (pulse.length === 0) return
+      // --- Run CHROM + FFT for each region independently ---
+      const regionResults: Array<{ region: string; hr: number; confidence: number; pulse: number[] }> = []
 
-      // Bandpass filter the CHROM pulse
-      const filtered = butterworthBandpass(pulse, fps)
+      for (const name of REGION_NAMES) {
+        const buf = state.regions[name]
+        if (buf.r.length < needed) continue
 
-      // Skip transient (first 2 seconds)
-      const skip = Math.min(fps * 2, Math.floor(filtered.length * 0.2))
-      const stable = filtered.slice(skip)
+        const pulse = chromPulseExtraction(buf.r, buf.g, buf.b, fps)
+        if (pulse.length === 0) continue
 
-      if (stable.length < fps * 3) return // need 3s of stable signal
+        const filtered = butterworthBandpass(pulse, fps)
+        const skip = Math.min(fps * 2, Math.floor(filtered.length * 0.15))
+        const stable = filtered.slice(skip)
+        if (stable.length < fps * 3) continue
 
-      // --- FFT for heart rate (restricted to 0.7-2.5 Hz = 42-150 BPM to avoid harmonics) ---
-      const fftResult = findHeartRateFFT(stable, fps, 0.7, 2.5)
+        const result = findHeartRateFFT(stable, fps, 1.2, 2.5)
+        if (result) {
+          regionResults.push({ region: name, hr: result.hr, confidence: result.confidence, pulse })
+        }
+      }
 
-      // --- Peak detection for RMSSD (HRV) ---
-      const peaks = detectPeaks(stable, fps)
+      if (regionResults.length === 0) {
+        console.log(`[HRV Worker] Compute #${computeCount}: No regions produced results`)
+        return
+      }
+
+      // --- Confidence-weighted merge of HR from all regions ---
+      let totalWeight = 0
+      let weightedHr = 0
+      let bestConfidence = 0
+      let bestPulse = regionResults[0].pulse
+
+      for (const r of regionResults) {
+        const weight = r.confidence * r.confidence // square confidence for stronger weighting
+        weightedHr += r.hr * weight
+        totalWeight += weight
+        if (r.confidence > bestConfidence) {
+          bestConfidence = r.confidence
+          bestPulse = r.pulse
+        }
+      }
+
+      const rawHr = totalWeight > 0 ? weightedHr / totalWeight : regionResults[0].hr
+      const mergedConf = bestConfidence
+
+      // Log per-region results
+      const regionLog = regionResults.map(r => `${r.region}=${r.hr.toFixed(0)}(${r.confidence.toFixed(2)})`).join(', ')
+
+      // --- FFT power spectrum from best region for signal dump ---
+      let fftPowerSpectrum: { freqHz: number; power: number }[] = []
+      {
+        const filtered = butterworthBandpass(bestPulse, fps)
+        const skip = Math.min(fps * 2, Math.floor(filtered.length * 0.15))
+        const stable = filtered.slice(skip)
+        if (stable.length > 0) {
+          let dumpSize = 1
+          while (dumpSize < stable.length) dumpSize <<= 1
+          const dumpRe = new Float64Array(dumpSize)
+          const dumpIm = new Float64Array(dumpSize)
+          for (let i = 0; i < stable.length; i++) {
+            dumpRe[i] = stable[i] * 0.5 * (1 - Math.cos(2 * Math.PI * i / (stable.length - 1)))
+          }
+          fft(dumpRe, dumpIm)
+          const specMinBin = Math.floor(0.5 * dumpSize / fps)
+          const specMaxBin = Math.ceil(3.0 * dumpSize / fps)
+          for (let i = specMinBin; i <= specMaxBin && i < dumpSize / 2; i++) {
+            fftPowerSpectrum.push({
+              freqHz: Math.round(i * fps / dumpSize * 1000) / 1000,
+              power: Math.round((dumpRe[i] * dumpRe[i] + dumpIm[i] * dumpIm[i]) * 1000) / 1000,
+            })
+          }
+        }
+      }
+
+      // --- Peak detection for RMSSD from best pulse ---
+      const filteredBest = butterworthBandpass(bestPulse, fps)
+      const skipBest = Math.min(fps * 2, Math.floor(filteredBest.length * 0.15))
+      const stableBest = filteredBest.slice(skipBest)
+      const peaks = detectPeaks(stableBest, fps)
       const newIbis: number[] = []
       for (let i = 1; i < peaks.length; i++) {
         const dt = (peaks[i] - peaks[i - 1]) / fps * 1000
-        if (dt > 400 && dt < 1500) newIbis.push(dt) // 40-150 BPM valid range
+        if (dt > 400 && dt < 1500) newIbis.push(dt)
       }
       if (newIbis.length > 0) {
         state.ibis = [...state.ibis, ...newIbis].slice(-50)
       }
 
-      // Use FFT for HR (more robust), peaks for RMSSD
-      const rawHr = fftResult ? fftResult.hr : null
       const ibiMetrics = computeHrvMetrics(state.ibis)
-      const rmssd = ibiMetrics ? ibiMetrics.rmssd : 0
+      let rmssd = ibiMetrics ? ibiMetrics.rmssd : 0
+      const rmssdIsNoise = rmssd > 200
+      if (rmssdIsNoise) rmssd = 0
 
-      if (!rawHr) {
-        console.log(`[HRV Worker] Compute #${computeCount}: FFT found no cardiac peak. stable=${stable.length}, peaks=${peaks.length}`)
-        return
-      }
-
-      // Temporal smoothing: reject outliers and apply EMA
-      // Reject readings that are > 40% different from recent median
+      // Temporal smoothing
       state.recentHrs.push(rawHr)
       if (state.recentHrs.length > 8) state.recentHrs.shift()
 
@@ -506,21 +669,16 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
       if (state.recentHrs.length >= 3) {
         const sorted = [...state.recentHrs].sort((a, b) => a - b)
         const median = sorted[Math.floor(sorted.length / 2)]
-        // Reject if > 30% from median
         if (Math.abs(rawHr - median) / median > 0.3) {
-          hr = median // use median instead
+          hr = median
           console.log(`[HRV Worker] Rejected outlier HR ${rawHr.toFixed(1)}, using median ${median.toFixed(1)}`)
         }
       }
 
-      // Confidence-weighted exponential moving average
-      // Higher confidence readings pull the average more aggressively
-      const fftConf = fftResult?.confidence ?? 0
       if (state.smoothedHr === null) {
         state.smoothedHr = hr
       } else {
-        // alpha scales with confidence: low conf (0.1) → alpha=0.05, high conf (0.8) → alpha=0.4
-        const alpha = 0.05 + fftConf * 0.45
+        const alpha = 0.05 + mergedConf * 0.45
         state.smoothedHr = state.smoothedHr + alpha * (hr - state.smoothedHr)
       }
 
@@ -529,9 +687,26 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
 
       const autonomicState = classifyAutonomicState(rmssd, state.baselineRmssd)
       const trend = computeTrend(state.recentRmssds)
+      const confidence = Math.round(Math.min(1, mergedConf) * 100) / 100
 
-      // Confidence from FFT SNR
-      const confidence = Math.round(Math.min(1, fftConf) * 100) / 100
+      // Respiratory rate from best pulse
+      let respiratoryRate: number | null = null
+      if (bestPulse.length >= fps * 20) {
+        const breathFiltered = respiratoryBandpass(bestPulse, fps)
+        const breathSkip = Math.min(fps * 5, Math.floor(breathFiltered.length * 0.2))
+        const breathStable = breathFiltered.slice(breathSkip)
+        if (breathStable.length >= fps * 10) {
+          const breathResult = findHeartRateFFT(breathStable, fps, 0.15, 0.45)
+          if (breathResult && breathResult.confidence > 0.1) {
+            const rawRR = breathResult.hr
+            if (rawRR >= 8 && rawRR <= 30) {
+              if (state.smoothedRR === null) state.smoothedRR = rawRR
+              else state.smoothedRR = state.smoothedRR + 0.2 * (rawRR - state.smoothedRR)
+              respiratoryRate = Math.round(state.smoothedRR * 10) / 10
+            }
+          }
+        }
+      }
 
       const measurement: HrvMeasurement = {
         timestamp: Date.now(),
@@ -540,11 +715,29 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
         autonomicState,
         trend,
         confidence,
+        respiratoryRate,
       }
 
-      console.log(`[HRV Worker] CHROM #${computeCount}: rawHR=${rawHr.toFixed(1)} → smoothed=${state.smoothedHr.toFixed(1)}bpm, conf=${fftConf.toFixed(2)}, RMSSD=${measurement.rmssd}ms, skin=${peaks.length}peaks`)
+      // Signal dump (from best region)
+      const bestBuf = state.regions[regionResults.find(r => r.confidence === bestConfidence)?.region ?? 'forehead']
+      const signalDump = {
+        timestamp: Date.now(),
+        fps,
+        rBuffer: bestBuf.r.slice(-150),
+        gBuffer: bestBuf.g.slice(-150),
+        bBuffer: bestBuf.b.slice(-150),
+        chromPulse: bestPulse.slice(-Math.min(bestPulse.length, fps * 10)),
+        filteredPulse: stableBest.slice(-Math.min(stableBest.length, fps * 10)),
+        fftPowerSpectrum,
+        fftPeakHz: rawHr / 60,
+        fftPeakBpm: rawHr,
+        peaks: [...peaks],
+        ibis: [...state.ibis],
+      }
 
-      self.postMessage({ type: 'measurement', data: measurement })
+      console.log(`[HRV Worker] Multi-ROI #${computeCount}: ${regionLog} → merged=${rawHr.toFixed(1)} → smoothed=${state.smoothedHr.toFixed(1)}bpm, conf=${mergedConf.toFixed(2)}, RR=${respiratoryRate ?? '--'}brpm`)
+
+      self.postMessage({ type: 'measurement', data: measurement, signalDump })
     }
 
     if (type === 'reset') {

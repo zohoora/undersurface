@@ -396,11 +396,9 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
     // Persist weather
     weatherEngineRef.current.persist().catch(console.error)
 
-    // Save HRV data and stop engine
-    if (hrvEnabled && hrvEngineRef.current) {
-      if (!hrvEngineRef.current.isCalibrating()) {
-        await flushHrvData()
-      }
+    // Save HRV data and stop engine (use ref check as backup for closure issues)
+    if ((hrvEnabled || hrvEngineRef.current) && hrvEngineRef.current) {
+      await flushHrvData()
       hrvEngineRef.current.stop()
       hrvEngineRef.current = null
       setHrvEnabled(false)
@@ -436,6 +434,16 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
     }
     const dominantState = Object.entries(stateCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'transitioning'
 
+    // Grab signal dumps — keep only last 10 and trim RGB buffers to save space
+    // (full RGB buffers are ~600 samples × 3 channels = huge; keep last 5s only)
+    const rawDumps = hrvEngineRef.current?.getSignalDumps() ?? []
+    const signalDumps = rawDumps.slice(-10).map(d => ({
+      ...d,
+      rBuffer: d.rBuffer.slice(-150), // last 5s at 30fps
+      gBuffer: d.gBuffer.slice(-150),
+      bBuffer: d.bBuffer.slice(-150),
+    }))
+
     const data: HrvSessionData = {
       id: currentSession.id,
       startedAt: hrvStartTimeRef.current,
@@ -443,6 +451,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
       calibrationBaseline: timeline.baselineRmssd || 0,
       measurements,
       shifts,
+      signalDumps,
       summary: {
         dominantState: dominantState as HrvSessionData['summary']['dominantState'],
         averageHr: Math.round(avgHr),
@@ -484,10 +493,10 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
       setHrvEnabled(true)
       setHrvError(null)
 
-      // Safety flush every 5 minutes
+      // Flush HRV data every 10 seconds for debugging/analysis
       hrvFlushIntervalRef.current = setInterval(() => {
         flushHrvData().catch(console.error)
-      }, 5 * 60 * 1000)
+      }, 10_000)
 
       trackEvent('hrv_enabled', { session_id: sessionRef.current?.id ?? '' })
     } catch (err) {

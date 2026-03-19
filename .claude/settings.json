@@ -4,7 +4,10 @@
       {
         "matcher": "Edit|Write",
         "hooks": [
-          "bash -c 'if [[ \"$CLAUDE_FILE_PATH\" == *.env* ]]; then echo \"BLOCK: .env files contain secrets. Confirm with user before editing.\" && exit 1; fi'"
+          {
+            "type": "command",
+            "command": "bash -c 'if [[ \"$CLAUDE_FILE_PATH\" == *.env* ]]; then echo \"BLOCK: .env files contain secrets. Confirm with user before editing.\" && exit 1; fi'"
+          }
         ]
       }
     ]

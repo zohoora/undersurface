@@ -183,6 +183,15 @@ export function HrvAmbientBar({ measurements, stream, isCalibrating, error, face
           </div>
         </div>
 
+        {/* Respiratory Rate */}
+        <div style={{ minWidth: 50 }}>
+          <div style={labelStyle}>Breath</div>
+          <div style={valueStyle}>
+            {latest?.respiratoryRate ? `${latest.respiratoryRate}` : '--'}
+            <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-tertiary, #999)' }}> /min</span>
+          </div>
+        </div>
+
         {/* RMSSD */}
         <div style={{ minWidth: 50 }}>
           <div style={labelStyle}>RMSSD</div>

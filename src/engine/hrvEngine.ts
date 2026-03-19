@@ -1,4 +1,4 @@
-import type { HrvMeasurement, HrvError } from '../types/hrv'
+import type { HrvMeasurement, HrvError, HrvSignalDump } from '../types/hrv'
 
 type MeasurementCallback = (m: HrvMeasurement) => void
 type CalibrationCallback = (baseline: number) => void
@@ -30,6 +30,8 @@ export class HrvEngine {
   private faceROI: FaceROI | null = null
   private faceDetectInterval: ReturnType<typeof setInterval> | null = null
   private lastFaceLog = 0
+  private frameSkipToggle = false // skip every other frame for ~30fps effective rate
+  private signalDumps: HrvSignalDump[] = []
 
   private measurementCallbacks: MeasurementCallback[] = []
   private calibrationCallbacks: CalibrationCallback[] = []
@@ -48,8 +50,33 @@ export class HrvEngine {
       throw { type: 'camera_unavailable' } as HrvError
     }
 
-    // Monitor for stream ending unexpectedly
+    // Lock camera auto-exposure and white balance to prevent slow color drift
+    // that overpowers the rPPG signal (research shows this is critical)
     const track = this.stream.getVideoTracks()[0]
+    try {
+      const capabilities = track.getCapabilities() as Record<string, unknown>
+      const constraints: Record<string, unknown> = {}
+
+      if ('exposureMode' in capabilities) {
+        constraints.exposureMode = 'manual'
+        console.log('[HRV Engine] Locking exposure to manual')
+      }
+      if ('whiteBalanceMode' in capabilities) {
+        constraints.whiteBalanceMode = 'manual'
+        console.log('[HRV Engine] Locking white balance to manual')
+      }
+
+      if (Object.keys(constraints).length > 0) {
+        await track.applyConstraints({ advanced: [constraints] } as MediaTrackConstraints)
+        console.log('[HRV Engine] Camera auto-adjustment locked')
+      } else {
+        console.log('[HRV Engine] Camera does not support manual exposure/WB control')
+      }
+    } catch (err) {
+      console.warn('[HRV Engine] Could not lock camera exposure:', err)
+    }
+
+    // Monitor for stream ending unexpectedly
     track.addEventListener('ended', () => {
       this.errorCallbacks.forEach(cb => cb({ type: 'camera_lost' }))
       this.stopProcessing()
@@ -80,11 +107,17 @@ export class HrvEngine {
       )
 
       this.worker.onmessage = (e: MessageEvent) => {
-        const { type, data } = e.data
+        const { type, data, signalDump } = e.data
         if (type === 'measurement' && data) {
           console.log('[HRV Engine] Received measurement from worker:', data)
           this.latest = data as HrvMeasurement
           this.measurementCallbacks.forEach(cb => cb(this.latest!))
+          // Capture signal dump for offline analysis
+          if (signalDump) {
+            this.signalDumps.push(signalDump as HrvSignalDump)
+            // Keep last 60 dumps (~5 minutes at 5s interval)
+            if (this.signalDumps.length > 60) this.signalDumps.shift()
+          }
         }
         if (type === 'calibration_complete') {
           console.log('[HRV Engine] Calibration complete, baseline:', data?.baseline)
@@ -107,8 +140,8 @@ export class HrvEngine {
       console.warn('[HRV Engine] Failed to create worker, running on main thread:', err)
     }
 
-    // Initialize face detection (Chrome/Edge FaceDetector API)
-    await this.initFaceDetector()
+    // Face detection disabled — skin color filtering handles ROI selection
+    // await this.initFaceDetector()
 
     // Start frame capture loop
     console.log('[HRV Engine] Starting frame capture loop')
@@ -116,6 +149,8 @@ export class HrvEngine {
 
     // Request computation every 5 seconds
     this.computeInterval = setInterval(() => {
+      if (document.hidden) return // don't compute on stale data when tab is backgrounded
+
       if (this.worker) {
         console.log('[HRV Engine] Requesting computation from worker')
         this.worker.postMessage({ type: 'compute' })
@@ -140,6 +175,7 @@ export class HrvEngine {
             autonomicState: classifyAutonomicState(metrics.rmssd, this.baseline ?? 50),
             trend: 'steady',
             confidence: Math.round(confidence * 100) / 100,
+            respiratoryRate: null,
           }
           this.latest = measurement
           this.measurementCallbacks.forEach(cb => cb(measurement))
@@ -210,6 +246,10 @@ export class HrvEngine {
   getVideoSize(): { width: number; height: number } | null {
     if (!this.video) return null
     return { width: this.video.videoWidth, height: this.video.videoHeight }
+  }
+
+  getSignalDumps(): HrvSignalDump[] {
+    return this.signalDumps
   }
 
   private async initFaceDetector(): Promise<void> {
@@ -313,6 +353,12 @@ export class HrvEngine {
   private captureFrames(): void {
     if (!this.video || !this.ctx || !this.canvas) return
 
+    // Skip capture when tab is hidden
+    if (document.hidden) {
+      this.animFrameId = requestAnimationFrame(() => this.captureFrames())
+      return
+    }
+
     const vw = this.canvas.width
     const vh = this.canvas.height
 
@@ -340,7 +386,6 @@ export class HrvEngine {
       y1 = Math.floor(vh * (1 - margin))
     }
 
-    // Only read the ROI pixels from the canvas (much less data than full frame)
     const roiW = x1 - x0
     const roiH = y1 - y0
     if (roiW <= 0 || roiH <= 0) {
@@ -348,31 +393,61 @@ export class HrvEngine {
       return
     }
 
+    // Read the full face ROI once
     const imageData = this.ctx.getImageData(x0, y0, roiW, roiH)
     const pixels = imageData.data
 
-    // Extract RGB averages from ALL pixels in the face ROI (no skin filtering)
-    const totalPixels = roiW * roiH
-    let sumR = 0, sumG = 0, sumB = 0
-    for (let i = 0; i < pixels.length; i += 4) {
-      sumR += pixels[i]
-      sumG += pixels[i + 1]
-      sumB += pixels[i + 2]
+    // Split face into 3 sub-regions, skin-color filtered
+    // Forehead: top 30%, middle 80% horizontally
+    // Cheeks: middle 40% vertically, outer thirds horizontally
+    const regions = [
+      { name: 'forehead', ry: 0, rh: 0.3, rx: 0.1, rw: 0.8 },
+      { name: 'leftCheek', ry: 0.3, rh: 0.4, rx: 0, rw: 0.33 },
+      { name: 'rightCheek', ry: 0.3, rh: 0.4, rx: 0.67, rw: 0.33 },
+    ]
+
+    const rgbRegions: Array<{ region: string; r: number; g: number; b: number; pixels: number }> = []
+
+    for (const reg of regions) {
+      const sx = Math.floor(roiW * reg.rx)
+      const sy = Math.floor(roiH * reg.ry)
+      const sw = Math.floor(roiW * reg.rw)
+      const sh = Math.floor(roiH * reg.rh)
+      if (sw <= 0 || sh <= 0) continue
+
+      let sumR = 0, sumG = 0, sumB = 0, count = 0
+      for (let py = sy; py < sy + sh && py < roiH; py++) {
+        for (let px = sx; px < sx + sw && px < roiW; px++) {
+          const idx = (py * roiW + px) * 4
+          const r = pixels[idx]
+          const g = pixels[idx + 1]
+          const b = pixels[idx + 2]
+          // Skin color filter: R>G>B, sufficient warmth, not too bright
+          if (r >= 60 && g >= 40 && b >= 20 && r > g && g > b && r - g >= 15 && r - b >= 20 && !(r > 240 && g > 240 && b > 240)) {
+            sumR += r
+            sumG += g
+            sumB += b
+            count++
+          }
+        }
+      }
+
+      if (count > 10) { // need at least some skin pixels
+        rgbRegions.push({
+          region: reg.name,
+          r: sumR / count,
+          g: sumG / count,
+          b: sumB / count,
+          pixels: count,
+        })
+      }
     }
 
-    const msg = {
-      type: 'rgb',
-      data: {
-        r: sumR / totalPixels,
-        g: sumG / totalPixels,
-        b: sumB / totalPixels,
-        skinCount: totalPixels,
-        roiPixels: totalPixels,
-      },
-    }
-
-    if (this.worker) {
-      this.worker.postMessage(msg)
+    if (this.worker && rgbRegions.length > 0) {
+      this.worker.postMessage({
+        type: 'rgb_multi',
+        data: { regions: rgbRegions },
+      })
     }
 
     this.animFrameId = requestAnimationFrame(() => this.captureFrames())

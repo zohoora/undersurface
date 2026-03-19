@@ -8,6 +8,7 @@ export interface HrvMeasurement {
   autonomicState: AutonomicState
   trend: HrvTrend
   confidence: number
+  respiratoryRate: number | null
 }
 
 export type HrvError =
@@ -34,6 +35,22 @@ export interface HrvShift {
   magnitude: number
 }
 
+/** Raw signal snapshot from the worker for offline algorithm analysis */
+export interface HrvSignalDump {
+  timestamp: number
+  fps: number
+  rBuffer: number[]
+  gBuffer: number[]
+  bBuffer: number[]
+  chromPulse: number[]
+  filteredPulse: number[]
+  fftPowerSpectrum: { freqHz: number; power: number }[]
+  fftPeakHz: number | null
+  fftPeakBpm: number | null
+  peaks: number[]
+  ibis: number[]
+}
+
 export interface HrvSessionData {
   id: string
   startedAt: number
@@ -41,6 +58,7 @@ export interface HrvSessionData {
   calibrationBaseline: number
   measurements: HrvMeasurement[]
   shifts: HrvShift[]
+  signalDumps: HrvSignalDump[]
   summary: {
     dominantState: AutonomicState
     averageHr: number
