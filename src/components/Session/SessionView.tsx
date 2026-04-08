@@ -3,6 +3,8 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { InkWeight } from '../../extensions/inkWeight'
 import { useAutocorrect } from '../../hooks/useAutocorrect'
+import { useTypewriter } from '../../hooks/useTypewriter'
+import { useHrvSession } from '../../hooks/useHrvSession'
 import { useSettings } from '../../store/settings'
 import { getGlobalConfig } from '../../store/globalConfig'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../../store/db'
@@ -16,11 +18,9 @@ import { WeatherEngine } from '../../engine/weatherEngine'
 import { isGroundingActive } from '../../hooks/useGroundingMode'
 import { trackEvent } from '../../services/analytics'
 import { SessionMessageBubble } from './SessionMessage'
-import { HrvEngine } from '../../engine/hrvEngine'
-import { HrvTimeline } from '../../engine/hrvTimeline'
 import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
-import type { Session, SessionMessage, EmotionalTone, HrvMeasurement, HrvError, HrvSessionData } from '../../types'
+import type { Session, SessionMessage, EmotionalTone } from '../../types'
 
 interface Props {
   sessionId: string | null
@@ -33,8 +33,11 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
   const [session, setSession] = useState<Session | null>(null)
   const [messages, setMessages] = useState<SessionMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
-  const [streamingContent, setStreamingContent] = useState('')
   const settings = useSettings()
+
+  const typewriter = useTypewriter()
+  const sessionIdRef = useRef<string | null>(sessionId)
+  const hrv = useHrvSession(sessionIdRef)
 
   const orchestratorRef = useRef(new SessionOrchestrator())
   const therapistContextRef = useRef<TherapistContext | null>(null)
@@ -49,53 +52,14 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
     autoCapitalize: settings.autoCapitalize ?? true,
   })
 
-  // HRV biometric state
-  const [hrvEnabled, setHrvEnabled] = useState(false)
-  const [latestHrvMeasurement, setLatestHrvMeasurement] = useState<HrvMeasurement | null>(null)
-  const [hrvMeasurementCount, setHrvMeasurementCount] = useState(0)
-  const [hrvCalibrating, setHrvCalibrating] = useState(true)
-  const [hrvError, setHrvError] = useState<string | null>(null)
-  const [showHrvConsent, setShowHrvConsent] = useState(false)
-  const hrvEngineRef = useRef<HrvEngine | null>(null)
-  const hrvTimelineRef = useRef(new HrvTimeline())
-  const hrvStartTimeRef = useRef<number>(0)
-  const hrvFlushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const hrvResponseStartedRef = useRef(false)
-
-  // Typewriter effect: buffer incoming tokens, reveal character by character
-  const streamBufferRef = useRef('')
-  const displayedLengthRef = useRef(0)
-  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const onStreamCompleteRef = useRef<((fullText: string) => void) | null>(null)
-
-  const revealNextChar = useCallback(() => {
-    if (displayedLengthRef.current < streamBufferRef.current.length) {
-      const remaining = streamBufferRef.current.length - displayedLengthRef.current
-      const burst = remaining > 20 ? 3 : remaining > 5 ? 2 : 1
-      displayedLengthRef.current = Math.min(
-        displayedLengthRef.current + burst,
-        streamBufferRef.current.length,
-      )
-      setStreamingContent(streamBufferRef.current.slice(0, displayedLengthRef.current))
-      const delay = 25 + Math.random() * 30
-      typingTimerRef.current = setTimeout(revealNextChar, delay)
-    } else if (onStreamCompleteRef.current) {
-      const cb = onStreamCompleteRef.current
-      onStreamCompleteRef.current = null
-      cb(streamBufferRef.current)
-    } else {
-      typingTimerRef.current = null
-    }
-  }, [])
-
   // Keep refs in sync
-  useEffect(() => { sessionRef.current = session }, [session])
+  useEffect(() => { sessionRef.current = session; sessionIdRef.current = session?.id ?? null }, [session])
   useEffect(() => { messagesRef.current = messages }, [messages])
 
   // Auto-scroll on new messages or streaming content
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamingContent])
+  }, [messages, typewriter.displayedContent])
 
   // Initialize session
   useEffect(() => {
@@ -126,15 +90,8 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
     init()
     return () => {
       cancelled = true
-      if (typingTimerRef.current) {
-        clearTimeout(typingTimerRef.current)
-        typingTimerRef.current = null
-      }
-      // Clean up HRV engine
-      hrvEngineRef.current?.stop()
-      if (hrvFlushIntervalRef.current) {
-        clearInterval(hrvFlushIntervalRef.current)
-      }
+      typewriter.cleanup()
+      hrv.cleanupEngine()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
@@ -181,14 +138,13 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
     currentSession: Session,
   ): Promise<SessionMessage[]> => {
     setIsStreaming(true)
-    setStreamingContent('')
 
     const orchestrator = orchestratorRef.current
     const phase = orchestrator.detectPhase(currentMessages)
     const maxTokens = orchestrator.getMaxTokens(phase)
 
     const context = therapistContextRef.current
-    const hrvContext = hrvEnabled ? hrvTimelineRef.current.buildPromptContext() : undefined
+    const hrvContext = hrv.buildPromptContext()
     const promptMessages = buildTherapistMessages(currentMessages, {
       phase,
       recentSessionNotes: context?.recentSessionNotes,
@@ -199,13 +155,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
     })
 
     // Reset typewriter buffer
-    streamBufferRef.current = ''
-    displayedLengthRef.current = 0
-    if (typingTimerRef.current) {
-      clearTimeout(typingTimerRef.current)
-      typingTimerRef.current = null
-    }
-    onStreamCompleteRef.current = null
+    typewriter.reset()
 
     // Promise that resolves to the final messages array once typewriter finishes
     let resolveMessages: (messages: SessionMessage[]) => void
@@ -247,45 +197,33 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
       setMessages(updatedMessages)
       messagesRef.current = updatedMessages
       setIsStreaming(false)
-      setStreamingContent('')
+      typewriter.reset()
       resolveMessages(updatedMessages)
     }
 
-    hrvResponseStartedRef.current = false
+    hrv.resetResponseStarted()
 
     await streamChatCompletion(
       promptMessages,
       {
         onToken: (token) => {
-          streamBufferRef.current += token
-          if (!typingTimerRef.current) {
-            revealNextChar()
-          }
+          typewriter.appendToken(token)
           // Track HRV timeline: first token = response start
-          if (hrvEnabled && !hrvResponseStartedRef.current) {
-            hrvResponseStartedRef.current = true
-            hrvTimelineRef.current.addConversationEvent('ai_response_start', currentMessages.length)
+          if (hrv.enabled && hrv.markResponseStarted()) {
+            hrv.addConversationEvent('ai_response_start', currentMessages.length)
           }
         },
         onComplete: () => {
-          onStreamCompleteRef.current = finalizeMessage
-          if (!typingTimerRef.current) {
-            revealNextChar()
-          }
+          typewriter.setOnComplete(finalizeMessage)
           // Track HRV timeline: response complete
-          if (hrvEnabled) {
-            hrvTimelineRef.current.addConversationEvent('ai_response_complete', currentMessages.length)
+          if (hrv.enabled) {
+            hrv.addConversationEvent('ai_response_complete', currentMessages.length)
           }
         },
         onError: (error) => {
           console.error('Session stream error:', error)
-          if (typingTimerRef.current) {
-            clearTimeout(typingTimerRef.current)
-            typingTimerRef.current = null
-          }
-          onStreamCompleteRef.current = null
+          typewriter.reset()
           setIsStreaming(false)
-          setStreamingContent('')
           resolveMessages(currentMessages)
         },
       },
@@ -293,7 +231,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
     )
 
     return messagesPromise
-  }, [revealNextChar, hrvEnabled])
+  }, [hrv, typewriter])
 
   const handleSend = useCallback(async (editorInstance?: ReturnType<typeof useEditor>) => {
     const ed = editorInstance
@@ -320,8 +258,8 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
     await sessionMessagesDb.add(currentSession.id, userMessage)
 
     // Record HRV timeline event
-    if (hrvEnabled) {
-      hrvTimelineRef.current.addConversationEvent('user_message', currentMessages.length)
+    if (hrv.enabled) {
+      hrv.addConversationEvent('user_message', currentMessages.length)
     }
 
     const updatedMessages = [...currentMessages, userMessage]
@@ -356,7 +294,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
       messageCount: updatedMessages.length,
       firstLine,
     })
-  }, [isStreaming, generateTherapistMessage, hrvEnabled])
+  }, [isStreaming, generateTherapistMessage, hrv])
 
   const handleEndSession = useCallback(async () => {
     const currentSession = sessionRef.current
@@ -396,17 +334,8 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
     // Persist weather
     weatherEngineRef.current.persist().catch(console.error)
 
-    // Save HRV data and stop engine (use ref check as backup for closure issues)
-    if ((hrvEnabled || hrvEngineRef.current) && hrvEngineRef.current) {
-      await flushHrvData()
-      hrvEngineRef.current.stop()
-      hrvEngineRef.current = null
-      setHrvEnabled(false)
-      if (hrvFlushIntervalRef.current) {
-        clearInterval(hrvFlushIntervalRef.current)
-        hrvFlushIntervalRef.current = null
-      }
-    }
+    // Save HRV data and stop engine
+    await hrv.stopAndFlush()
 
     trackEvent('session_closed', {
       session_id: currentSession.id,
@@ -414,132 +343,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
       duration_ms: endedAt - currentSession.startedAt,
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isStreaming, generateTherapistMessage, hrvEnabled])
-
-  const flushHrvData = useCallback(async () => {
-    const currentSession = sessionRef.current
-    const timeline = hrvTimelineRef.current
-    if (!currentSession || timeline.getMeasurements().length === 0) return
-
-    const measurements = timeline.getMeasurements()
-    const shifts = timeline.getRecentShifts(99999)
-
-    const avgHr = measurements.reduce((s, m) => s + m.hr, 0) / measurements.length
-    const avgRmssd = measurements.reduce((s, m) => s + m.rmssd, 0) / measurements.length
-    const avgConf = measurements.reduce((s, m) => s + m.confidence, 0) / measurements.length
-
-    const stateCounts: Record<string, number> = {}
-    for (const m of measurements) {
-      stateCounts[m.autonomicState] = (stateCounts[m.autonomicState] || 0) + 1
-    }
-    const dominantState = Object.entries(stateCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'transitioning'
-
-    // Grab signal dumps — keep only last 10 and trim RGB buffers to save space
-    // (full RGB buffers are ~600 samples × 3 channels = huge; keep last 5s only)
-    const rawDumps = hrvEngineRef.current?.getSignalDumps() ?? []
-    const signalDumps = rawDumps.slice(-10).map(d => ({
-      ...d,
-      rBuffer: d.rBuffer.slice(-150), // last 5s at 30fps
-      gBuffer: d.gBuffer.slice(-150),
-      bBuffer: d.bBuffer.slice(-150),
-    }))
-
-    const data: HrvSessionData = {
-      id: currentSession.id,
-      startedAt: hrvStartTimeRef.current,
-      endedAt: Date.now(),
-      calibrationBaseline: timeline.baselineRmssd || 0,
-      measurements,
-      shifts,
-      signalDumps,
-      summary: {
-        dominantState: dominantState as HrvSessionData['summary']['dominantState'],
-        averageHr: Math.round(avgHr),
-        averageRmssd: Math.round(avgRmssd * 10) / 10,
-        shiftCount: shifts.length,
-        avgConfidence: Math.round(avgConf * 100) / 100,
-      },
-    }
-
-    await db.hrvSessions.add(data)
-  }, [])
-
-  const startHrvEngine = useCallback(async () => {
-    const engine = new HrvEngine()
-    hrvEngineRef.current = engine
-    hrvTimelineRef.current = new HrvTimeline()
-    hrvStartTimeRef.current = Date.now()
-
-    engine.onMeasurement((m) => {
-      hrvTimelineRef.current.addMeasurement(m)
-      setLatestHrvMeasurement(m)
-      setHrvMeasurementCount(c => c + 1)
-    })
-
-    engine.onCalibrationComplete((baseline) => {
-      hrvTimelineRef.current.setBaseline(baseline)
-      setHrvCalibrating(false)
-    })
-
-    engine.onError((err) => {
-      if (err.type === 'camera_lost') {
-        setHrvError('Camera disconnected')
-      } else if (err.type === 'worker_error') {
-        console.warn('HRV worker error:', err.message)
-      }
-    })
-
-    try {
-      await engine.start()
-      setHrvEnabled(true)
-      setHrvError(null)
-
-      // Flush HRV data every 10 seconds for debugging/analysis
-      hrvFlushIntervalRef.current = setInterval(() => {
-        flushHrvData().catch(console.error)
-      }, 10_000)
-
-      trackEvent('hrv_enabled', { session_id: sessionRef.current?.id ?? '' })
-    } catch (err) {
-      const hrvErr = err as HrvError
-      if (hrvErr.type === 'camera_denied') {
-        setHrvError('Camera access denied')
-      } else {
-        setHrvError('Camera not available')
-      }
-      hrvEngineRef.current = null
-    }
-  }, [flushHrvData])
-
-  const handleHrvToggle = useCallback(async () => {
-    const config = getGlobalConfig()
-    if (config?.features?.webcamHrv !== true) return
-
-    if (hrvEnabled) {
-      // Disable
-      hrvEngineRef.current?.stop()
-      hrvEngineRef.current = null
-      setHrvEnabled(false)
-      setLatestHrvMeasurement(null)
-      setHrvMeasurementCount(0)
-      setHrvCalibrating(true)
-      setHrvError(null)
-      if (hrvFlushIntervalRef.current) {
-        clearInterval(hrvFlushIntervalRef.current)
-        hrvFlushIntervalRef.current = null
-      }
-      return
-    }
-
-    // Check consent
-    const consent = await db.consent.get('camera-hrv')
-    if (!consent) {
-      setShowHrvConsent(true)
-      return
-    }
-
-    await startHrvEngine()
-  }, [hrvEnabled, startHrvEngine])
+  }, [isStreaming, generateTherapistMessage, hrv])
 
   const inputEditor = useEditor({
     extensions: [
@@ -605,7 +409,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
 
   const backButtonStyle = useMemo<React.CSSProperties>(() => ({
     position: 'fixed',
-    top: `calc(${hrvEnabled ? '48px' : '12px'} + env(safe-area-inset-top, 0px))`,
+    top: `calc(${hrv.enabled ? '48px' : '12px'} + env(safe-area-inset-top, 0px))`,
     left: 12,
     zIndex: 40,
     width: 36,
@@ -620,12 +424,12 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
     justifyContent: 'center',
     fontSize: 18,
     opacity: 0.6,
-  }), [hrvEnabled])
+  }), [hrv.enabled])
 
   return (
     <>
     {/* Biometrics bar — fixed at top */}
-    {hrvEnabled && (
+    {hrv.enabled && (
       <div style={{
         position: 'fixed',
         top: 0,
@@ -639,14 +443,14 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
         <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{ flex: 1 }}>
             <BiometricsBar
-              latest={latestHrvMeasurement}
-              measurementCount={hrvMeasurementCount}
-              isCalibrating={hrvCalibrating}
-              error={hrvError}
+              latest={hrv.latestMeasurement}
+              measurementCount={hrv.measurementCount}
+              isCalibrating={hrv.calibrating}
+              error={hrv.error}
             />
           </div>
           <button
-            onClick={handleHrvToggle}
+            onClick={hrv.toggle}
             style={{
               padding: '3px 8px',
               borderRadius: 6,
@@ -695,10 +499,10 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
       )}
 
       {/* HRV Toggle (inline, non-fixed) */}
-      {getGlobalConfig()?.features?.webcamHrv === true && !isClosed && !hrvEnabled && (
+      {getGlobalConfig()?.features?.webcamHrv === true && !isClosed && !hrv.enabled && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
           <button
-            onClick={handleHrvToggle}
+            onClick={hrv.toggle}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -730,13 +534,13 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
       ))}
 
       {/* Streaming message */}
-      {isStreaming && streamingContent && (
+      {isStreaming && typewriter.displayedContent && (
         <div style={{ marginBottom: 20, opacity: 0.88 }}>
           <div className="session-message-text" style={{
             color: 'var(--text-secondary)',
             fontStyle: 'italic',
           }}>
-            {streamingContent}
+            {typewriter.displayedContent}
             <span style={{
               display: 'inline-block',
               width: 2,
@@ -751,7 +555,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
       )}
 
       {/* Streaming indicator (no content yet) */}
-      {isStreaming && !streamingContent && (
+      {isStreaming && !typewriter.displayedContent && (
         <div style={{ marginBottom: 20 }}>
           <div style={{ display: 'flex', gap: 3 }}>
             {[0, 1, 2].map((i) => (
@@ -821,13 +625,13 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
       )}
 
       {/* HRV Consent Dialog */}
-      {showHrvConsent && (
+      {hrv.showConsent && (
         <HrvConsentDialog
           onAccept={() => {
-            setShowHrvConsent(false)
-            startHrvEngine()
+            hrv.setShowConsent(false)
+            hrv.start()
           }}
-          onDecline={() => setShowHrvConsent(false)}
+          onDecline={() => hrv.setShowConsent(false)}
         />
       )}
     </div>
