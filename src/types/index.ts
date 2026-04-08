@@ -33,6 +33,10 @@ export interface PartMemory {
   timestamp: number
   source?: 'journal' | 'session'
   sessionId?: string
+  bodyRegion?: string
+  quote?: string
+  emotion?: string
+  intensity?: string
 }
 
 export interface DiaryEntry {
@@ -44,8 +48,8 @@ export interface DiaryEntry {
   intention?: string
   createdAt: number
   updatedAt: number
-  thoughts: PartThought[]
-  interactions: ThinkingOutLoudInteraction[]
+  thoughts?: PartThought[]
+  interactions?: ThinkingOutLoudInteraction[]
 }
 
 export interface PartThought {
@@ -56,7 +60,7 @@ export interface PartThought {
   anchorText: string
   anchorOffset: number
   timestamp: number
-  isNew: boolean
+  isNew?: boolean
   isEcho?: boolean
   isSilence?: boolean
   isBlankPage?: boolean
@@ -156,6 +160,7 @@ export interface EntrySummary {
   emotionalArc: string
   keyMoments: string[]
   timestamp: number
+  contentHash?: string
 }
 
 export interface UserProfile {

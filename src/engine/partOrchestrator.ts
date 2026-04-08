@@ -97,7 +97,7 @@ export class PartOrchestrator {
     this.callbacks = callbacks
   }
 
-  getParts(): readonly Part[] {
+  getParts(): Part[] {
     return this.parts
   }
 
