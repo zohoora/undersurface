@@ -22,7 +22,7 @@ const LivingEditor = lazyWithRetry(() => import('./components/Editor/LivingEdito
 const SessionView = lazyWithRetry(() => import('./components/Session/SessionView'))
 import type { ReflectionEngine } from './engine/reflectionEngine'
 import { useSettings } from './store/settings'
-import { initGlobalConfig, useGlobalConfig, useNewVersionAvailable } from './store/globalConfig'
+import { initGlobalConfig, teardownGlobalConfig, useGlobalConfig, useNewVersionAvailable } from './store/globalConfig'
 import { useTheme } from './hooks/useTheme'
 import { useTimeAwarePalette } from './hooks/useTimeAwarePalette'
 import { useSeasonalPalette } from './hooks/useSeasonalPalette'
@@ -135,6 +135,7 @@ function App() {
   const weatherEngine = getWeatherEngine()
   const ritualEngineRef = useRef<InstanceType<typeof RitualEngine> | null>(null)
   const fossilEngineRef = useRef<InstanceType<typeof import('./engine/fossilEngine').FossilEngine> | null>(null)
+  const fossilTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const explorationEngineRef = useRef<InstanceType<typeof import('./engine/explorationEngine').ExplorationEngine> | null>(null)
   const [weather, setWeather] = useState<InnerWeatherType | null>(null)
   const [fossilThought, setFossilThought] = useState<{ partName: string; partColor: string; colorLight: string; content: string } | null>(null)
@@ -231,6 +232,13 @@ function App() {
     init()
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Tear down global config listener on logout
+  useEffect(() => {
+    if (!user) {
+      teardownGlobalConfig()
+    }
+  }, [user])
+
   // Log session start/end
   useEffect(() => {
     if (!isReady) return
@@ -321,7 +329,8 @@ function App() {
                 content: fossil.commentary,
               })
               trackEvent('fossil_shown', { part_name: part.name })
-              setTimeout(() => setFossilThought(null), 30000)
+              if (fossilTimerRef.current) clearTimeout(fossilTimerRef.current)
+              fossilTimerRef.current = setTimeout(() => setFossilThought(null), 30000)
             }
           }
         }).catch(console.error)
@@ -456,6 +465,17 @@ function App() {
     setActivePartColor(color)
   }, [])
 
+  // Redirect invalid routes (admin without permission, unknown paths)
+  useEffect(() => {
+    if (routePath.startsWith('/admin') && !ADMIN_EMAILS.includes(user?.email || '')) {
+      window.history.replaceState(null, '', '/')
+      setRoutePath('/')
+    } else if (routePath !== '/' && routePath !== '/new' && !routePath.startsWith('/admin') && !routePath.startsWith('/session')) {
+      window.history.replaceState(null, '', '/')
+      setRoutePath('/')
+    }
+  }, [routePath, user?.email])
+
   // Loading state
   if (loading) {
     return <SplashScreen />
@@ -467,16 +487,9 @@ function App() {
   }
 
   // Admin routing — before DB init so admin page stays lightweight
-  if (routePath.startsWith('/admin')) {
-    if (ADMIN_EMAILS.includes(user.email || '')) {
-      return <Suspense fallback={<SplashScreen />}><AdminDashboard /></Suspense>
-    }
-    window.history.replaceState(null, '', '/')
-  }
-
-  // 404 — redirect unknown paths to root
-  if (routePath !== '/' && routePath !== '/new' && !routePath.startsWith('/admin') && !routePath.startsWith('/session')) {
-    window.history.replaceState(null, '', '/')
+  const isAdminRoute = routePath.startsWith('/admin') && ADMIN_EMAILS.includes(user.email || '')
+  if (isAdminRoute) {
+    return <Suspense fallback={<SplashScreen />}><AdminDashboard /></Suspense>
   }
 
   // Route detection

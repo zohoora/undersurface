@@ -95,6 +95,7 @@ export default function LivingEditor({
   const ghostTextRef = useRef<string | null>(null)
   const blankPageRef = useRef(new BlankPageEngine())
   const blankPageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingThoughtUpdateRef = useRef<number | null>(null)
   const intentionRef = useRef(intention || '')
 
   const firstKeystrokeRef = useRef(false)
@@ -108,6 +109,8 @@ export default function LivingEditor({
   const lastKeystrokeTimeRef = useRef(0)
   const typingEnergyRef = useRef(0)
   const breathRafRef = useRef<number>(0)
+  const breathElRef = useRef<HTMLElement | null>(null)
+  const updateBreathRef = useRef<() => void>(() => {})
 
   const editor = useEditor({
     extensions: [
@@ -166,7 +169,12 @@ export default function LivingEditor({
           const interval = now - lastKeystrokeTimeRef.current
           lastKeystrokeTimeRef.current = now
           const rawIntensity = Math.min(1, Math.max(0, 1 - (interval - 50) / 400))
+          const wasIdle = breathRafRef.current === 0
           typingEnergyRef.current = typingEnergyRef.current * 0.7 + rawIntensity * 0.3
+          // Restart rAF loop if it stopped due to idle
+          if (wasIdle && typingEnergyRef.current > 0) {
+            breathRafRef.current = requestAnimationFrame(updateBreathRef.current)
+          }
 
           // Clear ghost text when typing resumes
           if (ghostTextRef.current && editor) {
@@ -239,13 +247,25 @@ export default function LivingEditor({
 
   // Breathing sync: rAF loop to update .typing-breath element
   useEffect(() => {
+    breathElRef.current = document.querySelector('.typing-breath') as HTMLElement
+
     const updateBreath = () => {
       // Decay energy when not typing
       typingEnergyRef.current *= 0.97
-      if (typingEnergyRef.current < 0.01) typingEnergyRef.current = 0
+      if (typingEnergyRef.current < 0.001) {
+        typingEnergyRef.current = 0
+        // Reset element to idle state and stop the loop
+        const el = breathElRef.current
+        if (el) {
+          el.style.transform = 'scale(1)'
+          el.style.opacity = '0.15'
+        }
+        breathRafRef.current = 0
+        return
+      }
 
       const energy = typingEnergyRef.current
-      const el = document.querySelector('.typing-breath') as HTMLElement
+      const el = breathElRef.current
       if (el) {
         el.style.transform = `scale(${1 + energy * 0.06})`
         el.style.opacity = String(0.15 + energy * 0.6)
@@ -253,9 +273,12 @@ export default function LivingEditor({
 
       breathRafRef.current = requestAnimationFrame(updateBreath)
     }
+    updateBreathRef.current = updateBreath
 
     breathRafRef.current = requestAnimationFrame(updateBreath)
-    return () => cancelAnimationFrame(breathRafRef.current)
+    return () => {
+      if (breathRafRef.current) cancelAnimationFrame(breathRafRef.current)
+    }
   }, [])
 
   // Sync settings into extensions and pause detector
@@ -409,11 +432,17 @@ export default function LivingEditor({
           const snapshot = { ...current, content: current.content }
           setThoughts((prev) => [...prev, snapshot])
         } else {
-          const id = current.id
-          const content = current.content
-          setThoughts((prev) =>
-            prev.map((t) => (t.id === id ? { ...t, content } : t)),
-          )
+          // Batch subsequent token updates to one per frame
+          if (!pendingThoughtUpdateRef.current) {
+            pendingThoughtUpdateRef.current = requestAnimationFrame(() => {
+              pendingThoughtUpdateRef.current = null
+              const id = current.id
+              const content = current.content
+              setThoughts((prev) =>
+                prev.map((th) => (th.id === id ? { ...th, content } : th)),
+              )
+            })
+          }
         }
       },
       onThoughtComplete: (thought: PartThought) => {
@@ -567,6 +596,10 @@ export default function LivingEditor({
 
     return () => {
       pauseDetector.destroy()
+      if (pendingThoughtUpdateRef.current) {
+        cancelAnimationFrame(pendingThoughtUpdateRef.current)
+        pendingThoughtUpdateRef.current = null
+      }
     }
   }, [entryId, onEmotionChange, onActivePartColorChange, triggerRipple, addMarginTrace])
 
