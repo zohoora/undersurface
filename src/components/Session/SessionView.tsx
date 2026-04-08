@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import Placeholder from '@tiptap/extension-placeholder'
 import { InkWeight } from '../../extensions/inkWeight'
 import { useAutocorrect } from '../../hooks/useAutocorrect'
 import { useTypewriter } from '../../hooks/useTypewriter'
@@ -358,6 +359,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
         hardBreak: false,
       }),
       InkWeight,
+      Placeholder.configure({ placeholder: 'Type here...' }),
     ],
     content: '',
     editorProps: {
