@@ -20,7 +20,7 @@ function lazyWithRetry<T extends React.ComponentType<any>>(factory: () => Promis
 const AdminDashboard = lazyWithRetry(() => import('./admin/AdminDashboard'))
 const LivingEditor = lazyWithRetry(() => import('./components/Editor/LivingEditor'))
 const SessionView = lazyWithRetry(() => import('./components/Session/SessionView'))
-import { ReflectionEngine } from './engine/reflectionEngine'
+import type { ReflectionEngine } from './engine/reflectionEngine'
 import { useSettings } from './store/settings'
 import { initGlobalConfig, useGlobalConfig, useNewVersionAvailable } from './store/globalConfig'
 import { useTheme } from './hooks/useTheme'
@@ -31,15 +31,13 @@ import { useHandwritingMode } from './hooks/useHandwritingMode'
 import { useGroundingMode } from './hooks/useGroundingMode'
 import { InnerWeather } from './components/InnerWeather'
 import { getWeatherEngine } from './store/weatherStore'
-import { RitualEngine } from './engine/ritualEngine'
+import type { RitualEngine } from './engine/ritualEngine'
 import { IntentionInput } from './components/Editor/IntentionInput'
 import { ExplorationCard } from './components/Editor/ExplorationCard'
-import { Onboarding } from './components/Onboarding'
-import { EntryChoice } from './components/EntryChoice'
-import { CrisisResources } from './components/CrisisResources'
-import { SessionClosing } from './components/SessionClosing'
-import { chatCompletion } from './ai/openrouter'
-import { languageDirective } from './ai/partPrompts'
+const Onboarding = lazyWithRetry(() => import('./components/Onboarding').then(m => ({ default: m.Onboarding })))
+const EntryChoice = lazyWithRetry(() => import('./components/EntryChoice').then(m => ({ default: m.EntryChoice })))
+const CrisisResources = lazyWithRetry(() => import('./components/CrisisResources').then(m => ({ default: m.CrisisResources })))
+const SessionClosing = lazyWithRetry(() => import('./components/SessionClosing').then(m => ({ default: m.SessionClosing })))
 import { trackEvent } from './services/analytics'
 import { t, useTranslation, getPartDisplayName } from './i18n'
 import { getSettings } from './store/settings'
@@ -133,9 +131,9 @@ function App() {
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestContentRef = useRef({ html: '', text: '' })
-  const reflectionEngineRef = useRef(new ReflectionEngine())
+  const reflectionEngineRef = useRef<InstanceType<typeof ReflectionEngine> | null>(null)
   const weatherEngine = getWeatherEngine()
-  const ritualEngineRef = useRef(new RitualEngine())
+  const ritualEngineRef = useRef<InstanceType<typeof RitualEngine> | null>(null)
   const fossilEngineRef = useRef<InstanceType<typeof import('./engine/fossilEngine').FossilEngine> | null>(null)
   const explorationEngineRef = useRef<InstanceType<typeof import('./engine/explorationEngine').ExplorationEngine> | null>(null)
   const [weather, setWeather] = useState<InnerWeatherType | null>(null)
@@ -236,11 +234,16 @@ function App() {
   // Log session start/end
   useEffect(() => {
     if (!isReady) return
-    const ritualEngine = ritualEngineRef.current
+    ;(async () => {
+      if (!ritualEngineRef.current) {
+        const { RitualEngine } = await import('./engine/ritualEngine')
+        ritualEngineRef.current = new RitualEngine()
+      }
+    })()
     return () => {
       const text = latestContentRef.current.text
       const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0
-      ritualEngine.logSession(wordCount).catch(console.error)
+      ritualEngineRef.current?.logSession(wordCount).catch(console.error)
     }
   }, [isReady])
 
@@ -264,10 +267,14 @@ function App() {
     [activeEntryId],
   )
 
-  const triggerReflection = useCallback((entryIdToReflect: string) => {
-    db.parts.toArray()
-      .then((parts) => reflectionEngineRef.current.reflect(entryIdToReflect, parts))
-      .catch((error) => console.error('Reflection error:', error))
+  const triggerReflection = useCallback(async (entryIdToReflect: string) => {
+    if (!reflectionEngineRef.current) {
+      const { ReflectionEngine } = await import('./engine/reflectionEngine')
+      reflectionEngineRef.current = new ReflectionEngine()
+    }
+    const parts = await db.parts.toArray()
+    reflectionEngineRef.current.reflect(entryIdToReflect, parts)
+      .catch((error: unknown) => console.error('Reflection error:', error))
   }, [])
 
   const handleSelectEntry = useCallback(async (id: string) => {
@@ -398,6 +405,10 @@ function App() {
     const snippet = text.slice(-600) || 'The writer opened a blank page today.'
 
     try {
+      const [{ chatCompletion }, { languageDirective }] = await Promise.all([
+        import('./ai/openrouter'),
+        import('./ai/partPrompts'),
+      ])
       const phrase = await chatCompletion([
         {
           role: 'system',
@@ -484,7 +495,7 @@ function App() {
       navigateTo('/new')
       trackEvent('onboarding_complete')
     }
-    return <Onboarding onComplete={handleOnboardingComplete} />
+    return <Suspense fallback={<SplashScreen />}><Onboarding onComplete={handleOnboardingComplete} /></Suspense>
   }
 
   // Init error — show retry screen
@@ -596,13 +607,15 @@ function App() {
       }}>
         <InnerWeather weather={weather} />
       </div>
-      <CrisisResources visible={isGrounding} />
+      <Suspense fallback={null}><CrisisResources visible={isGrounding} /></Suspense>
       {isChoiceRoute ? (
-        <EntryChoice
-          onJournalCreated={handleChoiceJournal}
-          onConversationChosen={handleChoiceConversation}
-          lastUsedType={lastUsedType}
-        />
+        <Suspense fallback={null}>
+          <EntryChoice
+            onJournalCreated={handleChoiceJournal}
+            onConversationChosen={handleChoiceConversation}
+            lastUsedType={lastUsedType}
+          />
+        </Suspense>
       ) : isSessionRoute ? (
         <Suspense fallback={<EditorSkeleton />}>
           <SessionView
@@ -695,11 +708,13 @@ function App() {
           </Suspense>
           {/* Session closing overlay */}
           {(closingLoading || closingPhrase) && (
-            <SessionClosing
-              phrase={closingPhrase}
-              loading={closingLoading}
-              onClose={handleDismissClosing}
-            />
+            <Suspense fallback={null}>
+              <SessionClosing
+                phrase={closingPhrase}
+                loading={closingLoading}
+                onClose={handleDismissClosing}
+              />
+            </Suspense>
           )}
         </>
       )}

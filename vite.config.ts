@@ -17,6 +17,7 @@ export default defineConfig(({ mode }) => {
         manualChunks(id) {
           if (id.includes('@tiptap') || id.includes('prosemirror')) return 'editor'
           if (id.includes('@sentry')) return 'sentry'
+          if (id.includes('/src/engine/')) return 'engines'
         },
       },
     },
@@ -26,6 +27,7 @@ export default defineConfig(({ mode }) => {
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: false,
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         runtimeCaching: [
