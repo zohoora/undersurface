@@ -30,7 +30,7 @@ import { useFlowState } from './hooks/useFlowState'
 import { useHandwritingMode } from './hooks/useHandwritingMode'
 import { useGroundingMode } from './hooks/useGroundingMode'
 import { InnerWeather } from './components/InnerWeather'
-import { WeatherEngine } from './engine/weatherEngine'
+import { getWeatherEngine } from './store/weatherStore'
 import { RitualEngine } from './engine/ritualEngine'
 import { IntentionInput } from './components/Editor/IntentionInput'
 import { ExplorationCard } from './components/Editor/ExplorationCard'
@@ -134,7 +134,7 @@ function App() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestContentRef = useRef({ html: '', text: '' })
   const reflectionEngineRef = useRef(new ReflectionEngine())
-  const weatherEngineRef = useRef(new WeatherEngine())
+  const weatherEngine = getWeatherEngine()
   const ritualEngineRef = useRef(new RitualEngine())
   const fossilEngineRef = useRef<InstanceType<typeof import('./engine/fossilEngine').FossilEngine> | null>(null)
   const explorationEngineRef = useRef<InstanceType<typeof import('./engine/explorationEngine').ExplorationEngine> | null>(null)
@@ -433,11 +433,11 @@ function App() {
     if (newEmotion !== prevEmotionRef.current) trackEvent('emotion_shift', { from: prevEmotionRef.current, to: newEmotion })
     prevEmotionRef.current = newEmotion
     setEmotion(newEmotion)
-    weatherEngineRef.current.recordEmotion(newEmotion)
-    const w = weatherEngineRef.current.getWeather()
+    weatherEngine.recordEmotion(newEmotion)
+    const w = weatherEngine.getWeather()
     if (w) setWeather(w)
-    if (weatherEngineRef.current.shouldPersist()) {
-      weatherEngineRef.current.persist().catch(console.error)
+    if (weatherEngine.shouldPersist()) {
+      weatherEngine.persist().catch(console.error)
     }
   }, [])
 

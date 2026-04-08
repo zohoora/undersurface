@@ -98,13 +98,13 @@ vi.mock('../../engine/sessionReflectionEngine', () => ({
   reflectOnSession: vi.fn().mockResolvedValue(undefined),
 }))
 
-// Mock weather engine
-vi.mock('../../engine/weatherEngine', () => ({
-  WeatherEngine: class {
-    recordEmotion = vi.fn()
-    shouldPersist = vi.fn(() => false)
-    persist = vi.fn().mockResolvedValue(undefined)
-  },
+// Mock weather store singleton
+vi.mock('../../store/weatherStore', () => ({
+  getWeatherEngine: () => ({
+    recordEmotion: vi.fn(),
+    shouldPersist: vi.fn(() => false),
+    persist: vi.fn().mockResolvedValue(undefined),
+  }),
 }))
 
 // Now import — after all mocks are registered

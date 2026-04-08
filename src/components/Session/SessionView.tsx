@@ -14,7 +14,7 @@ import { streamChatCompletion } from '../../ai/openrouter'
 import { loadTherapistContext } from '../../engine/sessionContextLoader'
 import type { TherapistContext } from '../../engine/sessionContextLoader'
 import { reflectOnSession } from '../../engine/sessionReflectionEngine'
-import { WeatherEngine } from '../../engine/weatherEngine'
+import { getWeatherEngine } from '../../store/weatherStore'
 import { isGroundingActive } from '../../hooks/useGroundingMode'
 import { trackEvent } from '../../services/analytics'
 import { SessionMessageBubble } from './SessionMessage'
@@ -41,7 +41,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
 
   const orchestratorRef = useRef(new SessionOrchestrator())
   const therapistContextRef = useRef<TherapistContext | null>(null)
-  const weatherEngineRef = useRef(new WeatherEngine())
+  const weatherEngine = getWeatherEngine()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const sessionRef = useRef<Session | null>(null)
   const messagesRef = useRef<SessionMessage[]>([])
@@ -281,9 +281,9 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
     orchestratorRef.current.checkEmotionAfterMessage(trimmed)
       .then(result => {
         if (result) {
-          weatherEngineRef.current.recordEmotion(result.emotion as EmotionalTone)
-          if (weatherEngineRef.current.shouldPersist()) {
-            weatherEngineRef.current.persist().catch(console.error)
+          weatherEngine.recordEmotion(result.emotion as EmotionalTone)
+          if (weatherEngine.shouldPersist()) {
+            weatherEngine.persist().catch(console.error)
           }
         }
       })
@@ -332,7 +332,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
       .catch(error => console.error('Session reflection error:', error))
 
     // Persist weather
-    weatherEngineRef.current.persist().catch(console.error)
+    weatherEngine.persist().catch(console.error)
 
     // Save HRV data and stop engine
     await hrv.stopAndFlush()
