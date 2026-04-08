@@ -24,7 +24,7 @@ vi.mock('../store/db', () => ({
 vi.mock('../store/globalConfig', () => ({
   getGlobalConfig: vi.fn(() => null),
 }))
-vi.mock('../hooks/useGroundingMode', () => ({
+vi.mock('../store/groundingState', () => ({
   activateGrounding: vi.fn(),
   isGroundingActive: vi.fn(() => false),
 }))
@@ -63,7 +63,7 @@ vi.mock('./ritualEngine', () => ({
 }))
 
 import { PartOrchestrator } from './partOrchestrator'
-import { isGroundingActive } from '../hooks/useGroundingMode'
+import { isGroundingActive } from '../store/groundingState'
 import { getGlobalConfig } from '../store/globalConfig'
 
 const mockIsGroundingActive = vi.mocked(isGroundingActive)

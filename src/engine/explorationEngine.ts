@@ -2,7 +2,7 @@ import type { GuidedExploration } from '../types'
 import { chatCompletion } from '../ai/openrouter'
 import { db, generateId } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
-import { isGroundingActive } from '../hooks/useGroundingMode'
+import { isGroundingActive } from '../store/groundingState'
 import { languageDirective } from '../ai/partPrompts'
 
 export class ExplorationEngine {

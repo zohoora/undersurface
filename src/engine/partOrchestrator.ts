@@ -5,7 +5,7 @@ import { parseAnnotations, isDelimiterPrefix, DELIMITER, fixGhostCapitalization 
 import { db, generateId } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { getSettings } from '../store/settings'
-import { activateGrounding, isGroundingActive } from '../hooks/useGroundingMode'
+import { activateGrounding, isGroundingActive } from '../store/groundingState'
 import { trackEvent } from '../services/analytics'
 import { getPartDisplayName, t } from '../i18n'
 import { QuoteEngine } from './quoteEngine'
@@ -76,6 +76,7 @@ export class PartOrchestrator {
   private isGenerating: boolean = false
   private entryId: string = ''
   private intention: string = ''
+  private quietOneLastSpokeEntry: string | null = null
   private callbacks: OrchestratorCallbacks
 
   // Pre-warmed caches — loaded once in loadParts(), avoids repeated DB reads per thought
@@ -94,6 +95,14 @@ export class PartOrchestrator {
 
   constructor(callbacks: OrchestratorCallbacks) {
     this.callbacks = callbacks
+  }
+
+  getParts(): readonly Part[] {
+    return this.parts
+  }
+
+  addPart(part: Part): void {
+    this.parts.push(part)
   }
 
   async loadParts() {

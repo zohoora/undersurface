@@ -11,7 +11,7 @@ vi.mock('../ai/therapistPrompts', () => ({
     { role: 'user', content: 'test' },
   ]),
 }))
-vi.mock('../hooks/useGroundingMode', () => ({
+vi.mock('../store/groundingState', () => ({
   activateGrounding: vi.fn(),
   isGroundingActive: vi.fn(() => false),
 }))
@@ -22,7 +22,7 @@ vi.mock('../store/globalConfig', () => ({
 import { SessionOrchestrator, detectCrisisKeywords } from './sessionOrchestrator'
 import { chatCompletion, analyzeEmotionAndDistress } from '../ai/openrouter'
 import { buildTherapistSessionNotePrompt } from '../ai/therapistPrompts'
-import { activateGrounding } from '../hooks/useGroundingMode'
+import { activateGrounding } from '../store/groundingState'
 import { getGlobalConfig } from '../store/globalConfig'
 
 const mockAnalyze = vi.mocked(analyzeEmotionAndDistress)

@@ -1,7 +1,7 @@
 import type { SessionMessage, SessionPhase } from '../types'
 import { buildTherapistSessionNotePrompt } from '../ai/therapistPrompts'
 import { chatCompletion, analyzeEmotionAndDistress } from '../ai/openrouter'
-import { activateGrounding } from '../hooks/useGroundingMode'
+import { activateGrounding } from '../store/groundingState'
 import { getGlobalConfig } from '../store/globalConfig'
 
 const EMOTION_COOLDOWN_MS = 30_000
