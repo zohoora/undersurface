@@ -11,7 +11,7 @@ export interface Part {
   systemPrompt: string
   isSeeded: boolean
   createdAt: number
-  memories: PartMemory[]
+  memories?: PartMemory[]
   learnedKeywords?: string[]
   learnedEmotions?: EmotionalTone[]
   systemPromptAddition?: string
@@ -41,6 +41,7 @@ export interface DiaryEntry {
   plainText: string
   title?: string
   favorited?: boolean
+  intention?: string
   createdAt: number
   updatedAt: number
   thoughts: PartThought[]
@@ -229,6 +230,14 @@ export interface ConsentRecord {
   acceptedVersion: string
   disclaimerAccepted: boolean
   privacyAccepted: boolean
+}
+
+export interface ApiKey {
+  id: string
+  hash: string
+  name: string
+  createdAt: number
+  lastUsedAt: number | null
 }
 
 export type BodyRegion = 'head' | 'eyes' | 'throat' | 'chest' | 'stomach' | 'shoulders' | 'hands' | 'back' | 'hips' | 'legs'

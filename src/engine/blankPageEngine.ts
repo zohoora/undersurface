@@ -3,7 +3,7 @@ import { db } from '../store/db'
 import { chatCompletion } from '../ai/openrouter'
 import { SHARED_INSTRUCTIONS, languageDirective } from '../ai/partPrompts'
 import { getPartDisplayName } from '../i18n'
-import type { Part, UserProfile } from '../types'
+import type { Part } from '../types'
 
 export class BlankPageEngine {
   private hasTriggeredThisEntry: boolean = false
@@ -37,7 +37,7 @@ export class BlankPageEngine {
 
     try {
       // Load user profile for context
-      const profile = await db.userProfile.get('current') as UserProfile | undefined
+      const profile = await db.userProfile.get('current')
 
       let systemContent = `${SHARED_INSTRUCTIONS}\n\nYou are ${part.name}. The page is empty — the writer hasn't started yet. Say something gentle and brief to invite them to begin writing. One sentence only. Don't be cliche. Don't say "the page is blank" or "start anywhere". Be specific to your character.${languageDirective()}`
 

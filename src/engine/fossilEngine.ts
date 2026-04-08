@@ -2,7 +2,7 @@ import { getGlobalConfig } from '../store/globalConfig'
 import { db, generateId } from '../store/db'
 import { chatCompletion } from '../ai/openrouter'
 import { SHARED_INSTRUCTIONS, languageDirective } from '../ai/partPrompts'
-import type { Part, UserProfile, EntryFossil } from '../types'
+import type { Part, EntryFossil } from '../types'
 
 export class FossilEngine {
   async checkForFossil(
@@ -25,11 +25,11 @@ export class FossilEngine {
 
     try {
       // Check if a fossil already exists for this entry
-      const existing = await db.fossils.where('entryId').equals(entryId).toArray() as EntryFossil[]
+      const existing = await db.fossils.where('entryId').equals(entryId).toArray()
       if (existing.length > 0) return existing[0]!
 
       // Load the entry text
-      const entry = await db.entries.get(entryId) as { plainText: string } | undefined
+      const entry = await db.entries.get(entryId)
       if (!entry || !entry.plainText || entry.plainText.trim().length < 50) return null
 
       // Select the most relevant part by keyword overlap
@@ -37,7 +37,7 @@ export class FossilEngine {
       if (!part) return null
 
       // Load user profile for context
-      const profile = await db.userProfile.get('current') as UserProfile | undefined
+      const profile = await db.userProfile.get('current')
 
       let systemContent = `${SHARED_INSTRUCTIONS}\n\nYou are ${part.name}. You are re-reading an old diary entry written ${daysSince} days ago. Write a brief reflection (1-2 sentences) on what you notice now — how things have changed, what stands out, what the writer might not see. Speak as yourself.${languageDirective()}`
 

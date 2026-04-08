@@ -31,7 +31,7 @@ export class ThreadEngine {
     if (Math.random() > threadChance) return null
 
     try {
-      const allSummaries = await db.entrySummaries.orderBy('timestamp').reverse().toArray() as EntrySummary[]
+      const allSummaries = await db.entrySummaries.orderBy('timestamp').reverse().toArray()
 
       const now = Date.now()
       const maxAgeMs = threadMaxAge * 24 * 60 * 60 * 1000

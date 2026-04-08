@@ -23,7 +23,7 @@ export class EchoEngine {
     if (Math.random() > echoChance) return null
 
     try {
-      const allSummaries = await db.entrySummaries.orderBy('timestamp').reverse().toArray() as EntrySummary[]
+      const allSummaries = await db.entrySummaries.orderBy('timestamp').reverse().toArray()
 
       const now = Date.now()
       const minAgeMs = 3 * 24 * 60 * 60 * 1000

@@ -21,7 +21,7 @@ import { HrvEngine } from '../../engine/hrvEngine'
 import { HrvTimeline } from '../../engine/hrvTimeline'
 import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
-import type { Session, SessionMessage, Part, EmotionalTone, HrvMeasurement, HrvError, HrvSessionData } from '../../types'
+import type { Session, SessionMessage, EmotionalTone, HrvMeasurement, HrvError, HrvSessionData } from '../../types'
 
 interface Props {
   sessionId: string | null
@@ -111,12 +111,12 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
 
       if (sessionId) {
         // Load existing session
-        const existingSession = await db.sessions.get(sessionId) as unknown as Session | undefined
+        const existingSession = await db.sessions.get(sessionId)
         if (cancelled || !existingSession) return
         setSession(existingSession)
         sessionRef.current = existingSession
 
-        const existingMessages = await sessionMessagesDb.getAll(sessionId) as unknown as SessionMessage[]
+        const existingMessages = await sessionMessagesDb.getAll(sessionId)
         if (cancelled) return
         setMessages(existingMessages)
         messagesRef.current = existingMessages
@@ -392,7 +392,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
 
     // Non-blocking: run full reflection pipeline
     db.parts.toArray()
-      .then(parts => reflectOnSession(currentSession.id, finalMessages, parts as Part[]))
+      .then(parts => reflectOnSession(currentSession.id, finalMessages, parts))
       .catch(error => console.error('Session reflection error:', error))
 
     // Persist weather

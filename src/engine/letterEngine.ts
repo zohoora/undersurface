@@ -4,7 +4,7 @@ import { chatCompletion } from '../ai/openrouter'
 import { SHARED_INSTRUCTIONS, languageDirective } from '../ai/partPrompts'
 import { sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from '../ai/promptSafety'
 import { getPartDisplayName } from '../i18n'
-import type { Part, EntrySummary, UserProfile, PartLetter, PartMemory } from '../types'
+import type { Part, PartLetter } from '../types'
 
 export class LetterEngine {
   async checkForLetter(entryCount: number, parts: Part[]): Promise<PartLetter | null> {
@@ -20,7 +20,7 @@ export class LetterEngine {
       // Select top parts by memory count (most active)
       const partsWithActivity = await Promise.all(
         parts.map(async (part) => {
-          const memories = await db.memories.where('partId').equals(part.id).toArray() as PartMemory[]
+          const memories = await db.memories.where('partId').equals(part.id).toArray()
           return { part, memoryCount: memories.length }
         })
       )
@@ -36,9 +36,9 @@ export class LetterEngine {
       const allSummaries = await db.entrySummaries
         .orderBy('timestamp')
         .reverse()
-        .toArray() as EntrySummary[]
+        .toArray()
       const recentSummaries = allSummaries.slice(0, 10)
-      const profile = await db.userProfile.get('current') as UserProfile | undefined
+      const profile = await db.userProfile.get('current')
 
       if (recentSummaries.length === 0) return null
 

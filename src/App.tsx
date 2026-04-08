@@ -43,7 +43,7 @@ import { languageDirective } from './ai/partPrompts'
 import { trackEvent } from './services/analytics'
 import { t, useTranslation, getPartDisplayName } from './i18n'
 import { getSettings } from './store/settings'
-import type { DiaryEntry, EmotionalTone, Part, GuidedExploration, InnerWeather as InnerWeatherType, Session } from './types'
+import type { EmotionalTone, GuidedExploration, InnerWeather as InnerWeatherType } from './types'
 
 const ADMIN_EMAILS = ['zohoora@gmail.com']
 
@@ -156,8 +156,8 @@ function App() {
       const entries = await db.entries.orderBy('updatedAt').reverse().toArray()
       const sessions = await db.sessions.orderBy('startedAt').reverse().toArray()
       if (cancelled) return
-      const latestEntry = entries[0] as { updatedAt: number } | undefined
-      const latestSession = sessions[0] as { startedAt: number } | undefined
+      const latestEntry = entries[0]
+      const latestSession = sessions[0]
       if (!latestEntry && !latestSession) { setLastUsedType(null); return }
       if (!latestSession) { setLastUsedType('journal'); return }
       if (!latestEntry) { setLastUsedType('conversation'); return }
@@ -195,8 +195,8 @@ function App() {
         ])
 
         // Load today's entry, or fall back to most recent for editor state
-        const todayEntry = (entries as DiaryEntry[]).find(e => isFromToday(e.createdAt))
-        const entryToLoad = todayEntry ?? entries[0] as DiaryEntry | undefined
+        const todayEntry = entries.find(e => isFromToday(e.createdAt))
+        const entryToLoad = todayEntry ?? entries[0]
         if (entryToLoad) {
           setActiveEntryId(entryToLoad.id)
           setInitialContent(entryToLoad.content)
@@ -206,7 +206,7 @@ function App() {
         // A blank entry (e.g. auto-created after session dismissal) doesn't count —
         // the user hasn't actively chosen to write yet
         if (isRootVisit) {
-          const todaySession = (sessions as Session[]).find(
+          const todaySession = sessions.find(
             s => isFromToday(s.startedAt) && s.status === 'active'
           )
           const hasRealTodayEntry = todayEntry && (todayEntry.plainText?.trim() || todayEntry.content?.trim())
@@ -266,7 +266,7 @@ function App() {
 
   const triggerReflection = useCallback((entryIdToReflect: string) => {
     db.parts.toArray()
-      .then((parts) => reflectionEngineRef.current.reflect(entryIdToReflect, parts as Part[]))
+      .then((parts) => reflectionEngineRef.current.reflect(entryIdToReflect, parts))
       .catch((error) => console.error('Reflection error:', error))
   }, [])
 
@@ -284,7 +284,7 @@ function App() {
     // Trigger reflection on outgoing entry (async, non-blocking)
     triggerReflection(outgoingEntryId)
 
-    const entry = await db.entries.get(id) as { id: string; content: string; intention?: string; createdAt?: number } | undefined
+    const entry = await db.entries.get(id)
     if (entry) {
       setActiveEntryId(id)
       setInitialContent(entry.content)
@@ -296,16 +296,16 @@ function App() {
 
       // Fossil check for old entries
       setFossilThought(null)
-      const entryCreatedAt = (entry as { createdAt?: number }).createdAt
+      const entryCreatedAt = entry.createdAt
       if (entryCreatedAt) {
         db.parts.toArray().then(async (parts) => {
           if (!fossilEngineRef.current) {
             const { FossilEngine } = await import('./engine/fossilEngine')
             fossilEngineRef.current = new FossilEngine()
           }
-          const fossil = await fossilEngineRef.current.checkForFossil(id, entryCreatedAt, parts as Part[])
+          const fossil = await fossilEngineRef.current.checkForFossil(id, entryCreatedAt, parts)
           if (fossil) {
-            const part = (parts as Part[]).find(p => p.id === fossil.partId)
+            const part = parts.find(p => p.id === fossil.partId)
             if (part) {
               setFossilThought({
                 partName: getPartDisplayName(part),

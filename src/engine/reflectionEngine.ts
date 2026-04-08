@@ -1,4 +1,4 @@
-import type { Part, PartMemory, EntrySummary, UserProfile } from '../types'
+import type { Part, EntrySummary, UserProfile } from '../types'
 import { buildReflectionPrompt } from '../ai/partPrompts'
 import { chatCompletion } from '../ai/openrouter'
 import { sanitizeForPrompt } from '../ai/promptSafety'
@@ -34,28 +34,26 @@ export class ReflectionEngine {
 
     try {
       // 1. Load entry
-      const entry = await db.entries.get(entryId) as { plainText: string; intention?: string } | undefined
+      const entry = await db.entries.get(entryId)
       if (!entry || entry.plainText.trim().length < 100) return result
 
       // 1b. Dedup check — skip if entry already reflected with same content
       const contentHash = this.simpleHash(entry.plainText)
-      const existingSummaries = await db.entrySummaries.where('entryId').equals(entryId).toArray() as EntrySummary[]
+      const existingSummaries = await db.entrySummaries.where('entryId').equals(entryId).toArray()
       if (existingSummaries.length > 0) {
         const lastSummary = existingSummaries[existingSummaries.length - 1] as EntrySummary & { contentHash?: string }
         if (lastSummary.contentHash === contentHash) return result
       }
 
       // 2. Load thoughts + interactions for this entry
-      const thoughts = await db.thoughts.where('entryId').equals(entryId).toArray() as { partId: string; content: string }[]
-      const interactions = await db.interactions.where('entryId').equals(entryId).toArray() as {
-        partId: string; partOpening: string; userResponse: string | null; partReply: string | null; status: string
-      }[]
+      const thoughts = await db.thoughts.where('entryId').equals(entryId).toArray()
+      const interactions = await db.interactions.where('entryId').equals(entryId).toArray()
 
       // 3. Load existing profile
-      const profile = await db.userProfile.get('current') as UserProfile | undefined
+      const profile = await db.userProfile.get('current')
 
       // 4. Load recent summaries
-      const allSummaries = await db.entrySummaries.orderBy('timestamp').reverse().toArray() as EntrySummary[]
+      const allSummaries = await db.entrySummaries.orderBy('timestamp').reverse().toArray()
       const recentSummaries = allSummaries.slice(0, 5)
 
       // 5. Build prompt context
@@ -325,7 +323,7 @@ export class ReflectionEngine {
 
   private async pruneMemories(parts: Part[]): Promise<void> {
     for (const part of parts) {
-      const allMemories = await db.memories.where('partId').equals(part.id).toArray() as PartMemory[]
+      const allMemories = await db.memories.where('partId').equals(part.id).toArray()
 
       for (const [type, cap] of Object.entries(MEMORY_CAPS)) {
         const typed = allMemories

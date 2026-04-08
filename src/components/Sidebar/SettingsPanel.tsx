@@ -7,7 +7,40 @@ import { useTheme } from '../../hooks/useTheme'
 import { exportAllData } from '../../store/db'
 import { submitContactMessage } from '../../api/accountApi'
 import { trackEvent } from '../../services/analytics'
-import { useTranslation, SUPPORTED_LANGUAGES } from '../../i18n'
+import { useTranslation, SUPPORTED_LANGUAGES, getLanguageCode } from '../../i18n'
+
+const TIMEZONE_VALUES = [
+  'Pacific/Honolulu',
+  'America/Anchorage',
+  'America/Los_Angeles',
+  'America/Denver',
+  'America/Chicago',
+  'America/New_York',
+  'America/Halifax',
+  'America/Sao_Paulo',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Helsinki',
+  'Asia/Dubai',
+  'Asia/Kolkata',
+  'Asia/Shanghai',
+  'Asia/Tokyo',
+  'Asia/Seoul',
+  'Australia/Sydney',
+  'Pacific/Auckland',
+] as const
+
+function getTimezoneName(iana: string, locale: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat(locale, {
+      timeZone: iana,
+      timeZoneName: 'long',
+    }).formatToParts(new Date())
+    return parts.find(p => p.type === 'timeZoneName')?.value ?? iana
+  } catch {
+    return iana
+  }
+}
 
 const PolicyModal = lazy(() => import('../PolicyModal').catch(() => { window.location.reload(); return new Promise(() => {}) }))
 const DeleteAccountModal = lazy(() => import('../DeleteAccountModal').catch(() => { window.location.reload(); return new Promise(() => {}) }))
@@ -94,13 +127,13 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
   useEffect(() => {
     if (!user) return
     import('../../store/db').then(({ db }) => {
-      db.apiKeys.toArray().then((keys: Array<Record<string, unknown>>) => {
+      db.apiKeys.toArray().then((keys) => {
         if (keys.length > 0) {
           const k = keys[0]
           setApiKey({
-            id: k.id as string,
-            name: (k.name as string) || 'Default',
-            createdAt: k.createdAt as number,
+            id: k.id,
+            name: k.name || 'Default',
+            createdAt: k.createdAt,
           })
         }
         setApiKeyLoading(false)
@@ -215,6 +248,32 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
               >
                 {SUPPORTED_LANGUAGES.map((lang) => (
                   <option key={lang.code} value={lang.code}>{lang.nativeName}</option>
+                ))}
+              </select>
+            </SettingRow>
+          </div>
+
+          {/* Timezone */}
+          <div className="settings-section">
+            <div className="settings-section-label">{t['settings.timezone']}</div>
+            <SettingRow label={t['settings.timezone']}>
+              <select
+                value={settings.timezone}
+                onChange={(e) => set('timezone', e.target.value)}
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 11,
+                  color: 'var(--text-primary)',
+                  background: 'var(--surface-primary)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 4,
+                  padding: '3px 6px',
+                  cursor: 'pointer',
+                  outline: 'none',
+                }}
+              >
+                {TIMEZONE_VALUES.map((tz) => (
+                  <option key={tz} value={tz}>{getTimezoneName(tz, getLanguageCode())}</option>
                 ))}
               </select>
             </SettingRow>

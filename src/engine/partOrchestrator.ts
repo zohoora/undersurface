@@ -99,8 +99,8 @@ export class PartOrchestrator {
   async loadParts() {
     const [dbParts, profile, summariesRaw] = await Promise.all([
       db.parts.toArray(),
-      db.userProfile.get('current') as Promise<import('../types').UserProfile | undefined>,
-      db.entrySummaries.orderBy('timestamp').reverse().toArray() as Promise<import('../types').EntrySummary[]>,
+      db.userProfile.get('current'),
+      db.entrySummaries.orderBy('timestamp').reverse().toArray(),
     ])
     this.cachedProfile = profile
     this.cachedSummaries = summariesRaw?.slice(0, 5)
@@ -304,7 +304,7 @@ export class PartOrchestrator {
 
   private async generateThought(part: Part, event: PauseEvent): Promise<void> {
     // Use pre-warmed caches for profile/summaries; part.memories loaded in loadParts()
-    const allMemories = (part.memories || []) as import('../types').PartMemory[]
+    const allMemories = part.memories || []
     const profile = this.cachedProfile
     const entrySummaries = (part.ifsRole === 'manager' || part.ifsRole === 'self')
       ? this.cachedSummaries : undefined
@@ -426,7 +426,7 @@ export class PartOrchestrator {
             }
             db.memories.add(newMemory)
             // Keep in-memory cache in sync so subsequent thoughts see this memory
-            if (part.memories) (part.memories as import('../types').PartMemory[]).push(newMemory)
+            if (part.memories) part.memories.push(newMemory)
           }
 
           this.callbacks.onThoughtComplete(thought)

@@ -1,4 +1,4 @@
-import type { GuidedExploration, UserProfile, EntrySummary } from '../types'
+import type { GuidedExploration } from '../types'
 import { chatCompletion } from '../ai/openrouter'
 import { db, generateId } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
@@ -29,8 +29,8 @@ export class ExplorationEngine {
       const maxPrompts = config?.explorations?.maxPrompts ?? 3
 
       // Load context
-      const profile = await db.userProfile.get('current') as UserProfile | undefined
-      const allSummaries = await db.entrySummaries.orderBy('timestamp').reverse().toArray() as EntrySummary[]
+      const profile = await db.userProfile.get('current')
+      const allSummaries = await db.entrySummaries.orderBy('timestamp').reverse().toArray()
       const recentSummaries = allSummaries.slice(0, 5)
 
       // Need at least some context to generate meaningful prompts

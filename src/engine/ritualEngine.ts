@@ -43,7 +43,7 @@ export class RitualEngine {
     const ritualDetectionWindow = config.engagement?.ritualDetectionWindow ?? 14
     const windowStart = Date.now() - ritualDetectionWindow * 24 * 60 * 60 * 1000
 
-    const allLogs = await db.sessionLog.toArray() as SessionLog[]
+    const allLogs = await db.sessionLog.toArray()
     const recentLogs = allLogs.filter((log) => log.startedAt >= windowStart)
 
     if (recentLogs.length < 3) return []

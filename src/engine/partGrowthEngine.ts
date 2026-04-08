@@ -1,4 +1,4 @@
-import type { Part, PartMemory, UserProfile, EmotionalTone } from '../types'
+import type { Part, UserProfile, EmotionalTone } from '../types'
 import { buildGrowthPrompt } from '../ai/partPrompts'
 import { chatCompletion } from '../ai/openrouter'
 import { db } from '../store/db'
@@ -15,7 +15,7 @@ export class PartGrowthEngine {
       // Load last 10 reflection+pattern memories per part
       const partsForPrompt = await Promise.all(
         parts.map(async (p) => {
-          const allMemories = await db.memories.where('partId').equals(p.id).toArray() as PartMemory[]
+          const allMemories = await db.memories.where('partId').equals(p.id).toArray()
           const relevant = allMemories
             .filter((m) => m.type === 'reflection' || m.type === 'pattern')
             .sort((a, b) => b.timestamp - a.timestamp)

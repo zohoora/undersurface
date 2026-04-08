@@ -78,7 +78,7 @@ export function EntriesList({ activeEntryId, onSelectEntry, navigateTo, currentP
     let cancelled = false
     const load = async () => {
       const data = await db.sessions.orderBy('startedAt').reverse().toArray()
-      if (!cancelled) setSessions(data as unknown as Session[])
+      if (!cancelled) setSessions(data)
     }
     load()
     const interval = setInterval(load, 60_000)

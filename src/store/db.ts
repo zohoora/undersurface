@@ -18,6 +18,12 @@ import { firestore } from '../firebase'
 import { getAuth } from 'firebase/auth'
 import { SEEDED_PARTS } from '../ai/partPrompts'
 import { t, getLanguageCode, getPartDisplayName } from '../i18n'
+import type {
+  DiaryEntry, Part, PartMemory, PartThought, ThinkingOutLoudInteraction,
+  EntrySummary, UserProfile, EntryFossil, PartLetter, SessionLog,
+  InnerWeather, ConsentRecord, Session, SessionMessage, ApiKey,
+} from '../types'
+import type { HrvSessionData, CameraHrvConsent } from '../types/hrv'
 
 function getUid(): string {
   const user = getAuth().currentUser
@@ -34,30 +40,30 @@ function userDoc(collectionName: string, id: string) {
 }
 
 // Wrapper that mimics the Dexie API used throughout the codebase
-function createCollectionProxy(name: string) {
+function createCollectionProxy<T extends DocumentData = DocumentData>(name: string) {
   return {
-    async add(data: DocumentData) {
-      const id = data.id as string
+    async add(data: T) {
+      const id = (data as DocumentData).id as string
       await setDoc(userDoc(name, id), data)
     },
 
-    async get(id: string) {
+    async get(id: string): Promise<T | undefined> {
       const snap = await getDoc(userDoc(name, id))
-      return snap.exists() ? (snap.data() as DocumentData) : undefined
+      return snap.exists() ? (snap.data() as T) : undefined
     },
 
-    async update(id: string, partial: DocumentData) {
-      await updateDoc(userDoc(name, id), partial)
+    async update(id: string, partial: Partial<T>) {
+      await updateDoc(userDoc(name, id), partial as DocumentData)
     },
 
     async delete(id: string) {
       await deleteDoc(userDoc(name, id))
     },
 
-    async bulkPut(items: DocumentData[]) {
+    async bulkPut(items: T[]) {
       const batch = writeBatch(firestore)
       for (const item of items) {
-        batch.set(userDoc(name, item.id as string), item)
+        batch.set(userDoc(name, (item as DocumentData).id as string), item)
       }
       await batch.commit()
     },
@@ -67,26 +73,26 @@ function createCollectionProxy(name: string) {
       return snap.data().count
     },
 
-    async toArray() {
+    async toArray(): Promise<T[]> {
       const snap = await getDocs(userCollection(name))
-      return snap.docs.map((d) => d.data())
+      return snap.docs.map((d) => d.data() as T)
     },
 
     orderBy(field: string) {
       return {
         reverse() {
           return {
-            async toArray() {
+            async toArray(): Promise<T[]> {
               const q = query(userCollection(name), orderBy(field, 'desc'))
               const snap = await getDocs(q)
-              return snap.docs.map((d) => d.data())
+              return snap.docs.map((d) => d.data() as T)
             },
           }
         },
-        async toArray() {
+        async toArray(): Promise<T[]> {
           const q = query(userCollection(name), orderBy(field, 'asc'))
           const snap = await getDocs(q)
-          return snap.docs.map((d) => d.data())
+          return snap.docs.map((d) => d.data() as T)
         },
       }
     },
@@ -95,10 +101,10 @@ function createCollectionProxy(name: string) {
       return {
         equals(value: unknown) {
           return {
-            async toArray() {
+            async toArray(): Promise<T[]> {
               const q = query(userCollection(name), where(field, '==', value))
               const snap = await getDocs(q)
-              return snap.docs.map((d) => d.data())
+              return snap.docs.map((d) => d.data() as T)
             },
           }
         },
@@ -108,47 +114,46 @@ function createCollectionProxy(name: string) {
 }
 
 export const db = {
-  entries: createCollectionProxy('entries'),
-  parts: createCollectionProxy('parts'),
-  memories: createCollectionProxy('memories'),
-  thoughts: createCollectionProxy('thoughts'),
-  interactions: createCollectionProxy('interactions'),
-  entrySummaries: createCollectionProxy('entrySummaries'),
-  userProfile: createCollectionProxy('userProfile'),
-  fossils: createCollectionProxy('fossils'),
-  letters: createCollectionProxy('letters'),
-  sessionLog: createCollectionProxy('sessionLog'),
-  innerWeather: createCollectionProxy('innerWeather'),
-  consent: createCollectionProxy('consent'),
-  sessions: createCollectionProxy('sessions'),
-  apiKeys: createCollectionProxy('apiKeys'),
-  hrvSessions: createCollectionProxy('hrvSessions'),
+  entries: createCollectionProxy<DiaryEntry>('entries'),
+  parts: createCollectionProxy<Part>('parts'),
+  memories: createCollectionProxy<PartMemory>('memories'),
+  thoughts: createCollectionProxy<PartThought>('thoughts'),
+  interactions: createCollectionProxy<ThinkingOutLoudInteraction>('interactions'),
+  entrySummaries: createCollectionProxy<EntrySummary>('entrySummaries'),
+  userProfile: createCollectionProxy<UserProfile>('userProfile'),
+  fossils: createCollectionProxy<EntryFossil>('fossils'),
+  letters: createCollectionProxy<PartLetter>('letters'),
+  sessionLog: createCollectionProxy<SessionLog>('sessionLog'),
+  innerWeather: createCollectionProxy<InnerWeather>('innerWeather'),
+  consent: createCollectionProxy<ConsentRecord | CameraHrvConsent>('consent'),
+  sessions: createCollectionProxy<Session>('sessions'),
+  apiKeys: createCollectionProxy<ApiKey>('apiKeys'),
+  hrvSessions: createCollectionProxy<HrvSessionData>('hrvSessions'),
 }
 
 export const sessionMessages = {
-  async add(sessionId: string, data: DocumentData) {
-    const id = data.id as string
-    const ref = doc(firestore, 'users', getUid(), 'sessions', sessionId, 'messages', id)
+  async add(sessionId: string, data: SessionMessage) {
+    const ref = doc(firestore, 'users', getUid(), 'sessions', sessionId, 'messages', data.id)
     await setDoc(ref, data)
   },
 
-  async getAll(sessionId: string) {
+  async getAll(sessionId: string): Promise<SessionMessage[]> {
     const colRef = collection(firestore, 'users', getUid(), 'sessions', sessionId, 'messages')
     const q = query(colRef, orderBy('timestamp', 'asc'))
     const snap = await getDocs(q)
-    return snap.docs.map(d => d.data())
+    return snap.docs.map(d => d.data() as SessionMessage)
   },
 
-  subscribe(sessionId: string, callback: (messages: DocumentData[]) => void) {
+  subscribe(sessionId: string, callback: (messages: SessionMessage[]) => void) {
     const colRef = collection(firestore, 'users', getUid(), 'sessions', sessionId, 'messages')
     const q = query(colRef, orderBy('timestamp', 'asc'))
     return onSnapshot(q, snap => {
-      callback(snap.docs.map(d => d.data()))
+      callback(snap.docs.map(d => d.data() as SessionMessage))
     })
   },
 }
 
-function toStorablePart(p: typeof SEEDED_PARTS[number]): DocumentData {
+function toStorablePart(p: typeof SEEDED_PARTS[number]): Part {
   return {
     id: p.id,
     name: p.name,
@@ -431,7 +436,7 @@ export async function exportAllData() {
   )
 
   const data: Record<string, DocumentData[]> = {}
-  collectionNames.forEach((name, i) => { data[name] = results[i] as DocumentData[] })
+  collectionNames.forEach((name, i) => { data[name] = results[i] })
 
   const md = buildMarkdownExport(data)
 

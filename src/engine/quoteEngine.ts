@@ -14,7 +14,7 @@ export class QuoteEngine {
     if (Math.random() > quoteChance) return null
 
     try {
-      const allSummaries = await db.entrySummaries.orderBy('timestamp').reverse().toArray() as EntrySummary[]
+      const allSummaries = await db.entrySummaries.orderBy('timestamp').reverse().toArray()
 
       const minAgeMs = quoteMinAge * 24 * 60 * 60 * 1000
       const cutoff = Date.now() - minAgeMs

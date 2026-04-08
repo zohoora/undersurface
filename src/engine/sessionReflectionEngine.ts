@@ -1,4 +1,4 @@
-import type { Part, PartMemory, EntrySummary, UserProfile, SessionMessage } from '../types'
+import type { Part, EntrySummary, UserProfile, SessionMessage } from '../types'
 import { buildSessionReflectionPrompt } from '../ai/therapistPrompts'
 import { chatCompletion } from '../ai/openrouter'
 import { wrapUserContent } from '../ai/promptSafety'
@@ -32,8 +32,8 @@ export async function reflectOnSession(
 
     // 3. Load profile + recent summaries
     const [profile, allSummaries] = await Promise.all([
-      db.userProfile.get('current') as Promise<UserProfile | undefined>,
-      db.entrySummaries.orderBy('timestamp').reverse().toArray() as Promise<EntrySummary[]>,
+      db.userProfile.get('current'),
+      db.entrySummaries.orderBy('timestamp').reverse().toArray(),
     ])
     const recentSummaries = allSummaries.slice(0, 5)
 
@@ -109,7 +109,7 @@ export async function reflectOnSession(
     // 6d. Update user profile
     if (parsed.profileUpdates) {
       const updates = parsed.profileUpdates
-      const current = (profile as UserProfile | undefined) || {
+      const current = profile || {
         id: 'current',
         recurringThemes: [],
         emotionalPatterns: [],
@@ -220,7 +220,7 @@ function mergeArrays(existing: string[], incoming: unknown, cap: number): string
 async function pruneMemories(parts: Part[]): Promise<void> {
   // Prune real part memories
   for (const part of parts) {
-    const allMemories = await db.memories.where('partId').equals(part.id).toArray() as unknown as PartMemory[]
+    const allMemories = await db.memories.where('partId').equals(part.id).toArray()
 
     for (const [type, cap] of Object.entries(MEMORY_CAPS)) {
       const typed = allMemories
@@ -237,7 +237,7 @@ async function pruneMemories(parts: Part[]): Promise<void> {
   }
 
   // Prune somatic memories (virtual _somatic partId)
-  const somaticMemories = await db.memories.where('partId').equals('_somatic').toArray() as unknown as PartMemory[]
+  const somaticMemories = await db.memories.where('partId').equals('_somatic').toArray()
   const somaticCap = MEMORY_CAPS.somatic ?? 30
   const sorted = somaticMemories.sort((a, b) => b.timestamp - a.timestamp)
   if (sorted.length > somaticCap) {
