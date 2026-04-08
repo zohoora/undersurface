@@ -34,17 +34,18 @@ export function HrvConsentDialog({ onAccept, onDecline }: Props) {
       justifyContent: 'center',
       background: 'rgba(0,0,0,0.5)',
       zIndex: 1000,
+      padding: '16px',
     }}>
       <div style={{
         background: 'var(--bg-primary)',
         borderRadius: 16,
-        padding: '32px',
+        padding: 'clamp(20px, 5vw, 32px)',
         maxWidth: 480,
-        width: '90%',
+        width: '100%',
         boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
       }}>
         <h3 style={{
-          margin: '0 0 16px',
+          margin: '0 0 12px',
           fontFamily: "'Inter', sans-serif",
           fontSize: 18,
           fontWeight: 600,
@@ -58,7 +59,7 @@ export function HrvConsentDialog({ onAccept, onDecline }: Props) {
           fontSize: 14,
           lineHeight: 1.6,
           color: 'var(--text-secondary)',
-          marginBottom: 24,
+          marginBottom: 20,
         }}>
           This feature uses your camera to detect subtle changes in skin color caused by blood flow,
           measuring your heart rate variability to understand your autonomic state.
@@ -69,17 +70,19 @@ export function HrvConsentDialog({ onAccept, onDecline }: Props) {
           display: 'flex',
           alignItems: 'flex-start',
           gap: 12,
-          marginBottom: 16,
+          marginBottom: 12,
           cursor: 'pointer',
           fontFamily: "'Inter', sans-serif",
           fontSize: 14,
           color: 'var(--text-primary)',
+          padding: '8px 0',
+          WebkitTapHighlightColor: 'transparent',
         }}>
           <input
             type="checkbox"
             checked={cameraAccepted}
             onChange={e => setCameraAccepted(e.target.checked)}
-            style={{ marginTop: 3 }}
+            style={{ marginTop: 2, width: 18, height: 18, flexShrink: 0 }}
           />
           I understand my camera will be used to capture video for heart rate analysis
         </label>
@@ -88,17 +91,19 @@ export function HrvConsentDialog({ onAccept, onDecline }: Props) {
           display: 'flex',
           alignItems: 'flex-start',
           gap: 12,
-          marginBottom: 24,
+          marginBottom: 20,
           cursor: 'pointer',
           fontFamily: "'Inter', sans-serif",
           fontSize: 14,
           color: 'var(--text-primary)',
+          padding: '8px 0',
+          WebkitTapHighlightColor: 'transparent',
         }}>
           <input
             type="checkbox"
             checked={biometricAccepted}
             onChange={e => setBiometricAccepted(e.target.checked)}
-            style={{ marginTop: 3 }}
+            style={{ marginTop: 2, width: 18, height: 18, flexShrink: 0 }}
           />
           I agree to the collection of biometric data (heart rate, HRV metrics)
         </label>
@@ -115,6 +120,7 @@ export function HrvConsentDialog({ onAccept, onDecline }: Props) {
               fontFamily: "'Inter', sans-serif",
               fontSize: 14,
               cursor: 'pointer',
+              minHeight: 44,
             }}
           >
             Not now
@@ -133,6 +139,7 @@ export function HrvConsentDialog({ onAccept, onDecline }: Props) {
               fontWeight: 600,
               cursor: canAccept ? 'pointer' : 'default',
               opacity: canAccept ? 1 : 0.6,
+              minHeight: 44,
             }}
           >
             Enable

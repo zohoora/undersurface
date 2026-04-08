@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { InkWeight } from '../../extensions/inkWeight'
@@ -19,7 +19,7 @@ import { trackEvent } from '../../services/analytics'
 import { SessionMessageBubble } from './SessionMessage'
 import { HrvEngine } from '../../engine/hrvEngine'
 import { HrvTimeline } from '../../engine/hrvTimeline'
-import { HrvAmbientBar } from './HrvAmbientBar'
+import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
 import type { Session, SessionMessage, Part, EmotionalTone, HrvMeasurement, HrvError, HrvSessionData } from '../../types'
 
@@ -27,9 +27,10 @@ interface Props {
   sessionId: string | null
   openingMethod: 'auto' | 'open_invitation'
   onSessionCreated?: (id: string) => void
+  onBack?: () => void
 }
 
-export function SessionView({ sessionId, openingMethod, onSessionCreated }: Props) {
+export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack }: Props) {
   const [session, setSession] = useState<Session | null>(null)
   const [messages, setMessages] = useState<SessionMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -52,7 +53,8 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
 
   // HRV biometric state
   const [hrvEnabled, setHrvEnabled] = useState(false)
-  const [hrvMeasurements, setHrvMeasurements] = useState<HrvMeasurement[]>([])
+  const [latestHrvMeasurement, setLatestHrvMeasurement] = useState<HrvMeasurement | null>(null)
+  const [hrvMeasurementCount, setHrvMeasurementCount] = useState(0)
   const [hrvCalibrating, setHrvCalibrating] = useState(true)
   const [hrvError, setHrvError] = useState<string | null>(null)
   const [showHrvConsent, setShowHrvConsent] = useState(false)
@@ -472,7 +474,8 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
 
     engine.onMeasurement((m) => {
       hrvTimelineRef.current.addMeasurement(m)
-      setHrvMeasurements(prev => [...prev, m])
+      setLatestHrvMeasurement(m)
+      setHrvMeasurementCount(c => c + 1)
     })
 
     engine.onCalibrationComplete((baseline) => {
@@ -519,7 +522,8 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
       hrvEngineRef.current?.stop()
       hrvEngineRef.current = null
       setHrvEnabled(false)
-      setHrvMeasurements([])
+      setLatestHrvMeasurement(null)
+      setHrvMeasurementCount(0)
       setHrvCalibrating(true)
       setHrvError(null)
       if (hrvFlushIntervalRef.current) {
@@ -685,9 +689,28 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
   const isClosed = session?.status === 'closed'
   const canEnd = !isStreaming && messages.length >= 2 && !isClosed
 
+  const backButtonStyle = useMemo<React.CSSProperties>(() => ({
+    position: 'fixed',
+    top: `calc(${hrvEnabled ? '48px' : '12px'} + env(safe-area-inset-top, 0px))`,
+    left: 12,
+    zIndex: 40,
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    border: 'none',
+    background: 'var(--bg-primary, #1a1a1a)',
+    color: 'var(--text-tertiary, #888)',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 18,
+    opacity: 0.6,
+  }), [hrvEnabled])
+
   return (
     <>
-    {/* HRV Ambient Bar — fixed at top */}
+    {/* Biometrics bar — fixed at top */}
     {hrvEnabled && (
       <div style={{
         position: 'fixed',
@@ -695,32 +718,29 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
         left: 0,
         right: 0,
         zIndex: 50,
-        padding: '8px 16px',
+        padding: 'calc(4px + env(safe-area-inset-top, 0px)) 12px 4px',
         background: 'var(--bg-primary, #1a1a1a)',
         borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
       }}>
-        <div style={{ maxWidth: 800, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{ flex: 1 }}>
-            <HrvAmbientBar
-              measurements={hrvMeasurements}
-              stream={hrvEngineRef.current?.getStream() ?? null}
+            <BiometricsBar
+              latest={latestHrvMeasurement}
+              measurementCount={hrvMeasurementCount}
               isCalibrating={hrvCalibrating}
               error={hrvError}
-              faceROI={hrvEngineRef.current?.getFaceROI() ?? null}
-              videoWidth={hrvEngineRef.current?.getVideoSize()?.width ?? 320}
-              videoHeight={hrvEngineRef.current?.getVideoSize()?.height ?? 240}
             />
           </div>
           <button
             onClick={handleHrvToggle}
             style={{
-              padding: '4px 10px',
+              padding: '3px 8px',
               borderRadius: 6,
               border: '1px solid var(--border-subtle)',
               background: 'rgba(178,93,93,0.15)',
               color: 'var(--text-secondary)',
               fontFamily: "'Inter', sans-serif",
-              fontSize: 11,
+              fontSize: 10,
               cursor: 'pointer',
               flexShrink: 0,
             }}
@@ -730,26 +750,16 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
         </div>
       </div>
     )}
-    <div style={{
-      position: 'relative',
-      zIndex: 2,
-      maxWidth: 640,
-      margin: '0 auto',
-      paddingTop: hrvEnabled ? 140 : 80,
-      paddingBottom: 80,
-      paddingLeft: 24,
-      paddingRight: 24,
-      minHeight: '100vh',
-    }}>
+    <div className="session-container">
+      {onBack && (
+        <button onClick={onBack} style={backButtonStyle} aria-label="Back">
+          ←
+        </button>
+      )}
+
       {/* Session note card (for closed sessions) */}
       {isClosed && session?.sessionNote && (
-        <div style={{
-          background: 'var(--surface-secondary)',
-          borderRadius: 12,
-          padding: '20px 24px',
-          marginBottom: 32,
-          border: '1px solid var(--border-subtle)',
-        }}>
+        <div className="session-note-card">
           <div style={{
             fontSize: 11,
             fontFamily: "'Inter', sans-serif",
@@ -761,11 +771,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
           }}>
             Session Note
           </div>
-          <div style={{
-            fontFamily: "'Spectral', Georgia, 'Times New Roman', serif",
-            fontSize: 17,
-            fontWeight: 400,
-            lineHeight: 1.85,
+          <div className="session-message-text" style={{
             color: 'var(--text-primary)',
             fontStyle: 'italic',
           }}>
@@ -812,11 +818,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
       {/* Streaming message */}
       {isStreaming && streamingContent && (
         <div style={{ marginBottom: 20, opacity: 0.88 }}>
-          <div style={{
-            fontFamily: "'Spectral', Georgia, 'Times New Roman', serif",
-            fontSize: 19,
-            fontWeight: 400,
-            lineHeight: 1.85,
+          <div className="session-message-text" style={{
             color: 'var(--text-secondary)',
             fontStyle: 'italic',
           }}>
@@ -824,7 +826,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
             <span style={{
               display: 'inline-block',
               width: 2,
-              height: 19,
+              height: '1em',
               background: 'var(--text-secondary)',
               marginLeft: 2,
               opacity: 0.5,
@@ -836,19 +838,8 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
 
       {/* Streaming indicator (no content yet) */}
       {isStreaming && !streamingContent && (
-        <div style={{
-          marginBottom: 20,
-        }}>
-          <div style={{
-            fontFamily: "'Spectral', Georgia, 'Times New Roman', serif",
-            fontSize: 19,
-            fontWeight: 400,
-            lineHeight: 1.85,
-            color: 'var(--text-secondary)',
-            fontStyle: 'italic',
-            display: 'flex',
-            gap: 3,
-          }}>
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', gap: 3 }}>
             {[0, 1, 2].map((i) => (
               <span key={i} style={{
                 display: 'inline-block',
@@ -864,10 +855,20 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
         </div>
       )}
 
-      {/* Inline input */}
+      {/* Inline input with send button */}
       {!isClosed && !isStreaming && (
-        <div style={{ marginBottom: 20 }}>
+        <div className="session-input-row" style={{ marginBottom: 20 }}>
           <EditorContent editor={inputEditor} />
+          <button
+            className="session-send-btn"
+            onClick={() => handleSendRef.current()}
+            aria-label="Send"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="19" x2="12" y2="5" />
+              <polyline points="5 12 12 5 19 12" />
+            </svg>
+          </button>
         </div>
       )}
 
@@ -875,24 +876,14 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated }: Prop
 
       {/* End session */}
       {!isClosed && (
-        <div style={{
-          paddingTop: 40,
-          paddingBottom: 40,
-        }}>
+        <div style={{ paddingTop: 24, paddingBottom: 32 }}>
           <button
+            className="session-end-btn"
             onClick={handleEndSession}
             disabled={!canEnd}
             style={{
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 11,
-              fontWeight: 500,
-              color: 'var(--text-secondary)',
               opacity: canEnd ? 0.5 : 0.2,
-              background: 'none',
-              border: 'none',
               cursor: canEnd ? 'pointer' : 'default',
-              padding: 0,
-              letterSpacing: '0.04em',
             }}
           >
             end session

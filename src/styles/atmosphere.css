@@ -273,6 +273,76 @@
   margin: 0;
 }
 
+/* ── Session conversation layout ─────────────────────── */
+
+.session-container {
+  position: relative;
+  z-index: 2;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 80px 24px 80px;
+  min-height: 100vh;
+}
+
+.session-message-text {
+  font-family: 'Spectral', Georgia, 'Times New Roman', serif;
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 1.85;
+}
+
+.session-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.session-input-row .session-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-send-btn {
+  display: none;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: var(--text-tertiary, #666);
+  color: var(--bg-primary, #1a1a1a);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+  transition: background 0.15s ease;
+}
+
+.session-send-btn:active {
+  background: var(--text-secondary);
+}
+
+.session-note-card {
+  background: var(--surface-secondary);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 32px;
+  border: 1px solid var(--border-subtle);
+}
+
+.session-end-btn {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 12px 20px;
+  letter-spacing: 0.04em;
+  border-radius: 8px;
+}
+
 .tiptap p {
   margin-bottom: 0.8em;
   position: relative;
@@ -1460,6 +1530,30 @@ body {
     padding: 40px 20px;
   }
 
+  /* Session conversation: mobile adjustments */
+  .session-container {
+    padding: 60px 16px 80px;
+  }
+
+  .session-message-text {
+    font-size: 17px;
+    line-height: 1.75;
+  }
+
+  .session-input {
+    font-size: 17px;
+    line-height: 1.75;
+  }
+
+  .session-send-btn {
+    display: flex;
+  }
+
+  .session-note-card {
+    padding: 16px 18px;
+    margin-bottom: 24px;
+  }
+
   /* Session close: larger touch target on mobile */
   .session-close-trigger {
     padding: 8px 14px;
@@ -1501,6 +1595,18 @@ body {
   }
 
   .tiptap {
+    font-size: 16px;
+  }
+
+  .session-container {
+    padding: 56px 14px 80px;
+  }
+
+  .session-message-text {
+    font-size: 16px;
+  }
+
+  .session-input {
     font-size: 16px;
   }
 }
@@ -1697,6 +1803,16 @@ body {
 @keyframes breath {
   0%, 100% { opacity: 0.5; transform: scale(0.9); }
   50% { opacity: 1; transform: scale(1.1); }
+}
+
+@keyframes blink {
+  from, to { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes dotPulse {
+  0%, 80%, 100% { opacity: 0.15; transform: scale(0.8); }
+  40% { opacity: 0.6; transform: scale(1); }
 }
 
 /* ── Mobile layout ─────────────────────────────────── */

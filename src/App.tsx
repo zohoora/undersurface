@@ -42,7 +42,8 @@ import { chatCompletion } from './ai/openrouter'
 import { languageDirective } from './ai/partPrompts'
 import { trackEvent } from './services/analytics'
 import { t, useTranslation, getPartDisplayName } from './i18n'
-import type { EmotionalTone, Part, GuidedExploration, InnerWeather as InnerWeatherType } from './types'
+import { getSettings } from './store/settings'
+import type { DiaryEntry, EmotionalTone, Part, GuidedExploration, InnerWeather as InnerWeatherType, Session } from './types'
 
 const ADMIN_EMAILS = ['zohoora@gmail.com']
 
@@ -165,28 +166,7 @@ function App() {
     return () => { cancelled = true }
   }, [routePath])
 
-  // Load most recent entry or create a blank one
-  const loadOrCreateEntry = useCallback(async () => {
-    const entries = await db.entries.orderBy('updatedAt').reverse().toArray()
-    if (entries.length > 0) {
-      const entry = entries[0] as { id: string; content: string }
-      setActiveEntryId(entry.id)
-      setInitialContent(entry.content)
-    } else {
-      const id = generateId()
-      await db.entries.add({
-        id,
-        content: '',
-        plainText: '',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      })
-      setActiveEntryId(id)
-      setInitialContent('')
-    }
-  }, [])
-
-  // Initialize DB and load or create first entry
+  // Initialize DB, load entry, and route based on today's activity
   useEffect(() => {
     if (!user) return
 
@@ -195,7 +175,6 @@ function App() {
         initGlobalConfig()
         await initializeDB()
 
-        // Check consent before proceeding
         const consentDoc = await db.consent.get('terms')
         if (!consentDoc || (consentDoc as { acceptedVersion?: string }).acceptedVersion !== '1.0') {
           setHasConsent(false)
@@ -203,7 +182,45 @@ function App() {
         }
         setHasConsent(true)
 
-        await loadOrCreateEntry()
+        // "Today" is determined by the user's configured timezone
+        const tz = getSettings().timezone
+        const dateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz })
+        const todayStr = dateFmt.format(new Date())
+        const isFromToday = (ms: number) => dateFmt.format(new Date(ms)) === todayStr
+        const isRootVisit = window.location.pathname === '/'
+
+        const [entries, sessions] = await Promise.all([
+          db.entries.orderBy('updatedAt').reverse().toArray(),
+          isRootVisit ? db.sessions.orderBy('startedAt').reverse().toArray() : Promise.resolve([]),
+        ])
+
+        // Load today's entry, or fall back to most recent for editor state
+        const todayEntry = (entries as DiaryEntry[]).find(e => isFromToday(e.createdAt))
+        const entryToLoad = todayEntry ?? entries[0] as DiaryEntry | undefined
+        if (entryToLoad) {
+          setActiveEntryId(entryToLoad.id)
+          setInitialContent(entryToLoad.content)
+        }
+
+        // Smart resume: on initial root visit, redirect based on today's activity
+        // A blank entry (e.g. auto-created after session dismissal) doesn't count —
+        // the user hasn't actively chosen to write yet
+        if (isRootVisit) {
+          const todaySession = (sessions as Session[]).find(
+            s => isFromToday(s.startedAt) && s.status === 'active'
+          )
+          const hasRealTodayEntry = todayEntry && (todayEntry.plainText?.trim() || todayEntry.content?.trim())
+
+          if (todaySession) {
+            const entryIsMoreRecent = hasRealTodayEntry && todayEntry.updatedAt >= todaySession.startedAt
+            if (!entryIsMoreRecent) {
+              navigateTo(`/session/${todaySession.id}`)
+            }
+          } else if (!hasRealTodayEntry) {
+            navigateTo('/new')
+          }
+        }
+
         readyAtRef.current = Date.now()
         firstKeystrokeTrackedRef.current = false
         setIsReady(true)
@@ -214,7 +231,7 @@ function App() {
       }
     }
     init()
-  }, [user, loadOrCreateEntry])
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Log session start/end
   useEffect(() => {
@@ -595,6 +612,7 @@ function App() {
               window.history.replaceState(null, '', `/session/${id}`)
               setRoutePath(`/session/${id}`)
             }}
+            onBack={() => navigateTo('/')}
           />
         </Suspense>
       ) : (

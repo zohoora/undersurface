@@ -29,14 +29,13 @@ export function SessionMessageBubble({ message }: Props) {
             {message.partName}
           </div>
         )}
-        <div style={{
-          fontFamily: "'Spectral', Georgia, 'Times New Roman', serif",
-          fontSize: 19,
-          fontWeight: 400,
-          lineHeight: 1.85,
-          color: isUser ? 'var(--text-primary)' : 'var(--text-secondary)',
-          fontStyle: isUser ? 'normal' : 'italic',
-        }}>
+        <div
+          className="session-message-text"
+          style={{
+            color: isUser ? 'var(--text-primary)' : 'var(--text-secondary)',
+            fontStyle: isUser ? 'normal' : 'italic',
+          }}
+        >
           {message.content}
         </div>
       </div>
