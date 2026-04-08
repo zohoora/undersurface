@@ -627,8 +627,6 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
   let frameCount = 0
   let computeCount = 0
 
-  console.log('[HRV Worker] Multi-ROI CHROM initialized (forehead + cheeks, 1.6s windows)')
-
   self.onmessage = (event: MessageEvent) => {
     const { type, data } = event.data as { type: string; data: unknown }
 
@@ -638,7 +636,6 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
 
       // Gap detection
       if (state.timestamps.length > 0 && now - state.timestamps[state.timestamps.length - 1] > 2000) {
-        console.log('[HRV Worker] Gap detected — resetting buffers')
         state.regions = makeEmptyRegions()
         state.timestamps = []
         state.ibis = []
@@ -658,7 +655,6 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
 
       if (state.calibrationStart === null) {
         state.calibrationStart = now
-        console.log('[HRV Worker] Calibration started (multi-ROI CHROM)')
       }
 
       // Compute FPS
@@ -678,13 +674,6 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
         }
       }
 
-      // Log every 300 frames
-      if (frameCount % 300 === 0) {
-        const elapsed = now - state.calibrationStart
-        const fg = state.regions.forehead
-        console.log(`[HRV Worker] Frame ${frameCount}: buf=${state.timestamps.length}, fps=${state.actualFps}, forehead R=${fg.r.at(-1)?.toFixed(1)} G=${fg.g.at(-1)?.toFixed(1)} B=${fg.b.at(-1)?.toFixed(1)}, regions=${regions.length}, elapsed=${(elapsed / 1000).toFixed(1)}s`)
-      }
-
       // Calibration progress
       const elapsed = now - state.calibrationStart
       if (!state.calibrated) {
@@ -695,7 +684,6 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
           state.baselineRmssd = state.recentRmssds.length > 0
             ? state.recentRmssds.reduce((a, b) => a + b, 0) / state.recentRmssds.length
             : 50
-          console.log(`[HRV Worker] Calibration complete! baseline RMSSD=${state.baselineRmssd.toFixed(1)}, fps=${state.actualFps}`)
           self.postMessage({ type: 'calibration_complete', data: { baseline: state.baselineRmssd } })
         }
       }
@@ -718,7 +706,6 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
       const needed = fps * 5
 
       if (bufLen < needed) {
-        console.log(`[HRV Worker] Compute #${computeCount}: Need more data (${bufLen}/${needed})`)
         return
       }
 
@@ -744,7 +731,6 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
       }
 
       if (regionResults.length === 0) {
-        console.log(`[HRV Worker] Compute #${computeCount}: No regions produced results`)
         return
       }
 
@@ -766,9 +752,6 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
 
       const rawHr = totalWeight > 0 ? weightedHr / totalWeight : regionResults[0].hr
       const mergedConf = bestConfidence
-
-      // Log per-region results
-      const regionLog = regionResults.map(r => `${r.region}=${r.hr.toFixed(0)}(${r.confidence.toFixed(2)})`).join(', ')
 
       // --- FFT power spectrum from best region for signal dump ---
       let fftPowerSpectrum: { freqHz: number; power: number }[] = []
@@ -825,7 +808,6 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
         const median = sorted[Math.floor(sorted.length / 2)]
         if (Math.abs(rawHr - median) / median > 0.3) {
           hr = median
-          console.log(`[HRV Worker] Rejected outlier HR ${rawHr.toFixed(1)}, using median ${median.toFixed(1)}`)
         }
       }
 
@@ -893,13 +875,10 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
         ibis: [...state.ibis],
       }
 
-      console.log(`[HRV Worker] Multi-ROI #${computeCount}: ${regionLog} → merged=${rawHr.toFixed(1)} → smoothed=${state.smoothedHr.toFixed(1)}bpm, conf=${mergedConf.toFixed(2)}, RR=${respiratoryRate ?? '--'}brpm`)
-
       self.postMessage({ type: 'measurement', data: measurement, signalDump })
     }
 
     if (type === 'reset') {
-      console.log('[HRV Worker] Reset')
       frameCount = 0
       computeCount = 0
       resetState()

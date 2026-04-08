@@ -66,18 +66,13 @@ export class HrvEngine {
 
       if ('exposureMode' in capabilities) {
         constraints.exposureMode = 'manual'
-        console.log('[HRV Engine] Locking exposure to manual')
       }
       if ('whiteBalanceMode' in capabilities) {
         constraints.whiteBalanceMode = 'manual'
-        console.log('[HRV Engine] Locking white balance to manual')
       }
 
       if (Object.keys(constraints).length > 0) {
         await track.applyConstraints({ advanced: [constraints] } as MediaTrackConstraints)
-        console.log('[HRV Engine] Camera auto-adjustment locked')
-      } else {
-        console.log('[HRV Engine] Camera does not support manual exposure/WB control')
       }
     } catch (err) {
       console.warn('[HRV Engine] Could not lock camera exposure:', err)
@@ -96,10 +91,8 @@ export class HrvEngine {
     this.video.muted = true
     await this.video.play()
 
-    // Log actual resolution
     const vw = this.video.videoWidth
     const vh = this.video.videoHeight
-    console.log(`[HRV Engine] Camera resolution: ${vw}x${vh}`)
 
     // Canvas matches video dimensions for full-res pixel access
     this.canvas = new OffscreenCanvas(vw, vh)
@@ -107,7 +100,6 @@ export class HrvEngine {
 
     // Start worker
     try {
-      console.log('[HRV Engine] Creating worker...')
       this.worker = new Worker(
         new URL('./hrvSignalWorker.ts', import.meta.url),
         { type: 'module' },
@@ -117,7 +109,6 @@ export class HrvEngine {
         const { type, data, signalDump } = e.data
         if (type === 'measurement' && data) {
           const m = data as HrvMeasurement
-          console.log('[HRV Engine] Received measurement from worker:', m)
           this.latest = m
           currentHeartRate = m.hr
           this.measurementCallbacks.forEach(cb => cb(this.latest!))
@@ -129,13 +120,11 @@ export class HrvEngine {
           }
         }
         if (type === 'calibration_complete') {
-          console.log('[HRV Engine] Calibration complete, baseline:', data?.baseline)
           this.calibrating = false
           this.calibrationCallbacks.forEach(cb => cb(data?.baseline ?? 50))
         }
         if (type === 'calibration_progress') {
-          const pct = Math.round((data?.progress ?? 0) * 100)
-          if (pct % 10 === 0) console.log(`[HRV Engine] Calibration progress: ${pct}%`)
+          // calibration progress handled silently
         }
       }
 
@@ -144,7 +133,6 @@ export class HrvEngine {
         this.errorCallbacks.forEach(cb => cb({ type: 'worker_error', message: err.message }))
       }
 
-      console.log('[HRV Engine] Worker created successfully')
     } catch (err) {
       console.warn('[HRV Engine] Failed to create worker, running on main thread:', err)
     }
@@ -152,8 +140,6 @@ export class HrvEngine {
     // Face detection disabled — skin color filtering handles ROI selection
     // await this.initFaceDetector()
 
-    // Start frame capture loop
-    console.log('[HRV Engine] Starting frame capture loop')
     this.captureFrames()
 
     // Request computation every 5 seconds
@@ -161,7 +147,6 @@ export class HrvEngine {
       if (document.hidden) return // don't compute on stale data when tab is backgrounded
 
       if (this.worker) {
-        console.log('[HRV Engine] Requesting computation from worker')
         this.worker.postMessage({ type: 'compute' })
       } else {
         // Main-thread fallback: import and run signal processing directly
@@ -281,7 +266,6 @@ export class HrvEngine {
 
     try {
       this.faceDetector = new FaceDetectorClass()
-      console.log('[HRV Engine] FaceDetector initialized successfully')
 
       // Run face detection periodically (every 200ms for responsive tracking)
       this.faceDetectInterval = setInterval(() => this.detectFace(), 200)
@@ -346,13 +330,11 @@ export class HrvEngine {
 
         const now = Date.now()
         if (now - this.lastFaceLog > 5000) {
-          console.log(`[HRV Engine] Face detected: ROI x=${this.faceROI.x} y=${this.faceROI.y} w=${this.faceROI.width} h=${this.faceROI.height} (video ${videoW}x${videoH})`)
           this.lastFaceLog = now
         }
       } else {
         // No face — clear ROI so worker falls back to center
         if (this.faceROI) {
-          console.log('[HRV Engine] Face lost — falling back to center ROI')
           this.faceROI = null
         }
       }

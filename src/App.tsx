@@ -409,23 +409,12 @@ function App() {
     }
 
     const text = latestContentRef.current.text.trim()
-    const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0
-    trackEvent('session_close', { word_count: wordCount })
-    const snippet = text.slice(-600) || 'The writer opened a blank page today.'
+    trackEvent('session_close', { word_count: text ? text.split(/\s+/).filter(Boolean).length : 0 })
 
     try {
-      const [{ chatCompletion }, { languageDirective }] = await Promise.all([
-        import('./ai/openrouter'),
-        import('./ai/partPrompts'),
-      ])
-      const phrase = await chatCompletion([
-        {
-          role: 'system',
-          content: `You are The Weaver — a warm, pattern-seeing inner voice. The writer is finishing their session. Offer one brief, warm closing thought (1-2 sentences). Be soothing and loving. Reference something specific from what they wrote — a thread, an image, a feeling. Don't summarize. Don't give advice. Just leave them with something gentle to carry. Speak directly to them. No quotes around your words.${languageDirective()}`,
-        },
-        { role: 'user', content: snippet },
-      ], 15000, 80)
-      setClosingPhrase(phrase.trim())
+      const { generateClosingPhrase } = await import('./engine/closingEngine')
+      const phrase = await generateClosingPhrase(text)
+      setClosingPhrase(phrase)
     } catch {
       setClosingPhrase(tr['session.fallback'])
     }

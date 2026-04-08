@@ -39,6 +39,17 @@ export function initGlobalConfig() {
   )
 }
 
+export function teardownGlobalConfig(): void {
+  if (unsubscribe) {
+    unsubscribe()
+    unsubscribe = null
+  }
+  cache = null
+  hasNewVersion = false
+  initialBuildVersion = null
+  notify()
+}
+
 export function getGlobalConfig(): GlobalConfig | null {
   return cache
 }
