@@ -272,7 +272,7 @@ export class PartOrchestrator {
     }
 
     // Entry cooldown — must wait at least 3 entries between appearances
-    const lastSpokeEntry = localStorage.getItem('quietOneLastSpokeEntry')
+    const lastSpokeEntry = this.quietOneLastSpokeEntry
     if (lastSpokeEntry && this.getEntriesSinceQuietSpoke(lastSpokeEntry) < 3) {
       adjustment -= 100
     }
@@ -454,7 +454,7 @@ export class PartOrchestrator {
 
           // Record entry for The Quiet One cooldown
           if (part.id === 'quiet') {
-            localStorage.setItem('quietOneLastSpokeEntry', this.entryId)
+            this.quietOneLastSpokeEntry = this.entryId
           }
 
           // Disagreement check — another part may push back

@@ -394,7 +394,7 @@ export default function LivingEditor({
       blankPageTimerRef.current = setTimeout(async () => {
         blankPageTimerRef.current = null
         if (!editor || editor.getText().trim().length > 0) return
-        const parts = orchestratorRef.current?.['parts'] as Part[] | undefined
+        const parts = orchestratorRef.current?.getParts()
         if (!parts || parts.length === 0) return
         const result = await blankPageRef.current.speak(parts)
         if (result) {
@@ -468,7 +468,7 @@ export default function LivingEditor({
 
     const orchestrator = new PartOrchestrator({
       onThoughtStart: (partId, partName, partColor) => {
-        const part = orchestrator['parts'].find((p: Part) => p.id === partId)
+        const part = orchestrator.getParts().find((p: Part) => p.id === partId)
         const newThought: ActiveThought = {
           id: generateId(),
           partId,
@@ -594,7 +594,7 @@ export default function LivingEditor({
         }
       },
       onDisagreementComplete: (thought) => {
-        const parts = orchestrator['parts'] as Part[]
+        const parts = orchestrator.getParts()
         const part = parts.find((p: Part) => p.id === thought.partId)
         const newThought: ActiveThought = {
           id: thought.id,
@@ -628,10 +628,10 @@ export default function LivingEditor({
 
       emergenceCheckCountRef.current++
       if (emergenceCheckCountRef.current % 3 === 0) {
-        const parts = orchestrator['parts'] as Part[]
+        const parts = [...orchestrator.getParts()]
         const result = await emergence.checkForEmergence(event.currentText, parts)
         if (result.detected && result.part && result.firstWords) {
-          orchestrator['parts'].push(result.part)
+          orchestrator.addPart(result.part)
 
           const newThought: ActiveThought = {
             id: generateId(),
@@ -688,7 +688,7 @@ export default function LivingEditor({
     async (response: string) => {
       if (!activeInteraction) return
 
-      const parts = orchestratorRef.current?.['parts'] as Part[]
+      const parts = orchestratorRef.current?.getParts()
       const part = parts?.find((p) => p.id === activeInteraction.partId)
       if (!part) return
 
