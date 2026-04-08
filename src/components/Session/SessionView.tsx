@@ -2,8 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { InkWeight } from '../../extensions/inkWeight'
-import { extractCompletedSentence, correctSentence, shouldTriggerAutocorrect } from '../../ai/llmCorrect'
-import { getLanguageCode } from '../../i18n'
+import { useAutocorrect } from '../../hooks/useAutocorrect'
 import { useSettings } from '../../store/settings'
 import { getGlobalConfig } from '../../store/globalConfig'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../../store/db'
@@ -43,13 +42,12 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const sessionRef = useRef<Session | null>(null)
   const messagesRef = useRef<SessionMessage[]>([])
-  const lastAutocorrectRef = useRef<{
-    original: string
-    correction: string
-    wordStart: number
-    delimiter: string
-  } | null>(null)
   const handleSendRef = useRef<() => void>(() => {})
+
+  const handleAutocorrect = useAutocorrect({
+    autocorrect: settings.autocorrect,
+    autoCapitalize: settings.autoCapitalize ?? true,
+  })
 
   // HRV biometric state
   const [hrvEnabled, setHrvEnabled] = useState(false)
@@ -570,93 +568,9 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
           return true
         }
 
-        if (event.metaKey || event.ctrlKey || event.altKey) return false
+        // Autocorrect: backspace undo, auto-capitalize, standalone-i, sentence correction
+        if (inputEditor && handleAutocorrect(inputEditor, event)) return true
 
-        // Undo autocorrect on Backspace
-        if (event.key === 'Backspace' && inputEditor && lastAutocorrectRef.current) {
-          const { original, correction, wordStart, delimiter } = lastAutocorrectRef.current
-          const cursor = inputEditor.state.selection.from
-          const expectedEnd = wordStart + correction.length + delimiter.length
-          if (cursor === expectedEnd) {
-            const docText = inputEditor.state.doc.textBetween(wordStart, expectedEnd)
-            if (docText === correction + delimiter) {
-              event.preventDefault()
-              inputEditor.view.dispatch(
-                inputEditor.state.tr.replaceWith(
-                  wordStart,
-                  expectedEnd,
-                  inputEditor.state.schema.text(original + delimiter),
-                ),
-              )
-              lastAutocorrectRef.current = null
-              return true
-            }
-          }
-          lastAutocorrectRef.current = null
-        }
-
-        if (event.key.length === 1 || event.key === 'Backspace' || event.key === 'Delete') {
-          if (event.key !== 'Backspace') lastAutocorrectRef.current = null
-
-          // Auto-capitalize
-          if (settings.autoCapitalize && inputEditor && event.key.length === 1) {
-            const from = inputEditor.state.selection.from
-            const parentOffset = inputEditor.state.selection.$from.parentOffset
-
-            if (/[a-z]/.test(event.key)) {
-              const shouldCapitalize = parentOffset === 0
-                || /[.!?]\s$/.test(inputEditor.state.doc.textBetween(Math.max(0, from - 3), from))
-
-              if (shouldCapitalize) {
-                event.preventDefault()
-                inputEditor.commands.insertContent(event.key.toUpperCase())
-                return true
-              }
-            }
-
-            // Fix standalone "i" to "I"
-            if (getLanguageCode() === 'en' && /[\s,.'!?;:]/.test(event.key) && from >= 1) {
-              const lookback = inputEditor.state.doc.textBetween(Math.max(0, from - 2), from)
-              if (/(?:^|\s)i$/.test(lookback)) {
-                inputEditor.view.dispatch(
-                  inputEditor.state.tr.replaceWith(from - 1, from, inputEditor.state.schema.text('I'))
-                )
-              }
-            }
-          }
-
-          // Autocorrect: on sentence-ending punctuation, send completed sentence to LLM
-          if (settings.autocorrect && getGlobalConfig()?.features?.autocorrectEnabled !== false && inputEditor) {
-            const $pos = inputEditor.state.selection.$from
-            const textBefore = $pos.parent.textBetween(0, $pos.parentOffset)
-            if (shouldTriggerAutocorrect(event.key, textBefore)) {
-              const textForExtraction = event.key === ' ' ? textBefore + ' ' : textBefore
-              const extracted = extractCompletedSentence(textForExtraction)
-              if (extracted) {
-                const absStart = $pos.start() + extracted.start
-                const absEnd = $pos.start() + extracted.end
-                const capturedEditor = inputEditor
-                const originalSentence = extracted.sentence
-                correctSentence(originalSentence).then((corrected) => {
-                  if (!corrected) return
-                  const currentState = capturedEditor.state
-                  if (absEnd > currentState.doc.content.size) return
-                  let currentText: string
-                  try { currentText = currentState.doc.textBetween(absStart, absEnd) } catch { return }
-                  if (currentText !== originalSentence) return
-                  capturedEditor.view.dispatch(
-                    currentState.tr.replaceWith(
-                      absStart,
-                      absEnd,
-                      currentState.schema.text(corrected),
-                    ),
-                  )
-                  lastAutocorrectRef.current = { original: originalSentence, correction: corrected, wordStart: absStart, delimiter: '' }
-                })
-              }
-            }
-          }
-        }
         return false
       },
     },

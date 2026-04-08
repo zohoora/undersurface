@@ -9,11 +9,11 @@ import { ColorBleed, colorBleedKey } from '../../extensions/colorBleed'
 import { TextHighlight, textHighlightKey } from '../../extensions/textHighlight'
 import { GhostText, ghostTextKey } from '../../extensions/ghostText'
 import { TypewriterScroll } from '../../extensions/typewriterScroll'
-import { extractCompletedSentence, correctSentence, shouldTriggerAutocorrect } from '../../ai/llmCorrect'
 import { PauseDetector } from '../../engine/pauseDetector'
 import { PartOrchestrator } from '../../engine/partOrchestrator'
 import { EmergenceEngine } from '../../engine/emergenceEngine'
 import { BlankPageEngine } from '../../engine/blankPageEngine'
+import { useAutocorrect } from '../../hooks/useAutocorrect'
 import { recordFlowKeystroke } from '../../hooks/useFlowState'
 import type { AppSettings } from '../../store/settings'
 import { PartThoughtBubble } from './PartThoughtBubble'
@@ -26,7 +26,7 @@ import { streamChatCompletion } from '../../ai/openrouter'
 import { db, generateId } from '../../store/db'
 import { getGlobalConfig, useGlobalConfig } from '../../store/globalConfig'
 import { trackEvent } from '../../services/analytics'
-import { t, getLanguageCode, getPartDisplayName } from '../../i18n'
+import { t, getPartDisplayName } from '../../i18n'
 import type { EmotionalTone, Part, PartAnnotations, PartThought } from '../../types'
 
 interface ActiveThought {
@@ -99,12 +99,10 @@ export default function LivingEditor({
 
   const firstKeystrokeRef = useRef(false)
 
-  const lastAutocorrectRef = useRef<{
-    original: string
-    correction: string
-    wordStart: number
-    delimiter: string
-  } | null>(null)
+  const handleAutocorrect = useAutocorrect({
+    autocorrect: settings.autocorrect,
+    autoCapitalize: settings.autoCapitalize,
+  })
 
   // Typing intensity tracking (for breathing sync)
   const lastKeystrokeTimeRef = useRef(0)
@@ -151,36 +149,12 @@ export default function LivingEditor({
           return true
         }
 
+        // Autocorrect: backspace undo, auto-capitalize, standalone-i, sentence correction
+        if (editor && handleAutocorrect(editor, event)) return true
+
         if (event.metaKey || event.ctrlKey || event.altKey) return false
 
-        // Undo autocorrect on Backspace
-        if (event.key === 'Backspace' && editor && lastAutocorrectRef.current) {
-          const { original, correction, wordStart, delimiter } = lastAutocorrectRef.current
-          const cursor = editor.state.selection.from
-          const expectedEnd = wordStart + correction.length + delimiter.length
-          // Cursor must be right after "correction + delimiter"
-          if (cursor === expectedEnd) {
-            const docText = editor.state.doc.textBetween(wordStart, expectedEnd)
-            if (docText === correction + delimiter) {
-              event.preventDefault()
-              editor.view.dispatch(
-                editor.state.tr.replaceWith(
-                  wordStart,
-                  expectedEnd,
-                  editor.state.schema.text(original + delimiter),
-                ),
-              )
-              lastAutocorrectRef.current = null
-              return true
-            }
-          }
-          lastAutocorrectRef.current = null
-        }
-
         if (event.key.length === 1 || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'Enter') {
-          // Clear autocorrect undo on any non-backspace key
-          if (event.key !== 'Backspace') lastAutocorrectRef.current = null
-
           const text = editor?.getText() || ''
           const pos = editor?.state.selection.from || 0
           pauseDetectorRef.current?.recordKeystroke(event.key, text, pos)
@@ -224,69 +198,6 @@ export default function LivingEditor({
 
           // Clear active part color when typing
           onActivePartColorChange(null)
-
-          // Auto-capitalize
-          if (settings.autoCapitalize && editor && event.key.length === 1) {
-            const from = editor.state.selection.from
-            const parentOffset = editor.state.selection.$from.parentOffset
-
-            // Capitalize first letter at start of paragraph or after sentence endings
-            if (/[a-z]/.test(event.key)) {
-              const shouldCapitalize = parentOffset === 0
-                || /[.!?]\s$/.test(editor.state.doc.textBetween(Math.max(0, from - 3), from))
-
-              if (shouldCapitalize) {
-                event.preventDefault()
-                editor.commands.insertContent(event.key.toUpperCase())
-                return true
-              }
-            }
-
-            // Fix standalone "i" to "I" when followed by space/punctuation (English only)
-            if (getLanguageCode() === 'en' && /[\s,.'!?;:]/.test(event.key) && from >= 1) {
-              const lookback = editor.state.doc.textBetween(Math.max(0, from - 2), from)
-              if (/(?:^|\s)i$/.test(lookback)) {
-                editor.view.dispatch(
-                  editor.state.tr.replaceWith(from - 1, from, editor.state.schema.text('I'))
-                )
-              }
-            }
-          }
-
-          // Autocorrect: on sentence-ending punctuation, send completed sentence to LLM
-          // Triggers on: space after any sentence-end punct, or next char after CJK fullwidth punct
-          if (settings.autocorrect && getGlobalConfig()?.features?.autocorrectEnabled !== false && editor) {
-            const $pos = editor.state.selection.$from
-            const textBefore = $pos.parent.textBetween(0, $pos.parentOffset)
-            if (shouldTriggerAutocorrect(event.key, textBefore)) {
-              // For space-triggered: append space so extractCompletedSentence sees "punct + space"
-              // For CJK-triggered: text already ends with fullwidth punct, no space needed
-              const textForExtraction = event.key === ' ' ? textBefore + ' ' : textBefore
-              const extracted = extractCompletedSentence(textForExtraction)
-              if (extracted) {
-                const absStart = $pos.start() + extracted.start
-                const absEnd = $pos.start() + extracted.end
-                const capturedEditor = editor
-                const originalSentence = extracted.sentence
-                correctSentence(originalSentence).then((corrected) => {
-                  if (!corrected) return
-                  const currentState = capturedEditor.state
-                  if (absEnd > currentState.doc.content.size) return
-                  let currentText: string
-                  try { currentText = currentState.doc.textBetween(absStart, absEnd) } catch { return }
-                  if (currentText !== originalSentence) return
-                  capturedEditor.view.dispatch(
-                    currentState.tr.replaceWith(
-                      absStart,
-                      absEnd,
-                      currentState.schema.text(corrected),
-                    ),
-                  )
-                  lastAutocorrectRef.current = { original: originalSentence, correction: corrected, wordStart: absStart, delimiter: '' }
-                })
-              }
-            }
-          }
         }
         return false
       },
