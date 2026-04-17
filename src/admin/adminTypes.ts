@@ -42,6 +42,8 @@ export interface GlobalConfig {
     guidedExplorations?: boolean
     // Biometric
     webcamHrv?: boolean
+    // Future Self
+    futureSelfEnabled?: boolean
   }
   announcement: {
     message: string
@@ -104,6 +106,12 @@ export interface GlobalConfig {
   explorations?: {
     maxPrompts?: number
     triggerOnNewEntry?: boolean
+  }
+
+  futureSelf?: {
+    minEntries?: number
+    minSessions?: number
+    voiceExcerptCount?: number
   }
 }
 

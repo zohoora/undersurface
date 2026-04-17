@@ -11,26 +11,31 @@ import { getGlobalConfig } from '../../store/globalConfig'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../../store/db'
 import { SessionOrchestrator } from '../../engine/sessionOrchestrator'
 import { buildTherapistMessages } from '../../ai/therapistPrompts'
+import { buildFutureSelfMessages } from '../../ai/futureSelfPrompts'
 import { streamChatCompletion } from '../../ai/openrouter'
-import { loadTherapistContext } from '../../engine/sessionContextLoader'
-import type { TherapistContext } from '../../engine/sessionContextLoader'
+import { loadTherapistContext, loadFutureSelfContext } from '../../engine/sessionContextLoader'
+import type { TherapistContext, FutureSelfContext } from '../../engine/sessionContextLoader'
 import { reflectOnSession } from '../../engine/sessionReflectionEngine'
 import { getWeatherEngine } from '../../store/weatherStore'
 import { isGroundingActive } from '../../hooks/useGroundingMode'
 import { trackEvent } from '../../services/analytics'
+import { useTranslation } from '../../i18n'
 import { SessionMessageBubble } from './SessionMessage'
 import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
-import type { Session, SessionMessage, EmotionalTone } from '../../types'
+import type { Session, SessionMessage, SessionMode, EmotionalTone } from '../../types'
 
 interface Props {
   sessionId: string | null
   openingMethod: 'auto' | 'open_invitation'
+  mode?: SessionMode
   onSessionCreated?: (id: string) => void
   onBack?: () => void
 }
 
-export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack }: Props) {
+export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSessionCreated, onBack }: Props) {
+  const tr = useTranslation()
+  const isFutureSelf = mode === 'futureSelf'
   const [session, setSession] = useState<Session | null>(null)
   const [messages, setMessages] = useState<SessionMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -41,7 +46,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
   const hrv = useHrvSession(sessionIdRef)
 
   const orchestratorRef = useRef(new SessionOrchestrator())
-  const therapistContextRef = useRef<TherapistContext | null>(null)
+  const therapistContextRef = useRef<TherapistContext | FutureSelfContext | null>(null)
   const weatherEngine = getWeatherEngine()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const sessionRef = useRef<Session | null>(null)
@@ -67,8 +72,10 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
     let cancelled = false
 
     async function init() {
-      // Load therapist context (cross-session memory)
-      const context = await loadTherapistContext()
+      // Load context — Future Self mode also loads voice excerpts for style mimicry
+      const context = isFutureSelf
+        ? await loadFutureSelfContext()
+        : await loadTherapistContext()
       if (cancelled) return
       therapistContextRef.current = context
 
@@ -105,7 +112,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
       startedAt: Date.now(),
       endedAt: null,
       status: 'active',
-      hostPartId: 'therapist',
+      hostPartId: isFutureSelf ? 'future-self' : 'therapist',
       participantPartIds: [],
       openingMethod,
       sessionNote: null,
@@ -113,7 +120,8 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
       firstLine: '',
       phase: 'opening',
       favorited: false,
-      isTherapistSession: true,
+      isTherapistSession: !isFutureSelf,
+      mode,
     }
 
     await db.sessions.add(newSession)
@@ -123,7 +131,8 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
 
     trackEvent('session_started', {
       opening_method: openingMethod,
-      host_part: 'therapist',
+      host_part: isFutureSelf ? 'future-self' : 'therapist',
+      mode,
     })
 
     // Generate opening message unless open invitation (user speaks first)
@@ -146,14 +155,20 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
 
     const context = therapistContextRef.current
     const hrvContext = hrv.buildPromptContext()
-    const promptMessages = buildTherapistMessages(currentMessages, {
+    const promptOptions = {
       phase,
       recentSessionNotes: context?.recentSessionNotes,
       relevantMemories: context?.relevantMemories,
       profile: context?.userProfile,
       isGrounding: isGroundingActive(),
       hrvContext,
-    })
+    }
+    const promptMessages = isFutureSelf
+      ? buildFutureSelfMessages(currentMessages, {
+          ...promptOptions,
+          voiceExcerpts: (context as FutureSelfContext | null)?.voiceExcerpts,
+        })
+      : buildTherapistMessages(currentMessages, promptOptions)
 
     // Reset typewriter buffer
     typewriter.reset()
@@ -477,6 +492,24 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
         </button>
       )}
 
+      {/* Mode indicator — Future Self only, subtle header */}
+      {isFutureSelf && !isClosed && (
+        <div style={{
+          fontSize: 11,
+          fontFamily: "'Inter', sans-serif",
+          fontWeight: 500,
+          color: 'var(--text-secondary)',
+          textTransform: 'uppercase' as const,
+          letterSpacing: '0.08em',
+          textAlign: 'center' as const,
+          opacity: 0.55,
+          marginBottom: 28,
+          marginTop: 8,
+        }}>
+          {tr['futureSelf.sessionHeader']}
+        </div>
+      )}
+
       {/* Session note card (for closed sessions) */}
       {isClosed && session?.sessionNote && (
         <div className="session-note-card">
@@ -525,7 +558,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
               <circle cx="12" cy="13" r="4" />
               <line x1="1" y1="1" x2="23" y2="23" />
             </svg>
-            HRV Off
+            Biometrics Off
           </button>
         </div>
       )}

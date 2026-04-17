@@ -89,7 +89,7 @@ Account: Settings → accountApi Cloud Function → delete/contact
 
 Detailed file-by-file reference: `.claude/docs/key-files.md`
 
-Core entry points: `src/ai/openrouter.ts` (API calls), `src/ai/partPrompts.ts` (system prompts + `SHARED_INSTRUCTIONS`), `src/ai/sessionPrompts.ts` (session mode part prompts), `src/ai/therapistPrompts.ts` (therapist companion prompts), `src/engine/partOrchestrator.ts` (part selection + scoring), `src/engine/sessionOrchestrator.ts` (session phase detection + crisis keywords + emotion check), `src/engine/pauseDetector.ts` (pause detection), `src/engine/hrvEngine.ts` (webcam HRV biofeedback), `src/engine/hrvSignalWorker.ts` (CHROM rPPG signal processing Web Worker), `src/engine/hrvTimeline.ts` (HRV timeline + shift detection + prompt context), `src/components/Editor/LivingEditor.tsx` (TipTap editor), `src/components/Session/SessionView.tsx` (session/conversation mode UI), `src/store/db.ts` (Firestore wrapper), `functions/src/index.ts` (Cloud Functions).
+Core entry points: `src/ai/openrouter.ts` (API calls), `src/ai/partPrompts.ts` (system prompts + `SHARED_INSTRUCTIONS`), `src/ai/sessionPrompts.ts` (session mode part prompts), `src/ai/therapistPrompts.ts` (therapist companion prompts + shared `SAFETY_RULES`), `src/ai/futureSelfPrompts.ts` (Future Self persona prompts), `src/engine/partOrchestrator.ts` (part selection + scoring), `src/engine/sessionOrchestrator.ts` (session phase detection + crisis keywords + emotion check), `src/engine/pauseDetector.ts` (pause detection), `src/engine/sessionContextLoader.ts` (`loadTherapistContext` + `loadFutureSelfContext` with voice excerpts), `src/engine/hrvEngine.ts` (webcam HRV biofeedback), `src/engine/hrvSignalWorker.ts` (CHROM rPPG signal processing Web Worker), `src/engine/hrvTimeline.ts` (HRV timeline + shift detection + prompt context), `src/hooks/useFutureSelfUnlock.ts` (Future Self unlock gating), `src/components/Editor/LivingEditor.tsx` (TipTap editor), `src/components/Session/SessionView.tsx` (session UI — shared across Therapist and Future Self modes via `mode` prop), `src/components/EntryChoice.tsx` (3-way choice screen with Future Self lock state), `src/store/db.ts` (Firestore wrapper), `functions/src/index.ts` (Cloud Functions).
 
 ### Data storage
 
@@ -105,7 +105,7 @@ Firebase Authentication: Google Sign-In + Email/Password. `App.tsx` gates app be
 
 ### URL routing
 
-SPA in `App.tsx` using `pushState`-based client-side routing (no router library): `/` → diary, `/session/:id` → session view, `/admin` → admin dashboard (lazy-loaded), anything else → `/`. `navigateTo()` callback uses `history.pushState` + React state; `popstate` listener handles back/forward.
+SPA in `App.tsx` using `pushState`-based client-side routing (no router library): `/` → diary, `/new` → 3-way choice screen, `/session/:id` → therapist session, `/future-self/:id` → Future Self session, `/admin` → admin dashboard (lazy-loaded), anything else → `/`. `navigateTo()` callback uses `history.pushState` + React state; `popstate` listener handles back/forward.
 
 ### Feature flags
 
@@ -121,6 +121,24 @@ At `/admin` for admins only. Lazy-loaded. 6 tabs, 9 API actions. Overview shows 
 ### Subsystems
 
 Dark mode, adaptive parts, i18n (17 languages), emergency grounding, bundle splitting, intentions, explorations, session closing, autocorrect, body map, data export, webcam HRV biofeedback — all documented in `.claude/docs/subsystems.md`
+
+### Future Self Mode (third session mode)
+
+A third conversational mode where the AI plays the user's own future self — warmer, slower to judge, more curious — speaking in the user's own voice. Gated behind `futureSelfEnabled` feature flag + two admin-tunable thresholds. Reuses the existing session infrastructure via a `mode?: 'therapist' | 'futureSelf'` field on the `Session` type.
+
+**Gating:** `useFutureSelfUnlock()` hook checks the feature flag and compares entry/session counts against `futureSelf.minEntries` (default 15) and `futureSelf.minSessions` (default 3) from `appConfig/global`. Both thresholds set to 0 = force-unlock (admin testing). Only "real" entries (non-empty `plainText`) and "real" sessions (≥2 messages) count toward progress.
+
+**Voice mimicry:** `loadFutureSelfContext()` extends `loadTherapistContext()` with a `voiceExcerpts` pack — 5–8 short sentences sampled from the user's own recent entries, scored by first-person/emotional-marker density and deduplicated by 6-word prefix. These are injected into the prompt as "How you write (your own words)" so the AI mirrors the writer's rhythm and diction.
+
+**Prompt composition:** `buildFutureSelfSystemPrompt()` mirrors `buildTherapistSystemPrompt()` but swaps the persona block (ambiguous "somewhere further on" time framing — no fixed years). The `SAFETY_RULES` block is exported from `therapistPrompts.ts` and used verbatim in both files — never paraphrased — so both personas share one authoritative safety directive.
+
+**Crisis handling:** When `isGrounding` is true, the Future Self persona is *entirely dropped*. The prompt collapses to a plain grounding voice + SAFETY block. This preserves the existing `sessionOrchestrator.checkCrisisKeywords()` → `activateGrounding()` path unchanged and prevents the persona from inadvertently validating harmful ideation through "healed future" framing.
+
+**UI:** Third card on `/new` choice screen (alongside Journal and Conversation). Rendered with purple drift glow (`future-glow` class). Locked state greys to 0.55 opacity with lock glyph + progress line ("12 / 15 entries · 2 / 3 sessions"). Click-while-locked opens a modal explanation. Sidebar distinguishes Future Self sessions with a concentric-circle icon instead of the chat-bubble.
+
+**i18n:** All 17 languages have `choice.futureSelf.*` keys (title, tagline, desc, aria, locked.aria/progress/hint/dismiss) + `futureSelf.sessionHeader`.
+
+**Admin:** `AdminSettings.tsx` "Future Self Mode" collapsible section exposes the feature flag, both thresholds (0–60 entries, 0–20 sessions), and voice excerpt count (3–15).
 
 ### HRV Biofeedback (Session Mode)
 
@@ -148,7 +166,7 @@ Webcam-based heart rate variability monitoring using remote photoplethysmography
 
 ## Testing
 
-Vitest (~404 tests, 17 test files). Tests cover: `llmCorrect` (sentence extraction, CJK/Hindi/Thai, trigger logic, correction validation), `annotationParser` (parsing, ghost capitalization, delimiter), `bodyMapEngine` (emotion-to-color mapping, homunculus state computation), `ritualEngine`, `pauseDetector`, `partOrchestrator`, `weatherEngine`, `settings`, `sessionOrchestrator` (phase detection, crisis keywords, emotion check, grounding activation), `sessionReflectionEngine`, `sessionPrompts`, `therapistPrompts`, `SessionView`, `hrvSignalWorker` (CHROM extraction, FFT, bandpass filter, peak detection), `hrvTimeline` (shift detection, prompt context builder), `promptSafety`.
+Vitest (~432 tests, 20 test files). Tests cover: `llmCorrect` (sentence extraction, CJK/Hindi/Thai, trigger logic, correction validation), `annotationParser` (parsing, ghost capitalization, delimiter), `bodyMapEngine` (emotion-to-color mapping, homunculus state computation), `ritualEngine`, `pauseDetector`, `partOrchestrator`, `weatherEngine`, `settings`, `sessionOrchestrator` (phase detection, crisis keywords, emotion check, grounding activation), `sessionReflectionEngine`, `sessionPrompts`, `therapistPrompts`, `futureSelfPrompts` (persona, voice excerpts, grounding override, SAFETY block presence, sanitization), `useFutureSelfUnlock` (threshold logic, force-unlock, empty-entry filtering), `SessionView`, `hrvSignalWorker` (CHROM extraction, FFT, bandpass filter, peak detection), `hrvTimeline` (shift detection, prompt context builder), `promptSafety`.
 
 ```bash
 npm run test             # Run all tests

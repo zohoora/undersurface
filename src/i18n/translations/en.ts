@@ -38,6 +38,7 @@ const en = {
   'settings.account': 'Account',
   'settings.signOut': 'Sign out',
   'settings.language': 'Language',
+  'settings.timezone': 'Timezone',
   'settings.appearance': 'Appearance',
   'settings.theme': 'Theme',
   'settings.themeAuto': 'Auto',
@@ -91,6 +92,15 @@ const en = {
   'choice.conversation.tagline': 'Sit with a companion',
   'choice.conversation.desc': 'A gentle back-and-forth. Share what\'s on your mind, and a companion responds — following where you lead.',
   'choice.conversation.aria': 'Start a conversation — sit with a companion who follows where you lead',
+  'choice.futureSelf.title': 'Future Self',
+  'choice.futureSelf.tagline': 'Speak with who you\'re becoming',
+  'choice.futureSelf.desc': 'A conversation with the you from further on — warmer, slower to judge, more curious. Speaks in your own voice.',
+  'choice.futureSelf.aria': 'Start a conversation with your future self',
+  'choice.futureSelf.locked.aria': 'Future Self — locked until you have written more',
+  'choice.futureSelf.locked.progress': '{entriesHave} / {entriesNeed} entries · {sessionsHave} / {sessionsNeed} sessions',
+  'choice.futureSelf.locked.hint': 'This mode opens once you\'ve spent more time here. It needs to know you before it can speak as you.',
+  'choice.futureSelf.locked.dismiss': 'Okay',
+  'futureSelf.sessionHeader': 'Future Self',
 
   // Body Map
   'bodyMap.title': 'Body',

@@ -87,6 +87,8 @@ export type SessionPhase = 'opening' | 'deepening' | 'closing'
 export type SessionOpeningMethod = 'auto' | 'user_chose' | 'open_invitation'
 export type EmergenceReason = 'emotional_gravity' | 'tension' | 'user_invitation'
 
+export type SessionMode = 'therapist' | 'futureSelf'
+
 export interface Session {
   id: string
   startedAt: number
@@ -102,6 +104,7 @@ export interface Session {
   phase: SessionPhase
   favorited?: boolean
   isTherapistSession?: boolean
+  mode?: SessionMode
 }
 
 export interface SessionMessage {

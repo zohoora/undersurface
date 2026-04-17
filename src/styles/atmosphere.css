@@ -1805,6 +1805,56 @@ body {
   50% { opacity: 1; transform: scale(1.1); }
 }
 
+/* ── Future Self card (third mode) ──────────────────── */
+
+.entry-choice-card.entered.entered-delay-2 {
+  transition-delay: 240ms;
+}
+
+.entry-choice-card.future-self.locked {
+  cursor: pointer;
+}
+
+.entry-choice-card.future-self.locked:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 18px var(--overlay-subtle);
+}
+
+.future-glow::before {
+  content: '';
+  position: absolute;
+  top: -30%;
+  right: -10%;
+  width: 70%;
+  height: 80%;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse,
+    rgba(138, 112, 168, 0.07) 0%,
+    rgba(138, 112, 168, 0.03) 50%,
+    transparent 70%
+  );
+  animation: future-drift 7s ease-in-out infinite;
+}
+
+[data-theme="dark"] .future-glow::before {
+  background: radial-gradient(
+    ellipse,
+    rgba(175, 150, 210, 0.09) 0%,
+    rgba(175, 150, 210, 0.04) 50%,
+    transparent 70%
+  );
+}
+
+.entry-choice-card:hover .future-glow::before {
+  animation-duration: 4s;
+}
+
+@keyframes future-drift {
+  0%, 100% { opacity: 0.55; transform: translate(0, 0) scale(0.95); }
+  50% { opacity: 1; transform: translate(-6%, 4%) scale(1.08); }
+}
+
 @keyframes blink {
   from, to { opacity: 1; }
   50% { opacity: 0; }

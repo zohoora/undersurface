@@ -27,7 +27,7 @@ interface Entry {
 
 type SidebarItem =
   | { kind: 'entry'; id: string; timestamp: number; preview: string; favorited?: boolean; title?: string }
-  | { kind: 'session'; id: string; timestamp: number; preview: string; status: 'active' | 'closed'; favorited?: boolean }
+  | { kind: 'session'; id: string; timestamp: number; preview: string; status: 'active' | 'closed'; favorited?: boolean; mode: 'therapist' | 'futureSelf' }
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(
@@ -130,8 +130,8 @@ export function EntriesList({ activeEntryId, onSelectEntry, navigateTo, currentP
     return text.slice(0, 40) + (text.length > 40 ? '...' : '')
   }
 
-  const handleSelectSession = (id: string) => {
-    navigateTo('/session/' + id)
+  const handleSelectSession = (id: string, mode: 'therapist' | 'futureSelf') => {
+    navigateTo((mode === 'futureSelf' ? '/future-self/' : '/session/') + id)
     if (isMobile) setIsOpen(false)
   }
 
@@ -154,6 +154,7 @@ export function EntriesList({ activeEntryId, onSelectEntry, navigateTo, currentP
       preview: getSessionPreview(s),
       status: s.status,
       favorited: s.favorited,
+      mode: s.mode === 'futureSelf' ? 'futureSelf' : 'therapist',
     }))
 
     let merged = [...entryItems, ...sessionItems]
@@ -290,8 +291,8 @@ export function EntriesList({ activeEntryId, onSelectEntry, navigateTo, currentP
                   ) : (
                     <div
                       key={item.id}
-                      className={`entry-item session-item ${currentPath === '/session/' + item.id ? 'active' : ''}`}
-                      onClick={() => handleSelectSession(item.id)}
+                      className={`entry-item session-item ${item.mode === 'futureSelf' ? 'future-self-session' : ''} ${(item.mode === 'futureSelf' ? '/future-self/' : '/session/') + item.id === currentPath ? 'active' : ''}`}
+                      onClick={() => handleSelectSession(item.id, item.mode)}
                       style={{ opacity: item.status === 'closed' ? 0.7 : 1 }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -309,9 +310,16 @@ export function EntriesList({ activeEntryId, onSelectEntry, navigateTo, currentP
                         )}
                       </div>
                       <span className="session-item-label">
-                        <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11" style={{ opacity: 0.45, marginRight: 4, verticalAlign: -1 }}>
-                          <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h7A2.5 2.5 0 0 1 14 2.5v7a2.5 2.5 0 0 1-2.5 2.5H7l-3.5 3.5V12H4.5A2.5 2.5 0 0 1 2 9.5v-7z" />
-                        </svg>
+                        {item.mode === 'futureSelf' ? (
+                          <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11" style={{ opacity: 0.55, marginRight: 4, verticalAlign: -1 }} aria-hidden="true">
+                            <circle cx="8" cy="8" r="3" />
+                            <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.5" />
+                          </svg>
+                        ) : (
+                          <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11" style={{ opacity: 0.45, marginRight: 4, verticalAlign: -1 }}>
+                            <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h7A2.5 2.5 0 0 1 14 2.5v7a2.5 2.5 0 0 1-2.5 2.5H7l-3.5 3.5V12H4.5A2.5 2.5 0 0 1 2 9.5v-7z" />
+                          </svg>
+                        )}
                         {item.preview}
                       </span>
                     </div>

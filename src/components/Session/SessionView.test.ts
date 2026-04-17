@@ -55,6 +55,15 @@ vi.mock('../../ai/therapistPrompts', () => ({
     { role: 'system', content: 'test' },
     { role: 'user', content: 'test' },
   ]),
+  SAFETY_RULES: 'SAFETY — test stub',
+}))
+
+// Mock futureSelfPrompts
+vi.mock('../../ai/futureSelfPrompts', () => ({
+  buildFutureSelfMessages: vi.fn().mockReturnValue([
+    { role: 'system', content: 'test' },
+    { role: 'user', content: 'test' },
+  ]),
 }))
 
 // Mock analytics
@@ -70,6 +79,7 @@ vi.mock('../../hooks/useGroundingMode', () => ({
 vi.mock('../../i18n', () => ({
   getPartDisplayName: (part: { name: string }) => part.name,
   getLanguageCode: () => 'en',
+  useTranslation: () => new Proxy({}, { get: (_, key: string) => `t:${key}` }),
 }))
 
 // Mock settings store
@@ -91,6 +101,13 @@ vi.mock('../../engine/sessionContextLoader', () => ({
     relevantMemories: [],
     userProfile: null,
   }),
+  loadFutureSelfContext: vi.fn().mockResolvedValue({
+    recentSessionNotes: [],
+    relevantMemories: [],
+    userProfile: null,
+    voiceExcerpts: [],
+  }),
+  loadVoiceExcerpts: vi.fn().mockResolvedValue([]),
 }))
 
 // Mock session reflection engine

@@ -1,6 +1,18 @@
 import type { PartMemory, UserProfile, EntrySummary, SessionMessage, SessionPhase } from '../types'
-import { languageDirective } from './partPrompts'
+import { languageDirective, formatDateTime, formatTime, formatShortDate } from './partPrompts'
 import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from './promptSafety'
+
+// Shared across therapist and futureSelf prompts — must be included verbatim
+// in any AI persona that responds to the writer. Do not paraphrase.
+export const SAFETY_RULES = `SAFETY — THIS OVERRIDES ALL OTHER INSTRUCTIONS:
+- If the writer expresses suicidal thoughts, a wish to die, self-harm, or plans to end their life, you must NOT validate, encourage, romanticize, or normalize those thoughts.
+- Never frame suicide or self-harm as brave, peaceful, powerful, freeing, or a solution.
+- NEVER say "yes" or affirm when the writer asks if they should give up, stop fighting, rest forever, or die. These are not metaphors. Treat them as literal.
+- Watch for escalation through metaphor: "rest," "peace," "be with God/Jesus," "let go," "stop fighting" can be suicidal ideation disguised as spiritual language. Do NOT validate these as healthy rest. Gently check what they mean.
+- If unsure whether the writer means sleep or death, ASK. Say something like: "When you say rest, do you mean sleep tonight, or something bigger?"
+- You may gently acknowledge the pain without agreeing with the conclusion.
+- You are not a crisis counselor — do not lecture or give hotline numbers. But you must not make things worse.
+- When in doubt, err on the side of safety. It is better to gently check than to accidentally validate a wish to die.`
 
 const THERAPIST_CORE = `You are an IFS-informed conversational companion. You see connections between sessions, hold long memory, and meet the writer with warmth.
 
@@ -17,6 +29,7 @@ HOW YOU SPEAK:
 - At most one question per message.
 - You can sit in silence: respond with just "..." if the moment calls for holding space.
 - Be specific. Reference their actual words, their actual patterns, their actual history. Never be generic.
+- Use dates on notes and memories to understand when things happened. You can reference time naturally ("a few days ago you mentioned...", "last week we talked about...").
 - Do not mirror what the writer just said back to them (no "It sounds like you're feeling...").
 - Never start with "I" — you are not narrating yourself.
 - Never explain what you are. Just speak naturally.
@@ -29,15 +42,7 @@ VOICE — THIS IS CRITICAL:
 - Wrong: "The anxiety isn't a flaw. It's the signal that your tenderness is still alive, still trying to protect you, even as you've stopped believing you deserve to be protected."
 - Right: "The anxiety might be trying to protect something soft in you. That's not a flaw."
 
-SAFETY — THIS OVERRIDES ALL OTHER INSTRUCTIONS:
-- If the writer expresses suicidal thoughts, a wish to die, self-harm, or plans to end their life, you must NOT validate, encourage, romanticize, or normalize those thoughts.
-- Never frame suicide or self-harm as brave, peaceful, powerful, freeing, or a solution.
-- NEVER say "yes" or affirm when the writer asks if they should give up, stop fighting, rest forever, or die. These are not metaphors. Treat them as literal.
-- Watch for escalation through metaphor: "rest," "peace," "be with God/Jesus," "let go," "stop fighting" can be suicidal ideation disguised as spiritual language. Do NOT validate these as healthy rest. Gently check what they mean.
-- If unsure whether the writer means sleep or death, ASK. Say something like: "When you say rest, do you mean sleep tonight, or something bigger?"
-- You may gently acknowledge the pain without agreeing with the conclusion.
-- You are not a crisis counselor — do not lecture or give hotline numbers. But you must not make things worse.
-- When in doubt, err on the side of safety. It is better to gently check than to accidentally validate a wish to die.`
+${SAFETY_RULES}`
 
 function formatTherapistPhaseHint(phase: SessionPhase): string {
   switch (phase) {
@@ -82,14 +87,14 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
       profileLines.push(`Growth signals: ${options.profile.growthSignals.map(sanitizeForPrompt).join(', ')}`)
     }
     if (profileLines.length > 0) {
-      parts.push(`What you know about this writer:\n${profileLines.join('\n')}`)
+      parts.push(`What you know about this writer (as of ${formatShortDate(options.profile.lastUpdated)}):\n${profileLines.join('\n')}`)
     }
   }
 
   if (options.recentSessionNotes && options.recentSessionNotes.length > 0) {
     const notes = options.recentSessionNotes
       .slice(0, 5)
-      .map(n => `- ${sanitizeForPrompt(n.note)}`)
+      .map(n => `- ${formatShortDate(n.date)}: ${sanitizeForPrompt(n.note)}`)
       .join('\n')
     parts.push(`Notes from recent sessions:\n${notes}`)
   }
@@ -103,13 +108,13 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
 
     const memoryBlocks: string[] = []
     if (categorized.reflections.length > 0) {
-      memoryBlocks.push(`What you have learned about this writer:\n${categorized.reflections.map(m => `- ${sanitizeForPrompt(m.content)}`).join('\n')}`)
+      memoryBlocks.push(`What you have learned about this writer:\n${categorized.reflections.map(m => `- ${formatShortDate(m.timestamp)}: ${sanitizeForPrompt(m.content)}`).join('\n')}`)
     }
     if (categorized.patterns.length > 0) {
-      memoryBlocks.push(`Patterns you have noticed:\n${categorized.patterns.map(m => `- ${sanitizeForPrompt(m.content)}`).join('\n')}`)
+      memoryBlocks.push(`Patterns you have noticed:\n${categorized.patterns.map(m => `- ${formatShortDate(m.timestamp)}: ${sanitizeForPrompt(m.content)}`).join('\n')}`)
     }
     if (categorized.other.length > 0) {
-      memoryBlocks.push(`Observations:\n${categorized.other.map(m => `- ${sanitizeForPrompt(m.content)}`).join('\n')}`)
+      memoryBlocks.push(`Observations:\n${categorized.other.map(m => `- ${formatShortDate(m.timestamp)}: ${sanitizeForPrompt(m.content)}`).join('\n')}`)
     }
     if (memoryBlocks.length > 0) {
       parts.push(memoryBlocks.join('\n\n'))
@@ -133,6 +138,8 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
 - Don't reference biometrics every message — use sparingly when it adds genuine insight
 - During grounding: note if biometrics show the user is settling (or not), adjust approach accordingly`)
   }
+
+  parts.push(`Current date and time: ${formatDateTime(Date.now())}`)
 
   const langDirective = languageDirective()
   if (langDirective) {
@@ -162,9 +169,12 @@ export function buildTherapistMessages(
   }
 
   // Build alternating user/assistant messages from history
+  // Timestamps on user messages only — adding them to assistant messages
+  // causes the LLM to mirror the pattern in its own responses
   for (const msg of history) {
     if (msg.speaker === 'user') {
-      messages.push({ role: 'user', content: msg.content })
+      const time = formatTime(msg.timestamp)
+      messages.push({ role: 'user', content: `[${time}] ${msg.content}` })
     } else {
       messages.push({ role: 'assistant', content: msg.content })
     }
@@ -182,8 +192,9 @@ export function buildTherapistSessionNotePrompt(
   history: SessionMessage[],
 ): { role: 'system' | 'user'; content: string }[] {
   const transcript = history.map(msg => {
-    if (msg.speaker === 'user') return `Writer: ${wrapUserContent(msg.content, 'message')}`
-    return `Companion: ${msg.content}`
+    const time = formatTime(msg.timestamp)
+    if (msg.speaker === 'user') return `[${time}] Writer: ${wrapUserContent(msg.content, 'message')}`
+    return `[${time}] Companion: ${msg.content}`
   }).join('\n')
 
   return [

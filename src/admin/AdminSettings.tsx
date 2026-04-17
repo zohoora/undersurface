@@ -35,6 +35,7 @@ const DEFAULTS: GlobalConfig = {
     intentionsEnabled: false,
     guidedExplorations: false,
     webcamHrv: false,
+    futureSelfEnabled: false,
   },
   atmosphere: {
     timeShiftIntensity: 0.3,
@@ -79,6 +80,11 @@ const DEFAULTS: GlobalConfig = {
   explorations: {
     maxPrompts: 3,
     triggerOnNewEntry: true,
+  },
+  futureSelf: {
+    minEntries: 15,
+    minSessions: 3,
+    voiceExcerptCount: 8,
   },
   announcement: null,
   updatedAt: 0,
@@ -170,6 +176,9 @@ export function AdminSettings() {
 
   const setExplore = (key: string, value: number | boolean) =>
     setConfig({ ...config, explorations: { ...config.explorations, [key]: value } })
+
+  const setFutureSelf = (key: string, value: number) =>
+    setConfig({ ...config, futureSelf: { ...config.futureSelf, [key]: value } })
 
   const inputStyle = {
     padding: '8px 12px',
@@ -761,6 +770,45 @@ export function AdminSettings() {
           checked={!!config.features.webcamHrv}
           onChange={(v) => setFeature('webcamHrv', v)}
         />
+      </CollapsibleSection>
+
+      {/* Future Self Mode */}
+      <CollapsibleSection
+        title="Future Self Mode"
+        isExpanded={!!expanded.futureSelf}
+        onToggle={() => toggle('futureSelf')}
+        style={sectionStyle}
+      >
+        <ToggleRow
+          label="Enable Future Self Mode"
+          checked={!!config.features.futureSelfEnabled}
+          onChange={(v) => setFeature('futureSelfEnabled', v)}
+        />
+        {config.features.futureSelfEnabled && (
+          <>
+            <SliderRow
+              label="Min Entries to Unlock"
+              value={config.futureSelf?.minEntries ?? 15}
+              min={0} max={60} step={1}
+              onChange={(v) => setFutureSelf('minEntries', v)}
+            />
+            <SliderRow
+              label="Min Sessions to Unlock"
+              value={config.futureSelf?.minSessions ?? 3}
+              min={0} max={20} step={1}
+              onChange={(v) => setFutureSelf('minSessions', v)}
+            />
+            <SliderRow
+              label="Voice Excerpt Count"
+              value={config.futureSelf?.voiceExcerptCount ?? 8}
+              min={3} max={15} step={1}
+              onChange={(v) => setFutureSelf('voiceExcerptCount', v)}
+            />
+            <div style={{ fontSize: 11, color: '#A09A94', marginTop: 8, lineHeight: 1.5 }}>
+              Set both thresholds to 0 to force-unlock for all users (useful for testing).
+            </div>
+          </>
+        )}
       </CollapsibleSection>
 
       <div style={sectionStyle}>
