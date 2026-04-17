@@ -14,7 +14,7 @@ import { buildTherapistMessages } from '../../ai/therapistPrompts'
 import { buildFutureSelfMessages } from '../../ai/futureSelfPrompts'
 import { streamChatCompletion } from '../../ai/openrouter'
 import { loadTherapistContext, loadFutureSelfContext } from '../../engine/sessionContextLoader'
-import type { TherapistContext, FutureSelfContext } from '../../engine/sessionContextLoader'
+import type { FutureSelfContext } from '../../engine/sessionContextLoader'
 import { reflectOnSession } from '../../engine/sessionReflectionEngine'
 import { getWeatherEngine } from '../../store/weatherStore'
 import { isGroundingActive } from '../../hooks/useGroundingMode'
@@ -24,6 +24,11 @@ import { SessionMessageBubble } from './SessionMessage'
 import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
 import type { Session, SessionMessage, SessionMode, EmotionalTone } from '../../types'
+
+const HOST_PART_ID: Record<SessionMode, string> = {
+  therapist: 'therapist',
+  futureSelf: 'future-self',
+}
 
 interface Props {
   sessionId: string | null
@@ -46,7 +51,9 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
   const hrv = useHrvSession(sessionIdRef)
 
   const orchestratorRef = useRef(new SessionOrchestrator())
-  const therapistContextRef = useRef<TherapistContext | FutureSelfContext | null>(null)
+  // Holds therapist or future-self context (superset). `voiceExcerpts` is only
+  // populated in future-self mode and ignored by the therapist prompt builder.
+  const contextRef = useRef<FutureSelfContext | null>(null)
   const weatherEngine = getWeatherEngine()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const sessionRef = useRef<Session | null>(null)
@@ -77,7 +84,7 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
         ? await loadFutureSelfContext()
         : await loadTherapistContext()
       if (cancelled) return
-      therapistContextRef.current = context
+      contextRef.current = context
 
       if (sessionId) {
         // Load existing session
@@ -112,7 +119,7 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
       startedAt: Date.now(),
       endedAt: null,
       status: 'active',
-      hostPartId: isFutureSelf ? 'future-self' : 'therapist',
+      hostPartId: HOST_PART_ID[mode],
       participantPartIds: [],
       openingMethod,
       sessionNote: null,
@@ -131,7 +138,7 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
 
     trackEvent('session_started', {
       opening_method: openingMethod,
-      host_part: isFutureSelf ? 'future-self' : 'therapist',
+      host_part: HOST_PART_ID[mode],
       mode,
     })
 
@@ -153,7 +160,7 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
     const phase = orchestrator.detectPhase(currentMessages)
     const maxTokens = orchestrator.getMaxTokens(phase)
 
-    const context = therapistContextRef.current
+    const context = contextRef.current
     const hrvContext = hrv.buildPromptContext()
     const promptOptions = {
       phase,
@@ -166,7 +173,7 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
     const promptMessages = isFutureSelf
       ? buildFutureSelfMessages(currentMessages, {
           ...promptOptions,
-          voiceExcerpts: (context as FutureSelfContext | null)?.voiceExcerpts,
+          voiceExcerpts: context?.voiceExcerpts,
         })
       : buildTherapistMessages(currentMessages, promptOptions)
 

@@ -7,6 +7,7 @@ import {
   updateDoc,
   query,
   orderBy,
+  limit,
   writeBatch,
   getCountFromServer,
   where,
@@ -83,6 +84,24 @@ function createCollectionProxy<T extends DocumentData = DocumentData>(name: stri
           return {
             async toArray(): Promise<T[]> {
               const q = query(userCollection(name), orderBy(field, 'desc'))
+              const snap = await getDocs(q)
+              return snap.docs.map((d) => d.data() as T)
+            },
+            limit(n: number) {
+              return {
+                async toArray(): Promise<T[]> {
+                  const q = query(userCollection(name), orderBy(field, 'desc'), limit(n))
+                  const snap = await getDocs(q)
+                  return snap.docs.map((d) => d.data() as T)
+                },
+              }
+            },
+          }
+        },
+        limit(n: number) {
+          return {
+            async toArray(): Promise<T[]> {
+              const q = query(userCollection(name), orderBy(field, 'asc'), limit(n))
               const snap = await getDocs(q)
               return snap.docs.map((d) => d.data() as T)
             },
