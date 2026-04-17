@@ -90,6 +90,19 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
         // Load existing session
         const existingSession = await db.sessions.get(sessionId)
         if (cancelled || !existingSession) return
+
+        // Correct the URL if the stored session's mode doesn't match what the URL claims.
+        // This prevents loading a Future Self session through the therapist code path
+        // (wrong prompts, missing voice excerpts).
+        const storedMode = existingSession.mode === 'futureSelf' ? 'futureSelf' : 'therapist'
+        if (storedMode !== mode) {
+          const correctPath = storedMode === 'futureSelf'
+            ? `/future-self/${sessionId}`
+            : `/session/${sessionId}`
+          window.location.replace(correctPath)
+          return
+        }
+
         setSession(existingSession)
         sessionRef.current = existingSession
 

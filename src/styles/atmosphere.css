@@ -1871,7 +1871,9 @@ body {
   .entry-choice-backdrop {
     padding: 20px;
     align-items: flex-start;
-    padding-top: 15vh;
+    padding-top: 8vh;
+    padding-bottom: 40px;
+    overflow-y: auto;
   }
 
   .entry-choice-container {
@@ -1880,7 +1882,7 @@ body {
   }
 
   .entry-choice-card {
-    padding: 28px;
+    padding: 24px;
   }
 
   .entry-choice-title {

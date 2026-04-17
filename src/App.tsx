@@ -213,7 +213,8 @@ function App() {
           if (todaySession) {
             const entryIsMoreRecent = hasRealTodayEntry && todayEntry.updatedAt >= todaySession.startedAt
             if (!entryIsMoreRecent) {
-              navigateTo(`/session/${todaySession.id}`)
+              const basePath = todaySession.mode === 'futureSelf' ? '/future-self' : '/session'
+              navigateTo(`${basePath}/${todaySession.id}`)
             }
           } else if (!hasRealTodayEntry) {
             navigateTo('/new')
