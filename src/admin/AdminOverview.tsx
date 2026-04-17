@@ -109,7 +109,7 @@ export function AdminOverview() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {data.recentActivity.map((item) => (
-            <div key={item.entryId} style={{
+            <div key={item.itemId} style={{
               background: '#FFFFFF',
               borderRadius: 8,
               padding: '14px 20px',
@@ -120,7 +120,10 @@ export function AdminOverview() {
             }}>
               <div>
                 <span style={{ fontSize: 13, fontWeight: 500 }}>{item.displayName}</span>
-                <span style={{ fontSize: 12, color: '#A09A94', marginLeft: 12 }}>
+                <span style={{ fontSize: 10, color: '#C4BEB8', marginLeft: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  {item.type === 'conversation' ? 'convo' : 'entry'}
+                </span>
+                <span style={{ fontSize: 12, color: '#A09A94', marginLeft: 8 }}>
                   {item.preview.slice(0, 80)}{item.preview.length > 80 ? '...' : ''}
                 </span>
               </div>

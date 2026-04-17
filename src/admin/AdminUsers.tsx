@@ -12,7 +12,7 @@ const columns: { key: SortKey; label: string }[] = [
   { key: 'interactionCount', label: 'Interactions' },
   { key: 'totalWords', label: 'Words' },
   { key: 'partCount', label: 'Parts' },
-  { key: 'sessionCount', label: 'Convos' },
+  { key: 'sessionCount', label: 'Sessions' },
   { key: 'createdAt', label: 'Signup' },
   { key: 'lastActive', label: 'Last Active' },
 ]

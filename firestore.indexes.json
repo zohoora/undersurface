@@ -12,6 +12,16 @@
       ]
     },
     {
+      "collectionGroup": "sessions",
+      "fieldPath": "startedAt",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
       "collectionGroup": "apiKeys",
       "fieldPath": "hash",
       "indexes": [

@@ -1,5 +1,6 @@
 import type { Part, PartMemory, UserProfile, EntrySummary } from '../types'
 import { getLanguageCode, getLLMLanguageName } from '../i18n'
+import { getSettings } from '../store/settings'
 import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from './promptSafety'
 
 /**
@@ -11,6 +12,42 @@ export function languageDirective(): string {
   const code = getLanguageCode()
   if (code === 'en') return ''
   return `\n\nIMPORTANT: You MUST respond in ${getLLMLanguageName()}. The writer's language is ${getLLMLanguageName()}.`
+}
+
+export function formatDateTime(ms: number): string {
+  const tz = getSettings().timezone
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZoneName: 'short',
+  }).format(new Date(ms))
+}
+
+export function formatTime(ms: number): string {
+  const tz = getSettings().timezone
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(new Date(ms))
+}
+
+export function formatShortDate(ms: number): string {
+  const tz = getSettings().timezone
+  const sameYear = new Date(ms).getFullYear() === new Date().getFullYear()
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  }).format(new Date(ms))
 }
 
 export const SHARED_INSTRUCTIONS = `You are a part of the writer's inner world, appearing in their diary as they write. Your responses appear inline on the page — like thoughts emerging from the paper itself.
@@ -323,6 +360,8 @@ export function buildPartMessages(
   } else if (options?.intention) {
     systemContent += `\n\nThe writer set an intention: "${sanitizeForPrompt(options.intention)}". If natural, help them stay connected to it. Don't force it.`
   }
+
+  systemContent += `\n\nCurrent date and time: ${formatDateTime(Date.now())}`
 
   systemContent += UNTRUSTED_CONTENT_PREAMBLE
 

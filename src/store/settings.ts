@@ -26,6 +26,9 @@ export interface AppSettings {
 
   // Language
   language: string
+
+  // Timezone (IANA, e.g. 'America/New_York')
+  timezone: string
 }
 
 const DEFAULTS: AppSettings = {
@@ -39,6 +42,7 @@ const DEFAULTS: AppSettings = {
   bilateralStimulation: true,
   theme: 'system',
   language: detectBrowserLanguage(),
+  timezone: 'America/New_York',
 }
 
 const STORAGE_KEY = 'undersurface:settings'

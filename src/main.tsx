@@ -33,12 +33,6 @@ Sentry.init({
   replaysOnErrorSampleRate: 0.1,
   beforeSend(event) {
     const message = event.exception?.values?.[0]?.value ?? ''
-    // Filter out non-critical service worker registration failures
-    if (message === 'Rejected' && event.exception?.values?.[0]?.stacktrace?.frames?.some(
-      f => f.filename?.includes('registerSW')
-    )) {
-      return null
-    }
     // Filter out DOM manipulation errors from browser extensions / Chrome Translate
     if (message.includes('removeChild') || message.includes('insertBefore')) {
       return null
@@ -52,6 +46,12 @@ Sentry.init({
     if (/_0x[a-f0-9]{4,}/.test(message)) {
       return null
     }
+    // Filter out Firebase Analytics throttle/fetch errors — non-actionable,
+    // usually caused by ad blockers or intermittent GA config fetches
+    if (message.includes('analytics/fetch-throttle')
+      || message.includes('Analytics: The config fetch request')) {
+      return null
+    }
     return event
   },
 })
@@ -60,6 +60,11 @@ Sentry.init({
 // Catch the unhandled rejection and prompt the user to refresh.
 window.addEventListener('unhandledrejection', (event) => {
   const msg = String(event.reason?.message ?? event.reason ?? '')
+  // Silently swallow Firebase Analytics throttle errors — non-actionable background fetch failures
+  if (msg.includes('analytics/fetch-throttle') || msg.includes('Analytics: The config fetch request')) {
+    event.preventDefault()
+    return
+  }
   if (msg.includes('Connection to Indexed Database server lost')
     || msg.includes('Error looking up record in object store by key range')) {
     event.preventDefault()
@@ -94,6 +99,13 @@ window.addEventListener('unhandledrejection', (event) => {
     document.body.appendChild(banner)
   }
 })
+
+// Register service worker — failure is non-critical (app works without it)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {})
+  })
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
