@@ -460,6 +460,10 @@ function App() {
 
   // Redirect invalid routes (admin without permission, unknown paths)
   useEffect(() => {
+    // Do not redirect while auth is still resolving — user?.email is legitimately
+    // undefined during loading and must not be treated as "not admin"
+    if (loading) return
+
     if (routePath.startsWith('/admin') && !ADMIN_EMAILS.includes(user?.email || '')) {
       window.history.replaceState(null, '', '/')
       setRoutePath('/')
@@ -473,7 +477,7 @@ function App() {
       window.history.replaceState(null, '', '/')
       setRoutePath('/')
     }
-  }, [routePath, user?.email])
+  }, [routePath, user?.email, loading])
 
   // Loading state
   if (loading) {
