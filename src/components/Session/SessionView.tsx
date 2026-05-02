@@ -13,7 +13,7 @@ import { SessionOrchestrator } from '../../engine/sessionOrchestrator'
 import { buildTherapistMessages, buildTherapistSystemPrompt } from '../../ai/therapistPrompts'
 import { buildFutureSelfMessages } from '../../ai/futureSelfPrompts'
 import { useVoiceSession } from '../../hooks/useVoiceSession'
-import { VoiceField, type TranscriptEmission } from './VoiceField'
+import { VoiceField } from './VoiceField'
 import { streamChatCompletion } from '../../ai/openrouter'
 import { loadTherapistContext, loadFutureSelfContext } from '../../engine/sessionContextLoader'
 import type { FutureSelfContext } from '../../engine/sessionContextLoader'
@@ -63,26 +63,7 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
   const handleSendRef = useRef<() => void>(() => {})
 
   const voice = useVoiceSession()
-  // Voice emissions live in a ref + version counter, not state-with-array-copy.
-  // Each emission used to rebuild the entire cumulative array (O(n²) total over
-  // a voice session). The version counter triggers a re-render; VoiceField reads
-  // from the ref and tracks consumed emissions by id.
-  const voiceEmissionsRef = useRef<TranscriptEmission[]>([])
-  const [voiceEmissionVersion, setVoiceEmissionVersion] = useState(0)
   const voiceEnabled = !isFutureSelf && getGlobalConfig()?.features?.voiceEnabled === true
-
-  const emitTranscript = useCallback((speaker: 'user' | 'ai', text: string) => {
-    const trimmed = text.trim()
-    if (!trimmed) return
-    const next: TranscriptEmission = { id: voiceEmissionsRef.current.length, speaker, text: trimmed }
-    voiceEmissionsRef.current.push(next)
-    setVoiceEmissionVersion(v => v + 1)
-  }, [])
-
-  const resetVoiceEmissions = useCallback(() => {
-    voiceEmissionsRef.current = []
-    setVoiceEmissionVersion(0)
-  }, [])
 
   const handleAutocorrect = useAutocorrect({
     autocorrect: settings.autocorrect,
@@ -484,20 +465,15 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
     const preferredVoice = getGlobalConfig()?.voice?.defaultVoice ?? 'marin'
 
     trackEvent('voice_session_started', { session_id: sessionRef.current?.id ?? '' })
-    resetVoiceEmissions()
 
     await voice.start({
       instructions,
       voice: preferredVoice,
       onUserTranscript: (text) => {
         void appendUserMessage(text, 'voice')
-        emitTranscript('user', text)
       },
       onAssistantTranscript: (text) => {
         void persistVoiceTherapistMessage(text)
-      },
-      onAssistantWordFragment: (fragment) => {
-        emitTranscript('ai', fragment)
       },
       onAssistantSpeakingChange: (speaking) => {
         if (hrv.enabled) {
@@ -509,7 +485,7 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
       },
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voice, hrv, appendUserMessage, persistVoiceTherapistMessage, emitTranscript])
+  }, [voice, hrv, appendUserMessage, persistVoiceTherapistMessage])
 
   const handleEndVoice = useCallback(() => {
     voice.stop()
@@ -853,8 +829,6 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
         assistantSpeaking={voice.assistantSpeaking}
         userSpeaking={voice.userSpeaking}
         remoteStream={voice.remoteStream}
-        transcriptEmissions={voiceEmissionsRef.current}
-        emissionVersion={voiceEmissionVersion}
         dominantEmotion={weatherEngine.getCurrentDominantEmotion()}
         onToggleMute={voice.toggleMute}
         onEnd={handleEndVoice}

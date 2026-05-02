@@ -9,12 +9,6 @@ import {
   type FieldPalette,
 } from '../../engine/voiceFieldColors'
 
-export interface TranscriptEmission {
-  id: number
-  speaker: 'user' | 'ai'
-  text: string
-}
-
 interface Props {
   state: VoiceSessionState
   error: string | null
@@ -22,25 +16,9 @@ interface Props {
   assistantSpeaking: boolean
   userSpeaking: boolean
   remoteStream: MediaStream | null
-  // Cumulative emissions list lives in a ref on the parent; emissionVersion
-  // bumps on each new emission to trigger this component's effect. Reading from
-  // a ref means SessionView doesn't rebuild the array on every emission.
-  transcriptEmissions: TranscriptEmission[]
-  emissionVersion: number
   dominantEmotion: EmotionalTone
   onToggleMute: () => void
   onEnd: () => void
-}
-
-interface WordParticle {
-  text: string
-  speaker: 'user' | 'ai'
-  x: number
-  y: number
-  vx: number
-  vy: number
-  enteredAt: number
-  lifespanMs: number
 }
 
 interface CloudParticle {
@@ -55,10 +33,6 @@ type WindowWithWebkit = Window & { webkitAudioContext?: typeof AudioContext }
 const FFT_SIZE = 256
 const SPECTRUM_SIZE = FFT_SIZE / 2
 const CLOUD_PARTICLE_COUNT = 220
-const WORD_LIFESPAN_MS = 6500
-const WORD_LIFESPAN_JITTER_MS = 1200
-const WORD_STAGGER_MS = 120
-const WORD_MAX_ON_SCREEN = 24
 const BREATH_HZ = 0.25
 const PALETTE_TRANSITION_MS = 1500
 
@@ -69,8 +43,6 @@ export function VoiceField({
   assistantSpeaking,
   userSpeaking,
   remoteStream,
-  transcriptEmissions,
-  emissionVersion,
   dominantEmotion,
   onToggleMute,
   onEnd,
@@ -80,10 +52,6 @@ export function VoiceField({
   const audioCtxRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const cloudRef = useRef<CloudParticle[]>([])
-  const wordsRef = useRef<WordParticle[]>([])
-  // Track consumed emissions by id (not index) so the parent can trim the
-  // cumulative list without breaking our index tracking.
-  const lastEmissionIdRef = useRef(-1)
   const paletteRef = useRef<FieldPalette>(getFieldPalette(dominantEmotion))
   const paletteTargetRef = useRef<FieldPalette>(getFieldPalette(dominantEmotion))
   const paletteDirtyRef = useRef(false)
@@ -91,8 +59,6 @@ export function VoiceField({
   const amplitudeRef = useRef(0)
   // Cached background gradient; invalidated when size or top/bottom change.
   const bgGradientRef = useRef<{ grad: CanvasGradient; w: number; h: number; top: string; bottom: string } | null>(null)
-  // Font string recomputed only when dpr changes.
-  const fontStringRef = useRef('500 20px "Spectral", Georgia, serif')
 
   const [elapsed, setElapsed] = useState(0)
 
@@ -168,58 +134,9 @@ export function VoiceField({
   }, [remoteStream])
 
   useEffect(() => {
-    // Reset detection: parent cleared emissions (e.g., new voice session).
-    if (transcriptEmissions.length === 0) {
-      lastEmissionIdRef.current = -1
-      return
-    }
     const canvas = canvasRef.current
     if (!canvas) return
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
-    const width = canvas.width / dpr
-    const height = canvas.height / dpr
-    const cx = width / 2
-    const cy = height / 2
-    const now = performance.now()
-
-    // Read by id, not index — robust to parent trimming the array.
-    let highestId = lastEmissionIdRef.current
-    for (const emission of transcriptEmissions) {
-      if (emission.id <= lastEmissionIdRef.current) continue
-      if (emission.id > highestId) highestId = emission.id
-      const tokens = emission.text.trim().split(/\s+/).filter(w => w.length > 0)
-      for (const token of tokens) {
-        const angle = Math.random() * Math.PI * 2
-        const seedRadius = 20 + Math.random() * 70
-        const x = cx + Math.cos(angle) * seedRadius
-        const seedY = emission.speaker === 'ai'
-          ? cy - Math.abs(Math.sin(angle)) * seedRadius * 0.3
-          : cy + Math.abs(Math.sin(angle)) * seedRadius * 0.3
-        const directionY = emission.speaker === 'ai' ? -1 : 1
-        wordsRef.current.push({
-          text: token,
-          speaker: emission.speaker,
-          x,
-          y: seedY,
-          vx: (Math.random() - 0.5) * 0.12,
-          vy: directionY * (0.16 + Math.random() * 0.18),
-          enteredAt: now + Math.random() * WORD_STAGGER_MS,
-          lifespanMs: WORD_LIFESPAN_MS + Math.random() * WORD_LIFESPAN_JITTER_MS,
-        })
-      }
-    }
-    if (wordsRef.current.length > WORD_MAX_ON_SCREEN * 3) {
-      wordsRef.current = wordsRef.current.slice(-WORD_MAX_ON_SCREEN * 3)
-    }
-    lastEmissionIdRef.current = highestId
-    // emissionVersion is the trigger; transcriptEmissions ref-content read above.
-  }, [emissionVersion, transcriptEmissions])
-
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const dpr = Math.min(window.devicePixelRatio || 1, 2)
-    fontStringRef.current = `500 ${20 * dpr}px "Spectral", Georgia, serif`
 
     let rafId = 0
     let cancelled = false
@@ -318,49 +235,6 @@ export function VoiceField({
       ctx2d!.restore()
     }
 
-    function drawWords(now: number) {
-      const p = paletteRef.current
-      const words = wordsRef.current
-      if (words.length === 0) return
-
-      ctx2d!.save()
-      ctx2d!.font = fontStringRef.current
-      ctx2d!.textAlign = 'center'
-      ctx2d!.textBaseline = 'middle'
-      ctx2d!.shadowBlur = 14 * dpr
-
-      let writeIdx = 0
-      for (let i = 0; i < words.length; i++) {
-        const w = words[i]
-        const age = now - w.enteredAt
-        if (age < 0) {
-          words[writeIdx++] = w
-          continue
-        }
-        if (age > w.lifespanMs) continue
-
-        const inPhase = Math.min(age / 220, 1)
-        const lifeFrac = age / w.lifespanMs
-        const outPhase = lifeFrac > 0.45 ? 1 - (lifeFrac - 0.45) / 0.55 : 1
-        const alpha = inPhase * outPhase
-
-        w.x += w.vx
-        w.y += w.vy
-        w.vx *= 0.998
-        w.vy *= 0.998
-
-        const color = w.speaker === 'ai' ? p.aiText : p.userText
-        const rendered = rgba(color, Math.max(0, Math.min(alpha * color.a, 0.95)))
-        ctx2d!.fillStyle = rendered
-        ctx2d!.shadowColor = rendered
-        ctx2d!.fillText(w.text, w.x * dpr, w.y * dpr)
-
-        words[writeIdx++] = w
-      }
-      words.length = writeIdx
-      ctx2d!.restore()
-    }
-
     let lastFrame = performance.now()
     function frame(now: number) {
       if (cancelled) return
@@ -389,7 +263,6 @@ export function VoiceField({
       const breath = (Math.sin(phase) + 1) / 2
 
       drawCloud(cx, cy, amplitudeRef.current, breath)
-      drawWords(now)
 
       rafId = requestAnimationFrame(frame)
     }
