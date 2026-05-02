@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { useAuth } from '../auth/useAuth'
 import PolicyModal from './PolicyModal'
 import { useTranslation, SUPPORTED_LANGUAGES } from '../i18n'
@@ -230,8 +231,10 @@ function DemoEditor() {
 
 // --- Main component ---
 
+const showAppleSignIn = Capacitor.getPlatform() === 'ios'
+
 export function LoginScreen() {
-  const { signIn, signInWithEmail, signUpWithEmail, resetPassword } = useAuth()
+  const { signIn, signInWithApple, signInWithEmail, signUpWithEmail, resetPassword } = useAuth()
   const t = useTranslation()
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -242,19 +245,22 @@ export function LoginScreen() {
   const [mode, setMode] = useState<'signin' | 'signup' | 'reset'>('signin')
   const authRef = useRef<HTMLDivElement>(null)
 
-  const handleGoogleSignIn = async () => {
+  const runSocialSignIn = async (method: 'google' | 'apple', driver: () => Promise<void>) => {
     setError(null)
     setSuccess(null)
     setIsSigningIn(true)
     try {
-      await signIn()
+      await driver()
     } catch (err) {
-      trackEvent('auth_error', { method: 'google' })
+      trackEvent('auth_error', { method })
       setError(err instanceof Error ? err.message : 'Sign-in failed')
     } finally {
       setIsSigningIn(false)
     }
   }
+
+  const handleGoogleSignIn = () => runSocialSignIn('google', signIn)
+  const handleAppleSignIn = () => runSocialSignIn('apple', signInWithApple)
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -588,6 +594,34 @@ export function LoginScreen() {
                 </svg>
                 {t['login.signInWithGoogle']}
               </button>
+
+              {showAppleSignIn && (
+                <button
+                  onClick={handleAppleSignIn}
+                  disabled={isSigningIn}
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 14,
+                    padding: '10px 24px',
+                    border: 'none',
+                    borderRadius: 8,
+                    background: '#000',
+                    color: '#fff',
+                    cursor: isSigningIn ? 'wait' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    opacity: isSigningIn ? 0.6 : 1,
+                    width: FORM_WIDTH,
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff" aria-hidden="true">
+                    <path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12-1.06.396-2.18 1.103-2.95.825-.9 2.124-1.6 3.061-1.7zm4.565 17.18c-.622 1.456-.92 2.105-1.722 3.39-1.121 1.793-2.7 4.026-4.66 4.05-1.74.022-2.187-1.135-4.55-1.122-2.362.013-2.853 1.143-4.595 1.122-1.96-.024-3.456-2.04-4.577-3.832-3.13-5.012-3.46-10.892-1.527-14.022 1.373-2.222 3.541-3.521 5.578-3.521 2.073 0 3.376 1.135 5.092 1.135 1.665 0 2.679-1.137 5.075-1.137 1.812 0 3.731.987 5.097 2.692-4.479 2.452-3.749 8.872 1.789 11.245z"/>
+                  </svg>
+                  Sign in with Apple
+                </button>
+              )}
             </>
           )}
 

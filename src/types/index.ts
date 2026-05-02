@@ -1,5 +1,9 @@
 export type IFSRole = 'protector' | 'exile' | 'manager' | 'firefighter' | 'self'
 
+export type InputMode = 'desktop' | 'mobile' | 'voice'
+
+export type RegisterTierId = 'plain' | 'conversational' | 'literate' | 'scholarly'
+
 export interface Part {
   id: string
   name: string
@@ -46,6 +50,7 @@ export interface DiaryEntry {
   title?: string
   favorited?: boolean
   intention?: string
+  inputMode?: InputMode
   createdAt: number
   updatedAt: number
   thoughts?: PartThought[]
@@ -103,7 +108,6 @@ export interface Session {
   firstLine: string
   phase: SessionPhase
   favorited?: boolean
-  isTherapistSession?: boolean
   mode?: SessionMode
 }
 
@@ -117,6 +121,8 @@ export interface SessionMessage {
   phase: SessionPhase
   isEmergence: boolean
   emergenceReason?: EmergenceReason
+  inputMethod?: 'text' | 'voice'
+  userInputMode?: InputMode
 }
 
 export type PauseType =
@@ -174,6 +180,8 @@ export interface UserProfile {
   growthSignals: string[]
   innerLandscape: string
   lastUpdated: number
+  linguisticRegister?: RegisterTierId
+  lastClassifiedAtEntryCount?: number
 }
 
 export interface InnerWeather {

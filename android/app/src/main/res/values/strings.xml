@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">UnderSurface</string>
+    <string name="title_activity_main">UnderSurface</string>
+    <string name="package_name">me.undersurface.app</string>
+    <string name="custom_url_scheme">me.undersurface.app</string>
+</resources>

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
 import type { User } from 'firebase/auth'
-import { auth, googleProvider } from '../firebase'
+import { auth } from '../firebase'
 import { AuthContext } from './authContext'
 import * as Sentry from '@sentry/react'
 import { trackEvent, setAnalyticsUser, clearAnalyticsUser } from '../services/analytics'
+import { signInWithGoogle, signInWithApple as nativeSignInWithApple, signOutEverywhere } from './socialSignInDriver'
 
 declare global {
   interface Window {
@@ -40,14 +41,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe
   }, [])
 
-  const signIn = async () => {
-    const result = await signInWithPopup(auth, googleProvider)
-    trackEvent('sign_in', { method: 'google' })
-    // Google sign-in auto-creates accounts — track as conversion for new users
+  // Social sign-in auto-creates accounts on first use; track those as conversions.
+  const runSocialSignIn = async (method: 'google' | 'apple', driver: typeof signInWithGoogle) => {
+    const result = await driver()
+    trackEvent('sign_in', { method })
     if (result.user.metadata.creationTime === result.user.metadata.lastSignInTime) {
       trackAdConversion()
     }
   }
+
+  const signIn = () => runSocialSignIn('google', signInWithGoogle)
+  const signInWithApple = () => runSocialSignIn('apple', nativeSignInWithApple)
 
   const signInWithEmail = async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email, password)
@@ -65,11 +69,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
-    await firebaseSignOut(auth)
+    await signOutEverywhere()
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signInWithEmail, signUpWithEmail, resetPassword, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signInWithApple, signInWithEmail, signUpWithEmail, resetPassword, signOut }}>
       {children}
     </AuthContext.Provider>
   )

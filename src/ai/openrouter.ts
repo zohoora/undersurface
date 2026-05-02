@@ -1,5 +1,6 @@
 import { getSettings } from '../store/settings'
-import { getAuth } from 'firebase/auth'
+import { apiUrl } from '../api/apiBase'
+import { getAuthToken } from '../api/authedFetch'
 
 interface Message {
   role: 'system' | 'user' | 'assistant'
@@ -10,12 +11,6 @@ interface StreamCallbacks {
   onToken: (token: string) => void
   onComplete: (fullText: string) => void
   onError: (error: Error) => void
-}
-
-async function getAuthToken(): Promise<string> {
-  const user = getAuth().currentUser
-  if (!user) throw new Error('Not authenticated')
-  return user.getIdToken()
 }
 
 function getModel(): string {
@@ -33,7 +28,7 @@ export async function chatCompletion(
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    const response = await fetch('/api/chat', {
+    const response = await fetch(apiUrl('/api/chat'), {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -76,7 +71,7 @@ export async function streamChatCompletion(
 
     let response: Response
     try {
-      response = await fetch('/api/chat', {
+      response = await fetch(apiUrl('/api/chat'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

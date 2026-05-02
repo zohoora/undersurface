@@ -36,6 +36,7 @@ const DEFAULTS: GlobalConfig = {
     guidedExplorations: false,
     webcamHrv: false,
     futureSelfEnabled: false,
+    voiceEnabled: false,
   },
   atmosphere: {
     timeShiftIntensity: 0.3,
@@ -85,6 +86,9 @@ const DEFAULTS: GlobalConfig = {
     minEntries: 15,
     minSessions: 3,
     voiceExcerptCount: 8,
+  },
+  voice: {
+    defaultVoice: 'marin',
   },
   announcement: null,
   updatedAt: 0,
@@ -159,26 +163,18 @@ export function AdminSettings() {
   if (loading) return <div style={{ fontSize: 13, color: '#A09A94', padding: 20 }}>Loading...</div>
   if (!config) return <div style={{ fontSize: 13, color: '#A09A94', padding: 20 }}>No config loaded</div>
 
-  const setFeature = (key: string, value: boolean) =>
-    setConfig({ ...config, features: { ...config.features, [key]: value } })
+  const sectionSetter = <K extends keyof GlobalConfig>(section: K) =>
+    (key: string, value: unknown) =>
+      setConfig({ ...config, [section]: { ...(config[section] as object), [key]: value } })
 
-  const setAtmo = (key: string, value: number | string) =>
-    setConfig({ ...config, atmosphere: { ...config.atmosphere, [key]: value } })
-
-  const setPartInt = (key: string, value: number) =>
-    setConfig({ ...config, partIntelligence: { ...config.partIntelligence, [key]: value } })
-
-  const setEngage = (key: string, value: number) =>
-    setConfig({ ...config, engagement: { ...config.engagement, [key]: value } })
-
-  const setGround = (key: string, value: number) =>
-    setConfig({ ...config, grounding: { ...config.grounding, [key]: value } })
-
-  const setExplore = (key: string, value: number | boolean) =>
-    setConfig({ ...config, explorations: { ...config.explorations, [key]: value } })
-
-  const setFutureSelf = (key: string, value: number) =>
-    setConfig({ ...config, futureSelf: { ...config.futureSelf, [key]: value } })
+  const setFeature = sectionSetter('features')
+  const setAtmo = sectionSetter('atmosphere')
+  const setPartInt = sectionSetter('partIntelligence')
+  const setEngage = sectionSetter('engagement')
+  const setGround = sectionSetter('grounding')
+  const setExplore = sectionSetter('explorations')
+  const setFutureSelf = sectionSetter('futureSelf')
+  const setVoice = sectionSetter('voice')
 
   const inputStyle = {
     padding: '8px 12px',
@@ -770,6 +766,46 @@ export function AdminSettings() {
           checked={!!config.features.webcamHrv}
           onChange={(v) => setFeature('webcamHrv', v)}
         />
+      </CollapsibleSection>
+
+      {/* Voice Mode (Conversation / Therapist only) */}
+      <CollapsibleSection
+        title="Voice Mode"
+        isExpanded={!!expanded.voice}
+        onToggle={() => toggle('voice')}
+        style={sectionStyle}
+      >
+        <ToggleRow
+          label="Enable Voice Conversation"
+          checked={!!config.features.voiceEnabled}
+          onChange={(v) => setFeature('voiceEnabled', v)}
+        />
+        {config.features.voiceEnabled && (
+          <>
+            <div style={{ marginTop: 16, marginBottom: 0 }}>
+              <label style={labelStyle}>Default Voice (OpenAI Realtime)</label>
+              <select
+                value={config.voice?.defaultVoice ?? 'marin'}
+                onChange={(e) => setVoice('defaultVoice', e.target.value)}
+                style={inputStyle}
+              >
+                <option value="marin">Marin (warm, recommended)</option>
+                <option value="cedar">Cedar (grounded, recommended)</option>
+                <option value="alloy">Alloy</option>
+                <option value="ash">Ash</option>
+                <option value="ballad">Ballad</option>
+                <option value="coral">Coral</option>
+                <option value="echo">Echo</option>
+                <option value="sage">Sage</option>
+                <option value="shimmer">Shimmer</option>
+                <option value="verse">Verse</option>
+              </select>
+            </div>
+            <div style={{ fontSize: 11, color: '#A09A94', marginTop: 12, lineHeight: 1.5 }}>
+              Conversation (therapist) mode only. Uses OpenAI gpt-realtime via WebRTC. Locks voice sessions to OpenAI's model regardless of the default model above.
+            </div>
+          </>
+        )}
       </CollapsibleSection>
 
       {/* Future Self Mode */}

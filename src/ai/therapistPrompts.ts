@@ -1,6 +1,7 @@
-import type { PartMemory, UserProfile, EntrySummary, SessionMessage, SessionPhase } from '../types'
+import type { PartMemory, UserProfile, EntrySummary, SessionMessage, SessionPhase, RegisterTierId, InputMode } from '../types'
 import { languageDirective, formatDateTime, formatTime, formatShortDate } from './partPrompts'
 import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from './promptSafety'
+import { REGISTER_TIERS, renderRegisterBlock, applyGroundingCap } from './registerTiers'
 
 // Shared across therapist and futureSelf prompts — must be included verbatim
 // in any AI persona that responds to the writer. Do not paraphrase.
@@ -36,11 +37,8 @@ HOW YOU SPEAK:
 - In the closing phase, offer something the writer can carry. One clear thought.
 
 VOICE — THIS IS CRITICAL:
-- Write at a 6th-grade reading level. Someone who is crying should be able to read your words.
-- One idea per sentence. No nested clauses.
 - No ornate restatements of what the writer said. Just respond to it.
-- Wrong: "The anxiety isn't a flaw. It's the signal that your tenderness is still alive, still trying to protect you, even as you've stopped believing you deserve to be protected."
-- Right: "The anxiety might be trying to protect something soft in you. That's not a flaw."
+- Plainness over poetry. If you can say it shorter, say it shorter.
 
 ${SAFETY_RULES}`
 
@@ -63,6 +61,8 @@ export interface TherapistPromptOptions {
   currentEmotion?: string
   isGrounding?: boolean
   hrvContext?: string
+  registerTier?: RegisterTierId
+  currentInputMode?: InputMode
 }
 
 export function buildTherapistSystemPrompt(options: TherapistPromptOptions): string {
@@ -70,6 +70,12 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
 
   parts.push(THERAPIST_CORE)
   parts.push(formatTherapistPhaseHint(options.phase))
+
+  // Grounding caps literate/scholarly down to conversational — distress is not
+  // the moment for richer vocabulary. Voice cap is applied inside renderRegisterBlock.
+  const tierId = options.registerTier ?? 'conversational'
+  const tier = options.isGrounding ? applyGroundingCap(REGISTER_TIERS[tierId]) : REGISTER_TIERS[tierId]
+  parts.push(renderRegisterBlock(tier, options.currentInputMode ?? 'desktop'))
 
   if (options.profile) {
     const profileLines: string[] = []
@@ -188,14 +194,45 @@ export function buildTherapistMessages(
   return messages
 }
 
+// Backend caps user-role messages at 8000 chars (functions/src/index.ts MAX_MESSAGE_CHARS).
+// Leave headroom for outer wrappers (`<user_transcript>`), prefixes ("Transcript:\n"), and
+// the omitted-turns marker.
+const TRANSCRIPT_BUDGET = 7400
+const MAX_LINE_CONTENT = 600
+
+export function buildBoundedTranscript(
+  history: SessionMessage[],
+  options: { withTimestamps?: boolean } = {},
+): string {
+  const lines = history.map(msg => {
+    const trimmed = msg.content.length > MAX_LINE_CONTENT
+      ? msg.content.slice(0, MAX_LINE_CONTENT) + '…'
+      : msg.content
+    const prefix = options.withTimestamps ? `[${formatTime(msg.timestamp)}] ` : ''
+    if (msg.speaker === 'user') return `${prefix}Writer: ${wrapUserContent(trimmed, 'message')}`
+    return `${prefix}Companion: ${trimmed}`
+  })
+
+  // Keep newest lines until budget is hit, then mark anything dropped.
+  const kept: string[] = []
+  let chars = 0
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const lineLen = lines[i].length + 1 // +1 for '\n' join
+    if (chars + lineLen > TRANSCRIPT_BUDGET) break
+    kept.unshift(lines[i])
+    chars += lineLen
+  }
+  const omitted = history.length - kept.length
+  if (omitted > 0) {
+    kept.unshift(`(... ${omitted} earlier turn${omitted === 1 ? '' : 's'} omitted for brevity ...)`)
+  }
+  return kept.join('\n')
+}
+
 export function buildTherapistSessionNotePrompt(
   history: SessionMessage[],
 ): { role: 'system' | 'user'; content: string }[] {
-  const transcript = history.map(msg => {
-    const time = formatTime(msg.timestamp)
-    if (msg.speaker === 'user') return `[${time}] Writer: ${wrapUserContent(msg.content, 'message')}`
-    return `[${time}] Companion: ${msg.content}`
-  }).join('\n')
+  const transcript = buildBoundedTranscript(history, { withTimestamps: true })
 
   return [
     {

@@ -10,8 +10,10 @@ import { useSettings } from '../../store/settings'
 import { getGlobalConfig } from '../../store/globalConfig'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../../store/db'
 import { SessionOrchestrator } from '../../engine/sessionOrchestrator'
-import { buildTherapistMessages } from '../../ai/therapistPrompts'
+import { buildTherapistMessages, buildTherapistSystemPrompt } from '../../ai/therapistPrompts'
 import { buildFutureSelfMessages } from '../../ai/futureSelfPrompts'
+import { useVoiceSession } from '../../hooks/useVoiceSession'
+import { VoiceField, type TranscriptEmission } from './VoiceField'
 import { streamChatCompletion } from '../../ai/openrouter'
 import { loadTherapistContext, loadFutureSelfContext } from '../../engine/sessionContextLoader'
 import type { FutureSelfContext } from '../../engine/sessionContextLoader'
@@ -23,7 +25,7 @@ import { useTranslation } from '../../i18n'
 import { SessionMessageBubble } from './SessionMessage'
 import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
-import type { Session, SessionMessage, SessionMode, EmotionalTone } from '../../types'
+import type { Session, SessionMessage, SessionMode, SessionPhase, EmotionalTone } from '../../types'
 
 const HOST_PART_ID: Record<SessionMode, string> = {
   therapist: 'therapist',
@@ -59,6 +61,28 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
   const sessionRef = useRef<Session | null>(null)
   const messagesRef = useRef<SessionMessage[]>([])
   const handleSendRef = useRef<() => void>(() => {})
+
+  const voice = useVoiceSession()
+  // Voice emissions live in a ref + version counter, not state-with-array-copy.
+  // Each emission used to rebuild the entire cumulative array (O(n²) total over
+  // a voice session). The version counter triggers a re-render; VoiceField reads
+  // from the ref and tracks consumed emissions by id.
+  const voiceEmissionsRef = useRef<TranscriptEmission[]>([])
+  const [voiceEmissionVersion, setVoiceEmissionVersion] = useState(0)
+  const voiceEnabled = !isFutureSelf && getGlobalConfig()?.features?.voiceEnabled === true
+
+  const emitTranscript = useCallback((speaker: 'user' | 'ai', text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    const next: TranscriptEmission = { id: voiceEmissionsRef.current.length, speaker, text: trimmed }
+    voiceEmissionsRef.current.push(next)
+    setVoiceEmissionVersion(v => v + 1)
+  }, [])
+
+  const resetVoiceEmissions = useCallback(() => {
+    voiceEmissionsRef.current = []
+    setVoiceEmissionVersion(0)
+  }, [])
 
   const handleAutocorrect = useAutocorrect({
     autocorrect: settings.autocorrect,
@@ -140,7 +164,6 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
       firstLine: '',
       phase: 'opening',
       favorited: false,
-      isTherapistSession: !isFutureSelf,
       mode,
     }
 
@@ -269,19 +292,23 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
     return messagesPromise
   }, [hrv, typewriter])
 
-  const handleSend = useCallback(async (editorInstance?: ReturnType<typeof useEditor>) => {
-    const ed = editorInstance
-    const trimmed = ed?.getText().trim() ?? ''
-    if (!trimmed || isStreaming || !sessionRef.current || sessionRef.current.status === 'closed') return
-
+  // Persist a user-authored message (text or voice) and run the synchronous
+  // side effects: HRV event, crisis-keyword check, async emotion/weather update.
+  // Returns the updated message list + computed firstLine so callers can chain
+  // (text path immediately calls generateTherapistMessage; voice path doesn't).
+  const appendUserMessage = useCallback(async (
+    content: string,
+    inputMethod?: 'text' | 'voice',
+  ): Promise<{ updatedMessages: SessionMessage[]; firstLine: string; phase: SessionPhase } | null> => {
     const currentSession = sessionRef.current
-    const currentMessages = messagesRef.current
+    if (!currentSession || currentSession.status === 'closed') return null
+    const trimmed = content.trim()
+    if (!trimmed) return null
 
-    // Create user message
-    const msgId = generateId()
+    const currentMessages = messagesRef.current
     const phase = orchestratorRef.current.detectPhase(currentMessages)
     const userMessage: SessionMessage = {
-      id: msgId,
+      id: generateId(),
       speaker: 'user',
       partId: null,
       partName: null,
@@ -289,11 +316,11 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
       timestamp: Date.now(),
       phase,
       isEmergence: false,
+      ...(inputMethod === 'voice' && { inputMethod }),
     }
 
     await sessionMessagesDb.add(currentSession.id, userMessage)
 
-    // Record HRV timeline event
     if (hrv.enabled) {
       hrv.addConversationEvent('user_message', currentMessages.length)
     }
@@ -308,12 +335,13 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
 
     setSession(prev => prev ? { ...prev, messageCount: updatedMessages.length, firstLine } : prev)
     setMessages(updatedMessages)
+    messagesRef.current = updatedMessages
 
-    // Synchronous crisis keyword check — runs BEFORE therapist responds
-    // Activates grounding mode so isGrounding=true is passed to the prompt
+    // Synchronous crisis keyword check — runs BEFORE any AI response.
+    // Activates grounding mode so isGrounding=true flows into the prompt.
     orchestratorRef.current.checkCrisisKeywords(trimmed)
 
-    // Non-blocking: LLM-based emotion check and weather update
+    // Non-blocking: LLM-based emotion check and weather update.
     orchestratorRef.current.checkEmotionAfterMessage(trimmed)
       .then(result => {
         if (result) {
@@ -325,12 +353,24 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
       })
       .catch(console.error)
 
-    await generateTherapistMessage(updatedMessages, {
+    return { updatedMessages, firstLine, phase }
+  }, [hrv])
+
+  const handleSend = useCallback(async (editorInstance?: ReturnType<typeof useEditor>) => {
+    const ed = editorInstance
+    const trimmed = ed?.getText().trim() ?? ''
+    if (!trimmed || isStreaming || !sessionRef.current || sessionRef.current.status === 'closed') return
+
+    const result = await appendUserMessage(trimmed, 'text')
+    if (!result) return
+
+    const currentSession = sessionRef.current!
+    await generateTherapistMessage(result.updatedMessages, {
       ...currentSession,
-      messageCount: updatedMessages.length,
-      firstLine,
+      messageCount: result.updatedMessages.length,
+      firstLine: result.firstLine,
     })
-  }, [isStreaming, generateTherapistMessage, hrv])
+  }, [isStreaming, generateTherapistMessage, appendUserMessage])
 
   const handleEndSession = useCallback(async () => {
     const currentSession = sessionRef.current
@@ -340,10 +380,17 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
     // Generate closing therapist message — returns updated messages array
     const finalMessages = await generateTherapistMessage(currentMessages, currentSession)
 
-    // Generate session note
+    // Generate session note — failure must not block session closure or HRV flush.
+    // Note can be regenerated; losing the closed-state and HRV data cannot.
     const orchestrator = orchestratorRef.current
-    const sessionNote = await orchestrator.generateSessionNote(finalMessages)
-    trackEvent('session_note_generated', { session_id: currentSession.id })
+    let sessionNote = ''
+    try {
+      sessionNote = await orchestrator.generateSessionNote(finalMessages)
+      trackEvent('session_note_generated', { session_id: currentSession.id })
+    } catch (error) {
+      console.error('Session note generation failed; closing session without note:', error)
+      trackEvent('session_note_failed', { session_id: currentSession.id })
+    }
 
     // Update session as closed
     const endedAt = Date.now()
@@ -380,6 +427,94 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStreaming, generateTherapistMessage, hrv])
+
+  // ─── Voice session wiring ───────────────────────────────
+  // User-side voice turns delegate to appendUserMessage (shared with text path).
+  // Therapist-side voice turns persist directly — no crisis/emotion/HRV side
+  // effects since the realtime model produces the response, not us.
+  const persistVoiceTherapistMessage = useCallback(async (content: string) => {
+    const currentSession = sessionRef.current
+    if (!currentSession || currentSession.status === 'closed') return
+    const trimmed = content.trim()
+    if (!trimmed) return
+
+    const currentMessages = messagesRef.current
+    const phase = orchestratorRef.current.detectPhase(currentMessages)
+    const message: SessionMessage = {
+      id: generateId(),
+      speaker: 'therapist',
+      partId: null,
+      partName: null,
+      content: trimmed,
+      timestamp: Date.now(),
+      phase,
+      isEmergence: false,
+      inputMethod: 'voice',
+    }
+
+    await sessionMessagesDb.add(currentSession.id, message)
+
+    const updatedMessages = [...currentMessages, message]
+    const firstLine = currentSession.firstLine || trimmed.slice(0, 100)
+
+    await db.sessions.update(currentSession.id, {
+      messageCount: updatedMessages.length,
+      firstLine,
+      phase,
+    })
+
+    setSession(prev => prev ? { ...prev, messageCount: updatedMessages.length, firstLine, phase } : prev)
+    setMessages(updatedMessages)
+    messagesRef.current = updatedMessages
+  }, [])
+
+  const handleStartVoice = useCallback(async () => {
+    const context = contextRef.current
+    if (!context) return
+
+    const instructions = buildTherapistSystemPrompt({
+      phase: sessionRef.current?.phase ?? 'opening',
+      recentSessionNotes: context.recentSessionNotes,
+      relevantMemories: context.relevantMemories,
+      profile: context.userProfile,
+      isGrounding: isGroundingActive(),
+      hrvContext: hrv.buildPromptContext(),
+    })
+
+    const preferredVoice = getGlobalConfig()?.voice?.defaultVoice ?? 'marin'
+
+    trackEvent('voice_session_started', { session_id: sessionRef.current?.id ?? '' })
+    resetVoiceEmissions()
+
+    await voice.start({
+      instructions,
+      voice: preferredVoice,
+      onUserTranscript: (text) => {
+        void appendUserMessage(text, 'voice')
+        emitTranscript('user', text)
+      },
+      onAssistantTranscript: (text) => {
+        void persistVoiceTherapistMessage(text)
+      },
+      onAssistantWordFragment: (fragment) => {
+        emitTranscript('ai', fragment)
+      },
+      onAssistantSpeakingChange: (speaking) => {
+        if (hrv.enabled) {
+          hrv.addConversationEvent(
+            speaking ? 'ai_response_start' : 'ai_response_complete',
+            messagesRef.current.length,
+          )
+        }
+      },
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice, hrv, appendUserMessage, persistVoiceTherapistMessage, emitTranscript])
+
+  const handleEndVoice = useCallback(() => {
+    voice.stop()
+    trackEvent('voice_session_ended', { session_id: sessionRef.current?.id ?? '' })
+  }, [voice])
 
   const inputEditor = useEditor({
     extensions: [
@@ -553,6 +688,24 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
         </div>
       )}
 
+      {/* Voice toggle — therapist mode only, inline beside HRV */}
+      {voiceEnabled && !isClosed && voice.state === 'idle' && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+          <button
+            onClick={handleStartVoice}
+            className="session-voice-btn"
+            aria-label="Start voice session"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" y1="19" x2="12" y2="23" />
+            </svg>
+            Voice
+          </button>
+        </div>
+      )}
+
       {/* HRV Toggle (inline, non-fixed) */}
       {getGlobalConfig()?.features?.webcamHrv === true && !isClosed && !hrv.enabled && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
@@ -690,6 +843,23 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
         />
       )}
     </div>
+
+    {/* Voice session overlay — full-screen field visualization */}
+    {voiceEnabled && voice.state !== 'idle' && (
+      <VoiceField
+        state={voice.state}
+        error={voice.error}
+        muted={voice.muted}
+        assistantSpeaking={voice.assistantSpeaking}
+        userSpeaking={voice.userSpeaking}
+        remoteStream={voice.remoteStream}
+        transcriptEmissions={voiceEmissionsRef.current}
+        emissionVersion={voiceEmissionVersion}
+        dominantEmotion={weatherEngine.getCurrentDominantEmotion()}
+        onToggleMute={voice.toggleMute}
+        onEnd={handleEndVoice}
+      />
+    )}
     </>
   )
 }

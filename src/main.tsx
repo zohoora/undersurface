@@ -1,10 +1,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import * as Sentry from '@sentry/react'
+import { Capacitor } from '@capacitor/core'
 import './index.css'
 import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 import { AuthProvider } from './auth/AuthContext.tsx'
+import { initNative, dismissSplash } from './native'
+import { installBackButton } from './native/backButton'
 
 // Prevent "removeChild" / "insertBefore" crashes caused by browser extensions
 // and Chrome Translate mutating the DOM outside React's control.
@@ -100,12 +103,16 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 })
 
-// Register service worker — failure is non-critical (app works without it)
-if ('serviceWorker' in navigator) {
+// Register service worker — failure is non-critical (app works without it).
+// Skip on native: the bundle ships on-device, and a SW can stale Cloud Function calls.
+if ('serviceWorker' in navigator && !Capacitor.isNativePlatform()) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {})
   })
 }
+
+void initNative()
+void installBackButton()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -116,3 +123,8 @@ createRoot(document.getElementById('root')!).render(
     </ErrorBoundary>
   </StrictMode>,
 )
+
+// Splash stays up until first paint settles — gives auth state a moment to hydrate.
+requestAnimationFrame(() => {
+  setTimeout(() => { void dismissSplash() }, 400)
+})

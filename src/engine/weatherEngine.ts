@@ -13,6 +13,23 @@ export class WeatherEngine {
     }
   }
 
+  /**
+   * Returns the most-frequently-recorded emotion from the rolling window, or
+   * 'neutral' if nothing has been seen yet. Independent of the innerWeather
+   * feature flag — callers (like VoiceField) read this regardless.
+   */
+  getCurrentDominantEmotion(): EmotionalTone {
+    if (this.recentEmotions.length === 0) return 'neutral'
+    const counts = new Map<EmotionalTone, number>()
+    for (const e of this.recentEmotions) counts.set(e, (counts.get(e) ?? 0) + 1)
+    let dominant: EmotionalTone = this.recentEmotions[this.recentEmotions.length - 1]
+    let max = 0
+    for (const [emotion, count] of counts) {
+      if (count > max) { dominant = emotion; max = count }
+    }
+    return dominant
+  }
+
   getWeather(): InnerWeather | null {
     const config = getGlobalConfig()
     if (config?.features.innerWeather !== true) return null

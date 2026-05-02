@@ -8,12 +8,15 @@ import { createHash } from 'crypto'
 initializeApp()
 
 const openRouterKey = defineSecret('OPENROUTER_API_KEY')
+const openAiKey = defineSecret('OPENAI_API_KEY')
 const ADMIN_EMAILS = ['zohoora@gmail.com']
 
 const ALLOWED_ORIGINS = [
   'https://undersurface.me',
   'https://undersurfaceme.web.app',
   'https://undersurfaceme.firebaseapp.com',
+  'capacitor://localhost',
+  'https://localhost',
 ]
 
 // ─── Chat API guardrails ──────────────────────────────────
@@ -32,21 +35,32 @@ const MAX_TOKENS_CAP = 500
 const MAX_MESSAGE_CHARS = 8000 // per-message content length cap
 const MAX_MESSAGES = 50 // max messages per request
 
-// Best-effort per-instance rate limiter (not shared across Cloud Function instances)
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
-const RATE_LIMIT_WINDOW_MS = 60_000
-const RATE_LIMIT_MAX = 30 // requests per minute per uid
-
-function checkRateLimit(uid: string): boolean {
-  const now = Date.now()
-  const entry = rateLimitMap.get(uid)
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(uid, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
-    return true
+// Best-effort per-instance rate limiter (not shared across Cloud Function instances).
+// Each limiter owns its Map and sweeps expired entries on access to avoid
+// unbounded growth from one-shot callers.
+function makeRateLimiter({ windowMs, max }: { windowMs: number; max: number }) {
+  const entries = new Map<string, { count: number; resetAt: number }>()
+  let lastSweep = 0
+  return function check(key: string): boolean {
+    const now = Date.now()
+    // Cheap amortized sweep — at most once per window, bounded cost.
+    if (now - lastSweep > windowMs) {
+      for (const [k, v] of entries) {
+        if (now > v.resetAt) entries.delete(k)
+      }
+      lastSweep = now
+    }
+    const entry = entries.get(key)
+    if (!entry || now > entry.resetAt) {
+      entries.set(key, { count: 1, resetAt: now + windowMs })
+      return true
+    }
+    entry.count++
+    return entry.count <= max
   }
-  entry.count++
-  return entry.count <= RATE_LIMIT_MAX
 }
+
+const checkRateLimit = makeRateLimiter({ windowMs: 60_000, max: 30 })
 
 function isModelAllowed(model: string): boolean {
   return ALLOWED_MODEL_PREFIXES.some((prefix) => model.startsWith(prefix))
@@ -66,19 +80,9 @@ export const chat = onRequest(
       return
     }
 
-    // Verify Firebase auth token
-    const authHeader = req.headers.authorization
-    if (!authHeader?.startsWith('Bearer ')) {
-      res.status(401).json({ error: 'Missing auth token' })
-      return
-    }
-
-    let uid: string
-    try {
-      const decoded = await getAuth().verifyIdToken(authHeader.split('Bearer ')[1])
-      uid = decoded.uid
-    } catch {
-      res.status(401).json({ error: 'Invalid auth token' })
+    const uid = await verifyAuth(req.headers.authorization)
+    if (!uid) {
+      res.status(401).json({ error: 'Authentication required' })
       return
     }
 
@@ -184,7 +188,128 @@ export const chat = onRequest(
   },
 )
 
+// ─── Realtime (Voice) Token API ──────────────────────────────
+
+const REALTIME_VOICES = new Set(['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'])
+const REALTIME_DEFAULT_VOICE = 'marin'
+const REALTIME_MODEL = 'gpt-realtime'
+const REALTIME_INSTRUCTIONS_MAX = 16000
+
+// Tempo settings — therapist should sound unhurried.
+// 0.88 = ~12% slower than default; client-side pace-matching may lower further.
+const REALTIME_BASE_SPEED = 0.88
+// silence_duration_ms: how long to wait after the user stops talking before
+// responding. Default is ~500ms; 900ms gives the AI a human-like beat of thought.
+const REALTIME_SILENCE_MS = 900
+
+const VOICE_PACING_ADDENDUM = `
+VOICE DELIVERY (this is a live voice conversation, not text):
+- Speak at a gentle, unhurried pace. Take a breath between thoughts.
+- Leave small natural pauses. The user should feel heard, not rushed.
+- Short phrases. One idea at a time. Let silence do some of the work.`
+
+// Voice sessions are longer-lived and more expensive than chat requests.
+const checkRealtimeRateLimit = makeRateLimiter({ windowMs: 60_000, max: 10 })
+
+export const realtimeTokenApi = onRequest(
+  {
+    secrets: [openAiKey],
+    cors: ALLOWED_ORIGINS,
+    memory: '256MiB',
+    minInstances: 1, // voice UX requires warm start; 2-5s cold-start before recording = broken-feeling
+    timeoutSeconds: 30,
+    region: 'us-central1',
+  },
+  async (req, res) => {
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' })
+      return
+    }
+
+    const uid = await verifyAuth(req.headers.authorization)
+    if (!uid) {
+      res.status(401).json({ error: 'Authentication required' })
+      return
+    }
+
+    if (!checkRealtimeRateLimit(uid)) {
+      res.status(429).json({ error: 'Too many voice sessions. Please wait a moment.' })
+      return
+    }
+
+    const { instructions, voice } = (req.body || {}) as { instructions?: unknown; voice?: unknown }
+
+    if (typeof instructions !== 'string' || instructions.length === 0) {
+      res.status(400).json({ error: 'Missing instructions' })
+      return
+    }
+    if (instructions.length > REALTIME_INSTRUCTIONS_MAX) {
+      res.status(400).json({ error: `Instructions too long (max ${REALTIME_INSTRUCTIONS_MAX} chars)` })
+      return
+    }
+
+    const resolvedVoice = typeof voice === 'string' && REALTIME_VOICES.has(voice) ? voice : REALTIME_DEFAULT_VOICE
+    const voiceInstructions = `${instructions}\n\n${VOICE_PACING_ADDENDUM}`
+
+    const openAiResponse = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAiKey.value()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        session: {
+          type: 'realtime',
+          model: REALTIME_MODEL,
+          instructions: voiceInstructions,
+          audio: {
+            input: {
+              transcription: { model: 'whisper-1' },
+              turn_detection: {
+                type: 'server_vad',
+                threshold: 0.5,
+                prefix_padding_ms: 300,
+                silence_duration_ms: REALTIME_SILENCE_MS,
+              },
+            },
+            output: {
+              voice: resolvedVoice,
+              speed: REALTIME_BASE_SPEED,
+            },
+          },
+        },
+        expires_after: { anchor: 'created_at', seconds: 600 },
+      }),
+    })
+
+    if (!openAiResponse.ok) {
+      const errorBody = await openAiResponse.text().catch(() => '')
+      console.error(`OpenAI realtime error: ${openAiResponse.status}`, errorBody)
+      res.status(openAiResponse.status).json({ error: 'Voice service temporarily unavailable' })
+      return
+    }
+
+    const data = await openAiResponse.json()
+    res.json({
+      clientSecret: data.value,
+      expiresAt: data.expires_at,
+      model: REALTIME_MODEL,
+      voice: resolvedVoice,
+    })
+  },
+)
+
 // ─── Admin API ────────────────────────────────────────────────
+
+async function verifyAuth(authHeader: string | undefined): Promise<string | null> {
+  if (!authHeader?.startsWith('Bearer ')) return null
+  try {
+    const decoded = await getAuth().verifyIdToken(authHeader.split('Bearer ')[1])
+    return decoded.uid
+  } catch {
+    return null
+  }
+}
 
 async function verifyAdmin(authHeader: string | undefined): Promise<string | null> {
   if (!authHeader?.startsWith('Bearer ')) return null
@@ -485,7 +610,7 @@ async function handleGetUserDetail(uid: string) {
       sessionNote: c.sessionNote || null,
       messageCount: c.messageCount || 0,
       firstLine: c.firstLine || '',
-      isTherapistSession: c.isTherapistSession ?? false,
+      isTherapistSession: c.isTherapistSession ?? (c.mode !== 'futureSelf'),
       favorited: c.favorited ?? false,
     })),
     weather: innerWeather.map((w) => ({
@@ -947,18 +1072,9 @@ export const accountApi = onRequest(
       return
     }
 
-    const authHeader = req.headers.authorization
-    if (!authHeader?.startsWith('Bearer ')) {
-      res.status(401).json({ error: 'Missing auth token' })
-      return
-    }
-
-    let uid: string
-    try {
-      const decoded = await getAuth().verifyIdToken(authHeader.split('Bearer ')[1])
-      uid = decoded.uid
-    } catch {
-      res.status(401).json({ error: 'Invalid auth token' })
+    const uid = await verifyAuth(req.headers.authorization)
+    if (!uid) {
+      res.status(401).json({ error: 'Authentication required' })
       return
     }
 
@@ -1134,21 +1250,8 @@ export const adminApi = onRequest(
 
 // ─── MCP API ──────────────────────────────────────────────────
 
-// Separate rate limiter for MCP: 60 req/min per API key hash
-const mcpRateLimitMap = new Map<string, { count: number; resetAt: number }>()
-const MCP_RATE_LIMIT_WINDOW_MS = 60_000
-const MCP_RATE_LIMIT_MAX = 60
-
-function checkMcpRateLimit(keyHash: string): boolean {
-  const now = Date.now()
-  const entry = mcpRateLimitMap.get(keyHash)
-  if (!entry || now > entry.resetAt) {
-    mcpRateLimitMap.set(keyHash, { count: 1, resetAt: now + MCP_RATE_LIMIT_WINDOW_MS })
-    return true
-  }
-  entry.count++
-  return entry.count <= MCP_RATE_LIMIT_MAX
-}
+// Separate rate limit for MCP: 60 req/min per API key hash
+const checkMcpRateLimit = makeRateLimiter({ windowMs: 60_000, max: 60 })
 
 async function resolveApiKey(bearer: string): Promise<{ uid: string; keyHash: string } | null> {
   // Validate format: must start with us_ and be 67 chars total
@@ -1171,7 +1274,9 @@ async function resolveApiKey(bearer: string): Promise<{ uid: string; keyHash: st
   if (!uid) return null
 
   // Fire-and-forget: update lastUsedAt
-  doc.ref.update({ lastUsedAt: Date.now() }).catch(() => {})
+  doc.ref.update({ lastUsedAt: Date.now() }).catch(err => {
+    console.warn('Failed to update apiKey lastUsedAt:', err)
+  })
 
   return { uid, keyHash }
 }
@@ -1348,7 +1453,7 @@ export const mcpApi = onRequest(
             phase: data.phase || 'opening',
             messageCount: data.messageCount || 0,
             firstLine: data.firstLine || '',
-            isTherapistSession: data.isTherapistSession ?? false,
+            isTherapistSession: data.isTherapistSession ?? (data.mode !== 'futureSelf'),
           }
         })
 
@@ -1399,7 +1504,7 @@ export const mcpApi = onRequest(
           hostPartId: data.hostPartId || '',
           phase: data.phase || 'opening',
           sessionNote: data.sessionNote || null,
-          isTherapistSession: data.isTherapistSession ?? false,
+          isTherapistSession: data.isTherapistSession ?? (data.mode !== 'futureSelf'),
           messages,
         }
 

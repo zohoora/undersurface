@@ -6,6 +6,7 @@ vi.mock('../i18n', () => ({
 }))
 
 import { buildTherapistSystemPrompt, buildTherapistMessages, buildTherapistSessionNotePrompt, buildSessionReflectionPrompt } from './therapistPrompts'
+import { REGISTER_TIER_IDS } from './registerTiers'
 import type { SessionMessage, PartMemory, UserProfile, EntrySummary } from '../types'
 
 function makeMessage(overrides: Partial<SessionMessage> = {}): SessionMessage {
@@ -88,6 +89,79 @@ describe('buildTherapistSystemPrompt', () => {
     expect(prompt).not.toContain('[Biometric context]')
     expect(prompt).not.toContain('biometric')
   })
+
+  describe('register integration', () => {
+    it('defaults to conversational tier when registerTier omitted', () => {
+      const prompt = buildTherapistSystemPrompt({ phase: 'opening' })
+      expect(prompt).toContain('Plain warm talk')
+      expect(prompt).toContain('18 words or fewer')
+    })
+
+    it('injects plain tier rules when registerTier=plain', () => {
+      const prompt = buildTherapistSystemPrompt({ phase: 'opening', registerTier: 'plain' })
+      expect(prompt).toContain('12 words or fewer')
+      expect(prompt).toContain('profound') // plain-tier additional ban
+    })
+
+    it('injects scholarly tier rules when registerTier=scholarly', () => {
+      const prompt = buildTherapistSystemPrompt({ phase: 'opening', registerTier: 'scholarly' })
+      expect(prompt).toContain('abstract framing')
+      expect(prompt).not.toMatch(/\bwords or fewer\b/) // scholarly has no cap
+    })
+
+    it('voice mode caps scholarly down to conversational in the rendered prompt', () => {
+      const prompt = buildTherapistSystemPrompt({
+        phase: 'opening',
+        registerTier: 'scholarly',
+        currentInputMode: 'voice',
+      })
+      expect(prompt).toContain('Plain warm talk')
+      expect(prompt).not.toContain('abstract framing')
+      expect(prompt).toContain('speaking aloud')
+    })
+
+    it('grounding caps literate down to conversational', () => {
+      const prompt = buildTherapistSystemPrompt({
+        phase: 'deepening',
+        registerTier: 'literate',
+        isGrounding: true,
+      })
+      expect(prompt).toContain('Plain warm talk')
+      expect(prompt).not.toContain('Comfortable with longer sentences')
+    })
+
+    it('grounding does NOT raise plain up', () => {
+      const prompt = buildTherapistSystemPrompt({
+        phase: 'deepening',
+        registerTier: 'plain',
+        isGrounding: true,
+      })
+      expect(prompt).toContain('Short, simple words')
+      expect(prompt).toContain('12 words or fewer')
+    })
+
+    it('therapy-jargon ban appears regardless of tier', () => {
+      for (const tier of REGISTER_TIER_IDS) {
+        const prompt = buildTherapistSystemPrompt({ phase: 'opening', registerTier: tier })
+        expect(prompt).toContain('dysregulation')
+        expect(prompt).toContain('somatic')
+      }
+    })
+
+    // Regression guards: the hardcoded grade-6 line MUST stay deleted.
+    // If a future tweak re-adds it, two competing voice directives will fight.
+    it('does not contain the deleted hardcoded grade-6 line', () => {
+      const prompt = buildTherapistSystemPrompt({ phase: 'opening' })
+      expect(prompt).not.toContain('6th-grade')
+      expect(prompt).not.toContain('grade reading level')
+    })
+
+    it('SAFETY_RULES block still appears verbatim', () => {
+      const prompt = buildTherapistSystemPrompt({ phase: 'opening' })
+      expect(prompt).toContain('SAFETY — THIS OVERRIDES ALL OTHER INSTRUCTIONS')
+      expect(prompt).toContain('Watch for escalation through metaphor')
+    })
+  })
 })
 
 describe('buildTherapistMessages', () => {
@@ -137,6 +211,37 @@ describe('buildTherapistSessionNotePrompt', () => {
     expect(result).toHaveLength(2)
     expect(result[1].content).toContain('Companion: Hello')
     expect(result[1].content).toContain('Hi there')
+  })
+
+  it('keeps the user-role message under the 8000-char backend cap for very long sessions', () => {
+    const history: SessionMessage[] = []
+    for (let i = 0; i < 50; i++) {
+      history.push(makeMessage({
+        id: `m${i}`,
+        speaker: i % 2 === 0 ? 'user' : 'therapist',
+        content: 'X'.repeat(2000),
+      }))
+    }
+    const result = buildTherapistSessionNotePrompt(history)
+    const userMessage = result[1]
+    expect(userMessage.role).toBe('user')
+    // Backend rejects user messages over 8000 chars (functions/src/index.ts MAX_MESSAGE_CHARS)
+    expect(userMessage.content.length).toBeLessThan(8000)
+  })
+
+  it('keeps recent turns and marks earlier ones as omitted when truncated', () => {
+    const history: SessionMessage[] = []
+    for (let i = 0; i < 40; i++) {
+      history.push(makeMessage({
+        id: `m${i}`,
+        speaker: i % 2 === 0 ? 'user' : 'therapist',
+        content: `turn-${i}-${'Y'.repeat(400)}`,
+      }))
+    }
+    const userContent = buildTherapistSessionNotePrompt(history)[1].content
+    expect(userContent).toContain('omitted')
+    expect(userContent).toContain('turn-39-')
+    expect(userContent).not.toContain('turn-0-')
   })
 })
 

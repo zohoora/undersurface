@@ -44,6 +44,8 @@ export interface GlobalConfig {
     webcamHrv?: boolean
     // Future Self
     futureSelfEnabled?: boolean
+    // Voice (OpenAI Realtime, Conversation/Therapist mode only)
+    voiceEnabled?: boolean
   }
   announcement: {
     message: string
@@ -112,6 +114,10 @@ export interface GlobalConfig {
     minEntries?: number
     minSessions?: number
     voiceExcerptCount?: number
+  }
+
+  voice?: {
+    defaultVoice?: 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'sage' | 'shimmer' | 'verse' | 'marin' | 'cedar'
   }
 }
 

@@ -1,0 +1,22 @@
+.session-voice-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+  background: transparent;
+  color: var(--text-secondary, #888);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.session-voice-btn:hover {
+  border-color: var(--text-secondary, rgba(255, 255, 255, 0.3));
+  color: var(--text-primary, #eee);
+}
+.session-voice-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}

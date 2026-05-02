@@ -31,3 +31,26 @@ dist-ssr
 
 # Worktrees
 .worktrees
+
+# Capacitor — native build artifacts (sources are committed)
+ios/App/Pods
+ios/App/build
+ios/App/App.xcworkspace/xcuserdata
+ios/App/App.xcodeproj/xcuserdata
+ios/DerivedData
+android/.gradle
+android/app/build
+android/build
+android/captures
+android/local.properties
+android/app/release
+android/app/src/main/assets/public
+
+# Claude tooling cache
+.superpowers/
+
+# Local test screenshots
+test-*.png
+
+# Benchmark output
+scripts/benchmark-results.json

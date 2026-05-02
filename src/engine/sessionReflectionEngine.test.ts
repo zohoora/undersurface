@@ -9,6 +9,9 @@ vi.mock('../ai/therapistPrompts', () => ({
     { role: 'system', content: 'test' },
     { role: 'user', content: 'test' },
   ]),
+  buildBoundedTranscript: vi.fn((messages: SessionMessage[]) =>
+    messages.map(m => `${m.speaker}: ${m.content}`).join('\n'),
+  ),
 }))
 vi.mock('../store/db', () => ({
   db: {
