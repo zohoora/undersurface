@@ -74,7 +74,11 @@ export function useVoiceSession() {
     const dc = dcRef.current
     if (!dc || dc.readyState !== 'open') return
     try {
-      dc.send(JSON.stringify({ type: 'session.update', session: update }))
+      // OpenAI Realtime API requires the session object to carry its `type`
+      // discriminator on every session.update — same value used at mint time
+      // (see realtimeTokenApi). Without it the server rejects with
+      // "Missing required parameter: 'session.type'".
+      dc.send(JSON.stringify({ type: 'session.update', session: { type: 'realtime', ...update } }))
     } catch (e) {
       console.warn('[useVoiceSession] session.update failed', e)
     }
