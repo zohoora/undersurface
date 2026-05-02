@@ -8,12 +8,6 @@ vi.mock('firebase/auth', () => ({
   })),
 }))
 
-vi.mock('../store/settings', () => ({
-  getSettings: vi.fn(() => ({
-    openRouterModel: 'test-model',
-  })),
-}))
-
 function mockFetch(body: unknown, ok = true, status = 200) {
   vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
     ok,
@@ -30,17 +24,11 @@ describe('chatCompletion', () => {
   })
 
   async function loadChatCompletion() {
-    // Re-mock after resetModules
     vi.doMock('firebase/auth', () => ({
       getAuth: vi.fn(() => ({
         currentUser: {
           getIdToken: vi.fn(() => Promise.resolve('mock-token')),
         },
-      })),
-    }))
-    vi.doMock('../store/settings', () => ({
-      getSettings: vi.fn(() => ({
-        openRouterModel: 'test-model',
       })),
     }))
     const mod = await import('./openrouter')
@@ -60,7 +48,7 @@ describe('chatCompletion', () => {
     const chatCompletion = await loadChatCompletion()
 
     await expect(chatCompletion([{ role: 'user', content: 'Hi' }]))
-      .rejects.toThrow('Empty response from OpenRouter')
+      .rejects.toThrow('Empty response from OpenAI')
   })
 
   it('throws on missing message content', async () => {
@@ -68,7 +56,7 @@ describe('chatCompletion', () => {
     const chatCompletion = await loadChatCompletion()
 
     await expect(chatCompletion([{ role: 'user', content: 'Hi' }]))
-      .rejects.toThrow('Empty response from OpenRouter')
+      .rejects.toThrow('Empty response from OpenAI')
   })
 
   it('throws on null choices', async () => {
@@ -76,7 +64,7 @@ describe('chatCompletion', () => {
     const chatCompletion = await loadChatCompletion()
 
     await expect(chatCompletion([{ role: 'user', content: 'Hi' }]))
-      .rejects.toThrow('Empty response from OpenRouter')
+      .rejects.toThrow('Empty response from OpenAI')
   })
 
   it('throws on non-ok response', async () => {

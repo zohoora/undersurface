@@ -263,10 +263,88 @@ describe('buildSessionReflectionPrompt', () => {
       { id: 'open', name: 'The Open', ifsRole: 'self' },
       { id: 'weaver', name: 'The Weaver', ifsRole: 'manager' },
     ]
-    const result = buildSessionReflectionPrompt('Writer: hello\nCompanion: hello', profile, summaries, parts)
+    const result = buildSessionReflectionPrompt({
+      transcript: 'Writer: hello\nCompanion: hello',
+      profile,
+      recentSummaries: summaries,
+      parts,
+      existingFacts: null,
+    })
     expect(result).toHaveLength(2)
     expect(result[0].content).toContain('The Open')
     expect(result[0].content).toContain('isolation')
     expect(result[1].content).toContain('Writer: hello')
+  })
+
+  it('includes existing personal facts in the prompt for consolidation', () => {
+    const facts: import('../types').PersonalFacts = {
+      id: 'current',
+      people: [{ name: 'Sarah', relationship: 'wife' }],
+      dates: [{ event: 'anniversary', date: '2024-03-12' }],
+      context: [],
+      currentThreads: [{ topic: 'job interview Thursday', addedAt: 1000 }],
+      lastUpdated: 1000,
+    }
+    const result = buildSessionReflectionPrompt({
+      transcript: 'Writer: hi',
+      profile: null,
+      recentSummaries: [],
+      parts: [],
+      existingFacts: facts,
+    })
+    expect(result[0].content).toContain('Sarah')
+    expect(result[0].content).toContain('anniversary')
+    expect(result[0].content).toContain('job interview Thursday')
+    expect(result[0].content).toContain('PERSONAL FACTS')
+  })
+
+  it('signals empty state when no existing facts', () => {
+    const result = buildSessionReflectionPrompt({
+      transcript: 'Writer: hi',
+      profile: null,
+      recentSummaries: [],
+      parts: [],
+      existingFacts: null,
+    })
+    expect(result[0].content).toContain('No personal facts captured yet')
+  })
+})
+
+describe('buildTherapistSystemPrompt with personalFacts', () => {
+  it('injects facts block when present', () => {
+    const facts: import('../types').PersonalFacts = {
+      id: 'current',
+      people: [{ name: 'Sarah', relationship: 'wife', notes: 'loves hiking' }],
+      dates: [{ event: 'anniversary', date: '2024-03-12' }],
+      context: [{ category: 'location', value: 'Brooklyn' }],
+      currentThreads: [{ topic: 'job interview Thursday', addedAt: 1000 }],
+      lastUpdated: 1000,
+    }
+    const prompt = buildTherapistSystemPrompt({ phase: 'deepening', personalFacts: facts })
+    expect(prompt).toContain('Sarah')
+    expect(prompt).toContain('(wife)')
+    expect(prompt).toContain('loves hiking')
+    expect(prompt).toContain('anniversary')
+    expect(prompt).toContain('Brooklyn')
+    expect(prompt).toContain('job interview Thursday')
+    expect(prompt).toContain('weave them in only when relevant')
+  })
+
+  it('omits facts block when all categories empty', () => {
+    const facts: import('../types').PersonalFacts = {
+      id: 'current',
+      people: [],
+      dates: [],
+      context: [],
+      currentThreads: [],
+      lastUpdated: 1000,
+    }
+    const prompt = buildTherapistSystemPrompt({ phase: 'deepening', personalFacts: facts })
+    expect(prompt).not.toContain('Concrete facts about this writer')
+  })
+
+  it('does nothing when personalFacts is null', () => {
+    const prompt = buildTherapistSystemPrompt({ phase: 'deepening', personalFacts: null })
+    expect(prompt).not.toContain('Concrete facts about this writer')
   })
 })

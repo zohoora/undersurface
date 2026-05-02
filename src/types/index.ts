@@ -181,6 +181,30 @@ export interface UserProfile {
   lastClassifiedAtEntryCount?: number
 }
 
+// LLM owns merge: returns the full updated object each session, not a delta —
+// avoids hand-rolled dedup against fuzzy name/date variants.
+export interface PersonalFacts {
+  id: string // always 'current'
+  people: Array<{
+    name: string
+    relationship?: string // "wife", "best friend", "dog", "therapist"
+    notes?: string // brief description, important context
+  }>
+  dates: Array<{
+    event: string // "anniversary", "Sarah's birthday", "started new job"
+    date: string // ISO 8601 if known, else descriptive ("around March")
+  }>
+  context: Array<{
+    category: string // "location", "occupation", "age", "family structure"
+    value: string
+  }>
+  currentThreads: Array<{
+    topic: string // "job interview Thursday", "mom in hospital"
+    addedAt: number // Unix ms — for soft staleness; LLM drops resolved threads
+  }>
+  lastUpdated: number
+}
+
 export interface InnerWeather {
   id: string
   dominantEmotion: string

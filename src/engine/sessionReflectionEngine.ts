@@ -1,4 +1,4 @@
-import type { Part, EntrySummary, UserProfile, SessionMessage } from '../types'
+import type { Part, EntrySummary, UserProfile, PersonalFacts, SessionMessage } from '../types'
 import { buildSessionReflectionPrompt, buildBoundedTranscript } from '../ai/therapistPrompts'
 import { chatCompletion } from '../ai/openrouter'
 import { db, generateId } from '../store/db'
@@ -25,10 +25,11 @@ export async function reflectOnSession(
     // 2. Skip short sessions
     if (transcriptText.length < 100) return
 
-    // 3. Load profile + recent summaries
-    const [profile, allSummaries] = await Promise.all([
+    // 3. Load profile + recent summaries + existing personal facts
+    const [profile, allSummaries, existingFacts] = await Promise.all([
       db.userProfile.get('current'),
       db.entrySummaries.orderBy('timestamp').reverse().toArray(),
+      db.personalFacts.get('current'),
     ])
     const recentSummaries = allSummaries.slice(0, 5)
 
@@ -38,12 +39,13 @@ export async function reflectOnSession(
       name: p.name,
       ifsRole: p.ifsRole,
     }))
-    const promptMessages = buildSessionReflectionPrompt(
-      transcriptText,
-      profile ?? null,
+    const promptMessages = buildSessionReflectionPrompt({
+      transcript: transcriptText,
+      profile: profile ?? null,
       recentSummaries,
-      partsForPrompt,
-    )
+      parts: partsForPrompt,
+      existingFacts: existingFacts ?? null,
+    })
     const response = await chatCompletion(promptMessages, 15000, 1000)
 
     // 5. Parse response
@@ -133,6 +135,18 @@ export async function reflectOnSession(
       }
     }
 
+    // 6d-bis. Save personal facts. Caps mirror the prompt to defend against runaway output.
+    if (parsed.personalFacts) {
+      const validated = validatePersonalFacts(parsed.personalFacts, existingFacts ?? null)
+      if (validated && !factsContentEqual(validated, existingFacts ?? null)) {
+        if (existingFacts) {
+          await db.personalFacts.update('current', validated)
+        } else {
+          await db.personalFacts.add(validated)
+        }
+      }
+    }
+
     // 6e. Create somatic memories
     if (parsed.somaticSignals && Array.isArray(parsed.somaticSignals)) {
       const validRegions = ['head', 'eyes', 'throat', 'chest', 'stomach', 'shoulders', 'hands', 'back', 'hips', 'legs']
@@ -191,6 +205,12 @@ function parseReflectionResponse(response: string): {
     avoidancePatterns?: string[]; growthSignals?: string[]
     innerLandscape?: string
   }
+  personalFacts?: {
+    people?: Array<{ name?: unknown; relationship?: unknown; notes?: unknown }>
+    dates?: Array<{ event?: unknown; date?: unknown }>
+    context?: Array<{ category?: unknown; value?: unknown }>
+    currentThreads?: Array<{ topic?: unknown }>
+  }
   crossEntryPatterns?: string[]
   somaticSignals?: Array<{
     bodyRegion: string; quote: string; emotion: string; intensity: string
@@ -203,6 +223,91 @@ function parseReflectionResponse(response: string): {
     console.error('Failed to parse session reflection response:', response.slice(0, 200))
     return null
   }
+}
+
+const FACT_CAPS = { people: 30, dates: 20, context: 20, currentThreads: 8 }
+
+function nonEmptyString(v: unknown): string | null {
+  if (typeof v !== 'string') return null
+  const trimmed = v.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function validatePersonalFacts(
+  raw: NonNullable<ReturnType<typeof parseReflectionResponse>>['personalFacts'],
+  existing: PersonalFacts | null,
+): PersonalFacts | null {
+  if (!raw || typeof raw !== 'object') return null
+
+  const people = (Array.isArray(raw.people) ? raw.people : [])
+    .map(p => {
+      const name = nonEmptyString(p?.name)
+      if (!name) return null
+      const relationship = nonEmptyString(p?.relationship) ?? undefined
+      const notes = nonEmptyString(p?.notes) ?? undefined
+      return { name, relationship, notes }
+    })
+    .filter((p): p is { name: string; relationship?: string; notes?: string } => p !== null)
+    .slice(0, FACT_CAPS.people)
+
+  const dates = (Array.isArray(raw.dates) ? raw.dates : [])
+    .map(d => {
+      const event = nonEmptyString(d?.event)
+      const date = nonEmptyString(d?.date)
+      if (!event || !date) return null
+      return { event, date }
+    })
+    .filter((d): d is { event: string; date: string } => d !== null)
+    .slice(0, FACT_CAPS.dates)
+
+  const context = (Array.isArray(raw.context) ? raw.context : [])
+    .map(c => {
+      const category = nonEmptyString(c?.category)
+      const value = nonEmptyString(c?.value)
+      if (!category || !value) return null
+      return { category, value }
+    })
+    .filter((c): c is { category: string; value: string } => c !== null)
+    .slice(0, FACT_CAPS.context)
+
+  // Preserve addedAt for surviving threads so staleness reflects original mention, not last extraction.
+  const existingThreadAddedAt = new Map<string, number>()
+  for (const t of existing?.currentThreads ?? []) {
+    existingThreadAddedAt.set(t.topic, t.addedAt)
+  }
+  const now = Date.now()
+  const currentThreads = (Array.isArray(raw.currentThreads) ? raw.currentThreads : [])
+    .map(t => {
+      const topic = nonEmptyString(t?.topic)
+      if (!topic) return null
+      return { topic, addedAt: existingThreadAddedAt.get(topic) ?? now }
+    })
+    .filter((t): t is { topic: string; addedAt: number } => t !== null)
+    .slice(0, FACT_CAPS.currentThreads)
+
+  // If everything came back empty, don't overwrite existing facts with nothing.
+  if (people.length === 0 && dates.length === 0 && context.length === 0 && currentThreads.length === 0) {
+    return null
+  }
+
+  return {
+    id: 'current',
+    people,
+    dates,
+    context,
+    currentThreads,
+    lastUpdated: now,
+  }
+}
+
+function factsContentEqual(a: PersonalFacts, b: PersonalFacts | null): boolean {
+  if (!b) return false
+  return (
+    JSON.stringify(a.people) === JSON.stringify(b.people) &&
+    JSON.stringify(a.dates) === JSON.stringify(b.dates) &&
+    JSON.stringify(a.context) === JSON.stringify(b.context) &&
+    JSON.stringify(a.currentThreads) === JSON.stringify(b.currentThreads)
+  )
 }
 
 function mergeArrays(existing: string[], incoming: unknown, cap: number): string[] {

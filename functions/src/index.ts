@@ -7,9 +7,12 @@ import { createHash } from 'crypto'
 
 initializeApp()
 
-const openRouterKey = defineSecret('OPENROUTER_API_KEY')
 const openAiKey = defineSecret('OPENAI_API_KEY')
 const ADMIN_EMAILS = ['zohoora@gmail.com']
+
+// All chat completions go through OpenAI directly. Pinned to a specific snapshot
+// rather than a "latest" alias so behavior doesn't drift when OpenAI rotates.
+const OPENAI_CHAT_MODEL = 'gpt-5.5'
 
 const ALLOWED_ORIGINS = [
   'https://undersurface.me',
@@ -20,16 +23,6 @@ const ALLOWED_ORIGINS = [
 ]
 
 // ─── Chat API guardrails ──────────────────────────────────
-
-const ALLOWED_MODEL_PREFIXES = [
-  'google/gemini',
-  'anthropic/claude',
-  'meta-llama/',
-  'mistralai/',
-  'openai/gpt',
-  'qwen/',
-  'deepseek/',
-]
 
 const MAX_TOKENS_CAP = 500
 const MAX_MESSAGE_CHARS = 8000 // per-message content length cap
@@ -62,13 +55,9 @@ function makeRateLimiter({ windowMs, max }: { windowMs: number; max: number }) {
 
 const checkRateLimit = makeRateLimiter({ windowMs: 60_000, max: 30 })
 
-function isModelAllowed(model: string): boolean {
-  return ALLOWED_MODEL_PREFIXES.some((prefix) => model.startsWith(prefix))
-}
-
 export const chat = onRequest(
   {
-    secrets: [openRouterKey],
+    secrets: [openAiKey],
     cors: ALLOWED_ORIGINS,
     memory: '512MiB',
     minInstances: 1,
@@ -92,8 +81,11 @@ export const chat = onRequest(
       return
     }
 
-    // Validate request body
-    const { messages, model, max_tokens, temperature, stream, frequency_penalty } = req.body || {}
+    // Validate request body. Client-supplied `model` is ignored — model is fixed
+    // server-side to OPENAI_CHAT_MODEL. `temperature` is also ignored: GPT-5.x
+    // reasoning models only accept the default (1.0), and OpenAI rejects custom
+    // values for this model family.
+    const { messages, max_tokens, stream } = req.body || {}
     if (!Array.isArray(messages) || messages.length === 0) {
       res.status(400).json({ error: 'Invalid messages' })
       return
@@ -117,56 +109,46 @@ export const chat = onRequest(
       }
     }
 
-    const resolvedModel = model || 'google/gemini-3-flash-preview'
-    if (!isModelAllowed(resolvedModel)) {
-      res.status(400).json({ error: `Model not allowed: ${resolvedModel}` })
-      return
-    }
-
     const resolvedMaxTokens = Math.min(
       typeof max_tokens === 'number' && max_tokens > 0 ? max_tokens : 150,
       MAX_TOKENS_CAP,
     )
-    console.log(`uid=${uid.slice(0, 8)} model=${resolvedModel} stream=${!!stream} max_tokens=${resolvedMaxTokens}`)
+    console.log(`uid=${uid.slice(0, 8)} model=${OPENAI_CHAT_MODEL} stream=${!!stream} max_tokens=${resolvedMaxTokens}`)
 
-    const openRouterResponse = await fetch(
-      'https://openrouter.ai/api/v1/chat/completions',
+    const openAiResponse = await fetch(
+      'https://api.openai.com/v1/chat/completions',
       {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${openRouterKey.value()}`,
+          'Authorization': `Bearer ${openAiKey.value()}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://undersurface.me',
-          'X-Title': 'UnderSurface',
         },
         body: JSON.stringify({
-          model: resolvedModel,
+          model: OPENAI_CHAT_MODEL,
           messages,
-          max_tokens: resolvedMaxTokens,
-          temperature: typeof temperature === 'number' ? Math.min(temperature, 2) : 0.9,
-          frequency_penalty: typeof frequency_penalty === 'number' ? Math.min(Math.max(frequency_penalty, 0), 2) : undefined,
+          max_completion_tokens: resolvedMaxTokens,
           stream: !!stream,
         }),
       },
     )
 
-    if (!openRouterResponse.ok) {
-      const errorBody = await openRouterResponse.text().catch(() => '')
-      console.error(`OpenRouter error: ${openRouterResponse.status}`, errorBody)
-      res.status(openRouterResponse.status).json({
+    if (!openAiResponse.ok) {
+      const errorBody = await openAiResponse.text().catch(() => '')
+      console.error(`OpenAI error: ${openAiResponse.status}`, errorBody)
+      res.status(openAiResponse.status).json({
         error: 'AI service temporarily unavailable',
       })
       return
     }
 
-    if (stream && openRouterResponse.body) {
+    if (stream && openAiResponse.body) {
       res.setHeader('Content-Type', 'text/event-stream')
       res.setHeader('Cache-Control', 'no-cache, no-transform')
       res.setHeader('X-Accel-Buffering', 'no')
 
       const MAX_STREAM_BYTES = 1_048_576 // 1 MiB safety cap
       let totalBytes = 0
-      const reader = openRouterResponse.body.getReader()
+      const reader = openAiResponse.body.getReader()
       try {
         while (true) {
           const { done, value } = await reader.read()
@@ -182,7 +164,7 @@ export const chat = onRequest(
         res.end()
       }
     } else {
-      const data = await openRouterResponse.json()
+      const data = await openAiResponse.json()
       res.json(data)
     }
   },
@@ -930,7 +912,7 @@ async function handleGetConfig() {
 }
 
 const ALLOWED_CONFIG_KEYS = new Set([
-  'features', 'tuning', 'defaultModel', 'grounding', 'announcement',
+  'features', 'tuning', 'grounding', 'announcement',
 ])
 
 async function handleUpdateConfig(
@@ -987,11 +969,6 @@ async function handleGenerateInsights(apiKey: string) {
     }
   }
 
-  // Read config for model preference
-  const configSnap = await getFirestore().collection('appConfig').doc('global').get()
-  const config = configSnap.exists ? configSnap.data() : null
-  const model = (config?.defaultModel as string) || 'google/gemini-3-flash-preview'
-
   const systemPrompt = `You are analyzing usage data for a diary app called UnderSurface where AI "parts" (inner voices) respond to users as they write. You have entry summaries and user profiles (no raw diary text).
 
 Provide:
@@ -1002,34 +979,31 @@ Respond in JSON: { "narrative": "...", "highlights": ["...", "..."] }`
 
   const userContent = `Entry Summaries:\n${allSummaries.join('\n') || 'No summaries yet'}\n\nUser Profiles:\n${allProfiles.join('\n') || 'No profiles yet'}`
 
-  const openRouterResponse = await fetch(
-    'https://openrouter.ai/api/v1/chat/completions',
+  const openAiResponse = await fetch(
+    'https://api.openai.com/v1/chat/completions',
     {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://undersurface.me',
-        'X-Title': 'UnderSurface Admin',
       },
       body: JSON.stringify({
-        model,
+        model: OPENAI_CHAT_MODEL,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userContent },
         ],
-        max_tokens: 800,
-        temperature: 0.7,
+        max_completion_tokens: 800,
       }),
     },
   )
 
-  if (!openRouterResponse.ok) {
-    const errorBody = await openRouterResponse.text().catch(() => '')
-    throw new Error(`OpenRouter error: ${openRouterResponse.status} ${errorBody}`)
+  if (!openAiResponse.ok) {
+    const errorBody = await openAiResponse.text().catch(() => '')
+    throw new Error(`OpenAI error: ${openAiResponse.status} ${errorBody}`)
   }
 
-  const data = await openRouterResponse.json()
+  const data = await openAiResponse.json()
   const content = data.choices?.[0]?.message?.content || ''
 
   // Parse JSON from response (handle markdown code blocks)
@@ -1090,7 +1064,7 @@ export const accountApi = onRequest(
         case 'deleteAccount': {
           const collections = [
             'entries', 'parts', 'memories', 'thoughts', 'interactions',
-            'entrySummaries', 'userProfile', 'fossils', 'letters',
+            'entrySummaries', 'userProfile', 'personalFacts', 'fossils', 'letters',
             'sessionLog', 'innerWeather', 'consent', 'sessions',
             'hrvSessions',
           ]
@@ -1160,7 +1134,7 @@ export const accountApi = onRequest(
 
 export const adminApi = onRequest(
   {
-    secrets: [openRouterKey],
+    secrets: [openAiKey],
     cors: ALLOWED_ORIGINS,
     memory: '512MiB',
     timeoutSeconds: 120,
@@ -1217,7 +1191,7 @@ export const adminApi = onRequest(
           res.json(await computeAndCacheAnalytics())
           return
         case 'generateInsights':
-          res.json(await handleGenerateInsights(openRouterKey.value()))
+          res.json(await handleGenerateInsights(openAiKey.value()))
           return
         case 'getSessionMessages':
           if (!params.uid || !params.sessionId) {

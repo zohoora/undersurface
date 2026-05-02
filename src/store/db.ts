@@ -20,7 +20,7 @@ import { getAuth } from 'firebase/auth'
 import { SEEDED_PARTS } from '../ai/partPrompts'
 import type {
   DiaryEntry, Part, PartMemory, PartThought, ThinkingOutLoudInteraction,
-  EntrySummary, UserProfile, EntryFossil, PartLetter, SessionLog,
+  EntrySummary, UserProfile, PersonalFacts, EntryFossil, PartLetter, SessionLog,
   InnerWeather, ConsentRecord, Session, SessionMessage, ApiKey,
 } from '../types'
 import type { HrvSessionData, CameraHrvConsent } from '../types/hrv'
@@ -139,6 +139,7 @@ export const db = {
   interactions: createCollectionProxy<ThinkingOutLoudInteraction>('interactions'),
   entrySummaries: createCollectionProxy<EntrySummary>('entrySummaries'),
   userProfile: createCollectionProxy<UserProfile>('userProfile'),
+  personalFacts: createCollectionProxy<PersonalFacts>('personalFacts'),
   fossils: createCollectionProxy<EntryFossil>('fossils'),
   letters: createCollectionProxy<PartLetter>('letters'),
   sessionLog: createCollectionProxy<SessionLog>('sessionLog'),

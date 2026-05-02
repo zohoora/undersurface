@@ -27,10 +27,9 @@ describe('settings', () => {
 
   it('returns defaults when no saved settings', () => {
     storage.clear()
-    // Force a fresh load by clearing + updating
     updateSettings({ responseSpeed: 1.0 })
     const s = getSettings()
-    expect(s.openRouterModel).toBe('google/gemini-3-flash-preview')
+    expect(s.responseSpeed).toBe(1.0)
     expect(s.autocorrect).toBe(true)
   })
 
@@ -49,10 +48,10 @@ describe('settings', () => {
   })
 
   it('persists to localStorage', () => {
-    updateSettings({ openRouterModel: 'test/model' })
+    updateSettings({ responseSpeed: 1.7 })
     const raw = storage.get('undersurface:settings')
     expect(raw).toBeDefined()
     const parsed = JSON.parse(raw!)
-    expect(parsed.openRouterModel).toBe('test/model')
+    expect(parsed.responseSpeed).toBe(1.7)
   })
 })

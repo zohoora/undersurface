@@ -15,8 +15,8 @@
 | `src/engine/partGrowthEngine.ts` | Part evolution — updates prompts, keywords, emotions every 5 entries |
 | `src/ai/llmCorrect.ts` | LLM-based autocorrect — sentence-level spelling/capitalization correction via small model. All languages with sentence-ending punctuation. Exports `shouldTriggerAutocorrect()`, `isCJK()`, `SENTENCE_END_PUNCT`, `CJK_SENTENCE_END` |
 | `src/engine/sessionOrchestrator.ts` | Session phase detection, crisis keyword detection (20 regex patterns, no cooldown), emotion check with grounding activation |
-| `src/engine/sessionReflectionEngine.ts` | Post-session reflection — extracts memories, profile updates, somatic signals from session transcripts |
-| `src/engine/sessionContextLoader.ts` | Loads session context (memories, profile, recent notes) for therapist prompts |
+| `src/engine/sessionReflectionEngine.ts` | Post-session reflection — extracts memories, profile updates, somatic signals, personal facts (people, dates, context, current threads) from session transcripts |
+| `src/engine/sessionContextLoader.ts` | Loads session context (memories, profile, personal facts, recent notes) for therapist prompts |
 | `src/engine/weatherEngine.ts` | Inner weather tracking from emotional tone shifts |
 | `src/engine/ritualEngine.ts` | Session logging for ritual detection (writing habits) |
 | `src/engine/fossilEngine.ts` | Resurfaces old entry commentary. Lazy-loaded on first entry switch |

@@ -1,17 +1,17 @@
-import type { PartMemory, UserProfile } from '../types'
+import type { PartMemory, UserProfile, PersonalFacts } from '../types'
 import { db } from '../store/db'
 
 export interface TherapistContext {
   recentSessionNotes: { note: string; date: number }[]
   relevantMemories: PartMemory[]
   userProfile: UserProfile | null
+  personalFacts: PersonalFacts | null
 }
 
 const MEMORY_SOURCE_PARTS = ['open', 'weaver', 'still']
 
 export async function loadTherapistContext(): Promise<TherapistContext> {
-  // Load all three in parallel
-  const [sessions, memories, profiles] = await Promise.all([
+  const [sessions, memories, profiles, facts] = await Promise.all([
     db.sessions.orderBy('startedAt').reverse().toArray(),
     Promise.all(
       MEMORY_SOURCE_PARTS.map(partId =>
@@ -19,6 +19,7 @@ export async function loadTherapistContext(): Promise<TherapistContext> {
       ),
     ),
     db.userProfile.toArray(),
+    db.personalFacts.get('current'),
   ])
 
   // Extract notes from the 5 most recent closed sessions
@@ -35,5 +36,10 @@ export async function loadTherapistContext(): Promise<TherapistContext> {
 
   const userProfile = profiles.length > 0 ? profiles[0] : null
 
-  return { recentSessionNotes, relevantMemories: allMemories, userProfile }
+  return {
+    recentSessionNotes,
+    relevantMemories: allMemories,
+    userProfile,
+    personalFacts: facts ?? null,
+  }
 }

@@ -1,5 +1,4 @@
 export interface GlobalConfig {
-  defaultModel: string
   defaultResponseSpeed: number
   defaultTypewriterScroll: 'off' | 'comfortable' | 'typewriter'
   features: {

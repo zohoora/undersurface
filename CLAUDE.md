@@ -33,7 +33,7 @@ npm run build && firebase deploy --only hosting
 ### 2. Cloud Functions (Firebase Functions, Node.js 22)
 
 Four functions in `functions/src/index.ts`:
-- **`chat`** — proxies AI requests to OpenRouter (512MiB, minInstances: 1)
+- **`chat`** — proxies AI requests to OpenAI (512MiB, minInstances: 1)
 - **`accountApi`** — account deletion + contact form (256MiB, 60s)
 - **`adminApi`** — admin dashboard backend (512MiB, 120s)
 - **`mcpApi`** — MCP server with 4 read-only tools (512MiB, 120s)
@@ -79,7 +79,7 @@ npm run smoke-test
 AI responses:
   User types → PauseDetector → PartOrchestrator → openrouter.ts
     → fetch('/api/chat', { auth token }) → Cloud Function (chat)
-    → verifies token → Secret Manager API key → OpenRouter → streams SSE back
+    → verifies token → Secret Manager API key → OpenAI → streams SSE back
 
 Admin:  /admin → ADMIN_EMAILS check → adminApi Cloud Function → Admin SDK
 Account: Settings → accountApi Cloud Function → delete/contact
@@ -93,11 +93,11 @@ Core entry points: `src/ai/openrouter.ts` (API calls), `src/ai/partPrompts.ts` (
 
 ### Data storage
 
-- **Firestore** `users/{uid}/` — 14 subcollections: entries, parts, memories, thoughts, interactions, entrySummaries, userProfile, fossils, letters, sessionLog, innerWeather, consent, apiKeys, hrvSessions
+- **Firestore** `users/{uid}/` — 15 subcollections: entries, parts, memories, thoughts, interactions, entrySummaries, userProfile, personalFacts, fossils, letters, sessionLog, innerWeather, consent, apiKeys, hrvSessions
 - **Firestore** `appConfig/global` — readable by all authenticated, writable only via adminApi
 - **Firestore** `contactMessages` — top-level, deny-all in client rules, written/read via Cloud Functions
 - **localStorage** — device settings (theme, model, visual effects, speed, language)
-- **Google Secret Manager** — `OPENROUTER_API_KEY`
+- **Google Secret Manager** — `OPENAI_API_KEY` (used by both `chat` and `realtimeTokenApi`)
 
 ### Auth
 
@@ -171,15 +171,14 @@ npm run smoke-test       # Post-deploy smoke test against live site
 
 ## Common Tasks
 
-### Changing the default AI model
+### Changing the chat model
 
-**Via admin** (no redeploy): `undersurface.me/admin` → Settings → "Default Model".
-**Via code**: update `DEFAULTS.openRouterModel` in `settings.ts`, `getModel()` in `openrouter.ts`, `model ||` in `functions/src/index.ts`. Deploy both.
+The model is pinned server-side. Update `OPENAI_CHAT_MODEL` at the top of `functions/src/index.ts`, then `cd functions && npx tsc && cd .. && firebase deploy --only functions`. The client no longer sends a model field.
 
-### Updating the OpenRouter API key
+### Updating the OpenAI API key
 
 ```bash
-echo "sk-or-v1-new-key" | firebase functions:secrets:set OPENROUTER_API_KEY
+echo "sk-..." | firebase functions:secrets:set OPENAI_API_KEY
 cd functions && npx tsc && cd .. && firebase deploy --only functions
 ```
 

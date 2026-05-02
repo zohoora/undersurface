@@ -1,4 +1,3 @@
-import { getSettings } from '../store/settings'
 import { apiUrl } from '../api/apiBase'
 import { getAuthToken } from '../api/authedFetch'
 
@@ -13,17 +12,12 @@ interface StreamCallbacks {
   onError: (error: Error) => void
 }
 
-function getModel(): string {
-  return getSettings().openRouterModel || 'google/gemini-3-flash-preview'
-}
-
 export async function chatCompletion(
   messages: Message[],
   timeoutMs: number = 10000,
   maxTokens: number = 150,
 ): Promise<string> {
   const token = await getAuthToken()
-  const model = getModel()
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
@@ -35,11 +29,9 @@ export async function chatCompletion(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model,
         messages,
         max_tokens: maxTokens,
         temperature: 0.9,
-        frequency_penalty: 0.4,
       }),
       signal: controller.signal,
     })
@@ -51,7 +43,7 @@ export async function chatCompletion(
 
     const data = await response.json()
     const content = data?.choices?.[0]?.message?.content
-    if (!content) throw new Error('Empty response from OpenRouter')
+    if (!content) throw new Error('Empty response from OpenAI')
     return content
   } finally {
     clearTimeout(timeout)
@@ -65,7 +57,6 @@ export async function streamChatCompletion(
 ): Promise<void> {
   try {
     const token = await getAuthToken()
-    const model = getModel()
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 30000)
 
@@ -78,11 +69,9 @@ export async function streamChatCompletion(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model,
           messages,
           max_tokens: maxTokens,
           temperature: 0.9,
-          frequency_penalty: 0.4,
           stream: true,
         }),
         signal: controller.signal,

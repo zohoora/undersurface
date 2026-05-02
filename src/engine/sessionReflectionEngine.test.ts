@@ -16,6 +16,7 @@ vi.mock('../ai/therapistPrompts', () => ({
 vi.mock('../store/db', () => ({
   db: {
     userProfile: { get: vi.fn(async () => undefined), add: vi.fn(), update: vi.fn() },
+    personalFacts: { get: vi.fn(async () => undefined), add: vi.fn(), update: vi.fn() },
     entrySummaries: {
       add: vi.fn(),
       count: vi.fn(async () => 1),
@@ -116,6 +117,160 @@ describe('reflectOnSession', () => {
       source: 'session',
       sessionId: 'session-1',
     }))
+  })
+
+  it('saves new personalFacts when extracted and none existed', async () => {
+    const longContent = 'My wife Sarah and I just adopted a dog named Max. We live in Brooklyn and our anniversary is March 12.'
+    const messages: SessionMessage[] = [
+      makeMessage({ id: '1', speaker: 'therapist', content: 'Tell me what is going on for you.' }),
+      makeMessage({ id: '2', speaker: 'user', content: longContent }),
+    ]
+
+    mockChatCompletion.mockResolvedValue(JSON.stringify({
+      entrySummary: { themes: ['family'], emotionalArc: 'warm', keyMoments: [] },
+      personalFacts: {
+        people: [
+          { name: 'Sarah', relationship: 'wife' },
+          { name: 'Max', relationship: 'dog' },
+        ],
+        dates: [{ event: 'anniversary', date: '2024-03-12' }],
+        context: [{ category: 'location', value: 'Brooklyn' }],
+        currentThreads: [],
+      },
+    }))
+
+    await reflectOnSession('session-1', messages, [makePart()])
+
+    expect(db.personalFacts.add).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'current',
+      people: [
+        { name: 'Sarah', relationship: 'wife' },
+        { name: 'Max', relationship: 'dog' },
+      ],
+      dates: [{ event: 'anniversary', date: '2024-03-12' }],
+      context: [{ category: 'location', value: 'Brooklyn' }],
+      currentThreads: [],
+    }))
+    expect(db.personalFacts.update).not.toHaveBeenCalled()
+  })
+
+  it('updates personalFacts when one already exists', async () => {
+    vi.mocked(db.personalFacts.get).mockResolvedValueOnce({
+      id: 'current',
+      people: [{ name: 'Sarah', relationship: 'wife' }],
+      dates: [],
+      context: [],
+      currentThreads: [{ topic: 'job interview Thursday', addedAt: 1000 }],
+      lastUpdated: 1000,
+    })
+
+    const longContent = 'The interview went well. Sarah was supportive. We got my promotion confirmed.'
+    const messages: SessionMessage[] = [
+      makeMessage({ id: '1', speaker: 'therapist', content: 'How did the interview go?' }),
+      makeMessage({ id: '2', speaker: 'user', content: longContent }),
+    ]
+
+    mockChatCompletion.mockResolvedValue(JSON.stringify({
+      personalFacts: {
+        people: [{ name: 'Sarah', relationship: 'wife', notes: 'supportive' }],
+        dates: [],
+        context: [],
+        currentThreads: [], // interview thread dropped — resolved
+      },
+    }))
+
+    await reflectOnSession('session-1', messages, [makePart()])
+
+    expect(db.personalFacts.update).toHaveBeenCalledWith(
+      'current',
+      expect.objectContaining({
+        people: [{ name: 'Sarah', relationship: 'wife', notes: 'supportive' }],
+        currentThreads: [],
+      }),
+    )
+  })
+
+  it('preserves addedAt timestamps on existing currentThreads', async () => {
+    vi.mocked(db.personalFacts.get).mockResolvedValueOnce({
+      id: 'current',
+      people: [],
+      dates: [],
+      context: [],
+      currentThreads: [{ topic: 'mom in hospital', addedAt: 5000 }],
+      lastUpdated: 5000,
+    })
+
+    const longContent = 'Mom is still in the hospital. We adopted a new dog named Max yesterday and she has been a bright spot.'
+    const messages: SessionMessage[] = [
+      makeMessage({ id: '1', speaker: 'therapist', content: 'How is your mom doing?' }),
+      makeMessage({ id: '2', speaker: 'user', content: longContent }),
+    ]
+
+    mockChatCompletion.mockResolvedValue(JSON.stringify({
+      personalFacts: {
+        people: [{ name: 'Max', relationship: 'dog' }],
+        dates: [],
+        context: [],
+        currentThreads: [{ topic: 'mom in hospital' }], // same topic — addedAt should carry over
+      },
+    }))
+
+    await reflectOnSession('session-1', messages, [makePart()])
+
+    expect(db.personalFacts.update).toHaveBeenCalledWith(
+      'current',
+      expect.objectContaining({
+        currentThreads: [{ topic: 'mom in hospital', addedAt: 5000 }],
+      }),
+    )
+  })
+
+  it('skips personalFacts write when content is unchanged from existing', async () => {
+    vi.mocked(db.personalFacts.get).mockResolvedValueOnce({
+      id: 'current',
+      people: [{ name: 'Sarah', relationship: 'wife' }],
+      dates: [],
+      context: [{ category: 'location', value: 'Brooklyn' }],
+      currentThreads: [],
+      lastUpdated: 1000,
+    })
+
+    const longContent = 'Today was uneventful. I worked from home and made tea. Just sat with the quiet for a while.'
+    const messages: SessionMessage[] = [
+      makeMessage({ id: '1', speaker: 'therapist', content: 'How was today?' }),
+      makeMessage({ id: '2', speaker: 'user', content: longContent }),
+    ]
+
+    mockChatCompletion.mockResolvedValue(JSON.stringify({
+      personalFacts: {
+        people: [{ name: 'Sarah', relationship: 'wife' }],
+        dates: [],
+        context: [{ category: 'location', value: 'Brooklyn' }],
+        currentThreads: [],
+      },
+    }))
+
+    await reflectOnSession('session-1', messages, [makePart()])
+
+    expect(db.personalFacts.add).not.toHaveBeenCalled()
+    expect(db.personalFacts.update).not.toHaveBeenCalled()
+  })
+
+  it('does not write personalFacts when AI returns empty arrays for everything', async () => {
+    const longContent = 'I do not want to talk about specifics today. Just feeling unsettled and want to sit with it.'
+    const messages: SessionMessage[] = [
+      makeMessage({ id: '1', speaker: 'therapist', content: 'What is here right now?' }),
+      makeMessage({ id: '2', speaker: 'user', content: longContent }),
+    ]
+
+    mockChatCompletion.mockResolvedValue(JSON.stringify({
+      personalFacts: { people: [], dates: [], context: [], currentThreads: [] },
+    }))
+
+    await reflectOnSession('session-1', messages, [makePart()])
+
+    expect(db.personalFacts.add).not.toHaveBeenCalled()
+    expect(db.personalFacts.update).not.toHaveBeenCalled()
   })
 
   it('handles malformed AI response gracefully', async () => {

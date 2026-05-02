@@ -235,7 +235,7 @@ function buildMarkdownExport(collections: Record<string, DocumentData[]>): strin
 export async function exportAllData() {
   const collectionNames = [
     'entries', 'parts', 'memories', 'thoughts', 'interactions',
-    'entrySummaries', 'userProfile', 'fossils', 'letters',
+    'entrySummaries', 'userProfile', 'personalFacts', 'fossils', 'letters',
     'sessionLog', 'innerWeather', 'consent', 'sessions',
     'hrvSessions',
   ] as const

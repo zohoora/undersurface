@@ -3,9 +3,6 @@ import { getGlobalConfig } from './globalConfig'
 import { detectBrowserLanguage } from '../i18n/languages'
 
 export interface AppSettings {
-  // AI
-  openRouterModel: string
-
   // Part responsiveness (0.5 = slower, 2.0 = faster)
   responseSpeed: number
 
@@ -32,7 +29,6 @@ export interface AppSettings {
 }
 
 const DEFAULTS: AppSettings = {
-  openRouterModel: 'google/gemini-3-flash-preview',
   responseSpeed: 1.0,
   typewriterScroll: 'typewriter',
   autoCapitalize: true,
@@ -54,7 +50,6 @@ function getGlobalDefaults(): Partial<AppSettings> {
   const config = getGlobalConfig()
   if (!config) return {}
   const overrides: Partial<AppSettings> = {}
-  if (config.defaultModel) overrides.openRouterModel = config.defaultModel
   if (config.defaultResponseSpeed) overrides.responseSpeed = config.defaultResponseSpeed
   if (config.defaultTypewriterScroll) overrides.typewriterScroll = config.defaultTypewriterScroll
   if (config.features) {
@@ -66,7 +61,7 @@ function getGlobalDefaults(): Partial<AppSettings> {
 }
 
 // Settings that should always come from globalConfig, never from localStorage
-const ADMIN_CONTROLLED_KEYS: (keyof AppSettings)[] = ['openRouterModel', 'typewriterScroll']
+const ADMIN_CONTROLLED_KEYS: (keyof AppSettings)[] = ['typewriterScroll']
 
 function load(): AppSettings {
   if (cache) return cache

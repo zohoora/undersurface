@@ -3,7 +3,6 @@ import { adminFetch } from './adminApi'
 import type { GlobalConfig } from './adminTypes'
 
 const DEFAULTS: GlobalConfig = {
-  defaultModel: 'google/gemini-3-flash-preview',
   defaultResponseSpeed: 1.0,
   defaultTypewriterScroll: 'typewriter',
   features: {
@@ -215,16 +214,6 @@ export function AdminSettings() {
 
       <div style={sectionStyle}>
         <h3 style={{ fontSize: 14, fontWeight: 500, marginTop: 0, marginBottom: 20 }}>Defaults</h3>
-
-        <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Default Model</label>
-          <input
-            type="text"
-            value={config.defaultModel}
-            onChange={(e) => setConfig({ ...config, defaultModel: e.target.value })}
-            style={inputStyle}
-          />
-        </div>
 
         <div style={{ marginBottom: 16 }}>
           <label style={labelStyle}>Default Response Speed ({config.defaultResponseSpeed})</label>

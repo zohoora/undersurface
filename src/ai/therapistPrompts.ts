@@ -1,4 +1,4 @@
-import type { PartMemory, UserProfile, EntrySummary, SessionMessage, SessionPhase, RegisterTierId, InputMode } from '../types'
+import type { PartMemory, UserProfile, PersonalFacts, EntrySummary, SessionMessage, SessionPhase, RegisterTierId, InputMode } from '../types'
 import { languageDirective, formatDateTime, formatTime, formatShortDate } from './partPrompts'
 import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from './promptSafety'
 import { REGISTER_TIERS, renderRegisterBlock, applyGroundingCap } from './registerTiers'
@@ -58,11 +58,44 @@ export interface TherapistPromptOptions {
   recentSessionNotes?: { note: string; date: number }[]
   relevantMemories?: PartMemory[]
   profile?: UserProfile | null
+  personalFacts?: PersonalFacts | null
   currentEmotion?: string
   isGrounding?: boolean
   hrvContext?: string
   registerTier?: RegisterTierId
   currentInputMode?: InputMode
+}
+
+function formatPersonalFactsBlock(facts: PersonalFacts): string {
+  const sections: string[] = []
+
+  if (facts.people.length > 0) {
+    const lines = facts.people.map(p => {
+      const rel = p.relationship ? ` (${sanitizeForPrompt(p.relationship)})` : ''
+      const notes = p.notes ? ` — ${sanitizeForPrompt(p.notes)}` : ''
+      return `- ${sanitizeForPrompt(p.name)}${rel}${notes}`
+    })
+    sections.push(`People in their life:\n${lines.join('\n')}`)
+  }
+
+  if (facts.dates.length > 0) {
+    const lines = facts.dates.map(d => `- ${sanitizeForPrompt(d.event)}: ${sanitizeForPrompt(d.date)}`)
+    sections.push(`Important dates:\n${lines.join('\n')}`)
+  }
+
+  if (facts.context.length > 0) {
+    const lines = facts.context.map(c => `- ${sanitizeForPrompt(c.category)}: ${sanitizeForPrompt(c.value)}`)
+    sections.push(`Context about their life:\n${lines.join('\n')}`)
+  }
+
+  if (facts.currentThreads.length > 0) {
+    const lines = facts.currentThreads.map(t => `- ${sanitizeForPrompt(t.topic)}`)
+    sections.push(`What's currently going on:\n${lines.join('\n')}`)
+  }
+
+  if (sections.length === 0) return ''
+
+  return `Concrete facts about this writer (use naturally — reference names, ask about ongoing situations, remember what matters to them. Do not list these or recite them; weave them in only when relevant):\n\n${sections.join('\n\n')}`
 }
 
 export function buildTherapistSystemPrompt(options: TherapistPromptOptions): string {
@@ -76,6 +109,11 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   const tierId = options.registerTier ?? 'conversational'
   const tier = options.isGrounding ? applyGroundingCap(REGISTER_TIERS[tierId]) : REGISTER_TIERS[tierId]
   parts.push(renderRegisterBlock(tier, options.currentInputMode ?? 'desktop'))
+
+  if (options.personalFacts) {
+    const block = formatPersonalFactsBlock(options.personalFacts)
+    if (block) parts.push(block)
+  }
 
   if (options.profile) {
     const profileLines: string[] = []
@@ -246,12 +284,18 @@ export function buildTherapistSessionNotePrompt(
   ]
 }
 
+export interface SessionReflectionPromptOptions {
+  transcript: string
+  profile: UserProfile | null
+  recentSummaries: EntrySummary[]
+  parts: { id: string; name: string; ifsRole: string }[]
+  existingFacts: PersonalFacts | null
+}
+
 export function buildSessionReflectionPrompt(
-  transcriptText: string,
-  profile: UserProfile | null,
-  recentSummaries: EntrySummary[],
-  parts: { id: string; name: string; ifsRole: string }[],
+  options: SessionReflectionPromptOptions,
 ): { role: 'system' | 'user'; content: string }[] {
+  const { transcript, profile, recentSummaries, parts, existingFacts } = options
   const partList = parts.map(p => `${p.name} (id: ${p.id}, role: ${p.ifsRole})`).join(', ')
 
   let profileContext = ''
@@ -264,12 +308,21 @@ export function buildSessionReflectionPrompt(
     summaryContext = `\n\nRecent entry summaries:\n${recentSummaries.map(s => `- Themes: ${s.themes.map(sanitizeForPrompt).join(', ')} | Arc: ${sanitizeForPrompt(s.emotionalArc)}`).join('\n')}`
   }
 
+  const factsContext = existingFacts
+    ? `\n\nExisting personal facts (consolidate new mentions into this; drop currentThreads that are now resolved/stale):\n${JSON.stringify({
+        people: existingFacts.people,
+        dates: existingFacts.dates,
+        context: existingFacts.context,
+        currentThreads: existingFacts.currentThreads,
+      }, null, 2)}`
+    : '\n\nNo personal facts captured yet. Extract any concrete details mentioned in this session.'
+
   return [
     {
       role: 'system',
       content: `You are an analytical observer of a diary writer's inner world. You analyze completed session transcripts to extract insights. The session was a conversation between the writer and an IFS-informed companion.
 
-Active parts: ${partList}${profileContext}${summaryContext}
+Active parts: ${partList}${profileContext}${summaryContext}${factsContext}
 
 Respond with valid JSON only:
 {
@@ -288,6 +341,12 @@ Respond with valid JSON only:
     "growthSignals": ["signs of growth or shifts"],
     "innerLandscape": "a brief poetic description of the writer's current inner world (1-2 sentences)"
   },
+  "personalFacts": {
+    "people": [{"name": "Sarah", "relationship": "wife", "notes": "anxious about job, loves hiking"}],
+    "dates": [{"event": "anniversary", "date": "2024-03-12"}],
+    "context": [{"category": "location", "value": "Brooklyn"}, {"category": "occupation", "value": "designer"}],
+    "currentThreads": [{"topic": "job interview at Stripe on Thursday"}]
+  },
   "crossEntryPatterns": ["connections to past entry themes, if any"],
   "somaticSignals": [
     {
@@ -299,11 +358,22 @@ Respond with valid JSON only:
   ]
 }
 
+PERSONAL FACTS — extraction rules:
+- Return the FULL updated object (existing facts + new mentions, consolidated). Not a delta.
+- Only extract LITERAL details. If the writer says "I told my anxiety to be quiet," do NOT extract "anxiety" as a person — it's metaphor.
+- Names: only real people, pets, or others actually in the writer's life. Skip fictional characters, public figures, and parts/sub-personalities.
+- Dates: include if a specific date or month is given. Use ISO 8601 (YYYY-MM-DD) when fully known, partial otherwise ("March", "around 2024").
+- Bias toward null over guessing. If unsure whether a detail is literal or metaphorical, OMIT it. Misremembering breaks trust harder than not remembering.
+- Consolidate: if "Sarah" appears in existing facts and the writer mentions "my wife Sarah," update the existing entry rather than duplicating.
+- Drop currentThreads that have clearly resolved (the interview happened, the surgery is done) or that haven't been mentioned in many sessions.
+- Caps: at most 30 people, 20 dates, 20 context, 8 currentThreads. Drop oldest/least-mentioned if over.
+- If no facts at all, omit the personalFacts field entirely (don't return empty arrays).
+
 Only include partMemories for the "open" and "weaver" parts (the companion's source parts). Only include fields where genuine insights exist. Keep everything concise.${UNTRUSTED_CONTENT_PREAMBLE}`,
     },
     {
       role: 'user',
-      content: `Session transcript:\n\n${wrapUserContent(transcriptText, 'transcript')}`,
+      content: `Session transcript:\n\n${wrapUserContent(transcript, 'transcript')}`,
     },
   ]
 }

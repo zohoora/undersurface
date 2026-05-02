@@ -154,6 +154,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
       recentSessionNotes: context?.recentSessionNotes,
       relevantMemories: context?.relevantMemories,
       profile: context?.userProfile,
+      personalFacts: context?.personalFacts,
       isGrounding: isGroundingActive(),
       hrvContext,
     })
@@ -422,6 +423,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
       recentSessionNotes: context.recentSessionNotes,
       relevantMemories: context.relevantMemories,
       profile: context.userProfile,
+      personalFacts: context.personalFacts,
       isGrounding: isGroundingActive(),
       hrvContext: hrv.buildPromptContext(),
     })
