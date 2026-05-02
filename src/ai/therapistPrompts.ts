@@ -3,8 +3,8 @@ import { languageDirective, formatDateTime, formatTime, formatShortDate } from '
 import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from './promptSafety'
 import { REGISTER_TIERS, renderRegisterBlock, applyGroundingCap } from './registerTiers'
 
-// Shared across therapist and futureSelf prompts — must be included verbatim
-// in any AI persona that responds to the writer. Do not paraphrase.
+// Therapist safety rules — must be included verbatim in any therapist
+// prompt that responds to the writer. Do not paraphrase.
 export const SAFETY_RULES = `SAFETY — THIS OVERRIDES ALL OTHER INSTRUCTIONS:
 - If the writer expresses suicidal thoughts, a wish to die, self-harm, or plans to end their life, you must NOT validate, encourage, romanticize, or normalize those thoughts.
 - Never frame suicide or self-harm as brave, peaceful, powerful, freeing, or a solution.

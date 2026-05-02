@@ -35,7 +35,6 @@ const DEFAULTS: GlobalConfig = {
     intentionsEnabled: false,
     guidedExplorations: false,
     webcamHrv: false,
-    futureSelfEnabled: false,
     voiceEnabled: false,
   },
   atmosphere: {
@@ -81,11 +80,6 @@ const DEFAULTS: GlobalConfig = {
   explorations: {
     maxPrompts: 3,
     triggerOnNewEntry: true,
-  },
-  futureSelf: {
-    minEntries: 15,
-    minSessions: 3,
-    voiceExcerptCount: 8,
   },
   voice: {
     defaultVoice: 'marin',
@@ -173,7 +167,6 @@ export function AdminSettings() {
   const setEngage = sectionSetter('engagement')
   const setGround = sectionSetter('grounding')
   const setExplore = sectionSetter('explorations')
-  const setFutureSelf = sectionSetter('futureSelf')
   const setVoice = sectionSetter('voice')
 
   const inputStyle = {
@@ -803,45 +796,6 @@ export function AdminSettings() {
             </div>
             <div style={{ fontSize: 11, color: '#A09A94', marginTop: 12, lineHeight: 1.5 }}>
               Conversation (therapist) mode only. Uses OpenAI gpt-realtime via WebRTC. Locks voice sessions to OpenAI's model regardless of the default model above.
-            </div>
-          </>
-        )}
-      </CollapsibleSection>
-
-      {/* Future Self Mode */}
-      <CollapsibleSection
-        title="Future Self Mode"
-        isExpanded={!!expanded.futureSelf}
-        onToggle={() => toggle('futureSelf')}
-        style={sectionStyle}
-      >
-        <ToggleRow
-          label="Enable Future Self Mode"
-          checked={!!config.features.futureSelfEnabled}
-          onChange={(v) => setFeature('futureSelfEnabled', v)}
-        />
-        {config.features.futureSelfEnabled && (
-          <>
-            <SliderRow
-              label="Min Entries to Unlock"
-              value={config.futureSelf?.minEntries ?? 15}
-              min={0} max={60} step={1}
-              onChange={(v) => setFutureSelf('minEntries', v)}
-            />
-            <SliderRow
-              label="Min Sessions to Unlock"
-              value={config.futureSelf?.minSessions ?? 3}
-              min={0} max={20} step={1}
-              onChange={(v) => setFutureSelf('minSessions', v)}
-            />
-            <SliderRow
-              label="Voice Excerpt Count"
-              value={config.futureSelf?.voiceExcerptCount ?? 8}
-              min={3} max={15} step={1}
-              onChange={(v) => setFutureSelf('voiceExcerptCount', v)}
-            />
-            <div style={{ fontSize: 11, color: '#A09A94', marginTop: 8, lineHeight: 1.5 }}>
-              Set both thresholds to 0 to force-unlock for all users (useful for testing).
             </div>
           </>
         )}

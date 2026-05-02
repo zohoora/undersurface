@@ -11,38 +11,28 @@ import { getGlobalConfig } from '../../store/globalConfig'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../../store/db'
 import { SessionOrchestrator } from '../../engine/sessionOrchestrator'
 import { buildTherapistMessages, buildTherapistSystemPrompt } from '../../ai/therapistPrompts'
-import { buildFutureSelfMessages } from '../../ai/futureSelfPrompts'
 import { useVoiceSession } from '../../hooks/useVoiceSession'
 import { VoiceField } from './VoiceField'
 import { streamChatCompletion } from '../../ai/openrouter'
-import { loadTherapistContext, loadFutureSelfContext } from '../../engine/sessionContextLoader'
-import type { FutureSelfContext } from '../../engine/sessionContextLoader'
+import { loadTherapistContext } from '../../engine/sessionContextLoader'
+import type { TherapistContext } from '../../engine/sessionContextLoader'
 import { reflectOnSession } from '../../engine/sessionReflectionEngine'
 import { getWeatherEngine } from '../../store/weatherStore'
 import { isGroundingActive } from '../../hooks/useGroundingMode'
 import { trackEvent } from '../../services/analytics'
-import { useTranslation } from '../../i18n'
 import { SessionMessageBubble } from './SessionMessage'
 import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
-import type { Session, SessionMessage, SessionMode, SessionPhase, EmotionalTone } from '../../types'
-
-const HOST_PART_ID: Record<SessionMode, string> = {
-  therapist: 'therapist',
-  futureSelf: 'future-self',
-}
+import type { Session, SessionMessage, SessionPhase, EmotionalTone } from '../../types'
 
 interface Props {
   sessionId: string | null
   openingMethod: 'auto' | 'open_invitation'
-  mode?: SessionMode
   onSessionCreated?: (id: string) => void
   onBack?: () => void
 }
 
-export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSessionCreated, onBack }: Props) {
-  const tr = useTranslation()
-  const isFutureSelf = mode === 'futureSelf'
+export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack }: Props) {
   const [session, setSession] = useState<Session | null>(null)
   const [messages, setMessages] = useState<SessionMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -53,9 +43,7 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
   const hrv = useHrvSession(sessionIdRef)
 
   const orchestratorRef = useRef(new SessionOrchestrator())
-  // Holds therapist or future-self context (superset). `voiceExcerpts` is only
-  // populated in future-self mode and ignored by the therapist prompt builder.
-  const contextRef = useRef<FutureSelfContext | null>(null)
+  const contextRef = useRef<TherapistContext | null>(null)
   const weatherEngine = getWeatherEngine()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const sessionRef = useRef<Session | null>(null)
@@ -63,7 +51,7 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
   const handleSendRef = useRef<() => void>(() => {})
 
   const voice = useVoiceSession()
-  const voiceEnabled = !isFutureSelf && getGlobalConfig()?.features?.voiceEnabled === true
+  const voiceEnabled = getGlobalConfig()?.features?.voiceEnabled === true
 
   const handleAutocorrect = useAutocorrect({
     autocorrect: settings.autocorrect,
@@ -84,29 +72,13 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
     let cancelled = false
 
     async function init() {
-      // Load context — Future Self mode also loads voice excerpts for style mimicry
-      const context = isFutureSelf
-        ? await loadFutureSelfContext()
-        : await loadTherapistContext()
+      const context = await loadTherapistContext()
       if (cancelled) return
       contextRef.current = context
 
       if (sessionId) {
-        // Load existing session
         const existingSession = await db.sessions.get(sessionId)
         if (cancelled || !existingSession) return
-
-        // Correct the URL if the stored session's mode doesn't match what the URL claims.
-        // This prevents loading a Future Self session through the therapist code path
-        // (wrong prompts, missing voice excerpts).
-        const storedMode = existingSession.mode === 'futureSelf' ? 'futureSelf' : 'therapist'
-        if (storedMode !== mode) {
-          const correctPath = storedMode === 'futureSelf'
-            ? `/future-self/${sessionId}`
-            : `/session/${sessionId}`
-          window.location.replace(correctPath)
-          return
-        }
 
         setSession(existingSession)
         sessionRef.current = existingSession
@@ -137,7 +109,7 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
       startedAt: Date.now(),
       endedAt: null,
       status: 'active',
-      hostPartId: HOST_PART_ID[mode],
+      hostPartId: 'therapist',
       participantPartIds: [],
       openingMethod,
       sessionNote: null,
@@ -145,7 +117,6 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
       firstLine: '',
       phase: 'opening',
       favorited: false,
-      mode,
     }
 
     await db.sessions.add(newSession)
@@ -155,8 +126,7 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
 
     trackEvent('session_started', {
       opening_method: openingMethod,
-      host_part: HOST_PART_ID[mode],
-      mode,
+      host_part: 'therapist',
     })
 
     // Generate opening message unless open invitation (user speaks first)
@@ -179,20 +149,14 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
 
     const context = contextRef.current
     const hrvContext = hrv.buildPromptContext()
-    const promptOptions = {
+    const promptMessages = buildTherapistMessages(currentMessages, {
       phase,
       recentSessionNotes: context?.recentSessionNotes,
       relevantMemories: context?.relevantMemories,
       profile: context?.userProfile,
       isGrounding: isGroundingActive(),
       hrvContext,
-    }
-    const promptMessages = isFutureSelf
-      ? buildFutureSelfMessages(currentMessages, {
-          ...promptOptions,
-          voiceExcerpts: context?.voiceExcerpts,
-        })
-      : buildTherapistMessages(currentMessages, promptOptions)
+    })
 
     // Reset typewriter buffer
     typewriter.reset()
@@ -484,7 +448,6 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
         }
       },
     })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voice, hrv, appendUserMessage, persistVoiceTherapistMessage])
 
   const handleEndVoice = useCallback(() => {
@@ -621,24 +584,6 @@ export function SessionView({ sessionId, openingMethod, mode = 'therapist', onSe
         <button onClick={onBack} style={backButtonStyle} aria-label="Back">
           ←
         </button>
-      )}
-
-      {/* Mode indicator — Future Self only, subtle header */}
-      {isFutureSelf && !isClosed && (
-        <div style={{
-          fontSize: 11,
-          fontFamily: "'Inter', sans-serif",
-          fontWeight: 500,
-          color: 'var(--text-secondary)',
-          textTransform: 'uppercase' as const,
-          letterSpacing: '0.08em',
-          textAlign: 'center' as const,
-          opacity: 0.55,
-          marginBottom: 28,
-          marginTop: 8,
-        }}>
-          {tr['futureSelf.sessionHeader']}
-        </div>
       )}
 
       {/* Session note card (for closed sessions) */}

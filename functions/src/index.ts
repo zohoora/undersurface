@@ -610,7 +610,7 @@ async function handleGetUserDetail(uid: string) {
       sessionNote: c.sessionNote || null,
       messageCount: c.messageCount || 0,
       firstLine: c.firstLine || '',
-      isTherapistSession: c.isTherapistSession ?? (c.mode !== 'futureSelf'),
+      isTherapistSession: c.isTherapistSession ?? true,
       favorited: c.favorited ?? false,
     })),
     weather: innerWeather.map((w) => ({
@@ -1453,7 +1453,7 @@ export const mcpApi = onRequest(
             phase: data.phase || 'opening',
             messageCount: data.messageCount || 0,
             firstLine: data.firstLine || '',
-            isTherapistSession: data.isTherapistSession ?? (data.mode !== 'futureSelf'),
+            isTherapistSession: data.isTherapistSession ?? true,
           }
         })
 
@@ -1504,7 +1504,7 @@ export const mcpApi = onRequest(
           hostPartId: data.hostPartId || '',
           phase: data.phase || 'opening',
           sessionNote: data.sessionNote || null,
-          isTherapistSession: data.isTherapistSession ?? (data.mode !== 'futureSelf'),
+          isTherapistSession: data.isTherapistSession ?? true,
           messages,
         }
 

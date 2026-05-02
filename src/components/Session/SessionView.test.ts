@@ -58,14 +58,6 @@ vi.mock('../../ai/therapistPrompts', () => ({
   SAFETY_RULES: 'SAFETY — test stub',
 }))
 
-// Mock futureSelfPrompts
-vi.mock('../../ai/futureSelfPrompts', () => ({
-  buildFutureSelfMessages: vi.fn().mockReturnValue([
-    { role: 'system', content: 'test' },
-    { role: 'user', content: 'test' },
-  ]),
-}))
-
 // Mock analytics
 vi.mock('../../services/analytics', () => ({ trackEvent: vi.fn() }))
 
@@ -101,13 +93,6 @@ vi.mock('../../engine/sessionContextLoader', () => ({
     relevantMemories: [],
     userProfile: null,
   }),
-  loadFutureSelfContext: vi.fn().mockResolvedValue({
-    recentSessionNotes: [],
-    relevantMemories: [],
-    userProfile: null,
-    voiceExcerpts: [],
-  }),
-  loadVoiceExcerpts: vi.fn().mockResolvedValue([]),
 }))
 
 // Mock session reflection engine

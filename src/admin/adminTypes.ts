@@ -43,7 +43,6 @@ export interface GlobalConfig {
     // Biometric
     webcamHrv?: boolean
     // Future Self
-    futureSelfEnabled?: boolean
     // Voice (OpenAI Realtime, Conversation/Therapist mode only)
     voiceEnabled?: boolean
   }
@@ -108,12 +107,6 @@ export interface GlobalConfig {
   explorations?: {
     maxPrompts?: number
     triggerOnNewEntry?: boolean
-  }
-
-  futureSelf?: {
-    minEntries?: number
-    minSessions?: number
-    voiceExcerptCount?: number
   }
 
   voice?: {

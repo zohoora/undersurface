@@ -213,8 +213,7 @@ function App() {
           if (todaySession) {
             const entryIsMoreRecent = hasRealTodayEntry && todayEntry.updatedAt >= todaySession.startedAt
             if (!entryIsMoreRecent) {
-              const basePath = todaySession.mode === 'futureSelf' ? '/future-self' : '/session'
-              navigateTo(`${basePath}/${todaySession.id}`)
+              navigateTo(`/session/${todaySession.id}`)
             }
           } else if (!hasRealTodayEntry) {
             navigateTo('/new')
@@ -378,10 +377,6 @@ function App() {
     navigateTo('/session/new')
   }, [navigateTo])
 
-  const handleChoiceFutureSelf = useCallback(() => {
-    navigateTo('/future-self/new')
-  }, [navigateTo])
-
   const handleIntentionChange = useCallback((newIntention: string) => {
     setIntention(newIntention)
     if (activeEntryId) {
@@ -472,8 +467,7 @@ function App() {
       routePath !== '/' &&
       routePath !== '/new' &&
       !routePath.startsWith('/admin') &&
-      !routePath.startsWith('/session') &&
-      !routePath.startsWith('/future-self')
+      !routePath.startsWith('/session')
     ) {
       window.history.replaceState(null, '', '/')
       setRoutePath('/')
@@ -499,14 +493,9 @@ function App() {
   // Route detection
   const isChoiceRoute = routePath === '/new'
   const isSessionRoute = routePath.startsWith('/session')
-  const isFutureSelfRoute = routePath.startsWith('/future-self')
   const isNewSession = routePath === '/session/new'
-  const isNewFutureSelf = routePath === '/future-self/new'
   const sessionIdFromPath = !isNewSession && routePath.startsWith('/session/')
     ? routePath.split('/session/')[1]
-    : null
-  const futureSelfIdFromPath = !isNewFutureSelf && routePath.startsWith('/future-self/')
-    ? routePath.split('/future-self/')[1]
     : null
 
   // Consent gate — show onboarding if user hasn't accepted terms
@@ -635,7 +624,6 @@ function App() {
           <EntryChoice
             onJournalCreated={handleChoiceJournal}
             onConversationChosen={handleChoiceConversation}
-            onFutureSelfChosen={handleChoiceFutureSelf}
             lastUsedType={lastUsedType}
           />
         </Suspense>
@@ -644,23 +632,9 @@ function App() {
           <SessionView
             sessionId={sessionIdFromPath}
             openingMethod="auto"
-            mode="therapist"
             onSessionCreated={(id) => {
               window.history.replaceState(null, '', `/session/${id}`)
               setRoutePath(`/session/${id}`)
-            }}
-            onBack={() => navigateTo('/')}
-          />
-        </Suspense>
-      ) : isFutureSelfRoute ? (
-        <Suspense fallback={<EditorSkeleton />}>
-          <SessionView
-            sessionId={futureSelfIdFromPath}
-            openingMethod="auto"
-            mode="futureSelf"
-            onSessionCreated={(id) => {
-              window.history.replaceState(null, '', `/future-self/${id}`)
-              setRoutePath(`/future-self/${id}`)
             }}
             onBack={() => navigateTo('/')}
           />
