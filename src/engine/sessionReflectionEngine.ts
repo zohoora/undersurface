@@ -239,16 +239,19 @@ function validatePersonalFacts(
 ): PersonalFacts | null {
   if (!raw || typeof raw !== 'object') return null
 
-  const people = (Array.isArray(raw.people) ? raw.people : [])
-    .map(p => {
-      const name = nonEmptyString(p?.name)
-      if (!name) return null
-      const relationship = nonEmptyString(p?.relationship) ?? undefined
-      const notes = nonEmptyString(p?.notes) ?? undefined
-      return { name, relationship, notes }
-    })
-    .filter((p): p is { name: string; relationship?: string; notes?: string } => p !== null)
-    .slice(0, FACT_CAPS.people)
+  type PersonEntry = PersonalFacts['people'][number]
+  const people: PersonEntry[] = []
+  for (const p of (Array.isArray(raw.people) ? raw.people : [])) {
+    const name = nonEmptyString(p?.name)
+    if (!name) continue
+    const entry: PersonEntry = { name }
+    const relationship = nonEmptyString(p?.relationship)
+    if (relationship) entry.relationship = relationship
+    const notes = nonEmptyString(p?.notes)
+    if (notes) entry.notes = notes
+    people.push(entry)
+    if (people.length >= FACT_CAPS.people) break
+  }
 
   const dates = (Array.isArray(raw.dates) ? raw.dates : [])
     .map(d => {
