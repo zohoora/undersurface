@@ -12,7 +12,7 @@ interface StreamCallbacks {
   onError: (error: Error) => void
 }
 
-export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high'
+export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh'
 
 export async function chatCompletion(
   messages: Message[],

@@ -94,7 +94,7 @@ export const chat = onRequest(
     // reasoning models only accept the default (1.0), and OpenAI rejects custom
     // values for this model family.
     const { messages, max_tokens, stream, reasoning_effort } = req.body || {}
-    const ALLOWED_REASONING = new Set(['minimal', 'low', 'medium', 'high'])
+    const ALLOWED_REASONING = new Set(['none', 'low', 'medium', 'high', 'xhigh'])
     const resolvedReasoning = typeof reasoning_effort === 'string' && ALLOWED_REASONING.has(reasoning_effort)
       ? reasoning_effort
       : undefined

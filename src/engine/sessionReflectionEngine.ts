@@ -48,13 +48,13 @@ export async function reflectOnSession(
     })
     // gpt-5.5 with default reasoning was burning the entire token budget on
     // hidden reasoning, leaving zero output. Reflection is structured JSON
-    // extraction — it doesn't need deliberation. 'minimal' reasoning + 2000
+    // extraction — it doesn't need deliberation. 'none' reasoning + 2000
     // token headroom keeps output flowing without runaway cost.
     const reflStart = Date.now()
     console.log('[reflect] start', { sessionId, transcriptLen: transcriptText.length })
     let response: string
     try {
-      response = await chatCompletion(promptMessages, 240000, 2000, 'minimal')
+      response = await chatCompletion(promptMessages, 240000, 2000, 'none')
     } catch (err) {
       console.error('[reflect] chat failed', { sessionId, ms: Date.now() - reflStart, err: err instanceof Error ? err.message : String(err) })
       return
