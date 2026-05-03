@@ -93,7 +93,11 @@ export const chat = onRequest(
     // server-side to OPENAI_CHAT_MODEL. `temperature` is also ignored: GPT-5.x
     // reasoning models only accept the default (1.0), and OpenAI rejects custom
     // values for this model family.
-    const { messages, max_tokens, stream } = req.body || {}
+    const { messages, max_tokens, stream, reasoning_effort } = req.body || {}
+    const ALLOWED_REASONING = new Set(['minimal', 'low', 'medium', 'high'])
+    const resolvedReasoning = typeof reasoning_effort === 'string' && ALLOWED_REASONING.has(reasoning_effort)
+      ? reasoning_effort
+      : undefined
     if (!Array.isArray(messages) || messages.length === 0) {
       res.status(400).json({ error: 'Invalid messages' })
       return
@@ -122,7 +126,7 @@ export const chat = onRequest(
       MAX_TOKENS_CAP,
     )
     const reqStart = Date.now()
-    const tag = `uid=${uid.slice(0, 8)} model=${OPENAI_CHAT_MODEL} stream=${!!stream} max_tokens=${resolvedMaxTokens}`
+    const tag = `uid=${uid.slice(0, 8)} model=${OPENAI_CHAT_MODEL} stream=${!!stream} max_tokens=${resolvedMaxTokens} reasoning=${resolvedReasoning ?? 'default'}`
     console.log(`[chat] start ${tag}`)
 
     const openAiResponse = await fetch(
@@ -138,6 +142,7 @@ export const chat = onRequest(
           messages,
           max_completion_tokens: resolvedMaxTokens,
           stream: !!stream,
+          ...(resolvedReasoning ? { reasoning_effort: resolvedReasoning } : {}),
         }),
       },
     )

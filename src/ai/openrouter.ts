@@ -12,10 +12,13 @@ interface StreamCallbacks {
   onError: (error: Error) => void
 }
 
+export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high'
+
 export async function chatCompletion(
   messages: Message[],
   timeoutMs: number = 10000,
   maxTokens: number = 150,
+  reasoningEffort?: ReasoningEffort,
 ): Promise<string> {
   const token = await getAuthToken()
   const controller = new AbortController()
@@ -32,6 +35,7 @@ export async function chatCompletion(
         messages,
         max_tokens: maxTokens,
         temperature: 0.9,
+        ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
       }),
       signal: controller.signal,
     })
