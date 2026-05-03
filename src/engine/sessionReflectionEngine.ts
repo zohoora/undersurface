@@ -46,7 +46,8 @@ export async function reflectOnSession(
       parts: partsForPrompt,
       existingFacts: existingFacts ?? null,
     })
-    const response = await chatCompletion(promptMessages, 15000, 1000)
+    // 60s timeout: gpt-5.5 reasoning + this prompt's JSON output regularly takes 20–40s.
+    const response = await chatCompletion(promptMessages, 60000, 1000)
 
     // 5. Parse response
     const parsed = parseReflectionResponse(response)

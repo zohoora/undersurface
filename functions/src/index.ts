@@ -66,6 +66,9 @@ export const chat = onRequest(
     cors: ALLOWED_ORIGINS,
     memory: '512MiB',
     minInstances: 1,
+    // 120s for reasoning models — reflection-style calls on gpt-5.5 can take
+    // 30–60s end-to-end. Default 60s was killing reflection mid-flight.
+    timeoutSeconds: 120,
     region: 'us-central1',
   },
   async (req, res) => {
