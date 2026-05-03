@@ -24,7 +24,12 @@ const ALLOWED_ORIGINS = [
 
 // ─── Chat API guardrails ──────────────────────────────────
 
-const MAX_TOKENS_CAP = 500
+// On reasoning models (gpt-5.x), max_completion_tokens budgets BOTH hidden
+// reasoning tokens and visible output. 500 was enough for Claude Sonnet's JSON
+// reflection output, but gpt-5.5 burns 1k–3k reasoning tokens before emitting
+// any output, so reflection-style calls were silently truncated. 4000 leaves
+// comfortable headroom for the largest reflection JSON plus reasoning.
+const MAX_TOKENS_CAP = 4000
 const MAX_MESSAGE_CHARS = 8000 // per-message content length cap
 const MAX_MESSAGES = 50 // max messages per request
 
