@@ -46,12 +46,30 @@ export async function reflectOnSession(
       parts: partsForPrompt,
       existingFacts: existingFacts ?? null,
     })
-    // 60s timeout: gpt-5.5 reasoning + this prompt's JSON output regularly takes 20–40s.
-    const response = await chatCompletion(promptMessages, 60000, 1000)
+    // 240s — gpt-5.5 reasoning is unpredictable; loud upstream timeouts so this
+    // isn't the bottleneck. Server timeout is 300s.
+    const reflStart = Date.now()
+    console.log('[reflect] start', { sessionId, transcriptLen: transcriptText.length })
+    let response: string
+    try {
+      response = await chatCompletion(promptMessages, 240000, 1000)
+    } catch (err) {
+      console.error('[reflect] chat failed', { sessionId, ms: Date.now() - reflStart, err: err instanceof Error ? err.message : String(err) })
+      return
+    }
+    console.log('[reflect] response received', { sessionId, ms: Date.now() - reflStart, len: response.length, head: response.slice(0, 120), tail: response.slice(-120) })
 
-    // 5. Parse response
     const parsed = parseReflectionResponse(response)
-    if (!parsed) return
+    if (!parsed) {
+      console.error('[reflect] parse failed', { sessionId, len: response.length, head: response.slice(0, 200), tail: response.slice(-200) })
+      return
+    }
+    console.log('[reflect] parsed OK', {
+      sessionId,
+      hasEntrySummary: !!parsed.entrySummary,
+      hasPersonalFacts: !!parsed.personalFacts,
+      personalFactsPeople: parsed.personalFacts?.people?.length ?? 0,
+    })
 
     // 6a. Store entry summary (entryId = sessionId)
     if (parsed.entrySummary) {
@@ -139,13 +157,21 @@ export async function reflectOnSession(
     // 6d-bis. Save personal facts. Caps mirror the prompt to defend against runaway output.
     if (parsed.personalFacts) {
       const validated = validatePersonalFacts(parsed.personalFacts, existingFacts ?? null)
-      if (validated && !factsContentEqual(validated, existingFacts ?? null)) {
+      if (!validated) {
+        console.log('[reflect] personalFacts validator returned null (no saveable content)', { sessionId })
+      } else if (factsContentEqual(validated, existingFacts ?? null)) {
+        console.log('[reflect] personalFacts unchanged from existing — skipping write', { sessionId })
+      } else {
+        const op = existingFacts ? 'update' : 'add'
+        console.log('[reflect] personalFacts writing', { sessionId, op, people: validated.people.length, dates: validated.dates.length, context: validated.context.length, threads: validated.currentThreads.length })
         if (existingFacts) {
           await db.personalFacts.update('current', validated)
         } else {
           await db.personalFacts.add(validated)
         }
       }
+    } else {
+      console.log('[reflect] no personalFacts field in LLM response', { sessionId })
     }
 
     // 6e. Create somatic memories
@@ -193,8 +219,10 @@ export async function reflectOnSession(
     } catch (error) {
       console.error('Letter check error:', error)
     }
+
+    console.log('[reflect] complete', { sessionId, totalMs: Date.now() - reflStart })
   } catch (error) {
-    console.error('Session reflection error:', error)
+    console.error('[reflect] error', { sessionId, err: error instanceof Error ? error.message : String(error) })
   }
 }
 

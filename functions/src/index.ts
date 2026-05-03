@@ -66,9 +66,9 @@ export const chat = onRequest(
     cors: ALLOWED_ORIGINS,
     memory: '512MiB',
     minInstances: 1,
-    // 120s for reasoning models — reflection-style calls on gpt-5.5 can take
-    // 30–60s end-to-end. Default 60s was killing reflection mid-flight.
-    timeoutSeconds: 120,
+    // 300s — gpt-5.5 reasoning calls are unpredictable. Diagnostic logging tells
+    // us actual latency; bumping the ceiling here removes server timeout as a suspect.
+    timeoutSeconds: 300,
     region: 'us-central1',
   },
   async (req, res) => {
@@ -121,7 +121,9 @@ export const chat = onRequest(
       typeof max_tokens === 'number' && max_tokens > 0 ? max_tokens : 150,
       MAX_TOKENS_CAP,
     )
-    console.log(`uid=${uid.slice(0, 8)} model=${OPENAI_CHAT_MODEL} stream=${!!stream} max_tokens=${resolvedMaxTokens}`)
+    const reqStart = Date.now()
+    const tag = `uid=${uid.slice(0, 8)} model=${OPENAI_CHAT_MODEL} stream=${!!stream} max_tokens=${resolvedMaxTokens}`
+    console.log(`[chat] start ${tag}`)
 
     const openAiResponse = await fetch(
       'https://api.openai.com/v1/chat/completions',
@@ -140,9 +142,11 @@ export const chat = onRequest(
       },
     )
 
+    const headersMs = Date.now() - reqStart
+
     if (!openAiResponse.ok) {
       const errorBody = await openAiResponse.text().catch(() => '')
-      console.error(`OpenAI error: ${openAiResponse.status}`, errorBody)
+      console.error(`[chat] error ${tag} status=${openAiResponse.status} headersMs=${headersMs}`, errorBody)
       res.status(openAiResponse.status).json({
         error: 'AI service temporarily unavailable',
       })
@@ -163,7 +167,7 @@ export const chat = onRequest(
           if (done) break
           totalBytes += value.byteLength
           if (totalBytes > MAX_STREAM_BYTES) {
-            console.warn(`Stream exceeded ${MAX_STREAM_BYTES} bytes for uid=${uid.slice(0, 8)}, aborting`)
+            console.warn(`[chat] stream-cap ${tag} bytes=${totalBytes}, aborting`)
             break
           }
           res.write(value)
@@ -171,8 +175,13 @@ export const chat = onRequest(
       } finally {
         res.end()
       }
+      console.log(`[chat] done ${tag} bytes=${totalBytes} totalMs=${Date.now() - reqStart}`)
     } else {
       const data = await openAiResponse.json()
+      const finishReason = data?.choices?.[0]?.finish_reason
+      const contentLen = (data?.choices?.[0]?.message?.content || '').length
+      const usage = data?.usage
+      console.log(`[chat] done ${tag} headersMs=${headersMs} totalMs=${Date.now() - reqStart} finish=${finishReason} contentLen=${contentLen} promptTok=${usage?.prompt_tokens} compTok=${usage?.completion_tokens} reasonTok=${usage?.completion_tokens_details?.reasoning_tokens}`)
       res.json(data)
     }
   },
