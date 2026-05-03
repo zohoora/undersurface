@@ -3,7 +3,7 @@ import { db } from '../../store/db'
 import { SettingsPanel } from './SettingsPanel'
 import { useTranslation, getLanguageCode } from '../../i18n'
 import { useGlobalConfig } from '../../store/globalConfig'
-import type { Session } from '../../types'
+import type { Session, SessionMode } from '../../types'
 
 const BodyMapTab = lazy(() => import('../BodyMap/BodyMapTab').then(m => ({ default: m.BodyMapTab })).catch(() => {
   window.location.reload()
@@ -27,7 +27,7 @@ interface Entry {
 
 type SidebarItem =
   | { kind: 'entry'; id: string; timestamp: number; preview: string; favorited?: boolean; title?: string }
-  | { kind: 'session'; id: string; timestamp: number; preview: string; status: 'active' | 'closed'; favorited?: boolean }
+  | { kind: 'session'; id: string; timestamp: number; preview: string; status: 'active' | 'closed'; favorited?: boolean; mode?: SessionMode }
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(
@@ -154,6 +154,7 @@ export function EntriesList({ activeEntryId, onSelectEntry, navigateTo, currentP
       preview: getSessionPreview(s),
       status: s.status,
       favorited: s.favorited,
+      mode: s.mode,
     }))
 
     let merged = [...entryItems, ...sessionItems]
@@ -309,9 +310,26 @@ export function EntriesList({ activeEntryId, onSelectEntry, navigateTo, currentP
                         )}
                       </div>
                       <span className="session-item-label">
-                        <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11" style={{ opacity: 0.45, marginRight: 4, verticalAlign: -1 }}>
-                          <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h7A2.5 2.5 0 0 1 14 2.5v7a2.5 2.5 0 0 1-2.5 2.5H7l-3.5 3.5V12H4.5A2.5 2.5 0 0 1 2 9.5v-7z" />
-                        </svg>
+                        {item.mode === 'real_talk' ? (
+                          <span
+                            aria-hidden="true"
+                            title="Real Talk"
+                            style={{
+                              display: 'inline-block',
+                              fontSize: 9,
+                              opacity: 0.55,
+                              marginRight: 4,
+                              verticalAlign: 1,
+                              color: 'var(--text-secondary)',
+                            }}
+                          >
+                            {'◆'}
+                          </span>
+                        ) : (
+                          <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11" style={{ opacity: 0.45, marginRight: 4, verticalAlign: -1 }}>
+                            <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h7A2.5 2.5 0 0 1 14 2.5v7a2.5 2.5 0 0 1-2.5 2.5H7l-3.5 3.5V12H4.5A2.5 2.5 0 0 1 2 9.5v-7z" />
+                          </svg>
+                        )}
                         {item.preview}
                       </span>
                     </div>

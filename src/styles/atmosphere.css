@@ -1625,9 +1625,10 @@ body {
 }
 
 .entry-choice-container {
-  display: flex;
-  gap: 28px;
-  max-width: 760px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  max-width: 1080px;
   width: 100%;
 }
 
@@ -1656,6 +1657,10 @@ body {
 
 .entry-choice-card.entered.entered-delay {
   transition-delay: 120ms;
+}
+
+.entry-choice-card.entered.entered-delay-2 {
+  transition-delay: 220ms;
 }
 
 .entry-choice-card:hover {
@@ -1805,6 +1810,76 @@ body {
   50% { opacity: 1; transform: scale(1.1); }
 }
 
+/* ── Flint-spark animation (Real Talk card) ─────────
+   Warmer amber, sharper rhythm. Honesty over softness. */
+
+.flint-spark::before {
+  content: '';
+  position: absolute;
+  top: 30%;
+  left: 60%;
+  width: 70%;
+  height: 70%;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse,
+    rgba(181, 109, 72, 0.07) 0%,
+    rgba(181, 109, 72, 0.03) 45%,
+    transparent 70%
+  );
+  animation: flint 3.6s ease-in-out infinite;
+}
+
+[data-theme="dark"] .flint-spark::before {
+  background: radial-gradient(
+    ellipse,
+    rgba(212, 130, 90, 0.08) 0%,
+    rgba(212, 130, 90, 0.03) 45%,
+    transparent 70%
+  );
+}
+
+.entry-choice-card:hover .flint-spark::before {
+  animation-duration: 2.2s;
+}
+
+@keyframes flint {
+  0%, 100% { opacity: 0.45; transform: scale(0.85) translateY(0); }
+  40% { opacity: 0.85; transform: scale(1.05) translateY(-4px); }
+  60% { opacity: 1; transform: scale(1.0) translateY(2px); }
+}
+
+/* ── Session mode badge (Real Talk header marker) ── */
+
+.session-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  background: rgba(181, 109, 72, 0.08);
+  border: 1px solid rgba(181, 109, 72, 0.18);
+  width: fit-content;
+}
+
+[data-theme="dark"] .session-mode-badge {
+  background: rgba(212, 130, 90, 0.10);
+  border-color: rgba(212, 130, 90, 0.22);
+}
+
+.session-mode-glyph {
+  font-size: 10px;
+  opacity: 0.75;
+  display: inline-block;
+  transform: translateY(-0.5px);
+}
+
 @keyframes blink {
   from, to { opacity: 1; }
   50% { opacity: 0; }
@@ -1817,6 +1892,14 @@ body {
 
 /* ── Mobile layout ─────────────────────────────────── */
 
+/* Tablet — collapse to 2-up so cards stay readable */
+@media (max-width: 1000px) and (min-width: 769px) {
+  .entry-choice-container {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 720px;
+  }
+}
+
 @media (max-width: 768px) {
   .entry-choice-backdrop {
     padding: 20px;
@@ -1827,7 +1910,7 @@ body {
   }
 
   .entry-choice-container {
-    flex-direction: column;
+    grid-template-columns: 1fr;
     gap: 16px;
   }
 

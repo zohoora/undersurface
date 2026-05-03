@@ -89,11 +89,11 @@ Account: Settings → accountApi Cloud Function → delete/contact
 
 Detailed file-by-file reference: `.claude/docs/key-files.md`
 
-Core entry points: `src/ai/openrouter.ts` (API calls), `src/ai/partPrompts.ts` (system prompts + `SHARED_INSTRUCTIONS`), `src/ai/sessionPrompts.ts` (session mode part prompts), `src/ai/therapistPrompts.ts` (therapist companion prompts + `SAFETY_RULES`), `src/engine/partOrchestrator.ts` (part selection + scoring), `src/engine/sessionOrchestrator.ts` (session phase detection + crisis keywords + emotion check), `src/engine/pauseDetector.ts` (pause detection), `src/engine/sessionContextLoader.ts` (`loadTherapistContext`), `src/engine/hrvEngine.ts` (webcam HRV biofeedback), `src/engine/hrvSignalWorker.ts` (CHROM rPPG signal processing Web Worker), `src/engine/hrvTimeline.ts` (HRV timeline + shift detection + prompt context), `src/components/Editor/LivingEditor.tsx` (TipTap editor), `src/components/Session/SessionView.tsx` (therapist session UI), `src/components/EntryChoice.tsx` (2-way choice screen), `src/store/db.ts` (Firestore wrapper), `functions/src/index.ts` (Cloud Functions).
+Core entry points: `src/ai/openrouter.ts` (API calls), `src/ai/partPrompts.ts` (system prompts + `SHARED_INSTRUCTIONS`), `src/ai/sessionPrompts.ts` (session mode part prompts), `src/ai/therapistPrompts.ts` (therapist companion prompts — `THERAPIST_CORE` warm + `REAL_TALK_CORE` calling-out + `SAFETY_RULES`), `src/engine/partOrchestrator.ts` (part selection + scoring), `src/engine/sessionOrchestrator.ts` (session phase detection + crisis keywords + emotion check), `src/engine/pauseDetector.ts` (pause detection), `src/engine/sessionContextLoader.ts` (`loadTherapistContext`), `src/engine/hrvEngine.ts` (webcam HRV biofeedback), `src/engine/hrvSignalWorker.ts` (CHROM rPPG signal processing Web Worker), `src/engine/hrvTimeline.ts` (HRV timeline + shift detection + prompt context), `src/components/Editor/LivingEditor.tsx` (TipTap editor), `src/components/Session/SessionView.tsx` (therapist session UI), `src/components/EntryChoice.tsx` (3-way choice screen: Journal / Conversation / Real Talk), `src/store/db.ts` (Firestore wrapper), `functions/src/index.ts` (Cloud Functions).
 
 ### Data storage
 
-- **Firestore** `users/{uid}/` — 15 subcollections: entries, parts, memories, thoughts, interactions, entrySummaries, userProfile, personalFacts, fossils, letters, sessionLog, innerWeather, consent, apiKeys, hrvSessions
+- **Firestore** `users/{uid}/` — 15 subcollections: entries, parts, memories, thoughts, interactions, entrySummaries, userProfile, personalFacts, fossils, letters, sessionLog (sessions docs carry an optional `mode: 'standard' | 'real_talk'` field), innerWeather, consent, apiKeys, hrvSessions
 - **Firestore** `appConfig/global` — readable by all authenticated, writable only via adminApi
 - **Firestore** `contactMessages` — top-level, deny-all in client rules, written/read via Cloud Functions
 - **localStorage** — device settings (theme, model, visual effects, speed, language)
@@ -105,7 +105,7 @@ Firebase Authentication: Google Sign-In + Email/Password. `App.tsx` gates app be
 
 ### URL routing
 
-SPA in `App.tsx` using `pushState`-based client-side routing (no router library): `/` → diary, `/new` → 2-way choice screen, `/session/:id` → therapist session, `/admin` → admin dashboard (lazy-loaded), anything else → `/`. `navigateTo()` callback uses `history.pushState` + React state; `popstate` listener handles back/forward.
+SPA in `App.tsx` using `pushState`-based client-side routing (no router library): `/` → diary, `/new` → 3-way choice screen (Journal / Conversation / Real Talk), `/session/new` → new session (mode picked up from `pendingSessionMode` state set by the choice handler — never URL-encoded), `/session/:id` → existing session (mode loaded from Firestore), `/admin` → admin dashboard (lazy-loaded), anything else → `/`. `navigateTo()` callback uses `history.pushState` + React state; `popstate` listener handles back/forward.
 
 ### Feature flags
 
@@ -121,6 +121,22 @@ At `/admin` for admins only. Lazy-loaded. 6 tabs, 9 API actions. Overview shows 
 ### Subsystems
 
 Dark mode, adaptive parts, i18n (17 languages), emergency grounding, bundle splitting, intentions, explorations, session closing, autocorrect, body map, data export, webcam HRV biofeedback — all documented in `.claude/docs/subsystems.md`
+
+### Real Talk mode (Session)
+
+A tone variant of the therapist persona that names coping moves the writer is making — avoidance, externalization, intellectualization, rationalization, minimization, self-blame as shield, all-or-nothing thinking. Mantra: **not nice, but kind and constructive**.
+
+**Architecture.** Real Talk is a *tone variant of the existing therapist prompt*, not a parallel pipeline. `buildTherapistSystemPrompt` accepts `mode?: 'standard' | 'real_talk'` and swaps only the persona core (`THERAPIST_CORE` ↔ `REAL_TALK_CORE`) and phase hint. All other context blocks (personalFacts, profile, memories, register tier, HRV, datetime, language directive, untrusted-content preamble, `SAFETY_RULES`) are reused unchanged. `REAL_TALK_CORE` includes a 7-item pattern taxonomy and explicit "label the move, never the writer" rules.
+
+**Crisis override (load-bearing invariant).** When `isGrounding === true`, `buildTherapistSystemPrompt` reverts to `THERAPIST_CORE` regardless of saved mode. Naming coping patterns is the wrong response to distress. The check is `useRealTalk = mode === 'real_talk' && !isGrounding`. The crisis keyword path (`sessionOrchestrator.checkCrisisKeywords` → `activateGrounding('auto')`) and the async emotion-check path both flip `isGrounding` before the next prompt is built. Verified by `realTalkFlow.test.ts` and `therapistPrompts.test.ts`.
+
+**Flow.** EntryChoice (`/new`) shows 3 cards. User clicks Real Talk → App.tsx sets `pendingSessionMode='real_talk'` → navigates to `/session/new` → SessionView creates the Session doc with `mode: 'real_talk'` → mode is read on every prompt build for the session's lifetime. Mode is *not* in the URL — pendingSessionMode is cleared after the session id is replaced into the URL.
+
+**UI markers.** `◆ Real Talk` badge in SessionView header (CSS class `.session-mode-badge`, warm-amber via CSS variables) + `◆` glyph (instead of the chat-bubble SVG) in the sidebar entry. Both are theme-aware.
+
+**Animation.** Third card uses `flint-spark` (warm amber, sharper rhythm than `breath-glow`) to signal "honest light." `entered-delay-2` adds a 220ms staggered entrance behind the existing `entered-delay` (120ms).
+
+**Patterns leverage.** `UserProfile.avoidancePatterns` is already populated by `sessionReflectionEngine` post-session; Real Talk benefits passively because those patterns surface in the existing "Patterns you have noticed" block of every prompt. No reflection-engine changes were needed in v1.
 
 ### HRV Biofeedback (Session Mode)
 
@@ -148,7 +164,7 @@ Webcam-based heart rate variability monitoring using remote photoplethysmography
 
 ## Testing
 
-Vitest. Tests cover: `llmCorrect` (sentence extraction, CJK/Hindi/Thai, trigger logic, correction validation), `annotationParser` (parsing, ghost capitalization, delimiter), `bodyMapEngine` (emotion-to-color mapping, homunculus state computation), `ritualEngine`, `pauseDetector`, `partOrchestrator`, `weatherEngine`, `settings`, `sessionOrchestrator` (phase detection, crisis keywords, emotion check, grounding activation), `sessionReflectionEngine`, `sessionPrompts`, `therapistPrompts`, `SessionView`, `hrvSignalWorker` (CHROM extraction, FFT, bandpass filter, peak detection), `hrvTimeline` (shift detection, prompt context builder), `promptSafety`.
+Vitest. Tests cover: `llmCorrect` (sentence extraction, CJK/Hindi/Thai, trigger logic, correction validation), `annotationParser` (parsing, ghost capitalization, delimiter), `bodyMapEngine` (emotion-to-color mapping, homunculus state computation), `ritualEngine`, `pauseDetector`, `partOrchestrator`, `weatherEngine`, `settings`, `sessionOrchestrator` (phase detection, crisis keywords, emotion check, grounding activation), `sessionReflectionEngine`, `sessionPrompts`, `therapistPrompts` (incl. Real Talk persona swap and grounding override), `realTalkFlow` (end-to-end Real Talk orchestrator + prompt builder integration, crisis override), `translations` (every language has all `choice.realtalk.*` + `session.mode.realTalk` keys, no untranslated stubs), `SessionView`, `hrvSignalWorker` (CHROM extraction, FFT, bandpass filter, peak detection), `hrvTimeline` (shift detection, prompt context builder), `promptSafety`.
 
 ```bash
 npm run test             # Run all tests
@@ -231,6 +247,7 @@ Add to `SEEDED_PARTS` in `partPrompts.ts`. Scoring is role-based (`ifsRole`) —
 - **Exploration engine single-shot** — `hasSuggested` guard; must call `reset()` on entry switch
 - **Session closing** — hardcoded The Weaver prompt, not part ID lookup
 - **Crisis keyword check must run before LLM generation** — `checkCrisisKeywords()` is synchronous and activates grounding before `generateTherapistMessage()` so `isGrounding: true` flows into the prompt. Async emotion check alone is too late
+- **Real Talk grounding override is non-negotiable** — `buildTherapistSystemPrompt` checks `useRealTalk = mode === 'real_talk' && !isGrounding`. Distress disables Real Talk, no exceptions. Anyone editing the prompt builder must preserve this single guard line. Both branches still embed `SAFETY_RULES` verbatim. Verified by tests in `therapistPrompts.test.ts` and `realTalkFlow.test.ts` — do not delete those tests when refactoring
 - **Session sidebar is unified** — entries and sessions in one chronological list via `SidebarItem` discriminated union in `EntriesList.tsx`. No separate sections
 
 ### i18n

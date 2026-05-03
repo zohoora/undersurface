@@ -7,7 +7,7 @@
 | `src/ai/openrouter.ts` | Client-side API calls to `/api/chat`; `analyzeEmotionAndDistress()` for combined emotion + distress check |
 | `src/ai/partPrompts.ts` | System prompts for 7 seeded parts + `SHARED_INSTRUCTIONS` + emergence, reflection, growth, grounding, intention prompts + `languageDirective()` for multilingual AI response directives |
 | `src/ai/sessionPrompts.ts` | Session mode prompts for parts — `SESSION_INSTRUCTIONS`, `buildSessionMessages()`, `buildSessionNotePrompt()` |
-| `src/ai/therapistPrompts.ts` | Therapist companion prompts — `THERAPIST_CORE`, `buildTherapistMessages()`, `buildTherapistSessionNotePrompt()`, `buildSessionReflectionPrompt()` |
+| `src/ai/therapistPrompts.ts` | Therapist companion prompts — `THERAPIST_CORE` (warm), `REAL_TALK_CORE` (calling-out coping patterns), `buildTherapistMessages()`, `buildTherapistSessionNotePrompt()`, `buildSessionReflectionPrompt()`. Mode swap is gated on `mode==='real_talk' && !isGrounding` — grounding always reverts to warm core |
 | `src/engine/partOrchestrator.ts` | Selects which part responds (role-based scoring); distress detection; intention passing; pre-warms DB caches in `loadParts()` |
 | `src/engine/pauseDetector.ts` | Detects writing pauses from keystroke timing |
 | `src/engine/emergenceEngine.ts` | Detects new parts emerging from writing |
@@ -88,7 +88,7 @@
 | `src/components/BodyMap/BodyMapTab.tsx` | Body Map tab container — loads somatic memories, computes HomunculusState, handles dormant state |
 | `src/components/BodyMap/HomunculusSVG.tsx` | SVG homunculus figure with 10 animated body regions (Framer Motion), click-to-select, breathing animation |
 | `src/components/BodyMap/RegionDetail.tsx` | Region detail panel — emotion pills, recent somatic quotes, entry dates |
-| `src/components/Session/SessionView.tsx` | Session/conversation mode UI — therapist companion chat with crisis keyword detection before LLM generation |
+| `src/components/Session/SessionView.tsx` | Session/conversation mode UI — therapist companion chat with crisis keyword detection before LLM generation. Accepts `initialMode` prop (`'standard' \| 'real_talk'`) for new sessions, persists `mode` field on the Session doc, threads it into every prompt builder call, and renders a `◆ Real Talk` badge in the header |
 | `src/components/Sidebar/EntriesList.tsx` | Unified sidebar — entries + sessions in one chronological list with Body Map tab (when `bodyMap` feature flag enabled) |
 | `src/components/Sidebar/SettingsPanel.tsx` | Settings panel — slide-up overlay above gear button |
 | `src/components/Sidebar/ModelSelector.tsx` | LLM model selection dropdown |

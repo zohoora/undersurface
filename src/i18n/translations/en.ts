@@ -92,6 +92,10 @@ const en = {
   'choice.conversation.tagline': 'Sit with a companion',
   'choice.conversation.desc': 'A gentle back-and-forth. Share what\'s on your mind, and a companion responds — following where you lead.',
   'choice.conversation.aria': 'Start a conversation — sit with a companion who follows where you lead',
+  'choice.realtalk.title': 'Real Talk',
+  'choice.realtalk.tagline': 'Honest, kind pushback',
+  'choice.realtalk.desc': 'A companion who notices what you\'re doing — avoiding, deflecting, talking around it — and names it kindly. Not nice. Kind.',
+  'choice.realtalk.aria': 'Start Real Talk — a companion who kindly names what you\'re avoiding',
 
   // Body Map
   'bodyMap.title': 'Body',
@@ -122,6 +126,7 @@ const en = {
   'session.tapToClose': 'tap anywhere to close',
   'session.fallback': 'You showed up today. That matters.',
   'session.attribution': 'The Weaver',
+  'session.mode.realTalk': 'Real Talk',
 
   // Emotions (for InnerWeather display)
   'emotion.tender': 'tender',

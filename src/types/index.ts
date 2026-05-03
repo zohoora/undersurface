@@ -92,6 +92,8 @@ export type SessionPhase = 'opening' | 'deepening' | 'closing'
 export type SessionOpeningMethod = 'auto' | 'user_chose' | 'open_invitation'
 export type EmergenceReason = 'emotional_gravity' | 'tension' | 'user_invitation'
 
+export type SessionMode = 'standard' | 'real_talk'
+
 export interface Session {
   id: string
   startedAt: number
@@ -106,6 +108,9 @@ export interface Session {
   firstLine: string
   phase: SessionPhase
   favorited?: boolean
+  // Tone variant for the therapist persona. Optional for backward compat —
+  // legacy sessions without this field are treated as 'standard'.
+  mode?: SessionMode
 }
 
 export interface SessionMessage {

@@ -7,7 +7,7 @@ vi.mock('../i18n', () => ({
 
 import { buildTherapistSystemPrompt, buildTherapistMessages, buildTherapistSessionNotePrompt, buildSessionReflectionPrompt } from './therapistPrompts'
 import { REGISTER_TIER_IDS } from './registerTiers'
-import type { SessionMessage, PartMemory, UserProfile, EntrySummary } from '../types'
+import type { SessionMessage, PartMemory, UserProfile, EntrySummary, SessionPhase } from '../types'
 
 function makeMessage(overrides: Partial<SessionMessage> = {}): SessionMessage {
   return {
@@ -161,6 +161,107 @@ describe('buildTherapistSystemPrompt', () => {
       expect(prompt).toContain('SAFETY — THIS OVERRIDES ALL OTHER INSTRUCTIONS')
       expect(prompt).toContain('Watch for escalation through metaphor')
     })
+  })
+})
+
+describe('buildTherapistSystemPrompt — Real Talk mode', () => {
+  // Marker phrases — these are unique enough to discriminate the persona block.
+  // THERAPIST_CORE opens with "IFS-informed conversational companion".
+  // REAL_TALK_CORE opens with "honest, observational companion".
+  const REAL_TALK_MARKER = 'honest, observational companion'
+  const STANDARD_MARKER = 'IFS-informed conversational companion'
+
+  it('mode=real_talk uses REAL_TALK_CORE and includes the pattern taxonomy', () => {
+    const prompt = buildTherapistSystemPrompt({ phase: 'deepening', mode: 'real_talk' })
+    expect(prompt).toContain(REAL_TALK_MARKER)
+    expect(prompt).not.toContain(STANDARD_MARKER)
+
+    // Pattern taxonomy must surface so the model has the lens to use.
+    expect(prompt).toContain('Avoidance')
+    expect(prompt).toContain('Externalization')
+    expect(prompt).toContain('Intellectualization')
+    expect(prompt).toContain('Rationalization')
+    expect(prompt).toContain('Minimization')
+
+    // Phase hint switches to the Real Talk variant.
+    expect(prompt).toContain('Real Talk earns its name')
+  })
+
+  it('mode=real_talk + isGrounding=true falls back to THERAPIST_CORE (grounding override)', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      mode: 'real_talk',
+      isGrounding: true,
+    })
+    // The override is the most important behavioral guarantee — naming coping
+    // patterns during distress is exactly the wrong move.
+    expect(prompt).toContain(STANDARD_MARKER)
+    expect(prompt).not.toContain(REAL_TALK_MARKER)
+
+    // Pattern taxonomy must NOT appear when grounded.
+    expect(prompt).not.toContain('HOW YOU CALL THINGS OUT')
+    expect(prompt).not.toContain('Real Talk earns its name')
+
+    // Standard grounding directive still present.
+    expect(prompt).toContain('distress')
+    expect(prompt).toContain('gentle')
+  })
+
+  it('SAFETY_RULES appear verbatim in both modes', () => {
+    const standardPrompt = buildTherapistSystemPrompt({ phase: 'opening', mode: 'standard' })
+    const realTalkPrompt = buildTherapistSystemPrompt({ phase: 'opening', mode: 'real_talk' })
+    const safetyMarker = 'SAFETY — THIS OVERRIDES ALL OTHER INSTRUCTIONS'
+    const escalationMarker = 'Watch for escalation through metaphor'
+
+    expect(standardPrompt).toContain(safetyMarker)
+    expect(standardPrompt).toContain(escalationMarker)
+    expect(realTalkPrompt).toContain(safetyMarker)
+    expect(realTalkPrompt).toContain(escalationMarker)
+  })
+
+  it('omitting mode is identical to mode=standard', () => {
+    const promptOmitted = buildTherapistSystemPrompt({ phase: 'opening' })
+    const promptExplicit = buildTherapistSystemPrompt({ phase: 'opening', mode: 'standard' })
+    expect(promptOmitted).toEqual(promptExplicit)
+  })
+
+  it('Real Talk preserves register tier injection (still inherits pacing/vocab discipline)', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      mode: 'real_talk',
+      registerTier: 'plain',
+    })
+    // Plain tier markers still appear — Real Talk doesn't bypass tier rules.
+    expect(prompt).toContain('Short, simple words')
+    expect(prompt).toContain('12 words or fewer')
+  })
+
+  it('Real Talk preserves context injection (memories, profile, personal facts)', () => {
+    const profile: UserProfile = {
+      id: 'current',
+      recurringThemes: ['career'],
+      emotionalPatterns: [],
+      avoidancePatterns: ['talking about parents'],
+      growthSignals: [],
+      innerLandscape: '',
+      lastUpdated: Date.now(),
+    }
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      mode: 'real_talk',
+      profile,
+    })
+    expect(prompt).toContain('career')
+    expect(prompt).toContain('talking about parents')
+  })
+
+  it('Real Talk phase hints are distinct from standard at each phase', () => {
+    const phases: SessionPhase[] = ['opening', 'deepening', 'closing']
+    for (const phase of phases) {
+      const standard = buildTherapistSystemPrompt({ phase, mode: 'standard' })
+      const realTalk = buildTherapistSystemPrompt({ phase, mode: 'real_talk' })
+      expect(standard).not.toEqual(realTalk)
+    }
   })
 })
 

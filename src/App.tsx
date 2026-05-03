@@ -41,7 +41,7 @@ const SessionClosing = lazyWithRetry(() => import('./components/SessionClosing')
 import { trackEvent } from './services/analytics'
 import { t, useTranslation, getPartDisplayName } from './i18n'
 import { getSettings } from './store/settings'
-import type { EmotionalTone, GuidedExploration, InnerWeather as InnerWeatherType } from './types'
+import type { EmotionalTone, GuidedExploration, InnerWeather as InnerWeatherType, SessionMode } from './types'
 
 const ADMIN_EMAILS = ['zohoora@gmail.com']
 
@@ -145,7 +145,8 @@ function App() {
   const [closingLoading, setClosingLoading] = useState(false)
   const readyAtRef = useRef(0)
   const firstKeystrokeTrackedRef = useRef(false)
-  const [lastUsedType, setLastUsedType] = useState<'journal' | 'conversation' | null>(null)
+  const [lastUsedType, setLastUsedType] = useState<'journal' | 'conversation' | 'real_talk' | null>(null)
+  const [pendingSessionMode, setPendingSessionMode] = useState<SessionMode | null>(null)
 
   // Determine last-used type when entering choice screen
   useEffect(() => {
@@ -159,8 +160,15 @@ function App() {
       const latestSession = sessions[0]
       if (!latestEntry && !latestSession) { setLastUsedType(null); return }
       if (!latestSession) { setLastUsedType('journal'); return }
-      if (!latestEntry) { setLastUsedType('conversation'); return }
-      setLastUsedType(latestEntry.updatedAt >= latestSession.startedAt ? 'journal' : 'conversation')
+      if (!latestEntry) {
+        setLastUsedType(latestSession.mode === 'real_talk' ? 'real_talk' : 'conversation')
+        return
+      }
+      if (latestEntry.updatedAt >= latestSession.startedAt) {
+        setLastUsedType('journal')
+      } else {
+        setLastUsedType(latestSession.mode === 'real_talk' ? 'real_talk' : 'conversation')
+      }
     })()
     return () => { cancelled = true }
   }, [routePath])
@@ -374,6 +382,12 @@ function App() {
   }, [handleNewEntry, navigateTo])
 
   const handleChoiceConversation = useCallback(() => {
+    setPendingSessionMode('standard')
+    navigateTo('/session/new')
+  }, [navigateTo])
+
+  const handleChoiceRealTalk = useCallback(() => {
+    setPendingSessionMode('real_talk')
     navigateTo('/session/new')
   }, [navigateTo])
 
@@ -624,6 +638,7 @@ function App() {
           <EntryChoice
             onJournalCreated={handleChoiceJournal}
             onConversationChosen={handleChoiceConversation}
+            onRealTalkChosen={handleChoiceRealTalk}
             lastUsedType={lastUsedType}
           />
         </Suspense>
@@ -632,9 +647,11 @@ function App() {
           <SessionView
             sessionId={sessionIdFromPath}
             openingMethod="auto"
+            initialMode={isNewSession ? (pendingSessionMode ?? 'standard') : undefined}
             onSessionCreated={(id) => {
               window.history.replaceState(null, '', `/session/${id}`)
               setRoutePath(`/session/${id}`)
+              setPendingSessionMode(null)
             }}
             onBack={() => navigateTo('/')}
           />

@@ -3,16 +3,19 @@ import { useTranslation } from '../i18n'
 import { db, generateId } from '../store/db'
 import { trackEvent } from '../services/analytics'
 
+type ChoiceType = 'journal' | 'conversation' | 'real_talk'
+
 interface Props {
   onJournalCreated: (id: string) => void
   onConversationChosen: () => void
-  lastUsedType: 'journal' | 'conversation' | null
+  onRealTalkChosen: () => void
+  lastUsedType: ChoiceType | null
 }
 
-export function EntryChoice({ onJournalCreated, onConversationChosen, lastUsedType }: Props) {
+export function EntryChoice({ onJournalCreated, onConversationChosen, onRealTalkChosen, lastUsedType }: Props) {
   const t = useTranslation()
   const [entered, setEntered] = useState(false)
-  const [selectedType, setSelectedType] = useState<'journal' | 'conversation' | null>(null)
+  const [selectedType, setSelectedType] = useState<ChoiceType | null>(null)
 
   // Staggered entrance animation
   useEffect(() => {
@@ -48,17 +51,34 @@ export function EntryChoice({ onJournalCreated, onConversationChosen, lastUsedTy
     setTimeout(() => onConversationChosen(), 340)
   }, [selectedType, onConversationChosen])
 
+  const handleRealTalk = useCallback(() => {
+    if (selectedType) return
+    setSelectedType('real_talk')
+
+    trackEvent('entry_choice', { type: 'real_talk' })
+
+    setTimeout(() => onRealTalkChosen(), 340)
+  }, [selectedType, onRealTalkChosen])
+
+  // Each card uses the same dismissal logic: it dismisses if any *other*
+  // card has been selected. Splitting this out keeps the JSX symmetric.
+  const cardClasses = (type: ChoiceType, delayClass: string): string => {
+    const isSelected = selectedType === type
+    const isDismissed = selectedType !== null && selectedType !== type
+    return [
+      'entry-choice-card',
+      entered ? `entered ${delayClass}`.trim() : '',
+      isSelected ? 'selected' : '',
+      isDismissed ? 'dismissed' : '',
+      lastUsedType === type ? 'last-used' : '',
+    ].filter(Boolean).join(' ')
+  }
+
   return (
     <div className="entry-choice-backdrop">
       <div className="entry-choice-container">
         <div
-          className={[
-            'entry-choice-card',
-            entered ? 'entered' : '',
-            selectedType === 'journal' ? 'selected' : '',
-            selectedType === 'conversation' ? 'dismissed' : '',
-            lastUsedType === 'journal' ? 'last-used' : '',
-          ].filter(Boolean).join(' ')}
+          className={cardClasses('journal', '')}
           role="button"
           tabIndex={0}
           aria-label={t['choice.journal.aria']}
@@ -74,13 +94,7 @@ export function EntryChoice({ onJournalCreated, onConversationChosen, lastUsedTy
         </div>
 
         <div
-          className={[
-            'entry-choice-card',
-            entered ? 'entered entered-delay' : '',
-            selectedType === 'conversation' ? 'selected' : '',
-            selectedType === 'journal' ? 'dismissed' : '',
-            lastUsedType === 'conversation' ? 'last-used' : '',
-          ].filter(Boolean).join(' ')}
+          className={cardClasses('conversation', 'entered-delay')}
           role="button"
           tabIndex={0}
           aria-label={t['choice.conversation.aria']}
@@ -92,6 +106,22 @@ export function EntryChoice({ onJournalCreated, onConversationChosen, lastUsedTy
             <h2 className="entry-choice-title">{t['choice.conversation.title']}</h2>
             <p className="entry-choice-tagline">{t['choice.conversation.tagline']}</p>
             <p className="entry-choice-desc">{t['choice.conversation.desc']}</p>
+          </div>
+        </div>
+
+        <div
+          className={cardClasses('real_talk', 'entered-delay-2')}
+          role="button"
+          tabIndex={0}
+          aria-label={t['choice.realtalk.aria']}
+          onClick={handleRealTalk}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRealTalk() } }}
+        >
+          <div className="entry-choice-anim flint-spark" aria-hidden="true" />
+          <div className="entry-choice-content">
+            <h2 className="entry-choice-title">{t['choice.realtalk.title']}</h2>
+            <p className="entry-choice-tagline">{t['choice.realtalk.tagline']}</p>
+            <p className="entry-choice-desc">{t['choice.realtalk.desc']}</p>
           </div>
         </div>
       </div>

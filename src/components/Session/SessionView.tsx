@@ -23,16 +23,19 @@ import { trackEvent } from '../../services/analytics'
 import { SessionMessageBubble } from './SessionMessage'
 import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
-import type { Session, SessionMessage, SessionPhase, EmotionalTone } from '../../types'
+import type { Session, SessionMessage, SessionPhase, SessionMode, EmotionalTone } from '../../types'
+import { useTranslation } from '../../i18n'
 
 interface Props {
   sessionId: string | null
   openingMethod: 'auto' | 'open_invitation'
+  initialMode?: SessionMode
   onSessionCreated?: (id: string) => void
   onBack?: () => void
 }
 
-export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack }: Props) {
+export function SessionView({ sessionId, openingMethod, initialMode, onSessionCreated, onBack }: Props) {
+  const tr = useTranslation()
   const [session, setSession] = useState<Session | null>(null)
   const [messages, setMessages] = useState<SessionMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -117,6 +120,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
       firstLine: '',
       phase: 'opening',
       favorited: false,
+      mode: initialMode ?? 'standard',
     }
 
     await db.sessions.add(newSession)
@@ -127,6 +131,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
     trackEvent('session_started', {
       opening_method: openingMethod,
       host_part: 'therapist',
+      mode: newSession.mode ?? 'standard',
     })
 
     // Generate opening message unless open invitation (user speaks first)
@@ -134,7 +139,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
       await generateTherapistMessage([], newSession)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openingMethod, onSessionCreated])
+  }, [openingMethod, onSessionCreated, initialMode])
 
   // Returns the updated messages array after the therapist message is finalized
   const generateTherapistMessage = useCallback(async (
@@ -157,6 +162,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
       personalFacts: context?.personalFacts,
       isGrounding: isGroundingActive(),
       hrvContext,
+      mode: currentSession.mode ?? 'standard',
     })
 
     // Reset typewriter buffer
@@ -427,6 +433,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
       personalFacts: context.personalFacts,
       isGrounding: isGroundingActive(),
       hrvContext: hrv.buildPromptContext(),
+      mode: sessionRef.current?.mode ?? 'standard',
     })
 
     const preferredVoice = getGlobalConfig()?.voice?.defaultVoice ?? 'marin'
@@ -587,6 +594,13 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
         <button onClick={onBack} style={backButtonStyle} aria-label="Back">
           ←
         </button>
+      )}
+
+      {session?.mode === 'real_talk' && (
+        <div className="session-mode-badge" data-mode="real_talk" aria-label="Real Talk mode">
+          <span className="session-mode-glyph" aria-hidden="true">{'◆'}</span>
+          {tr['session.mode.realTalk']}
+        </div>
       )}
 
       {/* Session note card (for closed sessions) */}
