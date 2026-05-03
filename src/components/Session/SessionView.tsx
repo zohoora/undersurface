@@ -13,7 +13,7 @@ import { SessionOrchestrator } from '../../engine/sessionOrchestrator'
 import { buildTherapistMessages, buildTherapistSystemPrompt } from '../../ai/therapistPrompts'
 import { useVoiceSession } from '../../hooks/useVoiceSession'
 import { VoiceField } from './VoiceField'
-import { streamChatCompletion } from '../../ai/openrouter'
+import { streamChatCompletion, reasoningForSpeed } from '../../ai/openrouter'
 import { loadTherapistContext } from '../../engine/sessionContextLoader'
 import type { TherapistContext } from '../../engine/sessionContextLoader'
 import { reflectOnSession } from '../../engine/sessionReflectionEngine'
@@ -233,11 +233,11 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
         },
       },
       maxTokens,
-      'low',
+      reasoningForSpeed(settings.responseSpeed),
     )
 
     return messagesPromise
-  }, [hrv, typewriter])
+  }, [hrv, typewriter, settings.responseSpeed])
 
   // Persist a user-authored message (text or voice) and run the synchronous
   // side effects: HRV event, crisis-keyword check, async emotion/weather update.

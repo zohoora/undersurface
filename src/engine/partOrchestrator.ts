@@ -1,6 +1,6 @@
 import type { Part, PauseEvent, PauseType, PartThought, EmotionalTone, IFSRole, PartAnnotations } from '../types'
 import { buildPartMessages } from '../ai/partPrompts'
-import { streamChatCompletion, analyzeEmotionAndDistress } from '../ai/openrouter'
+import { streamChatCompletion, analyzeEmotionAndDistress, reasoningForSpeed } from '../ai/openrouter'
 import { parseAnnotations, isDelimiterPrefix, DELIMITER, fixGhostCapitalization } from '../ai/annotationParser'
 import { db, generateId } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
@@ -495,7 +495,7 @@ export class PartOrchestrator {
         },
       },
       wantAnnotations ? 250 : 150,
-      'low',
+      reasoningForSpeed(getSettings().responseSpeed),
     )
   }
 

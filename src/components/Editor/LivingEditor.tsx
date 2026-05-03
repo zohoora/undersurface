@@ -22,7 +22,7 @@ import { PauseRipple } from '../Atmosphere/PauseRipple'
 import { usePauseRipple } from '../Atmosphere/usePauseRipple'
 import { useTheme } from '../../hooks/useTheme'
 import { buildInteractionReply } from '../../ai/partPrompts'
-import { streamChatCompletion } from '../../ai/openrouter'
+import { streamChatCompletion, reasoningForSpeed } from '../../ai/openrouter'
 import { db, generateId } from '../../store/db'
 import { getGlobalConfig, useGlobalConfig } from '../../store/globalConfig'
 import { trackEvent } from '../../services/analytics'
@@ -703,10 +703,10 @@ export default function LivingEditor({
           },
         },
         150,
-        'low',
+        reasoningForSpeed(settings.responseSpeed),
       )
     },
-    [activeInteraction, editor, entryId],
+    [activeInteraction, editor, entryId, settings.responseSpeed],
   )
 
   const handleCloseInteraction = useCallback(() => {

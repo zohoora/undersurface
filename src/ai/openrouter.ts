@@ -14,6 +14,16 @@ interface StreamCallbacks {
 
 export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh'
 
+// Map a user-facing "response speed" multiplier (0.5 slow ↔ 2.0 fast) to a
+// gpt-5.5 reasoning_effort tier. Faster = less hidden reasoning before output,
+// so the response starts streaming sooner (at the cost of less deliberation).
+// Default 1.0 lands in 'low' — same behavior as before this slider was wired.
+export function reasoningForSpeed(speed: number): ReasoningEffort {
+  if (speed <= 0.8) return 'medium'
+  if (speed >= 1.5) return 'none'
+  return 'low'
+}
+
 export async function chatCompletion(
   messages: Message[],
   timeoutMs: number = 10000,

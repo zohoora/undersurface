@@ -216,7 +216,12 @@ export function AdminSettings() {
         <h3 style={{ fontSize: 14, fontWeight: 500, marginTop: 0, marginBottom: 20 }}>Defaults</h3>
 
         <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Default Response Speed ({config.defaultResponseSpeed})</label>
+          <label style={labelStyle}>
+            Default Response Speed ({config.defaultResponseSpeed.toFixed(1)} —{' '}
+            {config.defaultResponseSpeed <= 0.8 ? 'deliberate (medium reasoning)'
+              : config.defaultResponseSpeed >= 1.5 ? 'snappy (no reasoning)'
+              : 'balanced (low reasoning)'})
+          </label>
           <input
             type="range"
             min="0.5"
@@ -226,6 +231,9 @@ export function AdminSettings() {
             onChange={(e) => setConfig({ ...config, defaultResponseSpeed: parseFloat(e.target.value) })}
             style={{ width: '100%' }}
           />
+          <div style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>
+            Controls both how quickly parts trigger to respond and how much the LLM deliberates before streaming output. Affects therapist conversations, parts in the editor, and reply generation.
+          </div>
         </div>
 
         <div style={{ marginBottom: 0 }}>
