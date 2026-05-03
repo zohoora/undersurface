@@ -233,6 +233,7 @@ export function SessionView({ sessionId, openingMethod, onSessionCreated, onBack
         },
       },
       maxTokens,
+      'low',
     )
 
     return messagesPromise

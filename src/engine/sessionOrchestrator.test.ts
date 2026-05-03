@@ -301,8 +301,9 @@ describe('SessionOrchestrator', () => {
       expect(buildTherapistSessionNotePrompt).toHaveBeenCalledWith(messages)
       expect(chatCompletion).toHaveBeenCalledWith(
         expect.any(Array),
-        15000,
-        300,
+        30000,
+        400,
+        'low',
       )
       expect(note).toBe('Session note here.')
     })

@@ -1016,6 +1016,7 @@ Respond in JSON: { "narrative": "...", "highlights": ["...", "..."] }`
           { role: 'user', content: userContent },
         ],
         max_completion_tokens: 800,
+        reasoning_effort: 'none', // structured JSON output
       }),
     },
   )

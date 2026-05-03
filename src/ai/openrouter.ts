@@ -58,6 +58,7 @@ export async function streamChatCompletion(
   messages: Message[],
   callbacks: StreamCallbacks,
   maxTokens: number = 150,
+  reasoningEffort?: ReasoningEffort,
 ): Promise<void> {
   try {
     const token = await getAuthToken()
@@ -77,6 +78,7 @@ export async function streamChatCompletion(
           max_tokens: maxTokens,
           temperature: 0.9,
           stream: true,
+          ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
         }),
         signal: controller.signal,
       })
@@ -180,7 +182,7 @@ Distress scale (err on the side of LOW scores — processing hard feelings is no
       role: 'user',
       content: text.slice(-500),
     },
-  ])
+  ], 10000, 150, 'none')
 
   try {
     const jsonMatch = response.match(/\{[\s\S]*\}/)

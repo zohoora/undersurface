@@ -111,6 +111,6 @@ export class SessionOrchestrator {
 
   async generateSessionNote(messages: SessionMessage[]): Promise<string> {
     const promptMessages = buildTherapistSessionNotePrompt(messages)
-    return chatCompletion(promptMessages, 15000, 300)
+    return chatCompletion(promptMessages, 30000, 400, 'low')
   }
 }

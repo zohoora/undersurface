@@ -90,8 +90,8 @@ export class ReflectionEngine {
         partsForPrompt,
       )
 
-      // 6. Single AI call (15s timeout for larger input)
-      const response = await chatCompletion(messages, 15000, 1000)
+      // Reasoning='none' for structured JSON extraction (proven necessary on gpt-5.5).
+      const response = await chatCompletion(messages, 60000, 1500, 'none')
 
       // 7. Parse response
       const parsed = this.parseReflectionResponse(response)

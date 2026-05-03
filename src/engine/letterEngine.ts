@@ -72,7 +72,7 @@ You are writing a letter to a diary writer from the perspective of their inner p
         },
       ]
 
-      const content = await chatCompletion(messages, 20000, 800)
+      const content = await chatCompletion(messages, 30000, 800, 'low')
 
       const letter: PartLetter = {
         id: generateId(),

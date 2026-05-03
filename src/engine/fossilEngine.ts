@@ -57,7 +57,7 @@ export class FossilEngine {
         { role: 'user', content: entry.plainText },
       ]
 
-      const commentary = await chatCompletion(messages, 10000, 150)
+      const commentary = await chatCompletion(messages, 10000, 150, 'low')
 
       const fossil: EntryFossil = {
         id: generateId(),

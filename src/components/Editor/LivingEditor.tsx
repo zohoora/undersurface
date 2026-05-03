@@ -703,6 +703,7 @@ export default function LivingEditor({
           },
         },
         150,
+        'low',
       )
     },
     [activeInteraction, editor, entryId],

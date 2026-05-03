@@ -77,7 +77,7 @@ Sources:
         },
       ]
 
-      const response = await chatCompletion(messages, 10000, 300)
+      const response = await chatCompletion(messages, 30000, 300, 'none')
 
       // Parse JSON
       const jsonMatch = response.match(/\[[\s\S]*\]/)

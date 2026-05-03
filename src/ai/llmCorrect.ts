@@ -176,6 +176,7 @@ export async function correctSentence(sentence: string): Promise<string | null> 
           ],
           temperature: 0,
           max_tokens: 200,
+          reasoning_effort: 'none',
         }),
         signal: controller.signal,
       })

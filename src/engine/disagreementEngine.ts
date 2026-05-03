@@ -62,7 +62,7 @@ export class DisagreementEngine {
     ]
 
     try {
-      const response = await chatCompletion(messages, 10000, 150)
+      const response = await chatCompletion(messages, 10000, 150, 'low')
       this.lastDisagreementTime = Date.now()
       return response
     } catch (error) {

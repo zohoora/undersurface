@@ -45,7 +45,9 @@ export class EmergenceEngine {
 
     try {
       const messages = buildEmergenceAnalysis(currentText, existingParts)
-      const response = await chatCompletion(messages)
+      // JSON output (detected/name/color/ifsRole/voice/concern/firstWords) — bumped
+      // budget from default 150 (too tight for full part definition).
+      const response = await chatCompletion(messages, 30000, 500, 'none')
 
       const parsed = JSON.parse(response)
 

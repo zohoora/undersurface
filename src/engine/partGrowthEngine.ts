@@ -37,7 +37,7 @@ export class PartGrowthEngine {
       if (partsWithExperience.length === 0) return
 
       const messages = buildGrowthPrompt(partsWithExperience, profile)
-      const response = await chatCompletion(messages, 15000, 600)
+      const response = await chatCompletion(messages, 30000, 600, 'none')
 
       const parsed = this.parseGrowthResponse(response)
       if (!parsed?.partGrowth) return

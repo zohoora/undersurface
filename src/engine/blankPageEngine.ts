@@ -57,7 +57,7 @@ export class BlankPageEngine {
         { role: 'user', content: 'The writer is staring at a blank page.' },
       ]
 
-      const content = await chatCompletion(messages, 8000, 100)
+      const content = await chatCompletion(messages, 10000, 200, 'low')
 
       return {
         partId: part.id,

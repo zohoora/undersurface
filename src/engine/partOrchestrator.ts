@@ -495,6 +495,7 @@ export class PartOrchestrator {
         },
       },
       wantAnnotations ? 250 : 150,
+      'low',
     )
   }
 
