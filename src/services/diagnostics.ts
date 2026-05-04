@@ -29,12 +29,22 @@ export interface DiagnosticEvent {
   context?: Record<string, string | number | boolean>
 }
 
+/** Contract for `postMessage` from a Web Worker that wants to engineLog. */
+export interface WorkerEngineLogMessage {
+  type: 'engine-log'
+  payload: {
+    severity: Severity
+    code: DiagnosticCode
+    msg: string
+    extra?: Record<string, string | number | boolean>
+  }
+}
+
 interface DedupRule {
   /** Cooldown in ms. 0 means no dedup — every call writes. */
   cooldownMs: number
 }
 
-// One source of truth for per-code dedup behavior. Edit this when adding codes.
 const DEDUP_RULES: Record<DiagnosticCode, DedupRule> = {
   'parts.empty_active_set': { cooldownMs: 5_000 },
   'stream.loop_detected': { cooldownMs: 0 },
@@ -44,8 +54,10 @@ const DEDUP_RULES: Record<DiagnosticCode, DedupRule> = {
 }
 
 const MAX_MSG_CHARS = 200
+const truncate = (s: string) => s.slice(0, MAX_MSG_CHARS)
 
 interface DedupEntry {
+  code: DiagnosticCode
   firstTs: number
   count: number
   lastSeverity: Severity
@@ -74,7 +86,7 @@ function makeEvent(
     timestamp: Date.now(),
     severity,
     code,
-    msg: msg.slice(0, MAX_MSG_CHARS),
+    msg: truncate(msg),
   }
   if (ctx?.sessionId) event.sessionId = ctx.sessionId
   if (ctx?.entryId) event.entryId = ctx.entryId
@@ -97,10 +109,9 @@ function flushEntry(key: string): void {
   dedupBuffer.delete(key)
   if (entry.flushTimer) clearTimeout(entry.flushTimer)
   if (entry.count <= 1) return
-  const code = key.split('::')[0] as DiagnosticCode
   const summary = makeEvent(
     entry.lastSeverity,
-    code,
+    entry.code,
     entry.lastMsg,
     { sessionId: entry.lastSessionId, entryId: entry.lastEntryId, extra: entry.lastCtx },
     entry.count,
@@ -130,10 +141,11 @@ export function engineLog(
   if (!existing) {
     void writeDoc(makeEvent(severity, code, msg, ctx))
     dedupBuffer.set(key, {
+      code,
       firstTs: Date.now(),
       count: 1,
       lastSeverity: severity,
-      lastMsg: msg.slice(0, MAX_MSG_CHARS),
+      lastMsg: truncate(msg),
       lastCtx: ctx?.extra,
       lastSessionId: ctx?.sessionId,
       lastEntryId: ctx?.entryId,
@@ -144,7 +156,7 @@ export function engineLog(
 
   existing.count += 1
   existing.lastSeverity = severity
-  existing.lastMsg = msg.slice(0, MAX_MSG_CHARS)
+  existing.lastMsg = truncate(msg)
   existing.lastCtx = ctx?.extra
   existing.lastSessionId = ctx?.sessionId
   existing.lastEntryId = ctx?.entryId
@@ -155,14 +167,20 @@ export function flushDiagnostics(): void {
   for (const key of Array.from(dedupBuffer.keys())) flushEntry(key)
 }
 
-if (typeof document !== 'undefined') {
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') flushDiagnostics()
-  })
+let lifecycleListenersAttached = false
+function attachLifecycleListeners() {
+  if (lifecycleListenersAttached) return
+  lifecycleListenersAttached = true
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flushDiagnostics()
+    })
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', () => flushDiagnostics())
+  }
 }
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', () => flushDiagnostics())
-}
+attachLifecycleListeners()
 
 /** Test-only: clear in-memory state between tests. */
 export function __resetDiagnosticsForTest(): void {

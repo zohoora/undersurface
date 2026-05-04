@@ -1,6 +1,6 @@
 import type { HrvMeasurement, HrvError, HrvSignalDump } from '../types/hrv'
 import { engineLog } from '../services/diagnostics'
-import type { Severity, DiagnosticCode } from '../services/diagnostics'
+import type { WorkerEngineLogMessage } from '../services/diagnostics'
 
 // Module-level HR accessor for cross-component use (like isGroundingActive)
 let currentHeartRate: number | null = null
@@ -113,13 +113,8 @@ export class HrvEngine {
 
       this.worker.onmessage = (e: MessageEvent) => {
         const { type, data, signalDump } = e.data
-        if (type === 'engine-log' && e.data.payload) {
-          const { severity, code, msg, extra } = e.data.payload as {
-            severity: Severity
-            code: DiagnosticCode
-            msg: string
-            extra?: Record<string, string | number | boolean>
-          }
+        if (type === 'engine-log') {
+          const { severity, code, msg, extra } = (e.data as WorkerEngineLogMessage).payload
           engineLog(severity, code, msg, {
             sessionId: this.currentSessionId ?? undefined,
             extra,

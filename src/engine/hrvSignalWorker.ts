@@ -1,4 +1,5 @@
 import type { AutonomicState, HrvDerivedMetrics, HrvMeasurement, HrvTrend } from '../types/hrv'
+import type { Severity, DiagnosticCode, WorkerEngineLogMessage } from '../services/diagnostics'
 
 // ---------------------------------------------------------------------------
 // Pure signal-processing functions (exported for testing)
@@ -583,15 +584,28 @@ const LOW_CONF_THRESHOLD = 0.2
 const LOW_CONF_TICKS_TO_EMIT = 6 // ~30s at 5s compute interval
 
 function postEngineLog(
-  severity: 'info' | 'warn' | 'error',
-  code: 'hrv.skin_filter_low_confidence',
+  severity: Severity,
+  code: DiagnosticCode,
   msg: string,
   extra?: Record<string, string | number | boolean>,
 ): void {
-  ;(self as unknown as { postMessage: (m: unknown) => void }).postMessage({
+  const message: WorkerEngineLogMessage = {
     type: 'engine-log',
     payload: { severity, code, msg, extra },
-  })
+  }
+  ;(self as unknown as { postMessage: (m: unknown) => void }).postMessage(message)
+}
+
+function noteLowConfidence(reason: 'no_regions' | 'low_snr', confidence?: number): void {
+  state.lowConfRun++
+  if (state.lowConfRun !== LOW_CONF_TICKS_TO_EMIT) return
+  const sustainedSec = LOW_CONF_TICKS_TO_EMIT * 5
+  const msg = reason === 'no_regions'
+    ? `no skin regions produced an FFT result for ${sustainedSec}s+`
+    : `confidence below ${LOW_CONF_THRESHOLD} for ${sustainedSec}s+`
+  const extra: Record<string, string | number> = { ticks: state.lowConfRun, reason }
+  if (confidence !== undefined) extra.confidence = Math.round(confidence * 100) / 100
+  postEngineLog('info', 'hrv.skin_filter_low_confidence', msg, extra)
 }
 
 function makeEmptyRegions(): Record<string, RegionBuffer> {
@@ -752,12 +766,7 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
       }
 
       if (regionResults.length === 0) {
-        state.lowConfRun++
-        if (state.lowConfRun === LOW_CONF_TICKS_TO_EMIT) {
-          postEngineLog('info', 'hrv.skin_filter_low_confidence',
-            `no skin regions produced an FFT result for ${LOW_CONF_TICKS_TO_EMIT * 5}s+`,
-            { ticks: state.lowConfRun, reason: 'no_regions' })
-        }
+        noteLowConfidence('no_regions')
         return
       }
 
@@ -781,12 +790,7 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
       const mergedConf = bestConfidence
 
       if (mergedConf < LOW_CONF_THRESHOLD) {
-        state.lowConfRun++
-        if (state.lowConfRun === LOW_CONF_TICKS_TO_EMIT) {
-          postEngineLog('info', 'hrv.skin_filter_low_confidence',
-            `confidence below ${LOW_CONF_THRESHOLD} for ${LOW_CONF_TICKS_TO_EMIT * 5}s+`,
-            { ticks: state.lowConfRun, confidence: Math.round(mergedConf * 100) / 100, reason: 'low_snr' })
-        }
+        noteLowConfidence('low_snr', mergedConf)
       } else {
         state.lowConfRun = 0
       }

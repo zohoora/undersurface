@@ -1,20 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
 import { adminFetch } from './adminApi'
 import type { AdminUserDetailResponse, AdminConversation, AdminSessionMessage } from './adminTypes'
+import type { DiagnosticEvent, Severity } from '../services/diagnostics'
 
 type DetailTab = 'entries' | 'parts' | 'conversations' | 'thoughts' | 'memories' | 'profile' | 'sessions' | 'weather' | 'letters' | 'fossils' | 'diagnostics'
-
-interface DiagnosticEventDoc {
-  id: string
-  timestamp: number
-  severity: 'info' | 'warn' | 'error'
-  code: string
-  msg: string
-  sessionId?: string
-  entryId?: string
-  repeatCount?: number
-  context?: Record<string, string | number | boolean>
-}
 
 interface Props {
   uid: string
@@ -387,12 +376,12 @@ export function AdminUserDetail({ uid, onBack }: Props) {
 }
 
 function DiagnosticsTab({ uid }: { uid: string }) {
-  const [events, setEvents] = useState<DiagnosticEventDoc[] | null>(null)
+  const [events, setEvents] = useState<DiagnosticEvent[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
 
   useEffect(() => {
-    adminFetch<{ events: DiagnosticEventDoc[] }>('getDiagnostics', { uid, limit: 200 })
+    adminFetch<{ events: DiagnosticEvent[] }>('getDiagnostics', { uid, limit: 200 })
       .then((r) => setEvents(r.events))
       .catch((e) => setError(e.message))
   }, [uid])
@@ -401,7 +390,7 @@ function DiagnosticsTab({ uid }: { uid: string }) {
   if (!events) return <div style={{ fontSize: 13, color: '#A09A94' }}>Loading...</div>
   if (events.length === 0) return <div style={{ fontSize: 13, color: '#A09A94' }}>No diagnostic events</div>
 
-  const severityStyle = (s: 'info' | 'warn' | 'error') =>
+  const severityStyle = (s: Severity) =>
     s === 'error' ? { bg: '#FEE2E2', fg: '#991B1B' }
     : s === 'warn' ? { bg: '#FEF3C7', fg: '#92400E' }
     : { bg: '#F0EDE9', fg: '#8B8580' }
