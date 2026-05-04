@@ -40,9 +40,17 @@ const CRISIS_RESPONSE_FORMAT = {
   },
 } as const
 
-// Crisis classifier doesn't need much output budget — it's a JSON object with
-// a single integer plus a short reason string.
-const CRISIS_MAX_TOKENS = 80
+// gpt-5 reasoning models budget hidden reasoning + visible output against the
+// SAME max_completion_tokens. With reasoning_effort='minimal' the model still
+// uses some reasoning tokens; 500 leaves comfortable headroom for the small
+// JSON output. 80 was empirically too tight — output came back empty with
+// finish_reason='length' because reasoning consumed the entire budget.
+const CRISIS_MAX_TOKENS = 500
+
+// Crisis classifier always requests minimal reasoning. The classification is
+// near-binary; spending tokens on hidden reasoning starves the visible output.
+// gpt-5-nano rejects 'none' here — supported values are minimal/low/medium/high.
+const CRISIS_REASONING = 'minimal' as const
 
 const ALLOWED_ORIGINS = [
   'https://undersurface.me',
@@ -180,10 +188,12 @@ export const chat = onRequest(
           messages,
           max_completion_tokens: resolvedMaxTokens,
           stream: streamForRequest,
-          // Skip client-supplied reasoning_effort for the crisis classifier —
-          // we want minimal hidden reasoning so the safety path stays under
-          // ~400ms in the common case.
-          ...(resolvedReasoning && !isCrisisCheck ? { reasoning_effort: resolvedReasoning } : {}),
+          // Crisis classifier hardcodes reasoning_effort='minimal' (smaller
+          // model needs the budget for visible output, not hidden reasoning).
+          // Other tasks pass the client-supplied value through unchanged.
+          ...(isCrisisCheck
+            ? { reasoning_effort: CRISIS_REASONING }
+            : (resolvedReasoning ? { reasoning_effort: resolvedReasoning } : {})),
           ...(isCrisisCheck ? { response_format: CRISIS_RESPONSE_FORMAT } : {}),
         }),
       },

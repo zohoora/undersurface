@@ -65,7 +65,11 @@ async function callClassifier(c: CrisisEvalCase): Promise<CallResult> {
         { role: 'system', content: CRISIS_CLASSIFIER_PROMPT },
         { role: 'user', content: userContent },
       ],
-      max_completion_tokens: 80,
+      // Mirror the deployed function's settings — gpt-5 reasoning models
+      // budget hidden reasoning + visible output against the same cap, so
+      // 80 tokens is empirically too tight even with reasoning_effort=minimal.
+      max_completion_tokens: 500,
+      reasoning_effort: 'minimal',
       response_format: RESPONSE_FORMAT,
     }),
   })
