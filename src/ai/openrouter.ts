@@ -1,6 +1,7 @@
 import { apiUrl } from '../api/apiBase'
 import { getAuthToken } from '../api/authedFetch'
 import { CRISIS_CLASSIFIER_PROMPT } from './crisisClassifierPrompt'
+import { engineLog } from '../services/diagnostics'
 
 interface Message {
   role: 'system' | 'user' | 'assistant'
@@ -150,7 +151,9 @@ export async function streamChatCompletion(
                 const tail = fullText.slice(-40)
                 const searchArea = fullText.slice(0, -40)
                 if (searchArea.includes(tail)) {
-                  console.warn('Repetition loop detected, aborting stream')
+                  engineLog('warn', 'stream.loop_detected', `repetition loop at ${fullText.length} chars; aborting stream`, {
+                    extra: { textLength: fullText.length },
+                  })
                   loopDetected = true
                   controller.abort()
                   break

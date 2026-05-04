@@ -24,6 +24,7 @@ import type {
   InnerWeather, ConsentRecord, Session, SessionMessage, ApiKey,
 } from '../types'
 import type { HrvSessionData, CameraHrvConsent } from '../types/hrv'
+import type { DiagnosticEvent } from '../services/diagnostics'
 
 function getUid(): string {
   const user = getAuth().currentUser
@@ -148,6 +149,7 @@ export const db = {
   sessions: createCollectionProxy<Session>('sessions'),
   apiKeys: createCollectionProxy<ApiKey>('apiKeys'),
   hrvSessions: createCollectionProxy<HrvSessionData>('hrvSessions'),
+  diagnostics: createCollectionProxy<DiagnosticEvent>('diagnostics'),
 }
 
 export const sessionMessages = {

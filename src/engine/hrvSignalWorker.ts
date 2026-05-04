@@ -573,6 +573,25 @@ interface WorkerState {
   smoothedHr: number | null
   smoothedRR: number | null
   recentHrs: number[]
+  /** Consecutive compute ticks where signal confidence was inadequate. */
+  lowConfRun: number
+}
+
+// Diagnostic emission. Routed back to main thread via postMessage; main thread
+// forwards to engineLog (services/diagnostics). Worker stays Firestore-free.
+const LOW_CONF_THRESHOLD = 0.2
+const LOW_CONF_TICKS_TO_EMIT = 6 // ~30s at 5s compute interval
+
+function postEngineLog(
+  severity: 'info' | 'warn' | 'error',
+  code: 'hrv.skin_filter_low_confidence',
+  msg: string,
+  extra?: Record<string, string | number | boolean>,
+): void {
+  ;(self as unknown as { postMessage: (m: unknown) => void }).postMessage({
+    type: 'engine-log',
+    payload: { severity, code, msg, extra },
+  })
 }
 
 function makeEmptyRegions(): Record<string, RegionBuffer> {
@@ -595,6 +614,7 @@ const state: WorkerState = {
   smoothedHr: null,
   smoothedRR: null,
   recentHrs: [],
+  lowConfRun: 0,
 }
 
 function resetState(): void {
@@ -609,6 +629,7 @@ function resetState(): void {
   state.smoothedHr = null
   state.smoothedRR = null
   state.recentHrs = []
+  state.lowConfRun = 0
 }
 
 function computeTrend(recent: number[]): HrvTrend {
@@ -731,6 +752,12 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
       }
 
       if (regionResults.length === 0) {
+        state.lowConfRun++
+        if (state.lowConfRun === LOW_CONF_TICKS_TO_EMIT) {
+          postEngineLog('info', 'hrv.skin_filter_low_confidence',
+            `no skin regions produced an FFT result for ${LOW_CONF_TICKS_TO_EMIT * 5}s+`,
+            { ticks: state.lowConfRun, reason: 'no_regions' })
+        }
         return
       }
 
@@ -752,6 +779,17 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
 
       const rawHr = totalWeight > 0 ? weightedHr / totalWeight : regionResults[0].hr
       const mergedConf = bestConfidence
+
+      if (mergedConf < LOW_CONF_THRESHOLD) {
+        state.lowConfRun++
+        if (state.lowConfRun === LOW_CONF_TICKS_TO_EMIT) {
+          postEngineLog('info', 'hrv.skin_filter_low_confidence',
+            `confidence below ${LOW_CONF_THRESHOLD} for ${LOW_CONF_TICKS_TO_EMIT * 5}s+`,
+            { ticks: state.lowConfRun, confidence: Math.round(mergedConf * 100) / 100, reason: 'low_snr' })
+        }
+      } else {
+        state.lowConfRun = 0
+      }
 
       // --- FFT power spectrum from best region for signal dump ---
       let fftPowerSpectrum: { freqHz: number; power: number }[] = []

@@ -13,6 +13,7 @@ import { getPartDisplayName, t, getLanguageCode } from '../i18n'
 import { QuoteEngine } from './quoteEngine'
 import { DisagreementEngine } from './disagreementEngine'
 import { QuietTracker } from './quietTracker'
+import { engineLog } from '../services/diagnostics'
 import { EchoEngine } from './echoEngine'
 import { ThreadEngine } from './threadEngine'
 import { RitualEngine } from './ritualEngine'
@@ -173,7 +174,10 @@ export class PartOrchestrator {
     if (getGlobalConfig()?.features?.partsEnabled === false) return
     if (this.voiceActive) return
     if (this.isGenerating) return
-    if (this.parts.length === 0) return
+    if (this.parts.length === 0) {
+      engineLog('warn', 'parts.empty_active_set', 'pause fired with no active parts loaded', { sessionId: this.entryId })
+      return
+    }
     if (event.currentText.trim().length < 20) return
 
     // Crisis detection (L1 sync regex + L2 async classifier). Fired

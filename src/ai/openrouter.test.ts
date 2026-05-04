@@ -8,6 +8,10 @@ vi.mock('firebase/auth', () => ({
   })),
 }))
 
+vi.mock('../services/diagnostics', () => ({
+  engineLog: vi.fn(),
+}))
+
 function mockFetch(body: unknown, ok = true, status = 200) {
   vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
     ok,

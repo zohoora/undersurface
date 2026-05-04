@@ -73,6 +73,7 @@ export function useHrvSession(sessionIdRef: React.RefObject<string | null>) {
 
   const start = useCallback(async () => {
     const engine = new HrvEngine()
+    engine.setSessionId(sessionIdRef.current)
     hrvEngineRef.current = engine
     hrvTimelineRef.current = new HrvTimeline()
     hrvStartTimeRef.current = Date.now()

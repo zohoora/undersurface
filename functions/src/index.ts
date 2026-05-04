@@ -1141,7 +1141,7 @@ export const accountApi = onRequest(
             'entries', 'parts', 'memories', 'thoughts', 'interactions',
             'entrySummaries', 'userProfile', 'personalFacts', 'fossils', 'letters',
             'sessionLog', 'innerWeather', 'consent', 'sessions',
-            'hrvSessions',
+            'hrvSessions', 'diagnostics',
           ]
           for (const coll of collections) {
             await deleteCollection(uid, coll)
@@ -1283,6 +1283,21 @@ export const adminApi = onRequest(
             .get()
           const messages = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
           res.json({ messages })
+          return
+        }
+        case 'getDiagnostics': {
+          if (!params.uid) {
+            res.status(400).json({ error: 'Missing uid' })
+            return
+          }
+          const limit = Math.min(Math.max(Number(params.limit) || 100, 1), 500)
+          const snap = await getFirestore()
+            .collection('users').doc(params.uid).collection('diagnostics')
+            .orderBy('timestamp', 'desc')
+            .limit(limit)
+            .get()
+          const events = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+          res.json({ events })
           return
         }
         default:

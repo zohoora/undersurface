@@ -3,6 +3,7 @@ import { buildSessionReflectionPrompt, buildBoundedTranscript } from '../ai/ther
 import { chatCompletion } from '../ai/openrouter'
 import { db, generateId } from '../store/db'
 import { LetterEngine } from './letterEngine'
+import { engineLog } from '../services/diagnostics'
 
 const MEMORY_CAPS: Record<string, number> = {
   observation: 20,
@@ -21,6 +22,14 @@ export async function reflectOnSession(
     // 1. Build transcript (wrap user messages for injection defense; bound length to fit
     // backend's 8000-char user-message cap)
     const transcriptText = buildBoundedTranscript(messages)
+    if (transcriptText.startsWith('(... ') && messages.length > 0) {
+      const omittedMatch = transcriptText.match(/^\(\.\.\. (\d+) earlier turn/)
+      const omitted = omittedMatch ? Number(omittedMatch[1]) : 0
+      engineLog('info', 'reflect.transcript_truncated', `dropped ${omitted} of ${messages.length} turns`, {
+        sessionId,
+        extra: { omitted, total: messages.length },
+      })
+    }
 
     // 2. Skip short sessions
     if (transcriptText.length < 100) return
@@ -64,6 +73,13 @@ export async function reflectOnSession(
     const parsed = parseReflectionResponse(response)
     if (!parsed) {
       console.error('[reflect] parse failed', { sessionId, len: response.length, head: response.slice(0, 200), tail: response.slice(-200) })
+      // Heuristic: 2000-token output cap clips JSON near 7000+ chars; parse fails on a clipped tail.
+      if (response.length > 7000) {
+        engineLog('info', 'reflect.output_truncated', `output likely hit 2000-token cap at ${response.length} chars`, {
+          sessionId,
+          extra: { len: response.length },
+        })
+      }
       return
     }
     console.log('[reflect] parsed OK', {
