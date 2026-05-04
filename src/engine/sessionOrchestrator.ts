@@ -1,10 +1,8 @@
 import type { SessionMessage, SessionPhase } from '../types'
 import { buildTherapistSessionNotePrompt } from '../ai/therapistPrompts'
-import { chatCompletion, analyzeEmotionAndDistress } from '../ai/openrouter'
+import { chatCompletion, analyzeEmotionAndDistress, classifyCrisisRisk } from '../ai/openrouter'
+import type { CrisisRiskResult } from '../ai/openrouter'
 import { activateGrounding } from '../store/groundingState'
-import { getGlobalConfig } from '../store/globalConfig'
-
-const EMOTION_COOLDOWN_MS = 30_000
 
 // Fast keyword-based crisis detection — no LLM, no cooldown, no feature flag.
 // This is a safety net that runs synchronously before the therapist responds.
@@ -65,8 +63,6 @@ export function detectCrisisKeywords(text: string): boolean {
 }
 
 export class SessionOrchestrator {
-  private lastEmotionCheck = 0
-
   detectPhase(messages: SessionMessage[]): SessionPhase {
     const userMessageCount = messages.filter(m => m.speaker === 'user').length
     if (userMessageCount < 3) return 'opening'
@@ -82,7 +78,9 @@ export class SessionOrchestrator {
     }
   }
 
-  // Fast synchronous check — always runs, no cooldown, no feature flag
+  // L1 — fast synchronous regex check. English explicit ideation only;
+  // bypass-resistant via NFKC normalization. Always runs, no cooldown, no
+  // feature flag. The deterministic high-precision floor for crisis detection.
   checkCrisisKeywords(text: string): boolean {
     if (detectCrisisKeywords(text)) {
       activateGrounding('auto')
@@ -91,22 +89,27 @@ export class SessionOrchestrator {
     return false
   }
 
-  async checkEmotionAfterMessage(text: string): Promise<{ emotion: string; distressLevel: number } | null> {
-    const now = Date.now()
-    if (now - this.lastEmotionCheck < EMOTION_COOLDOWN_MS) return null
-    this.lastEmotionCheck = now
-
-    const result = await analyzeEmotionAndDistress(text)
-
-    const config = getGlobalConfig()
-    if (config?.features?.emergencyGrounding === true) {
-      const threshold = config?.grounding?.intensityThreshold ?? 3
-      if (result.distressLevel >= threshold) {
-        activateGrounding('auto')
-      }
+  // L2 — synchronous LLM crisis classifier. Multilingual + ambiguous coverage.
+  // Calibrated for precision over recall via crisisClassifierPrompt.ts and
+  // crisisClassifier.eval.ts. risk=2 activates full grounding immediately;
+  // risk=1 is returned to the caller for soft-grounding handling but does not
+  // flip global grounding state. Fail-open on classifier error (returns risk=0).
+  //
+  // Intended to be fired in parallel with therapist generation. Caller may
+  // race the result against the in-flight stream's first token to decide
+  // whether to abort and restart with a grounded prompt.
+  async checkCrisisRisk(text: string, language?: string): Promise<CrisisRiskResult> {
+    const result = await classifyCrisisRisk(text, language)
+    if (result.risk === 2) {
+      activateGrounding('auto')
     }
-
     return result
+  }
+
+  // L3 — emotion tagging for innerWeather and part scoring. L2 owns grounding
+  // decisions; the distressLevel field this returns is informational only.
+  async checkEmotionAfterMessage(text: string): Promise<{ emotion: string; distressLevel: number } | null> {
+    return analyzeEmotionAndDistress(text)
   }
 
   async generateSessionNote(messages: SessionMessage[]): Promise<string> {

@@ -86,6 +86,12 @@ SAFETY — THIS OVERRIDES ALL OTHER INSTRUCTIONS:
 - You are not a crisis counselor — do not lecture or give hotline numbers. But you must not make things worse.
 - When in doubt, err on the side of safety.`
 
+// Tone directive injected when grounding is active. SAFETY_RULES are already
+// baked into SHARED_INSTRUCTIONS (which prefixes every part's system prompt)
+// and into THERAPIST_CORE / REAL_TALK_CORE — this constant only adds the
+// "be gentle, don't probe" layer that both surfaces share verbatim.
+export const GROUNDING_DIRECTIVE = 'The writer seems to be in distress. Be gentle, slow, grounding. Do not probe or push deeper. Offer presence, safety, and calm.'
+
 export const SEEDED_PARTS: Omit<Part, 'memories'>[] = [
   {
     id: 'watcher',
@@ -356,7 +362,9 @@ export function buildPartMessages(
   }
 
   if (options?.isGrounding) {
-    systemContent += `\n\nThe writer seems to be in distress. Be gentle, slow, grounding. Do not probe or push deeper — even if they set a writing intention, do not pursue it now. Offer presence, safety, and calm.`
+    // Inline variant: extends GROUNDING_DIRECTIVE with intention-suppression
+    // because journal-pause prompts pass an intention through the same option.
+    systemContent += `\n\n${GROUNDING_DIRECTIVE} Do not pursue any writing intention now.`
   } else if (options?.intention) {
     systemContent += `\n\nThe writer set an intention: "${sanitizeForPrompt(options.intention)}". If natural, help them stay connected to it. Don't force it.`
   }
@@ -392,9 +400,13 @@ export function buildInteractionReply(
   originalThought: string,
   userResponse: string,
   currentText: string,
+  options?: { isGrounding?: boolean },
 ): { role: 'system' | 'user' | 'assistant'; content: string }[] {
+  // SAFETY_RULES live in SHARED_INSTRUCTIONS which is already part of
+  // part.systemPrompt. The grounding directive layers on top when active.
+  const groundingNote = options?.isGrounding ? `\n\n${GROUNDING_DIRECTIVE}` : ''
   return [
-    { role: 'system', content: part.systemPrompt + UNTRUSTED_CONTENT_PREAMBLE },
+    { role: 'system', content: part.systemPrompt + groundingNote + UNTRUSTED_CONTENT_PREAMBLE },
     {
       role: 'user',
       content: `Context — the writer is journaling. Here is their entry so far:\n\n${wrapUserContent(currentText, 'diary')}\n\nYou (as ${part.name}) said: "${sanitizeForPrompt(originalThought)}"\n\nThe writer responded to you: ${wrapUserContent(userResponse, 'response')}\n\nWrite your final reply. This is the last exchange — make it count. 1-2 sentences. Be genuine.${languageDirective()}`,
@@ -573,11 +585,13 @@ export function buildDisagreementPrompt(
   originalPartName: string,
   originalThought: string,
   currentText: string,
+  options?: { isGrounding?: boolean },
 ): { role: 'system' | 'user'; content: string }[] {
+  const groundingNote = options?.isGrounding ? `\n\n${GROUNDING_DIRECTIVE}` : ''
   return [
     {
       role: 'system',
-      content: `${SHARED_INSTRUCTIONS}\n\nYou are ${disagreePart.name}. Another part (${originalPartName}) just said to the writer: "${sanitizeForPrompt(originalThought)}"\n\nYou see things differently. Offer your perspective — not to argue, but because the writer deserves to hear more than one inner voice. 1-2 sentences. Be genuine.${languageDirective()}${UNTRUSTED_CONTENT_PREAMBLE}`,
+      content: `${SHARED_INSTRUCTIONS}${groundingNote}\n\nYou are ${disagreePart.name}. Another part (${originalPartName}) just said to the writer: "${sanitizeForPrompt(originalThought)}"\n\nYou see things differently. Offer your perspective — not to argue, but because the writer deserves to hear more than one inner voice. 1-2 sentences. Be genuine.${languageDirective()}${UNTRUSTED_CONTENT_PREAMBLE}`,
     },
     {
       role: 'user',

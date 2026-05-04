@@ -1,13 +1,15 @@
 import type { Part, PauseEvent, PauseType, PartThought, EmotionalTone, IFSRole, PartAnnotations } from '../types'
+import type { AutonomicState } from '../types/hrv'
 import { buildPartMessages } from '../ai/partPrompts'
-import { streamChatCompletion, analyzeEmotionAndDistress, reasoningForSpeed } from '../ai/openrouter'
+import { streamChatCompletion, analyzeEmotionAndDistress, classifyCrisisRisk, reasoningForSpeed } from '../ai/openrouter'
 import { parseAnnotations, isDelimiterPrefix, DELIMITER, fixGhostCapitalization } from '../ai/annotationParser'
 import { db, generateId } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { getSettings } from '../store/settings'
 import { activateGrounding, isGroundingActive } from '../store/groundingState'
+import { detectCrisisKeywords } from './sessionOrchestrator'
 import { trackEvent } from '../services/analytics'
-import { getPartDisplayName, t } from '../i18n'
+import { getPartDisplayName, t, getLanguageCode } from '../i18n'
 import { QuoteEngine } from './quoteEngine'
 import { DisagreementEngine } from './disagreementEngine'
 import { QuietTracker } from './quietTracker'
@@ -54,6 +56,14 @@ const ROLE_EMOTIONS: Record<IFSRole, EmotionalTone[]> = {
   manager: ['contemplative', 'sad', 'conflicted'],
 }
 
+// Autonomic-state bias on part scoring — softer than grounding (which uses ±40/±30),
+// since HRV-activated is a precursor to distress, not distress itself. 'transitioning'
+// is intentionally excluded by the call site.
+const HRV_ROLE_BIAS: Record<Exclude<AutonomicState, 'transitioning'>, Record<IFSRole, number>> = {
+  activated: { self: 20, protector: -8, firefighter: -10, exile: 0, manager: -5 },
+  calm: { self: 0, protector: 0, firefighter: 0, exile: 8, manager: 0 },
+}
+
 interface OrchestratorCallbacks {
   onThoughtStart: (partId: string, partName: string, partColor: string) => void
   onThoughtToken: (token: string) => void
@@ -77,6 +87,8 @@ export class PartOrchestrator {
   private entryId: string = ''
   private intention: string = ''
   private quietOneLastSpokeEntry: string | null = null
+  private hrvState: AutonomicState | null = null
+  private voiceActive: boolean = false
   private callbacks: OrchestratorCallbacks
 
   // Pre-warmed caches — loaded once in loadParts(), avoids repeated DB reads per thought
@@ -92,6 +104,14 @@ export class PartOrchestrator {
 
   private readonly MAX_RECENT_SPEAKERS = 3
   private readonly EMOTION_CHECK_INTERVAL = 30000
+
+  // L2 crisis classifier rate limit. The pause flow can fire many times per
+  // second on rapid pause events; without this, identical text would be
+  // re-classified repeatedly. 10s is short enough that fresh writing is
+  // covered, long enough to suppress redundant calls.
+  private readonly CRISIS_CHECK_RATE_LIMIT_MS = 10_000
+  private lastCrisisCheckSample = ''
+  private lastCrisisCheckTime = 0
 
   constructor(callbacks: OrchestratorCallbacks) {
     this.callbacks = callbacks
@@ -132,15 +152,35 @@ export class PartOrchestrator {
     this.intention = v
   }
 
+  /** Soft autonomic bias on scoring + pacing. null disables the bias. */
+  setHrvState(state: AutonomicState | null) {
+    this.hrvState = state
+  }
+
+  /**
+   * Suppress part generation while the user is speaking. Mirrors the typing
+   * suppression (parts wait their turn). Does not affect grounding state.
+   */
+  setVoiceActive(active: boolean) {
+    this.voiceActive = active
+  }
+
   isCurrentlyGenerating(): boolean {
     return this.isGenerating
   }
 
   async handlePause(event: PauseEvent): Promise<void> {
     if (getGlobalConfig()?.features?.partsEnabled === false) return
+    if (this.voiceActive) return
     if (this.isGenerating) return
     if (this.parts.length === 0) return
     if (event.currentText.trim().length < 20) return
+
+    // Crisis detection (L1 sync regex + L2 async classifier). Fired
+    // before part selection so grounding state is fresh when scorePart
+    // applies the self-role bias (+40) below. L2 is non-blocking and
+    // rate-limited; subsequent pauses on the same text skip the call.
+    this.checkCrisisInJournalMode(event.currentText)
 
     // Check emotion + distress periodically (combined LLM call, works in any language)
     if (Date.now() - this.lastEmotionCheck > this.EMOTION_CHECK_INTERVAL) {
@@ -226,6 +266,8 @@ export class PartOrchestrator {
         score -= config?.grounding?.otherRolePenalty ?? 30
       }
       if (part.id === 'quiet') score -= 60
+    } else if (this.hrvState && this.hrvState !== 'transitioning') {
+      score += HRV_ROLE_BIAS[this.hrvState][part.ifsRole] ?? 0
     }
 
     // Quiet return bonus/penalty
@@ -502,29 +544,46 @@ export class PartOrchestrator {
   private async checkEmotionAndDistress(text: string) {
     this.lastEmotionCheck = Date.now()
     try {
-      const { emotion, distressLevel } = await analyzeEmotionAndDistress(text)
+      // distressLevel is no longer consumed — L2 (classifyCrisisRisk) owns
+      // grounding decisions now. Emotion still feeds part scoring + UI.
+      const { emotion } = await analyzeEmotionAndDistress(text)
       if (this.isValidEmotion(emotion)) {
         this.currentEmotion = emotion as EmotionalTone
         this.callbacks.onEmotionDetected(this.currentEmotion)
       }
-
-      // Handle distress result
-      this.handleDistressResult(distressLevel)
     } catch {
-      // Emotion/distress check is non-critical; silently continue
+      // Emotion check is non-critical; silently continue
     }
   }
 
-  private handleDistressResult(level: number): void {
-    const config = getGlobalConfig()
-    if (config?.features?.emergencyGrounding !== true) return
-    if (isGroundingActive()) return
-
-    // Default threshold is 3 (safety concern only) — configurable via admin
-    const threshold = config.grounding?.intensityThreshold ?? 3
-    if (level >= threshold) {
-      activateGrounding()
+  // L1 (sync regex) + L2 (async classifier) for crisis detection in journal
+  // mode. L1 fires immediately if hit; L2 fires non-blocking with a 10s
+  // rate limit on identical text. Either layer activating grounding biases
+  // part selection toward self-role parts via the existing scorePart logic.
+  private checkCrisisInJournalMode(text: string): void {
+    if (detectCrisisKeywords(text)) {
+      activateGrounding('auto')
+      return
     }
+
+    const sample = text.slice(-1000)
+    const now = Date.now()
+    if (
+      sample === this.lastCrisisCheckSample
+      && now - this.lastCrisisCheckTime < this.CRISIS_CHECK_RATE_LIMIT_MS
+    ) {
+      return
+    }
+    this.lastCrisisCheckSample = sample
+    this.lastCrisisCheckTime = now
+
+    classifyCrisisRisk(sample, getLanguageCode())
+      .then(result => {
+        if (result.risk === 2) {
+          activateGrounding('auto')
+        }
+      })
+      .catch(() => { /* fail-open inside classifyCrisisRisk */ })
   }
 
   resetSession() {

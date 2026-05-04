@@ -14,6 +14,36 @@ const ADMIN_EMAILS = ['zohoora@gmail.com']
 // rather than a "latest" alias so behavior doesn't drift when OpenAI rotates.
 const OPENAI_CHAT_MODEL = 'gpt-5.5'
 
+// Smaller/faster model for the crisis classifier (task: 'crisis_check'). Sized
+// for a near-binary judgment with minimal latency — the safety path runs in
+// parallel with therapist generation, so cold-start + reasoning slack on the
+// main model is unacceptable here.
+const OPENAI_CRISIS_MODEL = 'gpt-5-nano'
+
+// Structured-output schema for the crisis classifier. Lives server-side so the
+// shape is enforced by the API, not by client-side JSON.parse heuristics. Risk
+// tiers are documented in src/ai/crisisClassifierPrompt.ts and the eval set.
+const CRISIS_RESPONSE_FORMAT = {
+  type: 'json_schema',
+  json_schema: {
+    name: 'crisis_risk',
+    strict: true,
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        risk: { type: 'integer', enum: [0, 1, 2] },
+        reason: { type: 'string' },
+      },
+      required: ['risk', 'reason'],
+    },
+  },
+} as const
+
+// Crisis classifier doesn't need much output budget — it's a JSON object with
+// a single integer plus a short reason string.
+const CRISIS_MAX_TOKENS = 80
+
 const ALLOWED_ORIGINS = [
   'https://undersurface.me',
   'https://undersurfaceme.web.app',
@@ -90,14 +120,18 @@ export const chat = onRequest(
     }
 
     // Validate request body. Client-supplied `model` is ignored — model is fixed
-    // server-side to OPENAI_CHAT_MODEL. `temperature` is also ignored: GPT-5.x
-    // reasoning models only accept the default (1.0), and OpenAI rejects custom
-    // values for this model family.
-    const { messages, max_tokens, stream, reasoning_effort } = req.body || {}
+    // server-side. `temperature` is also ignored: GPT-5.x reasoning models only
+    // accept the default (1.0), and OpenAI rejects custom values for this family.
+    //
+    // `task` is an optional routing parameter. 'crisis_check' switches to the
+    // smaller classifier model with structured-output enforcement and forces
+    // non-streaming. Anything else falls through to the standard chat path.
+    const { messages, max_tokens, stream, reasoning_effort, task } = req.body || {}
     const ALLOWED_REASONING = new Set(['none', 'low', 'medium', 'high', 'xhigh'])
     const resolvedReasoning = typeof reasoning_effort === 'string' && ALLOWED_REASONING.has(reasoning_effort)
       ? reasoning_effort
       : undefined
+    const isCrisisCheck = task === 'crisis_check'
     if (!Array.isArray(messages) || messages.length === 0) {
       res.status(400).json({ error: 'Invalid messages' })
       return
@@ -121,12 +155,16 @@ export const chat = onRequest(
       }
     }
 
-    const resolvedMaxTokens = Math.min(
-      typeof max_tokens === 'number' && max_tokens > 0 ? max_tokens : 150,
-      MAX_TOKENS_CAP,
-    )
+    const modelForRequest = isCrisisCheck ? OPENAI_CRISIS_MODEL : OPENAI_CHAT_MODEL
+    const streamForRequest = !isCrisisCheck && !!stream
+    const resolvedMaxTokens = isCrisisCheck
+      ? CRISIS_MAX_TOKENS
+      : Math.min(
+        typeof max_tokens === 'number' && max_tokens > 0 ? max_tokens : 150,
+        MAX_TOKENS_CAP,
+      )
     const reqStart = Date.now()
-    const tag = `uid=${uid.slice(0, 8)} model=${OPENAI_CHAT_MODEL} stream=${!!stream} max_tokens=${resolvedMaxTokens} reasoning=${resolvedReasoning ?? 'default'}`
+    const tag = `uid=${uid.slice(0, 8)} model=${modelForRequest} task=${task ?? 'chat'} stream=${streamForRequest} max_tokens=${resolvedMaxTokens} reasoning=${resolvedReasoning ?? 'default'}`
     console.log(`[chat] start ${tag}`)
 
     const openAiResponse = await fetch(
@@ -138,11 +176,15 @@ export const chat = onRequest(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: OPENAI_CHAT_MODEL,
+          model: modelForRequest,
           messages,
           max_completion_tokens: resolvedMaxTokens,
-          stream: !!stream,
-          ...(resolvedReasoning ? { reasoning_effort: resolvedReasoning } : {}),
+          stream: streamForRequest,
+          // Skip client-supplied reasoning_effort for the crisis classifier —
+          // we want minimal hidden reasoning so the safety path stays under
+          // ~400ms in the common case.
+          ...(resolvedReasoning && !isCrisisCheck ? { reasoning_effort: resolvedReasoning } : {}),
+          ...(isCrisisCheck ? { response_format: CRISIS_RESPONSE_FORMAT } : {}),
         }),
       },
     )
@@ -158,7 +200,7 @@ export const chat = onRequest(
       return
     }
 
-    if (stream && openAiResponse.body) {
+    if (streamForRequest && openAiResponse.body) {
       res.setHeader('Content-Type', 'text/event-stream')
       res.setHeader('Cache-Control', 'no-cache, no-transform')
       res.setHeader('X-Accel-Buffering', 'no')

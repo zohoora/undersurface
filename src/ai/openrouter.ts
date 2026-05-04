@@ -1,5 +1,6 @@
 import { apiUrl } from '../api/apiBase'
 import { getAuthToken } from '../api/authedFetch'
+import { CRISIS_CLASSIFIER_PROMPT } from './crisisClassifierPrompt'
 
 interface Message {
   role: 'system' | 'user' | 'assistant'
@@ -69,11 +70,18 @@ export async function streamChatCompletion(
   callbacks: StreamCallbacks,
   maxTokens: number = 150,
   reasoningEffort?: ReasoningEffort,
+  externalSignal?: AbortSignal,
 ): Promise<void> {
   try {
     const token = await getAuthToken()
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 30000)
+    // External abort (e.g. crisis detected mid-stream) chains into the
+    // internal controller so the in-flight fetch is cancelled cleanly.
+    if (externalSignal) {
+      if (externalSignal.aborted) controller.abort()
+      else externalSignal.addEventListener('abort', () => controller.abort(), { once: true })
+    }
 
     let response: Response
     try {
@@ -212,4 +220,77 @@ Distress scale (err on the side of LOW scores — processing hard feelings is no
   const validEmotions = ['neutral', 'tender', 'anxious', 'angry', 'sad', 'joyful', 'contemplative', 'fearful', 'hopeful', 'conflicted']
   const found = validEmotions.find((e) => lower.includes(e))
   return { emotion: found ?? 'neutral', distressLevel: 0 }
+}
+
+export type CrisisRisk = 0 | 1 | 2
+
+export interface CrisisRiskResult {
+  risk: CrisisRisk
+  reason?: string
+}
+
+/**
+ * Synchronous L2 crisis classifier — multilingual, narrow-by-construction.
+ *
+ * Calls the chat function with `task: 'crisis_check'`, which routes to a
+ * smaller/faster model with structured-output enforcement. Risk tier semantics
+ * are documented in crisisClassifierPrompt.ts.
+ *
+ * Fails open on timeout / network error / parse failure: returns {risk: 0}.
+ * The L1 regex layer in sessionOrchestrator already ran by the time we get
+ * here, so falling open leaves the existing safety net intact. The
+ * alternative — bricking message send on transient API failure — is worse.
+ *
+ * Intended to be fired in parallel with therapist generation, not before.
+ */
+export async function classifyCrisisRisk(
+  text: string,
+  language?: string,
+): Promise<CrisisRiskResult> {
+  const token = await getAuthToken()
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5000)
+
+  // Recent slice is enough — explicit ideation tends to appear in the most
+  // recent paragraph, and a tighter input keeps latency + cost down.
+  const sample = text.slice(-1000)
+  const userContent = language && language !== 'en'
+    ? `Language: ${language}\n\nText:\n${sample}`
+    : sample
+
+  try {
+    const response = await fetch(apiUrl('/api/chat'), {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        task: 'crisis_check',
+        messages: [
+          { role: 'system', content: CRISIS_CLASSIFIER_PROMPT },
+          { role: 'user', content: userContent },
+        ],
+      }),
+      signal: controller.signal,
+    })
+
+    if (!response.ok) return { risk: 0 }
+
+    const data = await response.json()
+    const content = data?.choices?.[0]?.message?.content
+    if (typeof content !== 'string') return { risk: 0 }
+
+    const parsed = JSON.parse(content) as { risk?: unknown; reason?: unknown }
+    const risk = parsed.risk
+    if (risk !== 0 && risk !== 1 && risk !== 2) return { risk: 0 }
+    return {
+      risk: risk as CrisisRisk,
+      reason: typeof parsed.reason === 'string' ? parsed.reason : undefined,
+    }
+  } catch {
+    return { risk: 0 }
+  } finally {
+    clearTimeout(timeout)
+  }
 }

@@ -24,7 +24,7 @@ import { SessionMessageBubble } from './SessionMessage'
 import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
 import type { Session, SessionMessage, SessionPhase, SessionMode, EmotionalTone } from '../../types'
-import { useTranslation } from '../../i18n'
+import { useTranslation, getLanguageCode } from '../../i18n'
 
 interface Props {
   sessionId: string | null
@@ -141,7 +141,16 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openingMethod, onSessionCreated, initialMode])
 
-  // Returns the updated messages array after the therapist message is finalized
+  // Returns the updated messages array after the therapist message is finalized.
+  //
+  // Crisis-detection race: on the first attempt, fires the L2 classifier in
+  // parallel with therapist generation. If risk=2 returns before the
+  // therapist's first token arrives, the in-flight stream is aborted and a
+  // single retry runs with the now-flipped grounding state — so the user
+  // sees a grounded response rather than a Real Talk callout or whatever
+  // the original prompt would have produced. After first token has arrived,
+  // the response finishes (already constrained by SAFETY_RULES) and grounding
+  // takes effect on the next turn.
   const generateTherapistMessage = useCallback(async (
     currentMessages: SessionMessage[],
     currentSession: Session,
@@ -149,100 +158,131 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     setIsStreaming(true)
 
     const orchestrator = orchestratorRef.current
-    const phase = orchestrator.detectPhase(currentMessages)
-    const maxTokens = orchestrator.getMaxTokens(phase)
+    const lastUserMessage = [...currentMessages].reverse().find(m => m.speaker === 'user')
 
-    const context = contextRef.current
-    const hrvContext = hrv.buildPromptContext()
-    const promptMessages = buildTherapistMessages(currentMessages, {
-      phase,
-      recentSessionNotes: context?.recentSessionNotes,
-      relevantMemories: context?.relevantMemories,
-      profile: context?.userProfile,
-      personalFacts: context?.personalFacts,
-      isGrounding: isGroundingActive(),
-      hrvContext,
-      mode: currentSession.mode ?? 'standard',
-    })
+    // At most two attempts: original + one crisis-grounded retry.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const phase = orchestrator.detectPhase(currentMessages)
+      const maxTokens = orchestrator.getMaxTokens(phase)
 
-    // Reset typewriter buffer
-    typewriter.reset()
-
-    // Promise that resolves to the final messages array once typewriter finishes
-    let resolveMessages: (messages: SessionMessage[]) => void
-    const messagesPromise = new Promise<SessionMessage[]>(resolve => {
-      resolveMessages = resolve
-    })
-
-    const finalizeMessage = async (fullText: string) => {
-      const msgId = generateId()
-      const newMessage: SessionMessage = {
-        id: msgId,
-        speaker: 'therapist',
-        partId: null,
-        partName: null,
-        content: fullText.trim(),
-        timestamp: Date.now(),
+      const context = contextRef.current
+      const hrvContext = hrv.buildPromptContext()
+      const promptMessages = buildTherapistMessages(currentMessages, {
         phase,
-        isEmergence: false,
-      }
-
-      await sessionMessagesDb.add(currentSession.id, newMessage)
-
-      const updatedMessages = [...currentMessages, newMessage]
-      const newMessageCount = updatedMessages.length
-      const firstLine = currentSession.firstLine || fullText.trim().slice(0, 100)
-
-      await db.sessions.update(currentSession.id, {
-        messageCount: newMessageCount,
-        firstLine,
-        phase,
+        recentSessionNotes: context?.recentSessionNotes,
+        relevantMemories: context?.relevantMemories,
+        profile: context?.userProfile,
+        personalFacts: context?.personalFacts,
+        isGrounding: isGroundingActive(),
+        hrvContext,
+        mode: currentSession.mode ?? 'standard',
       })
 
-      setSession(prev => prev ? {
-        ...prev,
-        messageCount: newMessageCount,
-        firstLine,
-        phase,
-      } : prev)
-      setMessages(updatedMessages)
-      messagesRef.current = updatedMessages
-      setIsStreaming(false)
       typewriter.reset()
-      resolveMessages(updatedMessages)
+
+      let resolveMessages: (messages: SessionMessage[]) => void
+      const messagesPromise = new Promise<SessionMessage[]>(resolve => {
+        resolveMessages = resolve
+      })
+
+      const finalizeMessage = async (fullText: string) => {
+        const msgId = generateId()
+        const newMessage: SessionMessage = {
+          id: msgId,
+          speaker: 'therapist',
+          partId: null,
+          partName: null,
+          content: fullText.trim(),
+          timestamp: Date.now(),
+          phase,
+          isEmergence: false,
+        }
+
+        await sessionMessagesDb.add(currentSession.id, newMessage)
+
+        const updatedMessages = [...currentMessages, newMessage]
+        const newMessageCount = updatedMessages.length
+        const firstLine = currentSession.firstLine || fullText.trim().slice(0, 100)
+
+        await db.sessions.update(currentSession.id, {
+          messageCount: newMessageCount,
+          firstLine,
+          phase,
+        })
+
+        setSession(prev => prev ? {
+          ...prev,
+          messageCount: newMessageCount,
+          firstLine,
+          phase,
+        } : prev)
+        setMessages(updatedMessages)
+        messagesRef.current = updatedMessages
+        setIsStreaming(false)
+        typewriter.reset()
+        resolveMessages(updatedMessages)
+      }
+
+      hrv.resetResponseStarted()
+
+      const crisisAbortController = new AbortController()
+      let firstTokenArrived = false
+      let crisisAborted = false
+
+      // Fire L2 only on the first attempt — if it already determined risk=2
+      // and we aborted, the second attempt's prompt is already grounded and
+      // re-running the classifier would waste a call.
+      if (attempt === 0 && lastUserMessage) {
+        orchestrator.checkCrisisRisk(lastUserMessage.content, getLanguageCode())
+          .then(result => {
+            if (result.risk === 2 && !firstTokenArrived && !crisisAborted) {
+              crisisAborted = true
+              crisisAbortController.abort()
+            }
+          })
+          .catch(() => { /* fail-open inside checkCrisisRisk */ })
+      }
+
+      await streamChatCompletion(
+        promptMessages,
+        {
+          onToken: (token) => {
+            firstTokenArrived = true
+            typewriter.appendToken(token)
+            if (hrv.enabled && hrv.markResponseStarted()) {
+              hrv.addConversationEvent('ai_response_start', currentMessages.length)
+            }
+          },
+          onComplete: () => {
+            typewriter.setOnComplete(finalizeMessage)
+            if (hrv.enabled) {
+              hrv.addConversationEvent('ai_response_complete', currentMessages.length)
+            }
+          },
+          onError: (error) => {
+            // A crisis-driven abort is expected — suppress and let the loop retry.
+            if (crisisAborted) return
+            console.error('Session stream error:', error)
+            typewriter.reset()
+            setIsStreaming(false)
+            resolveMessages(currentMessages)
+          },
+        },
+        maxTokens,
+        reasoningForSpeed(settings.responseSpeed),
+        crisisAbortController.signal,
+      )
+
+      if (crisisAborted) continue
+
+      return messagesPromise
     }
 
-    hrv.resetResponseStarted()
-
-    await streamChatCompletion(
-      promptMessages,
-      {
-        onToken: (token) => {
-          typewriter.appendToken(token)
-          // Track HRV timeline: first token = response start
-          if (hrv.enabled && hrv.markResponseStarted()) {
-            hrv.addConversationEvent('ai_response_start', currentMessages.length)
-          }
-        },
-        onComplete: () => {
-          typewriter.setOnComplete(finalizeMessage)
-          // Track HRV timeline: response complete
-          if (hrv.enabled) {
-            hrv.addConversationEvent('ai_response_complete', currentMessages.length)
-          }
-        },
-        onError: (error) => {
-          console.error('Session stream error:', error)
-          typewriter.reset()
-          setIsStreaming(false)
-          resolveMessages(currentMessages)
-        },
-      },
-      maxTokens,
-      reasoningForSpeed(settings.responseSpeed),
-    )
-
-    return messagesPromise
+    // The loop returns from inside on success and only continues on a
+    // crisis-abort, which can happen at most once (attempt > 0 skips L2).
+    // This fallback exists for type-safety only.
+    setIsStreaming(false)
+    return currentMessages
   }, [hrv, typewriter, settings.responseSpeed])
 
   // Persist a user-authored message (text or voice) and run the synchronous

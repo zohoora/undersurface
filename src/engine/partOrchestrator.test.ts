@@ -7,7 +7,9 @@ vi.mock('../ai/partPrompts', () => ({
 }))
 vi.mock('../ai/openrouter', () => ({
   streamChatCompletion: vi.fn(),
-  analyzeEmotionAndDistress: vi.fn(),
+  analyzeEmotionAndDistress: vi.fn(async () => ({ emotion: 'neutral', distressLevel: 0 })),
+  classifyCrisisRisk: vi.fn(async () => ({ risk: 0 })),
+  reasoningForSpeed: vi.fn(() => 'low'),
 }))
 vi.mock('../store/db', () => ({
   db: {
@@ -34,6 +36,7 @@ vi.mock('../services/analytics', () => ({
 vi.mock('../i18n', () => ({
   getPartDisplayName: vi.fn((p: Part) => p.name),
   t: vi.fn((key: string) => key),
+  getLanguageCode: vi.fn(() => 'en'),
 }))
 vi.mock('./quoteEngine', () => ({
   QuoteEngine: class { findQuote = vi.fn(async () => null) },
@@ -63,11 +66,14 @@ vi.mock('./ritualEngine', () => ({
 }))
 
 import { PartOrchestrator } from './partOrchestrator'
-import { isGroundingActive } from '../store/groundingState'
+import { isGroundingActive, activateGrounding } from '../store/groundingState'
 import { getGlobalConfig } from '../store/globalConfig'
+import { classifyCrisisRisk } from '../ai/openrouter'
 
 const mockIsGroundingActive = vi.mocked(isGroundingActive)
+const mockActivateGrounding = vi.mocked(activateGrounding)
 const mockGetGlobalConfig = vi.mocked(getGlobalConfig)
+const mockClassifyCrisisRisk = vi.mocked(classifyCrisisRisk)
 
 function makePart(overrides: Partial<Part> = {}): Part {
   return {
@@ -117,9 +123,12 @@ type OrchestratorPrivate = {
   emotionMatch(part: Part, emotion: EmotionalTone): number
   scorePart(part: Part, event: PauseEvent): number
   selectPart(event: PauseEvent): Part | null
+  checkCrisisInJournalMode(text: string): void
   parts: Part[]
   recentSpeakers: string[]
   currentEmotion: EmotionalTone
+  lastCrisisCheckSample: string
+  lastCrisisCheckTime: number
 }
 
 describe('PartOrchestrator — scoring logic', () => {
@@ -372,6 +381,201 @@ describe('PartOrchestrator — scoring logic', () => {
       }
       // Self should win overwhelmingly during grounding
       expect(selfWins).toBeGreaterThan(15)
+    })
+  })
+
+  // --- HRV bias ---
+
+  describe('HRV autonomic bias', () => {
+    it('null state applies no bias', () => {
+      const protector = makePart({ id: 'prot-1', ifsRole: 'protector', concern: 'safety' })
+      const event = makeEvent({ type: 'trailing_off' })
+
+      const baseline = priv.scorePart(protector, event)
+      orch.setHrvState(null)
+      const withNull = priv.scorePart(protector, event)
+
+      // Should differ only by Math.random() noise (±15)
+      expect(Math.abs(withNull - baseline)).toBeLessThan(20)
+    })
+
+    it('activated state boosts self-role parts', () => {
+      const selfPart = makePart({ id: 'self-1', ifsRole: 'self', concern: 'presence' })
+      const event = makeEvent({ type: 'long_pause' })
+
+      orch.setHrvState(null)
+      const baseScores: number[] = []
+      for (let i = 0; i < 20; i++) baseScores.push(priv.scorePart(selfPart, event))
+      const baseAvg = baseScores.reduce((a, b) => a + b, 0) / baseScores.length
+
+      orch.setHrvState('activated')
+      const biasedScores: number[] = []
+      for (let i = 0; i < 20; i++) biasedScores.push(priv.scorePart(selfPart, event))
+      const biasedAvg = biasedScores.reduce((a, b) => a + b, 0) / biasedScores.length
+
+      expect(biasedAvg - baseAvg).toBeGreaterThan(10)
+    })
+
+    it('activated state penalizes firefighter parts', () => {
+      const ff = makePart({ id: 'ff-1', ifsRole: 'firefighter', concern: 'urgency' })
+      const event = makeEvent({ type: 'long_pause' })
+
+      orch.setHrvState(null)
+      const baseScores: number[] = []
+      for (let i = 0; i < 20; i++) baseScores.push(priv.scorePart(ff, event))
+      const baseAvg = baseScores.reduce((a, b) => a + b, 0) / baseScores.length
+
+      orch.setHrvState('activated')
+      const biasedScores: number[] = []
+      for (let i = 0; i < 20; i++) biasedScores.push(priv.scorePart(ff, event))
+      const biasedAvg = biasedScores.reduce((a, b) => a + b, 0) / biasedScores.length
+
+      expect(baseAvg - biasedAvg).toBeGreaterThan(3)
+    })
+
+    it('calm state opens room for exiles', () => {
+      const exile = makePart({ id: 'exile-1', ifsRole: 'exile', concern: 'vulnerability' })
+      const event = makeEvent({ type: 'long_pause' })
+
+      orch.setHrvState(null)
+      const baseScores: number[] = []
+      for (let i = 0; i < 30; i++) baseScores.push(priv.scorePart(exile, event))
+      const baseAvg = baseScores.reduce((a, b) => a + b, 0) / baseScores.length
+
+      orch.setHrvState('calm')
+      const biasedScores: number[] = []
+      for (let i = 0; i < 30; i++) biasedScores.push(priv.scorePart(exile, event))
+      const biasedAvg = biasedScores.reduce((a, b) => a + b, 0) / biasedScores.length
+
+      expect(biasedAvg - baseAvg).toBeGreaterThan(2)
+    })
+
+    it('transitioning state applies no bias', () => {
+      const selfPart = makePart({ id: 'self-1', ifsRole: 'self', concern: 'presence' })
+      const event = makeEvent({ type: 'long_pause' })
+
+      orch.setHrvState(null)
+      const baseScores: number[] = []
+      for (let i = 0; i < 30; i++) baseScores.push(priv.scorePart(selfPart, event))
+      const baseAvg = baseScores.reduce((a, b) => a + b, 0) / baseScores.length
+
+      orch.setHrvState('transitioning')
+      const biasedScores: number[] = []
+      for (let i = 0; i < 30; i++) biasedScores.push(priv.scorePart(selfPart, event))
+      const biasedAvg = biasedScores.reduce((a, b) => a + b, 0) / biasedScores.length
+
+      // Transitioning is excluded from bias — averages should be close
+      expect(Math.abs(biasedAvg - baseAvg)).toBeLessThan(5)
+    })
+
+    it('grounding overrides HRV bias', () => {
+      mockIsGroundingActive.mockReturnValue(true)
+      mockGetGlobalConfig.mockReturnValue({
+        grounding: { selfRoleScoreBonus: 40, otherRolePenalty: 30 },
+      } as ReturnType<typeof getGlobalConfig>)
+
+      const ff = makePart({ id: 'ff-1', ifsRole: 'firefighter', concern: 'urgency' })
+      const event = makeEvent({ type: 'long_pause' })
+
+      orch.setHrvState('calm') // Even calm should not lift firefighter during grounding
+      const score = priv.scorePart(ff, event)
+
+      mockIsGroundingActive.mockReturnValue(false)
+      const baseScore = priv.scorePart(ff, event)
+
+      // Grounding penalty (-30) dominates regardless of HRV state
+      expect(baseScore - score).toBeGreaterThanOrEqual(15)
+    })
+  })
+
+  // --- voice suppression ---
+
+  describe('voice suppression', () => {
+    it('handlePause is a no-op when voice is active', async () => {
+      const part = makePart({ ifsRole: 'protector', concern: 'safety' })
+
+      const { orch: o, callbacks } = makeOrchestrator()
+      ;(o as unknown as OrchestratorPrivate).parts = [part]
+
+      o.setVoiceActive(true)
+      await o.handlePause(makeEvent({ type: 'long_pause' }))
+
+      expect(callbacks.onThoughtStart).not.toHaveBeenCalled()
+      expect(callbacks.onEmotionDetected).not.toHaveBeenCalled()
+    })
+  })
+
+  // --- journal-mode crisis detection (L1 + L2) ---
+
+  describe('journal-mode crisis detection', () => {
+    let priv: OrchestratorPrivate
+
+    beforeEach(() => {
+      vi.clearAllMocks()
+      mockIsGroundingActive.mockReturnValue(false)
+      const { orch } = makeOrchestrator()
+      priv = orch as unknown as OrchestratorPrivate
+    })
+
+    it('L1 regex hit activates grounding immediately and skips L2', () => {
+      priv.checkCrisisInJournalMode('I want to die today, I cannot keep doing this')
+
+      expect(mockActivateGrounding).toHaveBeenCalledWith('auto')
+      // L2 should NOT have been called — L1 already activated grounding
+      expect(mockClassifyCrisisRisk).not.toHaveBeenCalled()
+    })
+
+    it('L2 risk=2 activates grounding when L1 misses', async () => {
+      mockClassifyCrisisRisk.mockResolvedValueOnce({ risk: 2, reason: 'multilingual ideation' })
+
+      priv.checkCrisisInJournalMode('ya no quiero vivir, todo se siente sin sentido')
+      // Wait for the async classifier promise to resolve
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(mockClassifyCrisisRisk).toHaveBeenCalledTimes(1)
+      expect(mockActivateGrounding).toHaveBeenCalledWith('auto')
+    })
+
+    it('L2 risk=0 does NOT activate grounding', async () => {
+      mockClassifyCrisisRisk.mockResolvedValueOnce({ risk: 0 })
+
+      priv.checkCrisisInJournalMode('Just had a long day, feeling tired and overwhelmed by work')
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(mockActivateGrounding).not.toHaveBeenCalled()
+    })
+
+    it('rate-limits identical text within 10s', () => {
+      mockClassifyCrisisRisk.mockResolvedValue({ risk: 0 })
+      const text = 'feeling kind of low today, lots of stress at work and home life is rough'
+
+      priv.checkCrisisInJournalMode(text)
+      priv.checkCrisisInJournalMode(text)
+
+      expect(mockClassifyCrisisRisk).toHaveBeenCalledTimes(1)
+    })
+
+    it('different text bypasses the rate limit', () => {
+      mockClassifyCrisisRisk.mockResolvedValue({ risk: 0 })
+
+      priv.checkCrisisInJournalMode('first paragraph of text long enough to be classified')
+      priv.checkCrisisInJournalMode('different paragraph of text long enough to be classified')
+
+      expect(mockClassifyCrisisRisk).toHaveBeenCalledTimes(2)
+    })
+
+    it('rate-limited window expires after CRISIS_CHECK_RATE_LIMIT_MS', () => {
+      mockClassifyCrisisRisk.mockResolvedValue({ risk: 0 })
+      const text = 'paragraph for repeated classification window expiry test sentence'
+
+      priv.checkCrisisInJournalMode(text)
+      // Backdate the cache so it looks expired
+      priv.lastCrisisCheckTime = Date.now() - 11_000
+      priv.checkCrisisInJournalMode(text)
+
+      expect(mockClassifyCrisisRisk).toHaveBeenCalledTimes(2)
     })
   })
 })

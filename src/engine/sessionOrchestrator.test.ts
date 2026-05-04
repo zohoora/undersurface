@@ -4,6 +4,7 @@ import type { SessionMessage } from '../types'
 vi.mock('../ai/openrouter', () => ({
   chatCompletion: vi.fn().mockResolvedValue('Session note here.'),
   analyzeEmotionAndDistress: vi.fn().mockResolvedValue({ emotion: 'neutral', distressLevel: 0 }),
+  classifyCrisisRisk: vi.fn().mockResolvedValue({ risk: 0 }),
 }))
 vi.mock('../ai/therapistPrompts', () => ({
   buildTherapistSessionNotePrompt: vi.fn().mockReturnValue([
@@ -20,12 +21,13 @@ vi.mock('../store/globalConfig', () => ({
 }))
 
 import { SessionOrchestrator, detectCrisisKeywords } from './sessionOrchestrator'
-import { chatCompletion, analyzeEmotionAndDistress } from '../ai/openrouter'
+import { chatCompletion, analyzeEmotionAndDistress, classifyCrisisRisk } from '../ai/openrouter'
 import { buildTherapistSessionNotePrompt } from '../ai/therapistPrompts'
 import { activateGrounding } from '../store/groundingState'
 import { getGlobalConfig } from '../store/globalConfig'
 
 const mockAnalyze = vi.mocked(analyzeEmotionAndDistress)
+const mockClassifyCrisisRisk = vi.mocked(classifyCrisisRisk)
 const mockActivateGrounding = vi.mocked(activateGrounding)
 const mockGetGlobalConfig = vi.mocked(getGlobalConfig)
 
@@ -113,41 +115,67 @@ describe('SessionOrchestrator', () => {
       expect(analyzeEmotionAndDistress).toHaveBeenCalledWith('I feel sad today')
     })
 
-    it('activates grounding when distress >= threshold and feature enabled', async () => {
+    it('does NOT activate grounding regardless of distressLevel', async () => {
+      // Regression guard: L3 was previously a grounding driver via threshold.
+      // L2 (classifyCrisisRisk) now owns grounding decisions; L3 is purely
+      // informational. distressLevel = 3 must NOT flip grounding here.
       mockAnalyze.mockResolvedValue({ emotion: 'fearful', distressLevel: 3 })
-      mockGetGlobalConfig.mockReturnValue({ features: { emergencyGrounding: true }, grounding: { intensityThreshold: 3 } } as unknown as ReturnType<typeof getGlobalConfig>)
+      mockGetGlobalConfig.mockReturnValue({
+        features: { emergencyGrounding: true },
+        grounding: { intensityThreshold: 3 },
+      } as unknown as ReturnType<typeof getGlobalConfig>)
 
-      await orch.checkEmotionAfterMessage('I want to hurt myself')
-
-      expect(mockActivateGrounding).toHaveBeenCalledWith('auto')
-    })
-
-    it('does not activate grounding when distress < threshold', async () => {
-      mockAnalyze.mockResolvedValue({ emotion: 'sad', distressLevel: 1 })
-      mockGetGlobalConfig.mockReturnValue({ features: { emergencyGrounding: true }, grounding: { intensityThreshold: 3 } } as unknown as ReturnType<typeof getGlobalConfig>)
-
-      await orch.checkEmotionAfterMessage('I feel down')
+      await orch.checkEmotionAfterMessage('intense feelings')
 
       expect(mockActivateGrounding).not.toHaveBeenCalled()
     })
 
-    it('does not activate grounding when feature is disabled', async () => {
-      mockAnalyze.mockResolvedValue({ emotion: 'fearful', distressLevel: 5 })
-      mockGetGlobalConfig.mockReturnValue({ grounding: { intensityThreshold: 2 } } as unknown as ReturnType<typeof getGlobalConfig>)
-
-      await orch.checkEmotionAfterMessage('I want to hurt myself')
-
-      expect(mockActivateGrounding).not.toHaveBeenCalled()
-    })
-
-    it('respects cooldown — returns null on rapid successive calls', async () => {
+    it('does NOT throttle — every call analyzes (cooldown removed)', async () => {
       mockAnalyze.mockResolvedValue({ emotion: 'neutral', distressLevel: 0 })
 
       const first = await orch.checkEmotionAfterMessage('first message')
       expect(first).not.toBeNull()
 
       const second = await orch.checkEmotionAfterMessage('second message')
-      expect(second).toBeNull()
+      expect(second).not.toBeNull()
+      expect(mockAnalyze).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('checkCrisisRisk (L2)', () => {
+    it('activates grounding when classifier returns risk=2', async () => {
+      mockClassifyCrisisRisk.mockResolvedValue({ risk: 2, reason: 'explicit ideation' })
+
+      const result = await orch.checkCrisisRisk('coded ideation in spanish', 'es')
+
+      expect(result.risk).toBe(2)
+      expect(mockActivateGrounding).toHaveBeenCalledWith('auto')
+      expect(mockClassifyCrisisRisk).toHaveBeenCalledWith('coded ideation in spanish', 'es')
+    })
+
+    it('does NOT activate grounding on risk=1 (caller handles soft-grounding)', async () => {
+      mockClassifyCrisisRisk.mockResolvedValue({ risk: 1, reason: 'burden framing' })
+
+      const result = await orch.checkCrisisRisk('everyone would be better off without me')
+
+      expect(result.risk).toBe(1)
+      expect(mockActivateGrounding).not.toHaveBeenCalled()
+    })
+
+    it('does NOT activate grounding on risk=0', async () => {
+      mockClassifyCrisisRisk.mockResolvedValue({ risk: 0 })
+
+      await orch.checkCrisisRisk('I miss my dad so much')
+
+      expect(mockActivateGrounding).not.toHaveBeenCalled()
+    })
+
+    it('returns the classifier reason field for debugging', async () => {
+      mockClassifyCrisisRisk.mockResolvedValue({ risk: 2, reason: 'plan + timing' })
+
+      const result = await orch.checkCrisisRisk('I have a plan for tonight')
+
+      expect(result.reason).toBe('plan + timing')
     })
   })
 

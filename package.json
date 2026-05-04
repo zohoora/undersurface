@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "preview": "vite preview",
     "test:indexes": "firebase emulators:exec --only firestore 'npx vitest run --config vitest.config.integration.ts'",
+    "test:crisis": "RUN_CRISIS_EVAL=1 vitest run src/engine/crisisClassifier.live.test.ts",
     "smoke-test": "bash scripts/smoke-test.sh",
     "cap:sync": "npm run build && npx cap sync",
     "cap:ios": "npm run build && npx cap sync ios && npx cap open ios",

@@ -15,14 +15,18 @@ import { EmergenceEngine } from '../../engine/emergenceEngine'
 import { BlankPageEngine } from '../../engine/blankPageEngine'
 import { useAutocorrect } from '../../hooks/useAutocorrect'
 import { recordFlowKeystroke } from '../../hooks/useFlowState'
+import { useHrvAmbient } from '../../hooks/useHrvAmbient'
 import type { AppSettings } from '../../store/settings'
 import { PartThoughtBubble } from './PartThoughtBubble'
 import { ThinkingSpace } from '../ThinkingOutLoud/ThinkingSpace'
 import { PauseRipple } from '../Atmosphere/PauseRipple'
 import { usePauseRipple } from '../Atmosphere/usePauseRipple'
+import { BiometricsBar } from '../Session/HrvAmbientBar'
+import { HrvConsentDialog } from '../Session/HrvConsentDialog'
 import { useTheme } from '../../hooks/useTheme'
 import { buildInteractionReply } from '../../ai/partPrompts'
 import { streamChatCompletion, reasoningForSpeed } from '../../ai/openrouter'
+import { isGroundingActive } from '../../store/groundingState'
 import { db, generateId } from '../../store/db'
 import { getGlobalConfig, useGlobalConfig } from '../../store/globalConfig'
 import { trackEvent } from '../../services/analytics'
@@ -104,6 +108,10 @@ export default function LivingEditor({
     autocorrect: settings.autocorrect,
     autoCapitalize: settings.autoCapitalize,
   })
+
+  const hrv = useHrvAmbient()
+  const hrvFlagOn = globalConfig?.features?.webcamHrv === true
+  const hrvStateRef = useRef<typeof hrv.autonomicState>(null)
 
   // Typing intensity tracking (for breathing sync)
   const lastKeystrokeTimeRef = useRef(0)
@@ -364,6 +372,12 @@ export default function LivingEditor({
     orchestratorRef.current?.setIntention(intentionRef.current)
   }, [intention])
 
+  useEffect(() => {
+    hrvStateRef.current = hrv.autonomicState
+    orchestratorRef.current?.setHrvState(hrv.autonomicState)
+    pauseDetectorRef.current?.setHrvState(hrv.autonomicState)
+  }, [hrv.autonomicState])
+
   // Trigger ripple at cursor position
   const triggerRipple = useCallback(() => {
     if (!editor) return
@@ -554,6 +568,7 @@ export default function LivingEditor({
     })
 
     orchestrator.setEntryId(entryId)
+    orchestrator.setHrvState(hrvStateRef.current)
     orchestrator.loadParts()
     orchestratorRef.current = orchestrator
 
@@ -592,6 +607,7 @@ export default function LivingEditor({
       }
     })
 
+    pauseDetector.setHrvState(hrvStateRef.current)
     pauseDetectorRef.current = pauseDetector
 
     return () => {
@@ -662,6 +678,7 @@ export default function LivingEditor({
         activeInteraction.initialThought,
         response,
         text,
+        { isGrounding: isGroundingActive() },
       )
 
       let replyText = ''
@@ -721,6 +738,40 @@ export default function LivingEditor({
       <EditorContent editor={editor} />
 
       <PauseRipple ripples={ripples} />
+
+      {hrvFlagOn && (
+        <div style={{ position: 'fixed', bottom: 16, right: 16, zIndex: 5, maxWidth: 260 }}>
+          {hrv.enabled ? (
+            <BiometricsBar
+              latest={hrv.latest}
+              measurementCount={0}
+              isCalibrating={hrv.calibrating}
+              error={hrv.error}
+            />
+          ) : (
+            <button
+              onClick={hrv.toggle}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 8,
+                border: '1px solid var(--border-subtle)',
+                background: 'transparent',
+                color: 'var(--text-tertiary, #888)',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 12,
+                cursor: 'pointer',
+                opacity: 0.6,
+              }}
+            >
+              Sense biometrics
+            </button>
+          )}
+        </div>
+      )}
+
+      {hrv.showConsent && (
+        <HrvConsentDialog onAccept={hrv.acceptConsent} onDecline={hrv.declineConsent} />
+      )}
 
       {/* Announce part thoughts to screen readers */}
       <div aria-live="polite" className="sr-only">

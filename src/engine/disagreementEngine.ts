@@ -1,6 +1,7 @@
 import { getGlobalConfig } from '../store/globalConfig'
 import { chatCompletion } from '../ai/openrouter'
 import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from '../ai/promptSafety'
+import { isGroundingActive } from '../store/groundingState'
 import type { Part, IFSRole } from '../types'
 
 const ROLE_OPPOSITION: Record<IFSRole, IFSRole[]> = {
@@ -17,6 +18,11 @@ export class DisagreementEngine {
   shouldDisagree(originalPart: Part, allParts: Part[]): Part | null {
     const config = getGlobalConfig()
     if (config?.features.partsDisagreeing !== true) return null
+
+    // Suppress disagreements during grounding. Parts arguing with each
+    // other while the writer is in distress is jarring and counter to
+    // the "be gentle, slow, grounding" directive.
+    if (isGroundingActive()) return null
 
     const disagreeChance = config.partIntelligence?.disagreeChance ?? 0.1
     const disagreeMinParts = config.partIntelligence?.disagreeMinParts ?? 3
@@ -50,6 +56,11 @@ export class DisagreementEngine {
     originalThought: string,
     currentText: string,
   ): Promise<string> {
+    // Belt-and-suspenders: shouldDisagree already gates on grounding, but
+    // there's a setTimeout between scheduling and execution; grounding may
+    // have flipped on in the interim. Bail rather than emit a callout.
+    if (isGroundingActive()) return ''
+
     const messages: { role: 'system' | 'user', content: string }[] = [
       {
         role: 'system',

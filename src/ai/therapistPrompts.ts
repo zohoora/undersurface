@@ -1,5 +1,5 @@
 import type { PartMemory, UserProfile, PersonalFacts, EntrySummary, SessionMessage, SessionPhase, SessionMode, RegisterTierId, InputMode } from '../types'
-import { languageDirective, formatDateTime, formatTime, formatShortDate } from './partPrompts'
+import { languageDirective, formatDateTime, formatTime, formatShortDate, GROUNDING_DIRECTIVE } from './partPrompts'
 import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from './promptSafety'
 import { REGISTER_TIERS, renderRegisterBlock, applyGroundingCap } from './registerTiers'
 
@@ -225,7 +225,7 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   }
 
   if (options.isGrounding) {
-    parts.push('The writer seems to be in distress. Be gentle, slow, grounding. Do not probe or push deeper. Offer presence, safety, and calm.')
+    parts.push(GROUNDING_DIRECTIVE)
   }
 
   if (options.hrvContext) {
