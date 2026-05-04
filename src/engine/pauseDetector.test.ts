@@ -243,6 +243,69 @@ describe('PauseDetector', () => {
     })
   })
 
+  // --- HRV state pacing ---
+
+  describe('setHrvState', () => {
+    it('activated state extends short-pause threshold (~25% more)', () => {
+      detector.setHrvState('activated')
+      const text = 'Some text being written'
+      typeText('a', text, text.length)
+
+      // Default short pause is 4500ms; activated multiplier 1.25 → 5625ms
+      // At 4500ms it should NOT have fired yet
+      vi.advanceTimersByTime(4500)
+      expect(callback).not.toHaveBeenCalled()
+
+      // After ~5700ms total it should have fired
+      vi.advanceTimersByTime(1500)
+      expect(callback).toHaveBeenCalled()
+    })
+
+    it('calm state shortens short-pause threshold (~10% less)', () => {
+      detector.setHrvState('calm')
+      const text = 'Some text being written'
+      typeText('a', text, text.length)
+
+      // Default 4500ms × 0.9 = 4050ms — should fire by 4100ms
+      vi.advanceTimersByTime(4100)
+      expect(callback).toHaveBeenCalled()
+    })
+
+    it('null state restores defaults', () => {
+      detector.setHrvState('activated')
+      detector.setHrvState(null)
+
+      const text = 'Some text being written'
+      typeText('a', text, text.length)
+
+      // Default 4500ms — should fire by 4600ms
+      vi.advanceTimersByTime(4600)
+      expect(callback).toHaveBeenCalled()
+    })
+
+    it('transitioning state applies neutral multiplier', () => {
+      detector.setHrvState('transitioning')
+
+      const text = 'Some text being written'
+      typeText('a', text, text.length)
+
+      vi.advanceTimersByTime(4600)
+      expect(callback).toHaveBeenCalled()
+    })
+
+    it('combines with speedMultiplier', () => {
+      // speed 2.0 (faster) + activated 1.25 → effective 4500 * 1.25 / 2 = 2812ms
+      detector.setSpeedMultiplier(2.0)
+      detector.setHrvState('activated')
+
+      const text = 'Some text being written'
+      typeText('a', text, text.length)
+
+      vi.advanceTimersByTime(2900)
+      expect(callback).toHaveBeenCalled()
+    })
+  })
+
   // --- PauseEvent shape ---
 
   describe('PauseEvent shape', () => {

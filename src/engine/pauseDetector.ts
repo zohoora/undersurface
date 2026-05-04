@@ -1,4 +1,5 @@
 import type { PauseEvent, PauseType } from '../types'
+import type { AutonomicState } from '../types/hrv'
 
 interface KeystrokeRecord {
   timestamp: number
@@ -18,17 +19,26 @@ export class PauseDetector {
   private isActive: boolean = true
   private lastPauseTime: number = 0
   private speedMultiplier: number = 1
+  private hrvMultiplier: number = 1
 
-  // Base timing thresholds (ms) — scaled by 1/speedMultiplier
+  // Base timing thresholds (ms) — scaled by 1/speedMultiplier and ×hrvMultiplier
   private readonly BASE_SHORT_PAUSE = 4500
   private readonly BASE_LONG_PAUSE = 15000
   private readonly BASE_MIN_PAUSE_INTERVAL = 12000
   private readonly CADENCE_WINDOW = 10
   private readonly CADENCE_SLOWDOWN_RATIO = 2.5
 
-  private get SHORT_PAUSE() { return this.BASE_SHORT_PAUSE / this.speedMultiplier }
-  private get LONG_PAUSE() { return this.BASE_LONG_PAUSE / this.speedMultiplier }
-  private get MIN_PAUSE_INTERVAL() { return this.BASE_MIN_PAUSE_INTERVAL / this.speedMultiplier }
+  // HRV-state pacing: activated → give 25% more space before a part chimes in.
+  // Calm → tighten by 10%. Transitioning/null → defaults.
+  private readonly HRV_PAUSE_MULT: Record<AutonomicState, number> = {
+    activated: 1.25,
+    calm: 0.9,
+    transitioning: 1,
+  }
+
+  private get SHORT_PAUSE() { return (this.BASE_SHORT_PAUSE * this.hrvMultiplier) / this.speedMultiplier }
+  private get LONG_PAUSE() { return (this.BASE_LONG_PAUSE * this.hrvMultiplier) / this.speedMultiplier }
+  private get MIN_PAUSE_INTERVAL() { return (this.BASE_MIN_PAUSE_INTERVAL * this.hrvMultiplier) / this.speedMultiplier }
 
   constructor(callback: PauseCallback) {
     this.callback = callback
@@ -36,6 +46,10 @@ export class PauseDetector {
 
   setSpeedMultiplier(multiplier: number) {
     this.speedMultiplier = Math.max(0.5, Math.min(2, multiplier))
+  }
+
+  setHrvState(state: AutonomicState | null) {
+    this.hrvMultiplier = state ? this.HRV_PAUSE_MULT[state] : 1
   }
 
   recordKeystroke(char: string, fullText: string, cursorPos: number) {
