@@ -60,8 +60,6 @@ export function EntryChoice({ onJournalCreated, onConversationChosen, onRealTalk
     setTimeout(() => onRealTalkChosen(), 340)
   }, [selectedType, onRealTalkChosen])
 
-  // Each card uses the same dismissal logic: it dismisses if any *other*
-  // card has been selected. Splitting this out keeps the JSX symmetric.
   const cardClasses = (type: ChoiceType, delayClass: string): string => {
     const isSelected = selectedType === type
     const isDismissed = selectedType !== null && selectedType !== type

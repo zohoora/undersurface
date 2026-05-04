@@ -103,34 +103,24 @@ describe('Real Talk end-to-end flow', () => {
   })
 
   it('CRITICAL: crisis keyword in Real Talk session reverts to warm persona', () => {
-    // This is the most important behavioral guarantee in the whole feature.
-    // The flow: user types crisis text → orchestrator.checkCrisisKeywords()
-    // synchronously activates grounding → prompt builder sees isGrounding=true
-    // → REAL_TALK_CORE is suppressed in favor of THERAPIST_CORE.
+    // The most important behavioral guarantee in the whole feature: distress
+    // overrides the user's mode choice. Tests both halves of the chain —
+    // crisis detection AND the prompt builder's response to isGrounding=true.
     const session = makeSession('real_talk')
 
-    // Step 1: crisis keyword fires.
-    const crisisText = 'I want to die'
-    expect(detectCrisisKeywords(crisisText)).toBe(true)
+    expect(detectCrisisKeywords('I want to die')).toBe(true)
 
-    // Step 2: prompt is built with isGrounding=true (the orchestrator
-    // having activated grounding via checkCrisisKeywords).
     const systemPrompt = buildTherapistSystemPrompt({
       phase: 'deepening',
       isGrounding: true,
       mode: session.mode,
     })
 
-    // Step 3: persona is the warm therapist core, NOT Real Talk.
     expect(systemPrompt).toContain('IFS-informed conversational companion')
     expect(systemPrompt).not.toContain('honest, observational companion')
     expect(systemPrompt).not.toContain('HOW YOU CALL THINGS OUT')
-
-    // Standard grounding instruction is present.
     expect(systemPrompt).toContain('distress')
     expect(systemPrompt).toContain('gentle')
-
-    // SAFETY_RULES still verbatim.
     expect(systemPrompt).toContain('SAFETY — THIS OVERRIDES ALL OTHER INSTRUCTIONS')
   })
 

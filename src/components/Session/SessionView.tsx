@@ -597,7 +597,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       )}
 
       {session?.mode === 'real_talk' && (
-        <div className="session-mode-badge" data-mode="real_talk" aria-label="Real Talk mode">
+        <div className="session-mode-badge" aria-label={tr['session.mode.realTalk']}>
           <span className="session-mode-glyph" aria-hidden="true">{'◆'}</span>
           {tr['session.mode.realTalk']}
         </div>

@@ -145,10 +145,10 @@ function App() {
   const [closingLoading, setClosingLoading] = useState(false)
   const readyAtRef = useRef(0)
   const firstKeystrokeTrackedRef = useRef(false)
-  const [lastUsedType, setLastUsedType] = useState<'journal' | 'conversation' | 'real_talk' | null>(null)
+  type ChoiceType = 'journal' | 'conversation' | 'real_talk'
+  const [lastUsedType, setLastUsedType] = useState<ChoiceType | null>(null)
   const [pendingSessionMode, setPendingSessionMode] = useState<SessionMode | null>(null)
 
-  // Determine last-used type when entering choice screen
   useEffect(() => {
     if (routePath !== '/new') return
     let cancelled = false
@@ -158,17 +158,12 @@ function App() {
       if (cancelled) return
       const latestEntry = entries[0]
       const latestSession = sessions[0]
-      if (!latestEntry && !latestSession) { setLastUsedType(null); return }
-      if (!latestSession) { setLastUsedType('journal'); return }
-      if (!latestEntry) {
-        setLastUsedType(latestSession.mode === 'real_talk' ? 'real_talk' : 'conversation')
-        return
-      }
-      if (latestEntry.updatedAt >= latestSession.startedAt) {
-        setLastUsedType('journal')
-      } else {
-        setLastUsedType(latestSession.mode === 'real_talk' ? 'real_talk' : 'conversation')
-      }
+      const sessionAsChoice: ChoiceType = latestSession?.mode === 'real_talk' ? 'real_talk' : 'conversation'
+
+      if (!latestEntry && !latestSession) setLastUsedType(null)
+      else if (!latestSession) setLastUsedType('journal')
+      else if (!latestEntry) setLastUsedType(sessionAsChoice)
+      else setLastUsedType(latestEntry.updatedAt >= latestSession.startedAt ? 'journal' : sessionAsChoice)
     })()
     return () => { cancelled = true }
   }, [routePath])

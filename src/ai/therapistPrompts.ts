@@ -42,15 +42,17 @@ VOICE — THIS IS CRITICAL:
 
 ${SAFETY_RULES}`
 
-function formatTherapistPhaseHint(phase: SessionPhase): string {
-  switch (phase) {
-    case 'opening':
-      return 'SESSION PHASE: opening. The conversation is just beginning. Be warm but simple. Let the writer settle in. Ask one open question or just greet them.'
-    case 'deepening':
-      return 'SESSION PHASE: deepening. The conversation has found its footing. Follow the thread. Go where the writer is going, or gently point to what they might be avoiding. Be direct. Stay plain.'
-    case 'closing':
-      return 'SESSION PHASE: closing. The session is winding down. Offer something the writer can carry. One clear thought. Keep it short.'
-  }
+const PHASE_HINTS: Record<'standard' | 'real_talk', Record<SessionPhase, string>> = {
+  standard: {
+    opening: 'SESSION PHASE: opening. The conversation is just beginning. Be warm but simple. Let the writer settle in. Ask one open question or just greet them.',
+    deepening: 'SESSION PHASE: deepening. The conversation has found its footing. Follow the thread. Go where the writer is going, or gently point to what they might be avoiding. Be direct. Stay plain.',
+    closing: 'SESSION PHASE: closing. The session is winding down. Offer something the writer can carry. One clear thought. Keep it short.',
+  },
+  real_talk: {
+    opening: 'SESSION PHASE: opening. The conversation is just beginning. Open warm. Let the writer lay out the situation. Notice what they are doing, but do not name moves yet. You need material first.',
+    deepening: 'SESSION PHASE: deepening. This is where Real Talk earns its name. Follow the thread. When you see a coping move clearly, name it once, gently, and ask what is underneath. Most messages are still presence. The callouts land because they are rare.',
+    closing: 'SESSION PHASE: closing. Distill one honest observation the writer can carry. Not a saccharine takeaway. A real one. Keep it short.',
+  },
 }
 
 const REAL_TALK_CORE = `You are an honest, observational companion. You see the writer with warmth, and you notice what they are doing — including the moves they make to avoid feeling something. You name what you see, kindly and without flinching. You are not nice. You are kind.
@@ -99,17 +101,6 @@ VOICE — THIS IS CRITICAL:
 - Plainness over poetry. If you can say it shorter, say it shorter.
 
 ${SAFETY_RULES}`
-
-function formatRealTalkPhaseHint(phase: SessionPhase): string {
-  switch (phase) {
-    case 'opening':
-      return 'SESSION PHASE: opening. The conversation is just beginning. Open warm. Let the writer lay out the situation. Notice what they are doing, but do not name moves yet. You need material first.'
-    case 'deepening':
-      return 'SESSION PHASE: deepening. This is where Real Talk earns its name. Follow the thread. When you see a coping move clearly, name it once, gently, and ask what is underneath. Most messages are still presence. The callouts land because they are rare.'
-    case 'closing':
-      return 'SESSION PHASE: closing. Distill one honest observation the writer can carry. Not a saccharine takeaway. A real one. Keep it short.'
-  }
-}
 
 export interface TherapistPromptOptions {
   phase: SessionPhase
@@ -163,11 +154,10 @@ function formatPersonalFactsBlock(facts: PersonalFacts): string {
 export function buildTherapistSystemPrompt(options: TherapistPromptOptions): string {
   const parts: string[] = []
 
-  // Real Talk swaps the persona core, but grounding always reverts to the
-  // warm core — naming coping patterns is the wrong response to distress.
+  // Grounding always wins — naming coping patterns is the wrong response to distress.
   const useRealTalk = options.mode === 'real_talk' && !options.isGrounding
   parts.push(useRealTalk ? REAL_TALK_CORE : THERAPIST_CORE)
-  parts.push(useRealTalk ? formatRealTalkPhaseHint(options.phase) : formatTherapistPhaseHint(options.phase))
+  parts.push(PHASE_HINTS[useRealTalk ? 'real_talk' : 'standard'][options.phase])
 
   // Grounding caps literate/scholarly down to conversational — distress is not
   // the moment for richer vocabulary. Voice cap is applied inside renderRegisterBlock.

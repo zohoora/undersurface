@@ -165,9 +165,6 @@ describe('buildTherapistSystemPrompt', () => {
 })
 
 describe('buildTherapistSystemPrompt — Real Talk mode', () => {
-  // Marker phrases — these are unique enough to discriminate the persona block.
-  // THERAPIST_CORE opens with "IFS-informed conversational companion".
-  // REAL_TALK_CORE opens with "honest, observational companion".
   const REAL_TALK_MARKER = 'honest, observational companion'
   const STANDARD_MARKER = 'IFS-informed conversational companion'
 
