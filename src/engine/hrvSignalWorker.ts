@@ -657,11 +657,7 @@ function computeTrend(recent: number[]): HrvTrend {
   return 'steady'
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessage' in self) {
-  let frameCount = 0
-  let computeCount = 0
-
   self.onmessage = (event: MessageEvent) => {
     const { type, data } = event.data as { type: string; data: unknown }
 
@@ -686,7 +682,6 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
         }
       }
       state.timestamps.push(now)
-      frameCount++
 
       if (state.calibrationStart === null) {
         state.calibrationStart = now
@@ -735,7 +730,6 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
     }
 
     if (type === 'compute') {
-      computeCount++
       const fps = state.actualFps
       const bufLen = state.timestamps.length
       const needed = fps * 5
@@ -796,7 +790,7 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
       }
 
       // --- FFT power spectrum from best region for signal dump ---
-      let fftPowerSpectrum: { freqHz: number; power: number }[] = []
+      const fftPowerSpectrum: { freqHz: number; power: number }[] = []
       {
         const filtered = butterworthBandpass(bestPulse, fps)
         const skip = Math.min(fps * 2, Math.floor(filtered.length * 0.15))
@@ -921,8 +915,6 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
     }
 
     if (type === 'reset') {
-      frameCount = 0
-      computeCount = 0
       resetState()
     }
   }

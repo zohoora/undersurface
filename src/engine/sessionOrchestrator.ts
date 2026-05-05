@@ -52,9 +52,10 @@ const CRISIS_PATTERNS = [
  * zero-width/non-breaking whitespace.
  */
 function normalizeForCrisisDetection(text: string): string {
-  return text
-    .normalize('NFKC')
-    .replace(/[\u00A0\u200B\u200C\u200D\uFEFF\u2060]/g, ' ')
+  // Intentionally strips ZWJ/ZWNJ inside the class \u2014 they're an attack class,
+  // not a grapheme-joiner we want to preserve.
+  // eslint-disable-next-line no-misleading-character-class
+  return text.normalize('NFKC').replace(/[\u00A0\u200B\u200C\u200D\uFEFF\u2060]/g, ' ')
 }
 
 export function detectCrisisKeywords(text: string): boolean {

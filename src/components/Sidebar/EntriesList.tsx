@@ -118,31 +118,30 @@ export function EntriesList({ activeEntryId, onSelectEntry, navigateTo, currentP
     return d.toLocaleDateString(getLanguageCode(), { month: 'short', day: 'numeric' })
   }
 
-  const getPreview = (entry: Entry) => {
-    if (entry.title) return entry.title
-    if (!entry.plainText) return t['entries.empty']
-    return entry.plainText.slice(0, 40) + (entry.plainText.length > 40 ? '...' : '')
-  }
-
-  const getSessionPreview = (session: Session) => {
-    const text = session.sessionNote || session.firstLine
-    if (!text) return t['sessions.title']
-    return text.slice(0, 40) + (text.length > 40 ? '...' : '')
-  }
-
   const handleSelectSession = (id: string) => {
     navigateTo('/session/' + id)
     if (isMobile) setIsOpen(false)
   }
 
   const sidebarItems = useMemo(() => {
+    const previewEntry = (entry: Entry): string => {
+      if (entry.title) return entry.title
+      if (!entry.plainText) return t['entries.empty']
+      return entry.plainText.slice(0, 40) + (entry.plainText.length > 40 ? '...' : '')
+    }
+    const previewSession = (session: Session): string => {
+      const text = session.sessionNote || session.firstLine
+      if (!text) return t['sessions.title']
+      return text.slice(0, 40) + (text.length > 40 ? '...' : '')
+    }
+
     const entryItems: SidebarItem[] = entries
       .filter(e => e.plainText?.trim() || e.id === activeEntryId)
       .map(e => ({
         kind: 'entry' as const,
         id: e.id,
         timestamp: e.updatedAt,
-        preview: getPreview(e),
+        preview: previewEntry(e),
         favorited: e.favorited,
         title: e.title,
       }))
@@ -151,7 +150,7 @@ export function EntriesList({ activeEntryId, onSelectEntry, navigateTo, currentP
       kind: 'session' as const,
       id: s.id,
       timestamp: s.startedAt,
-      preview: getSessionPreview(s),
+      preview: previewSession(s),
       status: s.status,
       favorited: s.favorited,
       mode: s.mode,
@@ -169,7 +168,7 @@ export function EntriesList({ activeEntryId, onSelectEntry, navigateTo, currentP
 
     merged.sort((a, b) => b.timestamp - a.timestamp)
     return merged
-  }, [entries, sessions, searchQuery, showFavoritesOnly, activeEntryId])
+  }, [entries, sessions, searchQuery, showFavoritesOnly, activeEntryId, t])
 
   return (
     <>

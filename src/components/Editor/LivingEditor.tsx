@@ -289,7 +289,10 @@ export default function LivingEditor({
     }
   }, [])
 
-  // Sync settings into extensions and pause detector
+  // Sync settings into extensions and pause detector. TipTap's editor.storage
+  // is intentionally mutable — extensions write to it directly. React Compiler
+  // can't see through this so we disable its immutability check for the block.
+  /* eslint-disable react-hooks/immutability */
   useEffect(() => {
     if (editor) {
       const vfx = globalConfig?.features?.visualEffectsEnabled !== false
@@ -299,11 +302,11 @@ export default function LivingEditor({
       editor.storage.textHighlight.disabled = !(vfx && globalConfig?.features?.textHighlights === true && settings.textHighlights)
       editor.storage.ghostText.disabled = !(globalConfig?.features?.ghostText === true && settings.ghostText)
       editor.storage.typewriterScroll.mode = settings.typewriterScroll
-      // Force decoration refresh
       editor.view.dispatch(editor.state.tr)
     }
     pauseDetectorRef.current?.setSpeedMultiplier(settings.responseSpeed)
   }, [editor, globalConfig, settings.typewriterScroll, settings.responseSpeed, settings.textHighlights, settings.ghostText, theme])
+  /* eslint-enable react-hooks/immutability */
 
   // Clean up faded thoughts periodically
   useEffect(() => {

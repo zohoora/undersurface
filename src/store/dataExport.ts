@@ -1,6 +1,5 @@
 import type { DocumentData } from 'firebase/firestore'
 import { db } from './db'
-import { SEEDED_PARTS } from '../ai/partPrompts'
 import { t, getLanguageCode, getPartDisplayName } from '../i18n'
 
 // ── Markdown export helpers ──
