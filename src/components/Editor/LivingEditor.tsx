@@ -14,6 +14,7 @@ import { PartOrchestrator } from '../../engine/partOrchestrator'
 import { EmergenceEngine } from '../../engine/emergenceEngine'
 import { BlankPageEngine } from '../../engine/blankPageEngine'
 import { useAutocorrect } from '../../hooks/useAutocorrect'
+import { useChatResponse } from '../../hooks/useChatResponse'
 import { recordFlowKeystroke } from '../../hooks/useFlowState'
 import { useHrvAmbient } from '../../hooks/useHrvAmbient'
 import type { AppSettings } from '../../store/settings'
@@ -24,12 +25,8 @@ import { usePauseRipple } from '../Atmosphere/usePauseRipple'
 import { BiometricsBar } from '../Session/HrvAmbientBar'
 import { HrvConsentDialog } from '../Session/HrvConsentDialog'
 import { useTheme } from '../../hooks/useTheme'
-import { buildInteractionReply } from '../../ai/partPrompts'
-import { streamChatCompletion, reasoningForSpeed } from '../../ai/openrouter'
-import { isGroundingActive } from '../../store/groundingState'
-import { db, generateId } from '../../store/db'
+import { generateId } from '../../store/db'
 import { getGlobalConfig, useGlobalConfig } from '../../store/globalConfig'
-import { trackEvent } from '../../services/analytics'
 import { t, getPartDisplayName } from '../../i18n'
 import type { EmotionalTone, Part, PartAnnotations, PartThought } from '../../types'
 
@@ -51,17 +48,6 @@ interface ActiveThought {
   quotedText?: string
   echoDate?: number
   isReturning?: boolean
-}
-
-interface ActiveInteraction {
-  thoughtId: string
-  partId: string
-  partName: string
-  partColor: string
-  partColorLight: string
-  initialThought: string
-  partReply: string | null
-  isReplyStreaming: boolean
 }
 
 interface Props {
@@ -90,8 +76,8 @@ export default function LivingEditor({
   const pauseDetectorRef = useRef<PauseDetector | null>(null)
   const orchestratorRef = useRef<PartOrchestrator | null>(null)
   const emergenceRef = useRef<EmergenceEngine | null>(null)
+  const dismissIfIdleRef = useRef<() => void>(() => {})
   const [thoughts, setThoughts] = useState<ActiveThought[]>([])
-  const [activeInteraction, setActiveInteraction] = useState<ActiveInteraction | null>(null)
   const { ripples, addRipple } = usePauseRipple()
   const currentThoughtRef = useRef<ActiveThought | null>(null)
   const emergenceCheckCountRef = useRef(0)
@@ -197,11 +183,7 @@ export default function LivingEditor({
             if (!hasVisible) return prev
             return prev.map((t) => (t.isStreaming ? t : { ...t, isVisible: false }))
           })
-          setActiveInteraction((prev) => {
-            if (!prev) return prev
-            if (prev.isReplyStreaming) return prev
-            return null
-          })
+          dismissIfIdleRef.current()
           pauseDetectorRef.current?.resume()
 
           // Activate color bleed if a part just spoke
@@ -229,6 +211,30 @@ export default function LivingEditor({
       }
     },
   })
+
+  const handleClearPartColor = useCallback(
+    () => onActivePartColorChange(null),
+    [onActivePartColorChange],
+  )
+  const handleReplyComplete = useCallback((color: string) => {
+    pendingBleedColorRef.current = color
+  }, [])
+
+  const chat = useChatResponse({
+    entryId,
+    editor,
+    settings,
+    orchestratorRef,
+    pauseDetectorRef,
+    onClearPartColor: handleClearPartColor,
+    onReplyComplete: handleReplyComplete,
+  })
+
+  // Bridge chat.dismissIfIdle into a stable ref so the editor's keydown
+  // handler (set up at useEditor time) can call the latest version.
+  useEffect(() => {
+    dismissIfIdleRef.current = chat.dismissIfIdle
+  }, [chat.dismissIfIdle])
 
   // Guard against ProseMirror DOM reconciliation crashes on mobile browsers
   // (Samsung Internet, etc.) that aggressively mutate contentEditable DOM
@@ -624,117 +630,14 @@ export default function LivingEditor({
 
   const handleThoughtClick = useCallback(
     (thought: ActiveThought) => {
-      if (thought.isStreaming) return
-      if (activeInteraction) return
-
-      pauseDetectorRef.current?.suppress()
-
-      setActiveInteraction({
-        thoughtId: thought.id,
-        partId: thought.partId,
-        partName: thought.partName,
-        partColor: thought.partColor,
-        partColorLight: thought.partColorLight,
-        initialThought: thought.content,
-        partReply: null,
-        isReplyStreaming: false,
-      })
-
-      setThoughts((prev) =>
-        prev.map((t) => (t.id === thought.id ? { ...t, isVisible: false } : t)),
-      )
+      if (chat.openInteraction(thought)) {
+        setThoughts((prev) =>
+          prev.map((t) => (t.id === thought.id ? { ...t, isVisible: false } : t)),
+        )
+      }
     },
-    [activeInteraction],
+    [chat],
   )
-
-  const handleUserResponse = useCallback(
-    async (response: string) => {
-      if (!activeInteraction) return
-
-      const parts = orchestratorRef.current?.getParts()
-      const part = parts?.find((p) => p.id === activeInteraction.partId)
-      if (!part) return
-
-      const text = editor?.getText() || ''
-
-      trackEvent('thinking_out_loud', { part_name: activeInteraction.partName, status: 'user_responded' })
-
-      const interactionId = generateId()
-      await db.interactions.add({
-        id: interactionId,
-        thoughtId: activeInteraction.thoughtId,
-        partId: activeInteraction.partId,
-        entryId: entryId,
-        partOpening: activeInteraction.initialThought,
-        userResponse: response,
-        partReply: null,
-        status: 'user_responded',
-        timestamp: Date.now(),
-      })
-
-      setActiveInteraction((prev) =>
-        prev ? { ...prev, isReplyStreaming: true } : null,
-      )
-
-      const messages = buildInteractionReply(
-        part,
-        activeInteraction.initialThought,
-        response,
-        text,
-        { isGrounding: isGroundingActive() },
-      )
-
-      let replyText = ''
-
-      await streamChatCompletion(
-        messages,
-        {
-          onToken: (token) => {
-            replyText += token
-            setActiveInteraction((prev) =>
-              prev ? { ...prev, partReply: replyText } : null,
-            )
-          },
-          onComplete: async (fullReply) => {
-            setActiveInteraction((prev) =>
-              prev ? { ...prev, partReply: fullReply, isReplyStreaming: false } : null,
-            )
-            pendingBleedColorRef.current = activeInteraction.partColor
-
-            await db.interactions.update(interactionId, {
-              partReply: fullReply,
-              status: 'complete',
-            })
-
-            await db.memories.add({
-              id: generateId(),
-              partId: activeInteraction.partId,
-              entryId: entryId,
-              content: `Writer said: "${response}" → You replied: "${fullReply}"`,
-              type: 'interaction',
-              timestamp: Date.now(),
-            })
-          },
-          onError: (error) => {
-            console.error('Reply error:', error)
-            setActiveInteraction((prev) =>
-              prev ? { ...prev, isReplyStreaming: false } : null,
-            )
-          },
-        },
-        150,
-        reasoningForSpeed(settings.responseSpeed),
-      )
-    },
-    [activeInteraction, editor, entryId, settings.responseSpeed],
-  )
-
-  const handleCloseInteraction = useCallback(() => {
-    setActiveInteraction(null)
-    pauseDetectorRef.current?.resume()
-    onActivePartColorChange(null)
-    setTimeout(() => editor?.commands.focus(), 100)
-  }, [editor, onActivePartColorChange])
 
   return (
     <div className={`editor-container${settings.typewriterScroll === 'typewriter' ? ' typewriter-active' : ''}`} id="editor">
@@ -794,7 +697,7 @@ export default function LivingEditor({
             isStreaming={thought.isStreaming}
             isEmerging={thought.isEmerging}
             isVisible={thought.isVisible}
-            exitInstant={activeInteraction?.thoughtId === thought.id}
+            exitInstant={chat.activeInteraction?.thoughtId === thought.id}
             onClick={() => handleThoughtClick(thought)}
             isEcho={thought.isEcho}
             isSilence={thought.isSilence}
@@ -807,17 +710,17 @@ export default function LivingEditor({
           />
         ))}
 
-        {activeInteraction && (
+        {chat.activeInteraction && (
           <ThinkingSpace
-            partName={activeInteraction.partName}
-            partColor={activeInteraction.partColor}
-            colorLight={activeInteraction.partColorLight}
-            initialThought={activeInteraction.initialThought}
+            partName={chat.activeInteraction.partName}
+            partColor={chat.activeInteraction.partColor}
+            colorLight={chat.activeInteraction.partColorLight}
+            initialThought={chat.activeInteraction.initialThought}
             isOpen={true}
-            onSubmitResponse={handleUserResponse}
-            partReply={activeInteraction.partReply}
-            isReplyStreaming={activeInteraction.isReplyStreaming}
-            onClose={handleCloseInteraction}
+            onSubmitResponse={chat.sendUserResponse}
+            partReply={chat.activeInteraction.partReply}
+            isReplyStreaming={chat.activeInteraction.isReplyStreaming}
+            onClose={chat.closeInteraction}
           />
         )}
       </div>
