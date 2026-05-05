@@ -36,13 +36,9 @@ interface UseChatResponseOptions {
   settings: AppSettings
   orchestratorRef: RefObject<PartOrchestrator | null>
   pauseDetectorRef: RefObject<PauseDetector | null>
-  /** Called when the panel closes; parent clears bleed/active-part color. */
-  onClearPartColor: () => void
-  /**
-   * Fired once the streamed reply has finalized. Parent owns the bleed-color
-   * queue (see pendingBleedColorRef in LivingEditor) and decides what to do
-   * with the color — typically queueing it for the next ProseMirror tick.
-   */
+  /** Sets the parent-tracked active part color; called with null on close. */
+  onPartColorChange: (color: string | null) => void
+  /** Fired when the streamed reply finalizes; payload is the part's bleed color. */
   onReplyComplete: (partColor: string) => void
 }
 
@@ -68,7 +64,7 @@ export function useChatResponse(opts: UseChatResponseOptions): UseChatResponse {
     settings,
     orchestratorRef,
     pauseDetectorRef,
-    onClearPartColor,
+    onPartColorChange,
     onReplyComplete,
   } = opts
 
@@ -98,9 +94,9 @@ export function useChatResponse(opts: UseChatResponseOptions): UseChatResponse {
   const closeInteraction = useCallback(() => {
     setActiveInteraction(null)
     pauseDetectorRef.current?.resume()
-    onClearPartColor()
+    onPartColorChange(null)
     setTimeout(() => editor?.commands.focus(), 100)
-  }, [editor, onClearPartColor, pauseDetectorRef])
+  }, [editor, onPartColorChange, pauseDetectorRef])
 
   const dismissIfIdle = useCallback(() => {
     setActiveInteraction((prev) => {
@@ -145,6 +141,9 @@ export function useChatResponse(opts: UseChatResponseOptions): UseChatResponse {
 
       let replyText = ''
 
+      // The onComplete/onError callbacks below capture `activeInteraction` from
+      // this closure intentionally — if the panel is closed mid-stream, we still
+      // want the original thought's color, partId, and opening for persistence.
       await streamChatCompletion(
         messages,
         {
@@ -158,19 +157,20 @@ export function useChatResponse(opts: UseChatResponseOptions): UseChatResponse {
             )
             onReplyComplete(activeInteraction.partColor)
 
-            await db.interactions.update(interactionId, {
-              partReply: fullReply,
-              status: 'complete',
-            })
-
-            await db.memories.add({
-              id: generateId(),
-              partId: activeInteraction.partId,
-              entryId,
-              content: `Writer said: "${response}" → You replied: "${fullReply}"`,
-              type: 'interaction',
-              timestamp: Date.now(),
-            })
+            await Promise.all([
+              db.interactions.update(interactionId, {
+                partReply: fullReply,
+                status: 'complete',
+              }),
+              db.memories.add({
+                id: generateId(),
+                partId: activeInteraction.partId,
+                entryId,
+                content: `Writer said: "${response}" → You replied: "${fullReply}"`,
+                type: 'interaction',
+                timestamp: Date.now(),
+              }),
+            ])
           },
           onError: (error) => {
             console.error('useChatResponse: reply error', error)

@@ -212,10 +212,6 @@ export default function LivingEditor({
     },
   })
 
-  const handleClearPartColor = useCallback(
-    () => onActivePartColorChange(null),
-    [onActivePartColorChange],
-  )
   const handleReplyComplete = useCallback((color: string) => {
     pendingBleedColorRef.current = color
   }, [])
@@ -226,12 +222,11 @@ export default function LivingEditor({
     settings,
     orchestratorRef,
     pauseDetectorRef,
-    onClearPartColor: handleClearPartColor,
+    onPartColorChange: onActivePartColorChange,
     onReplyComplete: handleReplyComplete,
   })
 
-  // Bridge chat.dismissIfIdle into a stable ref so the editor's keydown
-  // handler (set up at useEditor time) can call the latest version.
+  // TipTap captures editorProps once; bridge to the latest dismissIfIdle.
   useEffect(() => {
     dismissIfIdleRef.current = chat.dismissIfIdle
   }, [chat.dismissIfIdle])
@@ -628,15 +623,16 @@ export default function LivingEditor({
     }
   }, [entryId, onEmotionChange, onActivePartColorChange, triggerRipple, addMarginTrace])
 
+  const { openInteraction: chatOpenInteraction } = chat
   const handleThoughtClick = useCallback(
     (thought: ActiveThought) => {
-      if (chat.openInteraction(thought)) {
+      if (chatOpenInteraction(thought)) {
         setThoughts((prev) =>
           prev.map((t) => (t.id === thought.id ? { ...t, isVisible: false } : t)),
         )
       }
     },
-    [chat],
+    [chatOpenInteraction],
   )
 
   return (
