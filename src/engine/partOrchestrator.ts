@@ -18,6 +18,25 @@ import { EchoEngine } from './echoEngine'
 import { ThreadEngine } from './threadEngine'
 import { RitualEngine } from './ritualEngine'
 
+// ROLE_PAUSE_AFFINITIES — pause-type × IFS-role weights added to a part's
+// selection score (consumed by `pauseTypeAffinity()` below). Higher = this
+// role is more likely to be the one with something to say after that kind of
+// pause. Scale: 5 (mismatch) → 10 (baseline / unknown lookup) → 25 (signature
+// pause). Rows aren't normalized; a tall peak makes a role decisive on its
+// pause, not louder overall.
+//
+//   protector:   loudest at trailing-off and cadence slowdown — the lid
+//                wobbling is the Protector's territory by definition.
+//   exile:       long pauses and ellipses — exiles surface slowly, in the
+//                silence that makes room for what's tender.
+//   self:        shares the long-pause peak with exile (disambiguation via
+//                content/emotion scoring); owns the question pause —
+//                curious, listening to oneself.
+//   firefighter: intentionally no 25-peak. Firefighters are reactive,
+//                surfacing in "okay, now what" moments (questions,
+//                completions, breaks) rather than owning a single pause.
+//   manager:     paragraph break — managers organize experience into
+//                chunks; the writer hitting return is doing that move.
 const ROLE_PAUSE_AFFINITIES: Record<IFSRole, Record<PauseType, number>> = {
   protector: {
     short_pause: 5, sentence_complete: 10, cadence_slowdown: 20,
