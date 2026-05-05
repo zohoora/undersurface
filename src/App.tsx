@@ -43,7 +43,7 @@ import { t, useTranslation, getPartDisplayName } from './i18n'
 import { getSettings } from './store/settings'
 import type { EmotionalTone, GuidedExploration, InnerWeather as InnerWeatherType, SessionMode } from './types'
 
-const ADMIN_EMAILS = ['zohoora@gmail.com']
+import { isAdmin } from './admin/isAdmin'
 
 function EditorSkeleton() {
   return (
@@ -469,7 +469,7 @@ function App() {
     // undefined during loading and must not be treated as "not admin"
     if (loading) return
 
-    if (routePath.startsWith('/admin') && !ADMIN_EMAILS.includes(user?.email || '')) {
+    if (routePath.startsWith('/admin') && !isAdmin(user?.email)) {
       window.history.replaceState(null, '', '/')
       setRoutePath('/')
     } else if (
@@ -494,7 +494,7 @@ function App() {
   }
 
   // Admin routing — before DB init so admin page stays lightweight
-  const isAdminRoute = routePath.startsWith('/admin') && ADMIN_EMAILS.includes(user.email || '')
+  const isAdminRoute = routePath.startsWith('/admin') && isAdmin(user.email)
   if (isAdminRoute) {
     return <Suspense fallback={<SplashScreen />}><AdminDashboard /></Suspense>
   }
