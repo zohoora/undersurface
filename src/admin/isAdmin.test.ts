@@ -23,8 +23,6 @@ describe('isAdmin', () => {
   })
 
   it('is case-sensitive — UPPERCASE variants must not pass', () => {
-    // Firebase Auth normalizes to lowercase, but we still defend against any
-    // mixed-case bypass. Test pins behavior in case the upstream ever changes.
     expect(isAdmin('ZOHOORA@gmail.com')).toBe(false)
     expect(isAdmin('Zohoora@Gmail.com')).toBe(false)
   })
@@ -36,8 +34,7 @@ describe('isAdmin', () => {
   })
 
   it('exposes the allowlist as a single canonical entry', () => {
-    // If a second admin is ever added, that change should be intentional and
-    // visible in a diff. This guard catches accidental allowlist drift.
+    // Drift guard — adding a second admin should be intentional and diff-visible.
     expect(ADMIN_EMAILS).toEqual(['zohoora@gmail.com'])
   })
 })

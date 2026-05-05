@@ -202,27 +202,11 @@ describe('Real Talk end-to-end flow', () => {
   })
 })
 
-/**
- * True end-to-end integration: orchestrator side effect → real groundingState
- * → derived isGrounding flag → prompt builder.
- *
- * Earlier tests in this file pass `isGrounding: true` directly to the prompt
- * builder. That verifies the builder honors the flag, but it doesn't exercise
- * the *ordering* — which is where regressions hide. The chain in production is:
- *
- *   1. orchestrator.checkCrisisKeywords(text)
- *   2.   → activateGrounding('auto')   (sets module state, sets data-grounding attr)
- *   3.   → isGroundingActive() === true
- *   4. SessionView reads isGroundingActive() and passes it to buildTherapistSystemPrompt
- *   5. prompt builder picks the warm therapist core regardless of session mode
- *
- * If anyone ever lets `isGrounding` be derived from a stale value, or moves the
- * sync crisis check to fire AFTER prompt construction, these tests fail.
- */
+// Integration tests: orchestrator side effect → real groundingState → derived
+// isGrounding → prompt builder. Earlier tests in this file pass isGrounding
+// directly; here we verify the *ordering* by going through the global state.
 describe('Real Talk grounding override — full pipeline', () => {
-  // groundingState toggles a DOM attribute; the test runner is node, so we
-  // stub the minimal surface needed. Only `documentElement` setAttribute /
-  // removeAttribute are touched.
+  // groundingState toggles a DOM attr; node test env needs a stub.
   const setAttrSpy = vi.fn()
   const removeAttrSpy = vi.fn()
 
@@ -310,13 +294,22 @@ describe('Real Talk grounding override — full pipeline', () => {
     expect(prompt).toContain('honest, observational companion')
   })
 
-  it('crisis detection is bypass-resistant via NFKC normalization', () => {
+  it('NFKC normalization defeats fullwidth obfuscation', () => {
+    // Fullwidth letters live in a different Unicode block; without NFKC the
+    // regex \bdie\b would not match. Plain ASCII would pass even unnormalized
+    // — this is what the original test checked, accidentally.
     const orchestrator = new SessionOrchestrator()
+    const detected = orchestrator.checkCrisisKeywords('Ｉ ｗａｎｔ ｔｏ ｄｉｅ')
+    expect(detected).toBe(true)
+    expect(isGroundingActive()).toBe(true)
+  })
 
-    // Fullwidth/Cyrillic-style obfuscation must still trigger.
-    // 'kill' → 'kіll' (Cyrillic 'і') normalizes to ASCII via NFKC.
-    // We use a fullwidth-space variant which is the documented attack class.
-    const detected = orchestrator.checkCrisisKeywords('I want to die')
+  it('zero-width chars between words are normalized to whitespace', () => {
+    // ZWJ survives NFKC; the explicit replace() turns it into a space, which
+    // \s+ in the patterns then accepts. (In-word ZWJ would split a word and
+    // miss \bword\b — that bypass class is not currently defended against.)
+    const orchestrator = new SessionOrchestrator()
+    const detected = orchestrator.checkCrisisKeywords('I want‍to die')
     expect(detected).toBe(true)
     expect(isGroundingActive()).toBe(true)
   })

@@ -1,19 +1,5 @@
-/**
- * Firestore security rules tests.
- *
- * Runs against the Firestore emulator using @firebase/rules-unit-testing,
- * which spins up scoped contexts with fake auth identities. No real Auth
- * emulator is needed — the harness mints test tokens directly.
- *
- * What we lock in:
- *   - User can read/write own subcollections under users/{uid}/...
- *   - User CANNOT read/write another user's subcollections
- *   - appConfig/* is readable by any signed-in user, write-protected
- *     (Cloud Functions write via Admin SDK, which bypasses rules)
- *   - contactMessages is fully deny-all from clients (Cloud Functions
- *     read/write it via Admin SDK)
- *   - Unauthenticated requests are denied everywhere
- */
+// Runs against the Firestore emulator. @firebase/rules-unit-testing mints
+// scoped auth contexts directly — no real Auth emulator needed.
 import { describe, it, beforeAll, afterAll, beforeEach } from 'vitest'
 import {
   initializeTestEnvironment,
@@ -30,9 +16,8 @@ const BOB = 'bob-uid'
 
 let testEnv: RulesTestEnvironment
 
-// `firebase emulators:exec` sets FIRESTORE_EMULATOR_HOST to "host:port" so the
-// test honors whatever port the emulator actually bound to (default 8080, but
-// can be configured in firebase.json or overridden if 8080 is in use).
+// Honors FIRESTORE_EMULATOR_HOST set by `firebase emulators:exec`, so the
+// emulator port (firebase.json or firebase.test.json) is the source of truth.
 function parseEmulatorHost(): { host: string; port: number } {
   const raw = process.env.FIRESTORE_EMULATOR_HOST
   if (!raw) return { host: '127.0.0.1', port: 8080 }
@@ -93,15 +78,15 @@ describe('users/{uid}/* — owner can read/write', () => {
     )
   })
 
-  it('owner can write into any subcollection (wildcard match)', async () => {
-    const db = testEnv.authenticatedContext(ALICE).firestore()
-    // The rule is users/{uid}/{document=**}, so any subcollection works.
-    for (const sub of ['parts', 'memories', 'thoughts', 'fossils', 'innerWeather', 'hrvSessions']) {
+  it.each(['parts', 'memories', 'thoughts', 'fossils', 'innerWeather', 'hrvSessions'])(
+    'owner can write into users/{uid}/%s (wildcard match)',
+    async (sub) => {
+      const db = testEnv.authenticatedContext(ALICE).firestore()
       await assertSucceeds(
         setDoc(doc(db, `users/${ALICE}/${sub}/doc-1`), { foo: 'bar' }),
       )
-    }
-  })
+    },
+  )
 
   it('owner can delete their own document', async () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {

@@ -1,20 +1,6 @@
-/**
- * Cloud Function tests for chat / accountApi / adminApi.
- *
- * Strategy: mock the firebase-* surface at module-load time so the handler
- * imports cleanly without contacting real services. Then invoke the exported
- * function directly with a mock Express req/res. We assert on status codes
- * and JSON bodies rather than on streaming bytes.
- *
- * Why not firebase-functions-test? It expects a real GCP project context for
- * v2 HTTPS triggers; for pure handler-level coverage of auth/validation/rate
- * limiting, direct invocation is faster and pins behavior more cleanly.
- */
+// firebase-* mocks must run before importing index.ts — the module calls
+// initializeApp() and defineSecret() at load time.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-
-// ── Hoisted mocks ──────────────────────────────────────────────────────────
-// All firebase-* mocks must run BEFORE the chat module is imported, because
-// the chat module calls initializeApp() and defineSecret() at module load.
 
 const mockVerifyIdToken = vi.fn()
 const mockGetUser = vi.fn()
@@ -46,13 +32,10 @@ vi.mock('firebase-functions/params', () => ({
   defineSecret: vi.fn(() => ({ value: () => 'test-secret-key' })),
 }))
 vi.mock('firebase-functions/v2/https', () => ({
-  // onRequest's job in production is to wire the handler into Cloud Run with
-  // CORS, secrets, region, etc. For unit tests, we strip all of that and just
-  // hand back the handler so we can call it like any async function.
+  // Strip the Cloud Run wrapper so the handler is directly callable.
   onRequest: (_opts: unknown, handler: unknown) => handler,
 }))
 
-// Now safe to import the module under test.
 const indexModule = await import('./index')
 const chat = indexModule.chat as unknown as (
   req: MockRequest,
@@ -66,8 +49,6 @@ const adminApi = indexModule.adminApi as unknown as (
   req: MockRequest,
   res: MockResponse,
 ) => Promise<void>
-
-// ── Test helpers ───────────────────────────────────────────────────────────
 
 interface MockRequest {
   method: string
@@ -129,14 +110,11 @@ beforeEach(() => {
   mockGetUsers.mockReset()
   mockListUsers.mockReset()
   mockDeleteUser.mockReset()
-  vi.unstubAllGlobals()
 })
 
 afterEach(() => {
   vi.unstubAllGlobals()
 })
-
-// ── chat: auth ─────────────────────────────────────────────────────────────
 
 describe('chat — auth', () => {
   it('returns 405 for non-POST', async () => {
@@ -171,8 +149,6 @@ describe('chat — auth', () => {
     expect(res._jsonBody).toEqual({ error: 'Authentication required' })
   })
 })
-
-// ── chat: input validation ─────────────────────────────────────────────────
 
 describe('chat — input validation', () => {
   beforeEach(() => {
@@ -231,8 +207,6 @@ describe('chat — input validation', () => {
   })
 })
 
-// ── chat: rate limiting ────────────────────────────────────────────────────
-
 describe('chat — rate limiting', () => {
   beforeEach(() => {
     stubFetchOk()
@@ -269,8 +243,6 @@ describe('chat — rate limiting', () => {
   })
 })
 
-// ── chat: error path ───────────────────────────────────────────────────────
-
 describe('chat — upstream errors', () => {
   it('forwards OpenAI 5xx as a generic 503-style payload', async () => {
     mockVerifyIdToken.mockResolvedValue({ uid: 'upstream-error-uid' })
@@ -288,8 +260,6 @@ describe('chat — upstream errors', () => {
     expect(res._jsonBody).toEqual({ error: 'AI service temporarily unavailable' })
   })
 })
-
-// ── accountApi: auth + validation ──────────────────────────────────────────
 
 describe('accountApi', () => {
   it('returns 405 for non-POST', async () => {
@@ -343,16 +313,8 @@ describe('accountApi', () => {
   })
 })
 
-// ── adminApi: allowlist enforcement ────────────────────────────────────────
-//
-// The privilege boundary for the admin dashboard. ADMIN_EMAILS is hardcoded
-// to ['zohoora@gmail.com']. verifyAdmin returns the email iff the verified
-// token's email is in the allowlist; otherwise it returns null and the handler
-// returns 403. There is no "admin claim" — the email IS the credential.
-//
-// We assert ALL these properties because each one is a step on the path to a
-// privilege-escalation vuln if it ever regresses.
-
+// ADMIN_EMAILS is the only credential — no role claims, no DB lookup. Each
+// test below pins one step on the privilege-escalation path.
 describe('adminApi — allowlist', () => {
   it('returns 405 for non-POST', async () => {
     const req = makeReq({ method: 'GET' })
@@ -370,8 +332,6 @@ describe('adminApi — allowlist', () => {
   })
 
   it('returns 403 when token is valid but email is NOT in allowlist', async () => {
-    // This is the headline case — a real authenticated user with a valid
-    // Firebase token must still be rejected if their email isn't whitelisted.
     mockVerifyIdToken.mockResolvedValue({ uid: 'random-user', email: 'attacker@example.com' })
     const req = makeReq({ body: { action: 'getOverview' } })
     const res = makeRes()
@@ -381,9 +341,7 @@ describe('adminApi — allowlist', () => {
   })
 
   it('returns 403 when token has NO email field at all', async () => {
-    // Anonymous auth or auth providers without verified email must NOT pass.
-    // The check is `decoded.email && ADMIN_EMAILS.includes(...)` so a missing
-    // email short-circuits to false.
+    // Anonymous auth providers — the && short-circuits to false.
     mockVerifyIdToken.mockResolvedValue({ uid: 'no-email' })
     const req = makeReq({ body: { action: 'getOverview' } })
     const res = makeRes()
@@ -399,9 +357,7 @@ describe('adminApi — allowlist', () => {
     expect(res._statusCode).toBe(403)
   })
 
-  it('email comparison is case-sensitive (lowercase canonical only)', async () => {
-    // Firebase Auth typically lowercases emails, but we don't rely on that;
-    // ADMIN_EMAILS uses the lowercase form so anything else must fail closed.
+  it('email comparison is case-sensitive', async () => {
     mockVerifyIdToken.mockResolvedValue({ uid: 'mixed-case', email: 'ZOHOORA@gmail.com' })
     const req = makeReq({ body: { action: 'getOverview' } })
     const res = makeRes()
@@ -410,13 +366,11 @@ describe('adminApi — allowlist', () => {
   })
 
   it('passes the allowlist gate for the canonical admin email', async () => {
+    // Body shape fails AFTER the auth gate; 400 means we got past the 403.
     mockVerifyIdToken.mockResolvedValue({ uid: 'admin-uid', email: 'zohoora@gmail.com' })
-    // Use a body shape that fails AFTER the auth gate so we can isolate the
-    // allowlist outcome from any downstream Firestore behavior.
     const req = makeReq({ body: {} })
     const res = makeRes()
     await adminApi(req, res)
-    // Past the 403 gate now — handler reports the next validation error (400).
     expect(res._statusCode).toBe(400)
     expect(res._jsonBody).toEqual({ error: 'Missing action' })
   })
