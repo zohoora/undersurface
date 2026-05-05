@@ -12,10 +12,11 @@ export function useTypewriter() {
   const displayedLengthRef = useRef(0)
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onStreamCompleteRef = useRef<((fullText: string) => void) | null>(null)
-  // Ref indirection for the self-recursive reveal — lets setTimeout call back
-  // into the impl without forward-referencing a not-yet-declared callback.
-  // Closes over refs only, so the impl is stable for the hook's lifetime.
+  // Ref indirection for the self-recursive reveal: setTimeout calls a stable
+  // wrapper, which forwards to the impl that effect installs once on mount.
+  // Avoids allocating a fresh closure per tick (~one per 25-55ms during streaming).
   const revealNextCharRef = useRef<() => void>(() => {})
+  const tickRef = useRef<() => void>(() => revealNextCharRef.current())
   useEffect(() => {
     revealNextCharRef.current = () => {
       if (displayedLengthRef.current < streamBufferRef.current.length) {
@@ -27,7 +28,7 @@ export function useTypewriter() {
         )
         setDisplayedContent(streamBufferRef.current.slice(0, displayedLengthRef.current))
         const delay = 25 + Math.random() * 30
-        typingTimerRef.current = setTimeout(() => revealNextCharRef.current(), delay)
+        typingTimerRef.current = setTimeout(tickRef.current, delay)
       } else if (onStreamCompleteRef.current) {
         const cb = onStreamCompleteRef.current
         onStreamCompleteRef.current = null
