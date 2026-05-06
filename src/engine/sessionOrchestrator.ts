@@ -72,10 +72,14 @@ export class SessionOrchestrator {
   }
 
   getMaxTokens(phase: SessionPhase): number {
+    // gpt-5.5 with reasoning=medium consumes a non-trivial slice of the budget
+    // on internal reasoning before any content tokens are emitted. Empty-completion
+    // bug logs (2026-05-06) showed bytes=608 streams (= zero content) when the
+    // budget was tight. Headroom is cheap; truncated therapists are not.
     switch (phase) {
-      case 'opening': return 150
-      case 'deepening': return 250
-      case 'closing': return 300
+      case 'opening': return 300
+      case 'deepening': return 500
+      case 'closing': return 600
     }
   }
 

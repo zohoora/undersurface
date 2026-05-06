@@ -217,6 +217,12 @@ export const chat = onRequest(
 
       const MAX_STREAM_BYTES = 1_048_576 // 1 MiB safety cap
       let totalBytes = 0
+      let contentTokens = 0
+      let finishReason: string | null = null
+      let reasoningTokens: number | null = null
+      let completionTokens: number | null = null
+      let buffer = ''
+      const decoder = new TextDecoder()
       const reader = openAiResponse.body.getReader()
       try {
         while (true) {
@@ -227,12 +233,59 @@ export const chat = onRequest(
             console.warn(`[chat] stream-cap ${tag} bytes=${totalBytes}, aborting`)
             break
           }
+
+          // Inspect SSE chunks for diagnostic counters before forwarding. The
+          // bytes are still piped verbatim — this only adds CPU. Catches the
+          // "zero content tokens" failure mode that looks like a happy 608-byte
+          // stream in raw-byte logs.
+          buffer += decoder.decode(value, {stream: true})
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+          for (const line of lines) {
+            const trimmed = line.trim()
+            if (!trimmed.startsWith('data: ')) continue
+            const data = trimmed.slice(6)
+            if (data === '[DONE]') continue
+            try {
+              const parsed = JSON.parse(data) as {
+                choices?: Array<{
+                  delta?: {content?: string}
+                  finish_reason?: string | null
+                }>
+                usage?: {
+                  completion_tokens?: number
+                  completion_tokens_details?: {reasoning_tokens?: number}
+                }
+              }
+              const delta = parsed.choices?.[0]?.delta?.content
+              if (typeof delta === 'string' && delta.length > 0) contentTokens++
+              const fr = parsed.choices?.[0]?.finish_reason
+              if (fr) finishReason = fr
+              if (parsed.usage) {
+                if (typeof parsed.usage.completion_tokens === 'number') {
+                  completionTokens = parsed.usage.completion_tokens
+                }
+                const rt = parsed.usage.completion_tokens_details?.reasoning_tokens
+                if (typeof rt === 'number') reasoningTokens = rt
+              }
+            } catch {
+              // skip malformed chunks
+            }
+          }
+
           res.write(value)
         }
       } finally {
         res.end()
       }
-      console.log(`[chat] done ${tag} bytes=${totalBytes} totalMs=${Date.now() - reqStart}`)
+      const empty = contentTokens === 0
+      const logFn = empty ? console.warn : console.log
+      logFn(
+        `[chat] done ${tag} bytes=${totalBytes} totalMs=${Date.now() - reqStart}` +
+        ` contentTokens=${contentTokens} finish=${finishReason}` +
+        ` compTok=${completionTokens} reasonTok=${reasoningTokens}` +
+        (empty ? ' EMPTY_COMPLETION' : ''),
+      )
     } else {
       const data = await openAiResponse.json()
       const finishReason = data?.choices?.[0]?.finish_reason

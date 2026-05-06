@@ -176,136 +176,170 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     currentSession: Session,
   ): Promise<SessionMessage[]> => {
     setIsStreaming(true)
+    setOpenerError(null)
 
     const orchestrator = orchestratorRef.current
     const lastUserMessage = [...currentMessages].reverse().find(m => m.speaker === 'user')
 
-    // At most two attempts: original + one crisis-grounded retry.
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const phase = orchestrator.detectPhase(currentMessages)
-      const maxTokens = orchestrator.getMaxTokens(phase)
+    // Up to 3 total attempts to get non-empty content. The therapist sometimes
+    // emits zero content tokens — model exhausts its budget on internal reasoning,
+    // refusal returns blank, transient OpenAI hiccup. Retrying papers over most
+    // cases without the user ever seeing a blank bubble.
+    const MAX_EMPTY_ATTEMPTS = 3
 
-      const context = contextRef.current
-      const hrvContext = hrv.buildPromptContext()
-      const promptMessages = buildTherapistMessages(currentMessages, {
-        phase,
-        recentSessionNotes: context?.recentSessionNotes,
-        relevantMemories: context?.relevantMemories,
-        profile: context?.userProfile,
-        personalFacts: context?.personalFacts,
-        isGrounding: isGroundingActive(),
-        hrvContext,
-        mode: currentSession.mode ?? 'standard',
-        allowRecommendations: unifiedUI,
-        isFirstTurn: isFirstTherapistTurn(currentMessages),
-      })
+    for (let emptyAttempt = 0; emptyAttempt < MAX_EMPTY_ATTEMPTS; emptyAttempt++) {
+      let crisisLoopResult: SessionMessage[] | null = null
 
-      typewriter.reset()
+      // Inner loop: original + one crisis-grounded retry.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const phase = orchestrator.detectPhase(currentMessages)
+        const maxTokens = orchestrator.getMaxTokens(phase)
 
-      let resolveMessages: (messages: SessionMessage[]) => void
-      const messagesPromise = new Promise<SessionMessage[]>(resolve => {
-        resolveMessages = resolve
-      })
-
-      const finalizeMessage = async (fullText: string) => {
-        const msgId = generateId()
-        const newMessage: SessionMessage = {
-          id: msgId,
-          speaker: 'therapist',
-          partId: null,
-          partName: null,
-          content: fullText.trim(),
-          timestamp: Date.now(),
+        const context = contextRef.current
+        const hrvContext = hrv.buildPromptContext()
+        const promptMessages = buildTherapistMessages(currentMessages, {
           phase,
-          isEmergence: false,
-        }
-
-        await sessionMessagesDb.add(currentSession.id, newMessage)
-
-        const updatedMessages = [...currentMessages, newMessage]
-        const newMessageCount = updatedMessages.length
-        const firstLine = currentSession.firstLine || fullText.trim().slice(0, 100)
-
-        await db.sessions.update(currentSession.id, {
-          messageCount: newMessageCount,
-          firstLine,
-          phase,
+          recentSessionNotes: context?.recentSessionNotes,
+          relevantMemories: context?.relevantMemories,
+          profile: context?.userProfile,
+          personalFacts: context?.personalFacts,
+          isGrounding: isGroundingActive(),
+          hrvContext,
+          mode: currentSession.mode ?? 'standard',
+          allowRecommendations: unifiedUI,
+          isFirstTurn: isFirstTherapistTurn(currentMessages),
         })
 
-        setSession(prev => prev ? {
-          ...prev,
-          messageCount: newMessageCount,
-          firstLine,
-          phase,
-        } : prev)
-        setMessages(updatedMessages)
-        messagesRef.current = updatedMessages
-        setIsStreaming(false)
         typewriter.reset()
-        resolveMessages(updatedMessages)
-      }
 
-      hrv.resetResponseStarted()
+        let resolveMessages: (messages: SessionMessage[]) => void
+        const messagesPromise = new Promise<SessionMessage[]>(resolve => {
+          resolveMessages = resolve
+        })
 
-      const crisisAbortController = new AbortController()
-      let firstTokenArrived = false
-      let crisisAborted = false
-
-      // Fire L2 only on the first attempt — if it already determined risk=2
-      // and we aborted, the second attempt's prompt is already grounded and
-      // re-running the classifier would waste a call.
-      if (attempt === 0 && lastUserMessage) {
-        orchestrator.checkCrisisRisk(lastUserMessage.content, getLanguageCode())
-          .then(result => {
-            if (result.risk === 2 && !firstTokenArrived && !crisisAborted) {
-              crisisAborted = true
-              crisisAbortController.abort()
-            }
-          })
-          .catch(() => { /* fail-open inside checkCrisisRisk */ })
-      }
-
-      await streamChatCompletion(
-        promptMessages,
-        {
-          onToken: (token) => {
-            firstTokenArrived = true
-            typewriter.appendToken(token)
-            if (hrv.enabled && hrv.markResponseStarted()) {
-              hrv.addConversationEvent('ai_response_start', currentMessages.length)
-            }
-          },
-          onComplete: () => {
-            typewriter.setOnComplete(finalizeMessage)
-            if (hrv.enabled) {
-              hrv.addConversationEvent('ai_response_complete', currentMessages.length)
-            }
-          },
-          onError: (error) => {
-            // A crisis-driven abort is expected — suppress and let the loop retry.
-            if (crisisAborted) return
-            console.error('Session stream error:', error)
+        const finalizeMessage = async (fullText: string) => {
+          // Empty content — don't commit a blank bubble. Outer loop decides
+          // whether to retry or surface as an error.
+          if (!fullText.trim()) {
+            console.warn('[chat] empty completion received, will retry if budget allows')
             typewriter.reset()
-            setIsStreaming(false)
             resolveMessages(currentMessages)
+            return
+          }
+
+          const msgId = generateId()
+          const newMessage: SessionMessage = {
+            id: msgId,
+            speaker: 'therapist',
+            partId: null,
+            partName: null,
+            content: fullText.trim(),
+            timestamp: Date.now(),
+            phase,
+            isEmergence: false,
+          }
+
+          await sessionMessagesDb.add(currentSession.id, newMessage)
+
+          const updatedMessages = [...currentMessages, newMessage]
+          const newMessageCount = updatedMessages.length
+          const firstLine = currentSession.firstLine || fullText.trim().slice(0, 100)
+
+          await db.sessions.update(currentSession.id, {
+            messageCount: newMessageCount,
+            firstLine,
+            phase,
+          })
+
+          setSession(prev => prev ? {
+            ...prev,
+            messageCount: newMessageCount,
+            firstLine,
+            phase,
+          } : prev)
+          setMessages(updatedMessages)
+          messagesRef.current = updatedMessages
+          setIsStreaming(false)
+          typewriter.reset()
+          resolveMessages(updatedMessages)
+        }
+
+        hrv.resetResponseStarted()
+
+        const crisisAbortController = new AbortController()
+        let firstTokenArrived = false
+        let crisisAborted = false
+
+        // Fire L2 only on the first crisis attempt of the first empty-attempt.
+        // Re-running it on subsequent retries would waste calls; if it already
+        // returned risk=2, grounding is already active for the retry prompt.
+        if (emptyAttempt === 0 && attempt === 0 && lastUserMessage) {
+          orchestrator.checkCrisisRisk(lastUserMessage.content, getLanguageCode())
+            .then(result => {
+              if (result.risk === 2 && !firstTokenArrived && !crisisAborted) {
+                crisisAborted = true
+                crisisAbortController.abort()
+              }
+            })
+            .catch(() => { /* fail-open inside checkCrisisRisk */ })
+        }
+
+        await streamChatCompletion(
+          promptMessages,
+          {
+            onToken: (token) => {
+              firstTokenArrived = true
+              typewriter.appendToken(token)
+              if (hrv.enabled && hrv.markResponseStarted()) {
+                hrv.addConversationEvent('ai_response_start', currentMessages.length)
+              }
+            },
+            onComplete: () => {
+              typewriter.setOnComplete(finalizeMessage)
+              if (hrv.enabled) {
+                hrv.addConversationEvent('ai_response_complete', currentMessages.length)
+              }
+            },
+            onError: (error) => {
+              if (crisisAborted) return
+              console.error('Session stream error:', error)
+              typewriter.reset()
+              resolveMessages(currentMessages)
+            },
           },
-        },
-        maxTokens,
-        reasoningForSpeed(settings.responseSpeed),
-        crisisAbortController.signal,
-      )
+          maxTokens,
+          reasoningForSpeed(settings.responseSpeed),
+          crisisAbortController.signal,
+        )
 
-      if (crisisAborted) continue
+        if (crisisAborted) continue
 
-      return messagesPromise
+        crisisLoopResult = await messagesPromise
+        break
+      }
+
+      if (!crisisLoopResult) {
+        setIsStreaming(false)
+        return currentMessages
+      }
+
+      // A new message landed — non-empty path, return.
+      if (crisisLoopResult.length > currentMessages.length) {
+        return crisisLoopResult
+      }
+
+      // Empty completion. Brief backoff before next attempt.
+      if (emptyAttempt < MAX_EMPTY_ATTEMPTS - 1) {
+        console.warn(`[chat] empty completion, retry ${emptyAttempt + 1}/${MAX_EMPTY_ATTEMPTS - 1}`)
+        await new Promise(resolve => setTimeout(resolve, 500 + emptyAttempt * 300))
+      }
     }
 
-    // The loop returns from inside on success and only continues on a
-    // crisis-abort, which can happen at most once (attempt > 0 skips L2).
-    // This fallback exists for type-safety only.
+    console.error('[chat] all empty-completion retries exhausted')
+    setOpenerError(tr['session.error.therapistUnreachable'])
     setIsStreaming(false)
     return currentMessages
-  }, [hrv, typewriter, settings.responseSpeed, unifiedUI])
+  }, [hrv, typewriter, settings.responseSpeed, unifiedUI, tr])
 
   // Persist a user-authored message (text or voice) and run the synchronous
   // side effects: HRV event, crisis-keyword check, async emotion/weather update.
@@ -825,7 +859,9 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
                   if (!session) return
                   try {
                     setOpenerError(null)
-                    await generateTherapistMessage([], session)
+                    // Retry with current message context — empty for opener,
+                    // populated for an empty-completion mid-session.
+                    await generateTherapistMessage(messagesRef.current, session)
                   } catch (err) {
                     setOpenerError(err instanceof Error ? err.message : 'Failed to retry')
                   }
