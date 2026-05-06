@@ -168,6 +168,14 @@ function App() {
     return () => { cancelled = true }
   }, [routePath])
 
+  // Unified session UI: redirect /new to /session/new when flag is on
+  const unifiedUI = globalConfig?.features?.unifiedSessionUI === true
+  useEffect(() => {
+    if (unifiedUI && routePath === '/new') {
+      navigateTo('/session/new')
+    }
+  }, [unifiedUI, routePath, navigateTo])
+
   // Initialize DB, load entry, and route based on today's activity
   useEffect(() => {
     if (!user) return
@@ -628,7 +636,7 @@ function App() {
         <InnerWeather weather={weather} />
       </div>
       <Suspense fallback={null}><CrisisResources visible={isGrounding} /></Suspense>
-      {isChoiceRoute ? (
+      {isChoiceRoute && !unifiedUI ? (
         <Suspense fallback={null}>
           <EntryChoice
             onJournalCreated={handleChoiceJournal}
