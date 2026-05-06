@@ -153,7 +153,7 @@ export async function fetchAndFilterModels(
 
   // Take top candidates, leaving room for forced models
   const slotsForFiltered = Math.max(0, maxCandidates - forcedModels.length)
-  let selected = filteredModels.slice(0, slotsForFiltered)
+  const selected = filteredModels.slice(0, slotsForFiltered)
 
   // Ensure cost tier diversity: at least 3 from each tier if available
   const MIN_PER_TIER = 3

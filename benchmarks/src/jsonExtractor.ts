@@ -6,7 +6,7 @@
  * actual response. This must be stripped before scoring or JSON parsing.
  */
 export function stripThinking(response: string): string {
-  let stripped = response
+  const stripped = response
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
     .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
     .trim()
