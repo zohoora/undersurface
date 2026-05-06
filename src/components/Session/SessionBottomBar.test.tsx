@@ -102,22 +102,17 @@ describe('SessionBottomBar', () => {
     }
   })
 
-  it('Journal button is interactive (Plan 2) — no disabled attribute', () => {
-    // The journal button block should not contain `disabled` — it was removed in Plan 2.
-    // Extract the journal button section from source and verify.
+  it('Journal button has onClick and no disabled attribute', () => {
     const journalButtonStart = SOURCE.indexOf("aria-pressed={activeSurface === 'journal'}")
     expect(journalButtonStart).toBeGreaterThan(-1)
-    // The 200 chars after aria-pressed should contain onClick, not disabled
     const nearJournal = SOURCE.slice(journalButtonStart, journalButtonStart + 200)
     expect(nearJournal).toContain('onClick')
     expect(nearJournal).not.toContain('disabled')
   })
 
-  it('Speak button is interactive (Task 4) — no disabled attribute', () => {
-    // The speak button is now wired — disabled was removed in Task 4.
+  it('Speak button has onClick and no disabled attribute', () => {
     const speakButtonStart = SOURCE.indexOf("aria-pressed={activeSurface === 'speak'}")
     expect(speakButtonStart).toBeGreaterThan(-1)
-    // The ~200 chars after aria-pressed should contain onClick, not disabled
     const nearSpeak = SOURCE.slice(speakButtonStart, speakButtonStart + 200)
     expect(nearSpeak).toContain('onClick')
     expect(nearSpeak).not.toContain('disabled')

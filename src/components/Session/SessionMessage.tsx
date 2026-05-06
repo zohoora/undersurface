@@ -1,5 +1,6 @@
+import { memo } from 'react'
 import type { SessionMessage as SessionMessageType } from '../../types'
-import { parseRecommendations } from '../../ai/therapistRecommendationParser'
+import { RecommendationSegments } from './RecommendationSegments'
 
 interface Props {
   message: SessionMessageType
@@ -7,12 +8,14 @@ interface Props {
   onRecommendationTap?: (target: string) => void
 }
 
-export function SessionMessageBubble({ message, unifiedUI, onRecommendationTap }: Props) {
+export const SessionMessageBubble = memo(function SessionMessageBubble({
+  message,
+  unifiedUI,
+  onRecommendationTap,
+}: Props) {
   const isUser = message.speaker === 'user'
-
-  // Plan 1: only therapist messages get recommendation parsing, only when flag is on.
-  const shouldParse = unifiedUI === true && !isUser && typeof message.content === 'string'
-  const segments = shouldParse ? parseRecommendations(message.content) : null
+  const showRecommendations =
+    unifiedUI === true && !isUser && typeof message.content === 'string' && onRecommendationTap
 
   return (
     <>
@@ -43,24 +46,11 @@ export function SessionMessageBubble({ message, unifiedUI, onRecommendationTap }
             fontStyle: isUser ? 'normal' : 'italic',
           }}
         >
-          {segments
-            ? segments.map((seg, i) =>
-                seg.type === 'text' ? (
-                  <span key={i}>{seg.text}</span>
-                ) : (
-                  <button
-                    key={i}
-                    type="button"
-                    className="session-recommendation"
-                    onClick={() => onRecommendationTap?.(seg.target)}
-                  >
-                    {seg.phrase}
-                  </button>
-                )
-              )
+          {showRecommendations
+            ? <RecommendationSegments text={message.content} onTap={onRecommendationTap} />
             : message.content}
         </div>
       </div>
     </>
   )
-}
+})

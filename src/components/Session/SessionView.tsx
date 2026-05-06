@@ -23,11 +23,17 @@ import { isGroundingActive } from '../../hooks/useGroundingMode'
 import { trackEvent } from '../../services/analytics'
 import { SessionMessageBubble } from './SessionMessage'
 import { SessionJournalSurface } from './SessionJournalSurface'
-import { parseRecommendations } from '../../ai/therapistRecommendationParser'
 import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
 import type { Session, SessionMessage, SessionPhase, SessionMode, EmotionalTone } from '../../types'
 import { useTranslation, getLanguageCode } from '../../i18n'
+
+// First-turn = the therapist has not yet spoken. Covers both the auto-opening
+// path (no messages yet) and the open_invitation path (user speaks first).
+// Used to suppress recommendation phrases on the therapist's very first response.
+function isFirstTherapistTurn(messages: SessionMessage[]): boolean {
+  return messages.every(m => m.speaker !== 'therapist')
+}
 
 interface Props {
   sessionId: string | null
@@ -191,9 +197,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         hrvContext,
         mode: currentSession.mode ?? 'standard',
         allowRecommendations: unifiedUI,
-        // First turn = the therapist has not yet spoken. Covers both the auto-opening
-        // path (no messages exist) and the open_invitation path (user speaks first).
-        isFirstTurn: currentMessages.filter(m => m.speaker === 'therapist').length === 0,
+        isFirstTurn: isFirstTherapistTurn(currentMessages),
       })
 
       typewriter.reset()
@@ -483,10 +487,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     const context = contextRef.current
     if (!context) return
 
-    const sessionMessages = messagesRef.current ?? []
-    // First turn = the therapist has not yet spoken. Covers both the auto-opening
-    // path (no messages exist) and the open_invitation path (user speaks first).
-    const isFirstTurn = sessionMessages.filter(m => m.speaker === 'therapist').length === 0
+    const isFirstTurn = isFirstTherapistTurn(messagesRef.current ?? [])
 
     const instructions = buildTherapistSystemPrompt({
       phase: sessionRef.current?.phase ?? 'opening',
@@ -539,6 +540,8 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     setSession(prev => prev ? { ...prev, mode: nextMode } : prev)
   }, [session?.id])
 
+  const voiceState = voice.state
+  const voiceStop = voice.stop
   const handleSurfaceChange = useCallback((next: SessionSurface) => {
     // Leaving Journal with non-empty text: append it as a user message so the
     // therapist receives it as context on her next turn.
@@ -546,24 +549,19 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       void appendUserMessage(journalDraft.trim(), 'text')
       setJournalDraft('')
     }
-    // Entering Speak: invoke existing voice infrastructure.
     if (surface !== 'speak' && next === 'speak') {
       void handleStartVoice()
     }
-    // Leaving Speak while voice is active: stop voice.
-    if (surface === 'speak' && next !== 'speak' && voice.state !== 'idle') {
-      voice.stop()
+    if (surface === 'speak' && next !== 'speak' && voiceState !== 'idle') {
+      voiceStop()
     }
     setSurface(next)
-  }, [surface, journalDraft, appendUserMessage, handleStartVoice, voice])
+  }, [surface, journalDraft, appendUserMessage, handleStartVoice, voiceState, voiceStop])
 
   const handleRecommendationTap = useCallback((target: string) => {
     switch (target) {
       case 'real-talk-on':
         void handleRealTalkToggle(true)
-        return
-      case 'real-talk-off':
-        void handleRealTalkToggle(false)
         return
       case 'journal':
         handleSurfaceChange('journal')
@@ -639,6 +637,11 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
   // If voice ends while we're on the Speak surface, return to Talk so the user
   // is not left without input affordances.
+  //
+  // Deps intentionally include only `voice.state`: the trigger we care about is the
+  // transition to 'idle'. Reading stale `surface`/`unifiedUI` from the closure is
+  // safe here — the guard fails closed (no surface change) if either is stale, which
+  // is the correct behavior anyway.
   useEffect(() => {
     if (unifiedUI && surface === 'speak' && voice.state === 'idle') {
       setSurface('talk')
@@ -797,7 +800,6 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
       {(unifiedUI && surface === 'journal') ? (
         <SessionJournalSurface
-          messageCount={messages.length}
           value={journalDraft}
           onChange={setJournalDraft}
         />
@@ -817,7 +819,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
               alignItems: 'center',
               gap: 12,
             }}>
-              <span style={{ flex: 1 }}>The therapist couldn't be reached. {openerError}</span>
+              <span style={{ flex: 1 }}>{tr['session.error.therapistUnreachable']} {openerError}</span>
               <button
                 onClick={async () => {
                   if (!session) return
@@ -838,7 +840,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
                   fontSize: 12,
                 }}
               >
-                Retry
+                {tr['session.error.retry']}
               </button>
             </div>
           )}
@@ -860,22 +862,11 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
                 color: 'var(--text-secondary)',
                 fontStyle: 'italic',
               }}>
-                {unifiedUI
-                  ? parseRecommendations(typewriter.displayedContent).map((seg, i) =>
-                      seg.type === 'text' ? (
-                        <span key={i}>{seg.text}</span>
-                      ) : (
-                        <button
-                          key={i}
-                          type="button"
-                          className="session-recommendation"
-                          onClick={() => handleRecommendationTap(seg.target)}
-                        >
-                          {seg.phrase}
-                        </button>
-                      )
-                    )
-                  : typewriter.displayedContent}
+                {/* Render the streaming text raw — recommendation links arrive
+                    fully-formed from the model, so mid-stream parsing finds
+                    nothing useful. SessionMessageBubble handles the parse once
+                    the message commits to the messages array. */}
+                {typewriter.displayedContent}
                 <span style={{
                   display: 'inline-block',
                   width: 2,

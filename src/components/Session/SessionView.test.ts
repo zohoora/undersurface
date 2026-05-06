@@ -162,16 +162,6 @@ describe('SessionView — unifiedSessionUI bottom bar integration', () => {
 })
 
 describe('SessionView — recommendation rendering integration', () => {
-  it('SessionView source imports parseRecommendations', async () => {
-    const src = await import('./SessionView?raw')
-    expect(src.default).toContain('parseRecommendations')
-  })
-
-  it('SessionView source imports from therapistRecommendationParser', async () => {
-    const src = await import('./SessionView?raw')
-    expect(src.default).toContain('therapistRecommendationParser')
-  })
-
   it('SessionView source passes onRecommendationTap to SessionMessageBubble', async () => {
     const src = await import('./SessionView?raw')
     expect(src.default).toContain('onRecommendationTap')
@@ -187,19 +177,14 @@ describe('SessionView — recommendation rendering integration', () => {
     expect(src.default).toContain('real-talk-on')
   })
 
-  it('SessionView source handles real-talk-off target', async () => {
-    const src = await import('./SessionView?raw')
-    expect(src.default).toContain('real-talk-off')
-  })
-
   it('SessionView source warns on unknown targets', async () => {
     const src = await import('./SessionView?raw')
     expect(src.default).toContain('Unknown recommendation target')
   })
 
-  it('SessionMessageBubble source imports parseRecommendations', async () => {
+  it('SessionMessageBubble delegates recommendation rendering to RecommendationSegments', async () => {
     const src = await import('./SessionMessage?raw')
-    expect(src.default).toContain('parseRecommendations')
+    expect(src.default).toContain('RecommendationSegments')
   })
 
   it('SessionMessageBubble source accepts unifiedUI prop', async () => {
@@ -207,29 +192,15 @@ describe('SessionView — recommendation rendering integration', () => {
     expect(src.default).toContain('unifiedUI')
   })
 
-  it('SessionMessageBubble source renders session-recommendation button', async () => {
-    const src = await import('./SessionMessage?raw')
-    expect(src.default).toContain('session-recommendation')
-  })
-
   it('handleRecommendationTap dispatches real-talk-on to handleRealTalkToggle(true)', async () => {
-    // Verify the source wires real-talk-on → handleRealTalkToggle(true)
     const src = await import('./SessionView?raw')
-    // The handler must call handleRealTalkToggle with true for real-talk-on
     expect(src.default).toMatch(/real-talk-on[\s\S]{0,120}handleRealTalkToggle\(true\)/)
   })
 
-  it('handleRecommendationTap dispatches real-talk-off to handleRealTalkToggle(false)', async () => {
+  it('streaming block renders raw text — parsing happens once in SessionMessageBubble after commit', async () => {
     const src = await import('./SessionView?raw')
-    expect(src.default).toMatch(/real-talk-off[\s\S]{0,120}handleRealTalkToggle\(false\)/)
-  })
-
-  it('streaming block also uses parseRecommendations when unifiedUI is on', async () => {
-    const src = await import('./SessionView?raw')
-    // The streaming block should conditionally parse when unifiedUI is on
     expect(src.default).toContain('typewriter.displayedContent')
-    // Verify parsing is used in streaming context too
-    expect(src.default).toMatch(/unifiedUI[\s\S]{0,500}parseRecommendations/)
+    expect(src.default).not.toContain('parseRecommendations(typewriter')
   })
 })
 

@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react'
+import { useTranslation } from '../../i18n'
 
 interface Props {
-  messageCount: number
   value: string
   onChange: (next: string) => void
-  placeholder?: string
 }
 
-export function SessionJournalSurface({ messageCount, value, onChange, placeholder }: Props) {
+export function SessionJournalSurface({ value, onChange }: Props) {
+  const tr = useTranslation()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -18,14 +18,14 @@ export function SessionJournalSurface({ messageCount, value, onChange, placehold
     <div className="session-journal-surface">
       <div className="session-journal-presence">
         <div className="session-journal-presence__dot" />
-        <span>Therapist · {messageCount} {messageCount === 1 ? 'message' : 'messages'} · listening</span>
+        <span>{tr['session.journal.presence']}</span>
       </div>
       <textarea
         ref={textareaRef}
         className="session-journal-textarea"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder ?? 'Write privately. The therapist is here, quiet, while you find what wants to be said.'}
+        placeholder={tr['session.journal.placeholder']}
         rows={12}
       />
     </div>

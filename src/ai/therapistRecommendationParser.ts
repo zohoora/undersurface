@@ -1,4 +1,8 @@
-export type RecommendationTarget = 'real-talk-on' | 'real-talk-off' | 'journal' | 'speak' | string
+// Known targets that the therapist prompt teaches and SessionView dispatches on.
+// `string & {}` preserves the union for autocomplete without collapsing to `string`,
+// so the parser stays forward-compatible with unknown targets while the named members
+// serve as inline documentation.
+export type RecommendationTarget = 'real-talk-on' | 'journal' | 'speak' | (string & {})
 
 export type RecommendationSegment =
   | { type: 'text'; text: string }
