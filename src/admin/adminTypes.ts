@@ -41,6 +41,8 @@ export interface GlobalConfig {
     guidedExplorations?: boolean
     // Biometric
     webcamHrv?: boolean
+    // Session UI
+    unifiedSessionUI?: boolean
     // Future Self
     // Voice (OpenAI Realtime, Conversation/Therapist mode only)
     voiceEnabled?: boolean
