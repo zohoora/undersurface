@@ -42,6 +42,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const [session, setSession] = useState<Session | null>(null)
   const [messages, setMessages] = useState<SessionMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
+  const [openerError, setOpenerError] = useState<string | null>(null)
   const settings = useSettings()
 
   const typewriter = useTypewriter()
@@ -144,7 +145,12 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
     // Generate opening message unless open invitation (user speaks first)
     if (openingMethod !== 'open_invitation') {
-      await generateTherapistMessage([], newSession)
+      try {
+        setOpenerError(null)
+        await generateTherapistMessage([], newSession)
+      } catch (err) {
+        setOpenerError(err instanceof Error ? err.message : 'Failed to start session')
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openingMethod, onSessionCreated, initialMode])
@@ -797,6 +803,46 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         />
       ) : (
         <>
+          {/* Error banner for opening message generation */}
+          {openerError && (
+            <div style={{
+              margin: '16px 0',
+              padding: 12,
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 6,
+              background: 'var(--overlay-subtle)',
+              fontSize: 13,
+              color: 'var(--text-secondary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+            }}>
+              <span style={{ flex: 1 }}>The therapist couldn't be reached. {openerError}</span>
+              <button
+                onClick={async () => {
+                  if (!session) return
+                  try {
+                    setOpenerError(null)
+                    await generateTherapistMessage([], session)
+                  } catch (err) {
+                    setOpenerError(err instanceof Error ? err.message : 'Failed to retry')
+                  }
+                }}
+                style={{
+                  padding: '4px 10px',
+                  border: '1px solid var(--accent-warm)',
+                  borderRadius: 4,
+                  background: 'transparent',
+                  color: 'var(--accent-warm)',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
           {/* Messages list */}
           {messages.map(msg => (
             <SessionMessageBubble
