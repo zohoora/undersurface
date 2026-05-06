@@ -1,11 +1,18 @@
 import type { SessionMessage as SessionMessageType } from '../../types'
+import { parseRecommendations } from '../../ai/therapistRecommendationParser'
 
 interface Props {
   message: SessionMessageType
+  unifiedUI?: boolean
+  onRecommendationTap?: (target: string) => void
 }
 
-export function SessionMessageBubble({ message }: Props) {
+export function SessionMessageBubble({ message, unifiedUI, onRecommendationTap }: Props) {
   const isUser = message.speaker === 'user'
+
+  // Plan 1: only therapist messages get recommendation parsing, only when flag is on.
+  const shouldParse = unifiedUI === true && !isUser && typeof message.content === 'string'
+  const segments = shouldParse ? parseRecommendations(message.content) : null
 
   return (
     <>
@@ -36,7 +43,22 @@ export function SessionMessageBubble({ message }: Props) {
             fontStyle: isUser ? 'normal' : 'italic',
           }}
         >
-          {message.content}
+          {segments
+            ? segments.map((seg, i) =>
+                seg.type === 'text' ? (
+                  <span key={i}>{seg.text}</span>
+                ) : (
+                  <button
+                    key={i}
+                    type="button"
+                    className="session-recommendation"
+                    onClick={() => onRecommendationTap?.(seg.target)}
+                  >
+                    {seg.phrase}
+                  </button>
+                )
+              )
+            : message.content}
         </div>
       </div>
     </>

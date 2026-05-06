@@ -22,6 +22,7 @@ import { getWeatherEngine } from '../../store/weatherStore'
 import { isGroundingActive } from '../../hooks/useGroundingMode'
 import { trackEvent } from '../../services/analytics'
 import { SessionMessageBubble } from './SessionMessage'
+import { parseRecommendations } from '../../ai/therapistRecommendationParser'
 import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
 import type { Session, SessionMessage, SessionPhase, SessionMode, EmotionalTone } from '../../types'
@@ -519,6 +520,24 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     setSession(prev => prev ? { ...prev, mode: nextMode } : prev)
   }, [session?.id])
 
+  const handleRecommendationTap = useCallback((target: string) => {
+    switch (target) {
+      case 'real-talk-on':
+        void handleRealTalkToggle(true)
+        return
+      case 'real-talk-off':
+        void handleRealTalkToggle(false)
+        return
+      case 'journal':
+      case 'speak':
+        console.warn(`[unifiedSession] Recommendation target "${target}" not yet implemented (Plan 2)`)
+        return
+      default:
+        console.warn(`[unifiedSession] Unknown recommendation target: "${target}"`)
+        return
+    }
+  }, [handleRealTalkToggle])
+
   const inputEditor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -730,7 +749,12 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
       {/* Messages list */}
       {messages.map(msg => (
-        <SessionMessageBubble key={msg.id} message={msg} />
+        <SessionMessageBubble
+          key={msg.id}
+          message={msg}
+          unifiedUI={unifiedUI}
+          onRecommendationTap={handleRecommendationTap}
+        />
       ))}
 
       {/* Streaming message */}
@@ -740,7 +764,22 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
             color: 'var(--text-secondary)',
             fontStyle: 'italic',
           }}>
-            {typewriter.displayedContent}
+            {unifiedUI
+              ? parseRecommendations(typewriter.displayedContent).map((seg, i) =>
+                  seg.type === 'text' ? (
+                    <span key={i}>{seg.text}</span>
+                  ) : (
+                    <button
+                      key={i}
+                      type="button"
+                      className="session-recommendation"
+                      onClick={() => handleRecommendationTap(seg.target)}
+                    >
+                      {seg.phrase}
+                    </button>
+                  )
+                )
+              : typewriter.displayedContent}
             <span style={{
               display: 'inline-block',
               width: 2,

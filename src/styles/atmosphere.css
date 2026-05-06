@@ -36,6 +36,9 @@
   --banner-warning-bg: #FEF3C7;
   --banner-warning-text: #92400E;
   --banner-warning-border: #FDE68A;
+
+  /* Warm amber accent — Real Talk and inline recommendations */
+  --accent-warm: rgba(181, 109, 72, 0.9);
 }
 
 /* ── Warm Dark Theme ────────────────────────────────────── */
@@ -72,6 +75,9 @@
   --banner-warning-bg: #2A2215;
   --banner-warning-text: #D4A76A;
   --banner-warning-border: #3D3520;
+
+  /* Warm amber accent — dark mode */
+  --accent-warm: rgba(212, 130, 90, 0.9);
 }
 
 /* ── Breathing Background ───────────────────────────────── */
@@ -1977,4 +1983,29 @@ body {
   .entry-choice-title {
     font-size: 21px;
   }
+}
+
+/* ── Therapist recommendation inline buttons ────────────── */
+
+.session-recommendation {
+  background: none;
+  border: none;
+  padding: 0;
+  font-style: italic;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--accent-warm);
+  cursor: pointer;
+  text-decoration: none;
+  border-bottom: 1px dotted var(--accent-warm);
+}
+
+.session-recommendation:hover {
+  border-bottom-style: solid;
+}
+
+.session-recommendation:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
