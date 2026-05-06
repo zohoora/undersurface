@@ -1886,10 +1886,7 @@ body {
   transform: translateY(-0.5px);
 }
 
-/* ── Session mode bar ── (sticks to top of viewport while you scroll;
-   class name still says "bottom" for now to avoid a noisy rename in this
-   diff — concept is now a top bar). Background opaque so messages don't
-   bleed through as they scroll under it. */
+/* ── Session mode bar (sticky-top affordance row) ── */
 
 .session-bottom-bar {
   display: flex;
@@ -2045,18 +2042,10 @@ body {
 
 /* TipTap-based atmospheric journal surface — no border/background frame.
    The page IS the surface; effects (ink weight, paragraph settle) inhabit
-   the text directly. Inherits .tiptap typography from the global rule. */
+   the text directly. The editor element carries `tiptap session-journal-editor`,
+   so the global .tiptap typography and placeholder rules apply automatically. */
 .session-journal-editor {
   min-height: 240px;
   padding: 8px 0;
   outline: none;
-}
-
-.session-journal-editor.ProseMirror p.is-editor-empty:first-child::before {
-  content: attr(data-placeholder);
-  color: var(--text-ghost);
-  pointer-events: none;
-  height: 0;
-  float: left;
-  font-style: italic;
 }

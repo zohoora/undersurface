@@ -847,7 +847,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
       {(unifiedUI && surface === 'journal') ? (
         <SessionJournalSurface
-          value={journalDraft}
+          initialContent={journalDraft}
           onChange={setJournalDraft}
         />
       ) : (

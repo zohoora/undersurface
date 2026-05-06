@@ -1,27 +1,24 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { InkWeight } from '../../extensions/inkWeight'
 import { ParagraphSettle } from '../../extensions/paragraphSettle'
-import { TypewriterScroll } from '../../extensions/typewriterScroll'
 import { useTranslation } from '../../i18n'
 import { useGlobalConfig } from '../../store/globalConfig'
 
 interface Props {
-  value: string
+  initialContent: string
   onChange: (next: string) => void
 }
 
 // Atmospheric journal surface: TipTap-based writing space with the visual
-// effects from standalone Journal (ink weight, paragraph settle, typewriter
-// scroll), but no parts engine. Inside a session, the therapist is the one
-// steady voice — the page is responsive but doesn't talk back.
-export function SessionJournalSurface({ value, onChange }: Props) {
+// effects from standalone Journal (ink weight, paragraph settle), but no
+// parts engine. Inside a session, the therapist is the one steady voice —
+// the page is responsive but doesn't talk back.
+export function SessionJournalSurface({ initialContent, onChange }: Props) {
   const tr = useTranslation()
   const globalConfig = useGlobalConfig()
-  const onChangeRef = useRef(onChange)
-  onChangeRef.current = onChange
 
   const editor = useEditor({
     extensions: [
@@ -39,9 +36,8 @@ export function SessionJournalSurface({ value, onChange }: Props) {
       }),
       InkWeight,
       ParagraphSettle,
-      TypewriterScroll,
     ],
-    content: value || '',
+    content: initialContent || '',
     autofocus: 'end',
     editorProps: {
       attributes: {
@@ -50,24 +46,24 @@ export function SessionJournalSurface({ value, onChange }: Props) {
       },
     },
     onUpdate: ({ editor }) => {
-      onChangeRef.current(editor.getText())
+      onChange(editor.getText())
     },
   })
 
-  // Wire visual-effect flags to editor storage. Same pattern as LivingEditor:
-  // toggling storage.disabled is reactive without rebuilding the editor. The
-  // immutability disable matches LivingEditor — TipTap's storage is designed
-  // to be mutated; the React-hooks rule can't see through the abstraction.
+  // Sync settings into extensions. TipTap's editor.storage is intentionally
+  // mutable — extensions write to it directly. React Compiler can't see
+  // through this so we disable its immutability check for the block.
   /* eslint-disable react-hooks/immutability */
   useEffect(() => {
-    if (!editor) return
-    const vfx = globalConfig?.features?.visualEffectsEnabled !== false
-    editor.storage.inkWeight.disabled =
-      !(vfx && globalConfig?.features?.inkWeight !== false)
-    editor.storage.paragraphSettle.disabled =
-      !(vfx && globalConfig?.features?.paragraphFade !== false)
-  }, [editor, globalConfig?.features?.visualEffectsEnabled,
-      globalConfig?.features?.inkWeight, globalConfig?.features?.paragraphFade])
+    if (editor) {
+      const vfx = globalConfig?.features?.visualEffectsEnabled !== false
+      editor.storage.inkWeight.disabled =
+        !(vfx && globalConfig?.features?.inkWeight !== false)
+      editor.storage.paragraphSettle.disabled =
+        !(vfx && globalConfig?.features?.paragraphFade !== false)
+      editor.view.dispatch(editor.state.tr)
+    }
+  }, [editor, globalConfig])
   /* eslint-enable react-hooks/immutability */
 
   return (
