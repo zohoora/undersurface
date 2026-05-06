@@ -1,0 +1,24 @@
+export type RecommendationTarget = 'real-talk-on' | 'real-talk-off' | 'journal' | 'speak' | string
+
+export type RecommendationSegment =
+  | { type: 'text'; text: string }
+  | { type: 'recommendation'; phrase: string; target: RecommendationTarget }
+
+const PATTERN = /\[([^\]]+)\]\(#switch:([\w-]+)\)/g
+
+export function parseRecommendations(input: string): RecommendationSegment[] {
+  const segments: RecommendationSegment[] = []
+  let cursor = 0
+  for (const match of input.matchAll(PATTERN)) {
+    const start = match.index ?? 0
+    if (start > cursor) {
+      segments.push({ type: 'text', text: input.slice(cursor, start) })
+    }
+    segments.push({ type: 'recommendation', phrase: match[1], target: match[2] })
+    cursor = start + match[0].length
+  }
+  if (cursor < input.length) {
+    segments.push({ type: 'text', text: input.slice(cursor) })
+  }
+  return segments.length > 0 ? segments : [{ type: 'text', text: input }]
+}
