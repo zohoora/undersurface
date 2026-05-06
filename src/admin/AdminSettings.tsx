@@ -34,6 +34,7 @@ const DEFAULTS: GlobalConfig = {
     intentionsEnabled: false,
     guidedExplorations: false,
     webcamHrv: false,
+    unifiedSessionUI: false,
     voiceEnabled: false,
   },
   atmosphere: {
@@ -755,6 +756,20 @@ export function AdminSettings() {
           label="Webcam HRV (Session Mode)"
           checked={!!config.features.webcamHrv}
           onChange={(v) => setFeature('webcamHrv', v)}
+        />
+      </CollapsibleSection>
+
+      {/* Session UI — unified front-of-house */}
+      <CollapsibleSection
+        title="Session UI"
+        isExpanded={!!expanded.sessionUI}
+        onToggle={() => toggle('sessionUI')}
+        style={sectionStyle}
+      >
+        <ToggleRow
+          label="Unified Session UI (bottom bar + Real Talk in-canvas + therapist recommendations)"
+          checked={!!config.features.unifiedSessionUI}
+          onChange={(v) => setFeature('unifiedSessionUI', v)}
         />
       </CollapsibleSection>
 
