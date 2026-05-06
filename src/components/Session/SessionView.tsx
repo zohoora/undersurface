@@ -7,7 +7,8 @@ import { useAutocorrect } from '../../hooks/useAutocorrect'
 import { useTypewriter } from '../../hooks/useTypewriter'
 import { useHrvSession } from '../../hooks/useHrvSession'
 import { useSettings } from '../../store/settings'
-import { getGlobalConfig } from '../../store/globalConfig'
+import { getGlobalConfig, useGlobalConfig } from '../../store/globalConfig'
+import { SessionBottomBar, type SessionSurface } from './SessionBottomBar'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../../store/db'
 import { SessionOrchestrator } from '../../engine/sessionOrchestrator'
 import { buildTherapistMessages, buildTherapistSystemPrompt } from '../../ai/therapistPrompts'
@@ -55,6 +56,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
   const voice = useVoiceSession()
   const voiceEnabled = getGlobalConfig()?.features?.voiceEnabled === true
+
+  const globalConfig = useGlobalConfig()
+  const unifiedUI = globalConfig?.features?.unifiedSessionUI === true
+  const [surface, setSurface] = useState<SessionSurface>('talk')
 
   const handleAutocorrect = useAutocorrect({
     autocorrect: settings.autocorrect,
@@ -505,6 +510,15 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     trackEvent('voice_session_ended', { session_id: sessionRef.current?.id ?? '' })
   }, [voice])
 
+  const handleRealTalkToggle = useCallback(async (next: boolean) => {
+    if (!session?.id) return
+    const nextMode: 'standard' | 'real_talk' = next ? 'real_talk' : 'standard'
+    await db.sessions.update(session.id, { mode: nextMode })
+    // Mode change persists immediately. The session subscription (onSnapshot) updates
+    // local state in the next tick, so the UI reflects the new mode automatically.
+    setSession(prev => prev ? { ...prev, mode: nextMode } : prev)
+  }, [session?.id])
+
   const inputEditor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -636,7 +650,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         </button>
       )}
 
-      {session?.mode === 'real_talk' && (
+      {!unifiedUI && session?.mode === 'real_talk' && (
         <div className="session-mode-badge" aria-label={tr['session.mode.realTalk']}>
           <span className="session-mode-glyph" aria-hidden="true">{'◆'}</span>
           {tr['session.mode.realTalk']}
@@ -757,6 +771,16 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
             ))}
           </div>
         </div>
+      )}
+
+      {/* Unified session bottom bar — shown when flag is on and session is active */}
+      {unifiedUI && !isClosed && (
+        <SessionBottomBar
+          activeSurface={surface}
+          realTalkOn={session?.mode === 'real_talk'}
+          onSurfaceChange={setSurface}
+          onRealTalkToggle={handleRealTalkToggle}
+        />
       )}
 
       {/* Inline input with send button */}

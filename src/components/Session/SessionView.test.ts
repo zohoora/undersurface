@@ -133,6 +133,34 @@ describe('SessionView', () => {
   })
 })
 
+describe('SessionView — unifiedSessionUI bottom bar integration', () => {
+  it('imports SessionBottomBar from ./SessionBottomBar', async () => {
+    const mod = await import('./SessionBottomBar')
+    expect(typeof mod.SessionBottomBar).toBe('function')
+  })
+
+  it('imports useGlobalConfig from store/globalConfig', async () => {
+    const mod = await import('../../store/globalConfig')
+    expect(typeof mod.useGlobalConfig).toBe('function')
+  })
+
+  it('SessionView source references unifiedSessionUI flag', async () => {
+    const src = await import('./SessionView?raw')
+    expect(src.default).toContain('unifiedSessionUI')
+  })
+
+  it('SessionView source renders SessionBottomBar', async () => {
+    const src = await import('./SessionView?raw')
+    expect(src.default).toContain('SessionBottomBar')
+  })
+
+  it('SessionView source gates legacy badge behind !unifiedUI', async () => {
+    const src = await import('./SessionView?raw')
+    expect(src.default).toContain('!unifiedUI')
+    expect(src.default).toContain('session-mode-badge')
+  })
+})
+
 describe('SessionOrchestrator (integration with SessionView)', () => {
   const orchestrator = new SessionOrchestrator()
 
