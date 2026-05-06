@@ -56,6 +56,7 @@ export function EntriesList({ activeEntryId, onSelectEntry, navigateTo, currentP
   const t = useTranslation()
   const globalConfig = useGlobalConfig()
   const showBodyMap = globalConfig?.features?.bodyMap === true
+  const unifiedUI = globalConfig?.features?.unifiedSessionUI === true
 
   // Initial load + infrequent fallback refresh (60s instead of 3s)
   // Refresh on activeEntryId change (entry switches and content saves)
@@ -309,25 +310,27 @@ export function EntriesList({ activeEntryId, onSelectEntry, navigateTo, currentP
                         )}
                       </div>
                       <span className="session-item-label">
-                        {item.mode === 'real_talk' ? (
-                          <span
-                            aria-hidden="true"
-                            title="Real Talk"
-                            style={{
-                              display: 'inline-block',
-                              fontSize: 9,
-                              opacity: 0.55,
-                              marginRight: 4,
-                              verticalAlign: 1,
-                              color: 'var(--text-secondary)',
-                            }}
-                          >
-                            {'◆'}
-                          </span>
-                        ) : (
-                          <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11" style={{ opacity: 0.45, marginRight: 4, verticalAlign: -1 }}>
-                            <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h7A2.5 2.5 0 0 1 14 2.5v7a2.5 2.5 0 0 1-2.5 2.5H7l-3.5 3.5V12H4.5A2.5 2.5 0 0 1 2 9.5v-7z" />
-                          </svg>
+                        {!unifiedUI && (
+                          item.mode === 'real_talk' ? (
+                            <span
+                              aria-hidden="true"
+                              title="Real Talk"
+                              style={{
+                                display: 'inline-block',
+                                fontSize: 9,
+                                opacity: 0.55,
+                                marginRight: 4,
+                                verticalAlign: 1,
+                                color: 'var(--text-secondary)',
+                              }}
+                            >
+                              {'◆'}
+                            </span>
+                          ) : (
+                            <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11" style={{ opacity: 0.45, marginRight: 4, verticalAlign: -1 }}>
+                              <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h7A2.5 2.5 0 0 1 14 2.5v7a2.5 2.5 0 0 1-2.5 2.5H7l-3.5 3.5V12H4.5A2.5 2.5 0 0 1 2 9.5v-7z" />
+                            </svg>
+                          )
                         )}
                         {item.preview}
                       </span>
