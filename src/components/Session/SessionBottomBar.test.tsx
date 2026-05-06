@@ -113,11 +113,13 @@ describe('SessionBottomBar', () => {
     expect(nearJournal).not.toContain('disabled')
   })
 
-  it('Speak button remains disabled (Task 4 wires it)', () => {
-    // The speak button should still be disabled — Task 4 handles that surface.
+  it('Speak button is interactive (Task 4) — no disabled attribute', () => {
+    // The speak button is now wired — disabled was removed in Task 4.
     const speakButtonStart = SOURCE.indexOf("aria-pressed={activeSurface === 'speak'}")
     expect(speakButtonStart).toBeGreaterThan(-1)
+    // The ~200 chars after aria-pressed should contain onClick, not disabled
     const nearSpeak = SOURCE.slice(speakButtonStart, speakButtonStart + 200)
-    expect(nearSpeak).toContain('disabled')
+    expect(nearSpeak).toContain('onClick')
+    expect(nearSpeak).not.toContain('disabled')
   })
 })

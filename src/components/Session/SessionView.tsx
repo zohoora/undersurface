@@ -540,8 +540,16 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       void appendUserMessage(journalDraft.trim(), 'text')
       setJournalDraft('')
     }
+    // Entering Speak: invoke existing voice infrastructure.
+    if (surface !== 'speak' && next === 'speak') {
+      void handleStartVoice()
+    }
+    // Leaving Speak while voice is active: stop voice.
+    if (surface === 'speak' && next !== 'speak' && voice.state !== 'idle') {
+      voice.stop()
+    }
     setSurface(next)
-  }, [surface, journalDraft, appendUserMessage])
+  }, [surface, journalDraft, appendUserMessage, handleStartVoice, voice])
 
   const handleRecommendationTap = useCallback((target: string) => {
     switch (target) {
@@ -555,8 +563,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         handleSurfaceChange('journal')
         return
       case 'speak':
-        // Plan 2 Task 4 wires this.
-        console.warn('[unifiedSession] speak target wired in Task 4')
+        handleSurfaceChange('speak')
         return
       default:
         console.warn(`[unifiedSession] Unknown recommendation target: "${target}"`)
@@ -623,6 +630,15 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       setTimeout(() => inputEditor.commands.focus(), 50)
     }
   }, [isStreaming, inputEditor, session?.status])
+
+  // If voice ends while we're on the Speak surface, return to Talk so the user
+  // is not left without input affordances.
+  useEffect(() => {
+    if (unifiedUI && surface === 'speak' && voice.state === 'idle') {
+      setSurface('talk')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice.state])
 
   const isClosed = session?.status === 'closed'
   const canEnd = !isStreaming && messages.length >= 2 && !isClosed
@@ -726,7 +742,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       )}
 
       {/* Voice toggle — therapist mode only, inline beside HRV */}
-      {voiceEnabled && !isClosed && voice.state === 'idle' && (
+      {!unifiedUI && voiceEnabled && !isClosed && voice.state === 'idle' && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
           <button
             onClick={handleStartVoice}

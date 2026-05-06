@@ -38,8 +38,7 @@ export function SessionBottomBar({ activeSurface, realTalkOn, onSurfaceChange, o
           type="button"
           className="session-bottom-bar__pill"
           aria-pressed={activeSurface === 'speak'}
-          disabled
-          title={t('session.bottomBar.speakDisabled')}
+          onClick={() => handleSurfaceClick('speak')}
         >
           {t('session.bottomBar.speak')}
         </button>
