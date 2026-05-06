@@ -408,6 +408,85 @@ describe('buildSessionReflectionPrompt', () => {
   })
 })
 
+describe('buildTherapistSystemPrompt — recommendations', () => {
+  it('appends the recommendation block when companion + allowRecommendations + not grounding + not first turn', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      mode: 'standard',
+      isGrounding: false,
+      isFirstTurn: false,
+      allowRecommendations: true,
+    })
+    expect(prompt).toContain('#switch:real-talk-on')
+    expect(prompt).toMatch(/sparingly|at most once/i)
+  })
+
+  it('omits the recommendation block when allowRecommendations is false', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      mode: 'standard',
+      isGrounding: false,
+      isFirstTurn: false,
+      allowRecommendations: false,
+    })
+    expect(prompt).not.toContain('#switch:real-talk-on')
+  })
+
+  it('omits the recommendation block when allowRecommendations is undefined', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      mode: 'standard',
+      isGrounding: false,
+      isFirstTurn: false,
+    })
+    expect(prompt).not.toContain('#switch:real-talk-on')
+  })
+
+  it('omits the recommendation block in Real Talk mode (calling-out persona does not soften by recommending)', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      mode: 'real_talk',
+      isGrounding: false,
+      isFirstTurn: false,
+      allowRecommendations: true,
+    })
+    expect(prompt).not.toContain('#switch:real-talk-on')
+  })
+
+  it('omits the recommendation block during grounding (distress wants presence, not modality games)', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      mode: 'standard',
+      isGrounding: true,
+      isFirstTurn: false,
+      allowRecommendations: true,
+    })
+    expect(prompt).not.toContain('#switch:real-talk-on')
+  })
+
+  it('omits the recommendation block on the first turn (do not pivot before establishing connection)', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'opening',
+      mode: 'standard',
+      isGrounding: false,
+      isFirstTurn: true,
+      allowRecommendations: true,
+    })
+    expect(prompt).not.toContain('#switch:real-talk-on')
+  })
+
+  it('preserves crisis override: even with mode=real_talk + isGrounding=true, recommendation is still suppressed', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      mode: 'real_talk',
+      isGrounding: true,
+      isFirstTurn: false,
+      allowRecommendations: true,
+    })
+    expect(prompt).not.toContain('#switch:real-talk-on')
+  })
+})
+
 describe('buildTherapistSystemPrompt with personalFacts', () => {
   it('injects facts block when present', () => {
     const facts: import('../types').PersonalFacts = {

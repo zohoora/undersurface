@@ -102,6 +102,14 @@ VOICE — THIS IS CRITICAL:
 
 ${SAFETY_RULES}`
 
+const RECOMMENDATION_BLOCK = `You can occasionally suggest a tonal shift when therapeutically apt, using this exact inline format woven into prose:
+
+  [Can I be more direct with you?](#switch:real-talk-on)
+
+The phrase inside the brackets is what the writer reads. The (#switch:real-talk-on) part is a hidden anchor — it tells the interface this phrase is tappable. Make the bracketed phrase fit naturally into your sentence; keep the URL part exact (do not paraphrase the anchor).
+
+Use this sparingly: at most once per ~5 turns. Never on the first response. Never when the writer is grounding through distress. Never as a way to deflect from what they are saying. Use it when you sense the writer would benefit from being called out kindly — when softness is becoming avoidance.`.trim()
+
 export interface TherapistPromptOptions {
   phase: SessionPhase
   recentSessionNotes?: { note: string; date: number }[]
@@ -117,6 +125,13 @@ export interface TherapistPromptOptions {
   // patterns directly. Grounding always overrides back to the warm core,
   // because calling things out during distress is the wrong move.
   mode?: SessionMode
+  // Allow the therapist to suggest tonal shifts via inline [phrase](#switch:target)
+  // recommendations. UI gates this on the unifiedSessionUI flag — only the unified UI
+  // can render the tappable spans.
+  allowRecommendations?: boolean
+  // True only on the very first response in a session. Suppresses recommendations on
+  // turn 1; do not pivot before establishing connection.
+  isFirstTurn?: boolean
 }
 
 function formatPersonalFactsBlock(facts: PersonalFacts): string {
@@ -236,6 +251,20 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
 - If a shift correlates with a specific topic, gently name the connection
 - Don't reference biometrics every message — use sparingly when it adds genuine insight
 - During grounding: note if biometrics show the user is settling (or not), adjust approach accordingly`)
+  }
+
+  // Allow inline recommendation phrases only when:
+  // - allowRecommendations is true (UI is ready to render the spans)
+  // - useRealTalk is false (the calling-out persona does not soften by recommending)
+  // - isGrounding is false (already gated by useRealTalk path, but explicit guard for clarity)
+  // - isFirstTurn is false (do not pivot before establishing connection)
+  const includeRecommendations =
+    Boolean(options.allowRecommendations) &&
+    !useRealTalk &&
+    !options.isGrounding &&
+    !options.isFirstTurn
+  if (includeRecommendations) {
+    parts.push(RECOMMENDATION_BLOCK)
   }
 
   parts.push(`Current date and time: ${formatDateTime(Date.now())}`)
