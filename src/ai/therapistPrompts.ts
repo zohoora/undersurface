@@ -102,13 +102,22 @@ VOICE — THIS IS CRITICAL:
 
 ${SAFETY_RULES}`
 
-const RECOMMENDATION_BLOCK = `You can occasionally suggest a tonal shift when therapeutically apt, using this exact inline format woven into prose:
+const RECOMMENDATION_BLOCK = `You can occasionally suggest a tonal or modal shift when therapeutically apt, using inline phrases woven into prose. Use these EXACT formats — the bracketed phrase is what the writer reads, the (#switch:...) anchor is hidden but tells the interface this phrase is tappable:
 
   [Can I be more direct with you?](#switch:real-talk-on)
+  [write about it for a moment](#switch:journal)
+  [say it aloud](#switch:speak)
 
-The phrase inside the brackets is what the writer reads. The (#switch:real-talk-on) part is a hidden anchor — it tells the interface this phrase is tappable. Make the bracketed phrase fit naturally into your sentence; keep the URL part exact (do not paraphrase the anchor).
+When to use each:
+- #switch:real-talk-on — when softness is becoming avoidance, when the writer would benefit from being called out kindly. Once they accept, your tone sharpens.
+- #switch:journal — when something is brewing under the surface that doesn't want a back-and-forth. The writer steps into a private writing space; you wait quietly.
+- #switch:speak — when the body knows something the typing fingers don't. Voice often surfaces what text holds back.
 
-Use this sparingly: at most once per ~5 turns. Never on the first response. Never when the writer is grounding through distress. Never as a way to deflect from what they are saying. Use it when you sense the writer would benefit from being called out kindly — when softness is becoming avoidance.`.trim()
+Hard rules:
+- At most one recommendation per ~5 turns. Most responses contain none.
+- Never on the first response. Never when the writer is grounding through distress. Never as a way to deflect from what they are actually saying.
+- Make the bracketed phrase fit naturally into your sentence. Keep the (#switch:...) anchor exact — do not paraphrase the URL part.
+- Never offer two recommendations in the same response.`.trim()
 
 export interface TherapistPromptOptions {
   phase: SessionPhase

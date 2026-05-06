@@ -418,7 +418,7 @@ describe('buildTherapistSystemPrompt — recommendations', () => {
       allowRecommendations: true,
     })
     expect(prompt).toContain('#switch:real-talk-on')
-    expect(prompt).toMatch(/sparingly|at most once/i)
+    expect(prompt).toMatch(/at most one recommendation/i)
   })
 
   it('omits the recommendation block when allowRecommendations is false', () => {
@@ -484,6 +484,41 @@ describe('buildTherapistSystemPrompt — recommendations', () => {
       allowRecommendations: true,
     })
     expect(prompt).not.toContain('#switch:real-talk-on')
+  })
+
+  it('teaches the journal recommendation pattern when allowed', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      mode: 'standard',
+      isGrounding: false,
+      isFirstTurn: false,
+      allowRecommendations: true,
+    })
+    expect(prompt).toContain('#switch:journal')
+  })
+
+  it('teaches the speak recommendation pattern when allowed', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      mode: 'standard',
+      isGrounding: false,
+      isFirstTurn: false,
+      allowRecommendations: true,
+    })
+    expect(prompt).toContain('#switch:speak')
+  })
+
+  it('omits all three patterns during grounding', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      mode: 'standard',
+      isGrounding: true,
+      isFirstTurn: false,
+      allowRecommendations: true,
+    })
+    expect(prompt).not.toContain('#switch:real-talk-on')
+    expect(prompt).not.toContain('#switch:journal')
+    expect(prompt).not.toContain('#switch:speak')
   })
 })
 
