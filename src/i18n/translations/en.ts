@@ -131,8 +131,10 @@ const en = {
   'session.bottomBar.journal': 'Journal',
   'session.bottomBar.speak': 'Speak',
   'session.bottomBar.realTalk': 'Real Talk',
-  'session.bottomBar.journalDisabled': 'Coming soon',
-  'session.bottomBar.speakDisabled': 'Coming soon',
+  'session.journal.presence': 'Therapist is listening',
+  'session.journal.placeholder': 'Write privately. The therapist is here, quiet, while you find what wants to be said.',
+  'session.error.therapistUnreachable': 'The therapist couldn\'t be reached.',
+  'session.error.retry': 'Retry',
 
   // Emotions (for InnerWeather display)
   'emotion.tender': 'tender',

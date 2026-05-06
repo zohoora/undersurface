@@ -27,8 +27,10 @@ const REQUIRED_KEYS = [
   'session.bottomBar.journal',
   'session.bottomBar.speak',
   'session.bottomBar.realTalk',
-  'session.bottomBar.journalDisabled',
-  'session.bottomBar.speakDisabled',
+  'session.journal.presence',
+  'session.journal.placeholder',
+  'session.error.therapistUnreachable',
+  'session.error.retry',
 ] as const
 
 const languageFiles = readdirSync(TRANSLATIONS_DIR)
