@@ -22,6 +22,7 @@ import { getWeatherEngine } from '../../store/weatherStore'
 import { isGroundingActive } from '../../hooks/useGroundingMode'
 import { trackEvent } from '../../services/analytics'
 import { SessionMessageBubble } from './SessionMessage'
+import { SessionJournalSurface } from './SessionJournalSurface'
 import { parseRecommendations } from '../../ai/therapistRecommendationParser'
 import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
@@ -61,6 +62,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const globalConfig = useGlobalConfig()
   const unifiedUI = globalConfig?.features?.unifiedSessionUI === true
   const [surface, setSurface] = useState<SessionSurface>('talk')
+  const [journalDraft, setJournalDraft] = useState<string>('')
 
   const handleAutocorrect = useAutocorrect({
     autocorrect: settings.autocorrect,
@@ -531,6 +533,16 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     setSession(prev => prev ? { ...prev, mode: nextMode } : prev)
   }, [session?.id])
 
+  const handleSurfaceChange = useCallback((next: SessionSurface) => {
+    // Leaving Journal with non-empty text: append it as a user message so the
+    // therapist receives it as context on her next turn.
+    if (surface === 'journal' && next !== 'journal' && journalDraft.trim()) {
+      void appendUserMessage(journalDraft.trim(), 'text')
+      setJournalDraft('')
+    }
+    setSurface(next)
+  }, [surface, journalDraft, appendUserMessage])
+
   const handleRecommendationTap = useCallback((target: string) => {
     switch (target) {
       case 'real-talk-on':
@@ -540,14 +552,17 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         void handleRealTalkToggle(false)
         return
       case 'journal':
+        handleSurfaceChange('journal')
+        return
       case 'speak':
-        console.warn(`[unifiedSession] Recommendation target "${target}" not yet implemented (Plan 2)`)
+        // Plan 2 Task 4 wires this.
+        console.warn('[unifiedSession] speak target wired in Task 4')
         return
       default:
         console.warn(`[unifiedSession] Unknown recommendation target: "${target}"`)
         return
     }
-  }, [handleRealTalkToggle])
+  }, [handleRealTalkToggle, handleSurfaceChange])
 
   const inputEditor = useEditor({
     extensions: [
@@ -758,69 +773,96 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         </div>
       )}
 
-      {/* Messages list */}
-      {messages.map(msg => (
-        <SessionMessageBubble
-          key={msg.id}
-          message={msg}
-          unifiedUI={unifiedUI}
-          onRecommendationTap={handleRecommendationTap}
+      {(unifiedUI && surface === 'journal') ? (
+        <SessionJournalSurface
+          messageCount={messages.length}
+          value={journalDraft}
+          onChange={setJournalDraft}
         />
-      ))}
+      ) : (
+        <>
+          {/* Messages list */}
+          {messages.map(msg => (
+            <SessionMessageBubble
+              key={msg.id}
+              message={msg}
+              unifiedUI={unifiedUI}
+              onRecommendationTap={handleRecommendationTap}
+            />
+          ))}
 
-      {/* Streaming message */}
-      {isStreaming && typewriter.displayedContent && (
-        <div style={{ marginBottom: 20, opacity: 0.88 }}>
-          <div className="session-message-text" style={{
-            color: 'var(--text-secondary)',
-            fontStyle: 'italic',
-          }}>
-            {unifiedUI
-              ? parseRecommendations(typewriter.displayedContent).map((seg, i) =>
-                  seg.type === 'text' ? (
-                    <span key={i}>{seg.text}</span>
-                  ) : (
-                    <button
-                      key={i}
-                      type="button"
-                      className="session-recommendation"
-                      onClick={() => handleRecommendationTap(seg.target)}
-                    >
-                      {seg.phrase}
-                    </button>
-                  )
-                )
-              : typewriter.displayedContent}
-            <span style={{
-              display: 'inline-block',
-              width: 2,
-              height: '1em',
-              background: 'var(--text-secondary)',
-              marginLeft: 2,
-              opacity: 0.5,
-              animation: 'blink 1s step-end infinite',
-            }} />
-          </div>
-        </div>
-      )}
+          {/* Streaming message */}
+          {isStreaming && typewriter.displayedContent && (
+            <div style={{ marginBottom: 20, opacity: 0.88 }}>
+              <div className="session-message-text" style={{
+                color: 'var(--text-secondary)',
+                fontStyle: 'italic',
+              }}>
+                {unifiedUI
+                  ? parseRecommendations(typewriter.displayedContent).map((seg, i) =>
+                      seg.type === 'text' ? (
+                        <span key={i}>{seg.text}</span>
+                      ) : (
+                        <button
+                          key={i}
+                          type="button"
+                          className="session-recommendation"
+                          onClick={() => handleRecommendationTap(seg.target)}
+                        >
+                          {seg.phrase}
+                        </button>
+                      )
+                    )
+                  : typewriter.displayedContent}
+                <span style={{
+                  display: 'inline-block',
+                  width: 2,
+                  height: '1em',
+                  background: 'var(--text-secondary)',
+                  marginLeft: 2,
+                  opacity: 0.5,
+                  animation: 'blink 1s step-end infinite',
+                }} />
+              </div>
+            </div>
+          )}
 
-      {/* Streaming indicator (no content yet) */}
-      {isStreaming && !typewriter.displayedContent && (
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ display: 'flex', gap: 3 }}>
-            {[0, 1, 2].map((i) => (
-              <span key={i} style={{
-                display: 'inline-block',
-                width: 5,
-                height: 5,
-                borderRadius: '50%',
-                background: 'var(--text-secondary)',
-                opacity: 0.4,
-                animation: `dotPulse 1.4s ease-in-out ${i * 0.2}s infinite`,
-              }} />
-            ))}
-          </div>
-        </div>
+          {/* Streaming indicator (no content yet) */}
+          {isStreaming && !typewriter.displayedContent && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 3 }}>
+                {[0, 1, 2].map((i) => (
+                  <span key={i} style={{
+                    display: 'inline-block',
+                    width: 5,
+                    height: 5,
+                    borderRadius: '50%',
+                    background: 'var(--text-secondary)',
+                    opacity: 0.4,
+                    animation: `dotPulse 1.4s ease-in-out ${i * 0.2}s infinite`,
+                  }} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Inline input with send button */}
+          {!isClosed && !isStreaming && (
+            <div className="session-input-row" style={{ marginBottom: 20 }}>
+              <EditorContent editor={inputEditor} />
+              <button
+                className="session-send-btn"
+                onClick={() => handleSendRef.current()}
+                aria-label="Send"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="19" x2="12" y2="5" />
+                  <polyline points="5 12 12 5 19 12" />
+                </svg>
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Unified session bottom bar — shown when flag is on and session is active */}
@@ -828,26 +870,9 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         <SessionBottomBar
           activeSurface={surface}
           realTalkOn={session?.mode === 'real_talk'}
-          onSurfaceChange={setSurface}
+          onSurfaceChange={handleSurfaceChange}
           onRealTalkToggle={handleRealTalkToggle}
         />
-      )}
-
-      {/* Inline input with send button */}
-      {!isClosed && !isStreaming && (
-        <div className="session-input-row" style={{ marginBottom: 20 }}>
-          <EditorContent editor={inputEditor} />
-          <button
-            className="session-send-btn"
-            onClick={() => handleSendRef.current()}
-            aria-label="Send"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="19" x2="12" y2="5" />
-              <polyline points="5 12 12 5 19 12" />
-            </svg>
-          </button>
-        </div>
       )}
 
       <div ref={messagesEndRef} />

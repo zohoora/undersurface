@@ -1,6 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { SessionBottomBar } from './SessionBottomBar'
 import type { SessionSurface } from './SessionBottomBar'
+
+const SOURCE = readFileSync(
+  resolve(__dirname, 'SessionBottomBar.tsx'),
+  'utf8',
+)
 
 // Mock i18n — t() returns 'key:value' for easy inspection
 vi.mock('../../i18n', () => ({
@@ -93,5 +100,24 @@ describe('SessionBottomBar', () => {
       }
       expect(() => SessionBottomBar(props)).not.toThrow()
     }
+  })
+
+  it('Journal button is interactive (Plan 2) — no disabled attribute', () => {
+    // The journal button block should not contain `disabled` — it was removed in Plan 2.
+    // Extract the journal button section from source and verify.
+    const journalButtonStart = SOURCE.indexOf("aria-pressed={activeSurface === 'journal'}")
+    expect(journalButtonStart).toBeGreaterThan(-1)
+    // The 200 chars after aria-pressed should contain onClick, not disabled
+    const nearJournal = SOURCE.slice(journalButtonStart, journalButtonStart + 200)
+    expect(nearJournal).toContain('onClick')
+    expect(nearJournal).not.toContain('disabled')
+  })
+
+  it('Speak button remains disabled (Task 4 wires it)', () => {
+    // The speak button should still be disabled — Task 4 handles that surface.
+    const speakButtonStart = SOURCE.indexOf("aria-pressed={activeSurface === 'speak'}")
+    expect(speakButtonStart).toBeGreaterThan(-1)
+    const nearSpeak = SOURCE.slice(speakButtonStart, speakButtonStart + 200)
+    expect(nearSpeak).toContain('disabled')
   })
 })
