@@ -92,16 +92,18 @@ describe('SessionOrchestrator', () => {
   })
 
   describe('getMaxTokens', () => {
-    it('returns 150 for opening', () => {
-      expect(orch.getMaxTokens('opening')).toBe(150)
+    // Doubled (was 150/250/300) to give reasoning models headroom — see
+    // sessionOrchestrator.ts comment block above getMaxTokens.
+    it('returns 300 for opening', () => {
+      expect(orch.getMaxTokens('opening')).toBe(300)
     })
 
-    it('returns 250 for deepening', () => {
-      expect(orch.getMaxTokens('deepening')).toBe(250)
+    it('returns 500 for deepening', () => {
+      expect(orch.getMaxTokens('deepening')).toBe(500)
     })
 
-    it('returns 300 for closing', () => {
-      expect(orch.getMaxTokens('closing')).toBe(300)
+    it('returns 600 for closing', () => {
+      expect(orch.getMaxTokens('closing')).toBe(600)
     })
   })
 

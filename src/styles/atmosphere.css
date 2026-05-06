@@ -1886,17 +1886,23 @@ body {
   transform: translateY(-0.5px);
 }
 
-/* ── Session bottom bar ── */
+/* ── Session mode bar ── (sticks to top of viewport while you scroll;
+   class name still says "bottom" for now to avoid a noisy rename in this
+   diff — concept is now a top bar). Background opaque so messages don't
+   bleed through as they scroll under it. */
 
 .session-bottom-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: var(--overlay-subtle);
-  border-radius: 8px;
-  margin: 8px 0;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-light);
+  margin: 0 0 16px;
   font-size: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .session-bottom-bar__surfaces {
@@ -2037,21 +2043,20 @@ body {
   opacity: 0.7;
 }
 
-.session-journal-textarea {
-  width: 100%;
+/* TipTap-based atmospheric journal surface — no border/background frame.
+   The page IS the surface; effects (ink weight, paragraph settle) inhabit
+   the text directly. Inherits .tiptap typography from the global rule. */
+.session-journal-editor {
   min-height: 240px;
-  padding: 16px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  background: var(--surface-primary);
-  color: var(--text-primary);
-  font-family: Georgia, serif;
-  font-size: 16px;
-  line-height: 1.6;
-  resize: vertical;
+  padding: 8px 0;
   outline: none;
 }
 
-.session-journal-textarea:focus {
-  border-color: var(--accent-warm);
+.session-journal-editor.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--text-ghost);
+  pointer-events: none;
+  height: 0;
+  float: left;
+  font-style: italic;
 }

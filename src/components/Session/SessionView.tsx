@@ -832,6 +832,19 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         </div>
       )}
 
+      {/* Unified-session mode bar — sticky at top so it doesn't drift down
+          as messages accumulate. Shown when the flag is on and the session
+          is active, regardless of which surface (Talk/Journal/Speak) is
+          currently selected. */}
+      {unifiedUI && !isClosed && (
+        <SessionBottomBar
+          activeSurface={surface}
+          realTalkOn={session?.mode === 'real_talk'}
+          onSurfaceChange={handleSurfaceChange}
+          onRealTalkToggle={handleRealTalkToggle}
+        />
+      )}
+
       {(unifiedUI && surface === 'journal') ? (
         <SessionJournalSurface
           value={journalDraft}
@@ -952,16 +965,6 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
             </div>
           )}
         </>
-      )}
-
-      {/* Unified session bottom bar — shown when flag is on and session is active */}
-      {unifiedUI && !isClosed && (
-        <SessionBottomBar
-          activeSurface={surface}
-          realTalkOn={session?.mode === 'real_talk'}
-          onSurfaceChange={handleSurfaceChange}
-          onRealTalkToggle={handleRealTalkToggle}
-        />
       )}
 
       <div ref={messagesEndRef} />
