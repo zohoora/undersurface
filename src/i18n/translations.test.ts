@@ -23,6 +23,12 @@ const REQUIRED_KEYS = [
   'choice.realtalk.desc',
   'choice.realtalk.aria',
   'session.mode.realTalk',
+  'session.bottomBar.talk',
+  'session.bottomBar.journal',
+  'session.bottomBar.speak',
+  'session.bottomBar.realTalk',
+  'session.bottomBar.journalDisabled',
+  'session.bottomBar.speakDisabled',
 ] as const
 
 const languageFiles = readdirSync(TRANSLATIONS_DIR)

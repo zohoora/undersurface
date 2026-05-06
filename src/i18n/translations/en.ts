@@ -127,6 +127,12 @@ const en = {
   'session.fallback': 'You showed up today. That matters.',
   'session.attribution': 'The Weaver',
   'session.mode.realTalk': 'Real Talk',
+  'session.bottomBar.talk': 'Talk',
+  'session.bottomBar.journal': 'Journal',
+  'session.bottomBar.speak': 'Speak',
+  'session.bottomBar.realTalk': 'Real Talk',
+  'session.bottomBar.journalDisabled': 'Coming soon',
+  'session.bottomBar.speakDisabled': 'Coming soon',
 
   // Emotions (for InnerWeather display)
   'emotion.tender': 'tender',
