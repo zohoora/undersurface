@@ -302,3 +302,40 @@ describe('SessionOrchestrator (integration with SessionView)', () => {
     })
   })
 })
+
+describe('SessionView — surface switching (Journal & Speak)', () => {
+  it('SessionView source contains handleSurfaceChange wrapper function', async () => {
+    const src = await import('./SessionView?raw')
+    expect(src.default).toContain('const handleSurfaceChange = useCallback')
+  })
+
+  it('handleRecommendationTap journal case dispatches to handleSurfaceChange', async () => {
+    const src = await import('./SessionView?raw')
+    expect(src.default).toMatch(/case\s+'journal'[\s\S]{0,80}handleSurfaceChange\('journal'\)/)
+  })
+
+  it('handleRecommendationTap speak case dispatches to handleSurfaceChange', async () => {
+    const src = await import('./SessionView?raw')
+    expect(src.default).toMatch(/case\s+'speak'[\s\S]{0,80}handleSurfaceChange\('speak'\)/)
+  })
+
+  it('handleSurfaceChange flushes journal text via appendUserMessage on exit', async () => {
+    const src = await import('./SessionView?raw')
+    expect(src.default).toContain('appendUserMessage(journalDraft.trim()')
+  })
+
+  it('handleSurfaceChange starts voice on Speak entry via handleStartVoice', async () => {
+    const src = await import('./SessionView?raw')
+    expect(src.default).toContain('void handleStartVoice()')
+  })
+
+  it('handleSurfaceChange stops voice on Speak exit', async () => {
+    const src = await import('./SessionView?raw')
+    expect(src.default).toContain('voice.stop()')
+  })
+
+  it('voice-idle effect auto-reverts surface to talk', async () => {
+    const src = await import('./SessionView?raw')
+    expect(src.default).toMatch(/voice\.state[\s\S]{0,60}setSurface\('talk'\)/)
+  })
+})
