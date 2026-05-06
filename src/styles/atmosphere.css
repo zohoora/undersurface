@@ -1934,12 +1934,8 @@ body {
 }
 
 .session-bottom-bar__realtalk[aria-checked="true"] {
-  color: rgba(181, 109, 72, 0.9);
+  color: var(--accent-warm);
   font-weight: 500;
-}
-
-[data-theme="dark"] .session-bottom-bar__realtalk[aria-checked="true"] {
-  color: rgba(212, 130, 90, 0.9);
 }
 
 @keyframes blink {

@@ -183,6 +183,8 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         hrvContext,
         mode: currentSession.mode ?? 'standard',
         allowRecommendations: unifiedUI,
+        // First turn = the therapist has not yet spoken. Covers both the auto-opening
+        // path (no messages exist) and the open_invitation path (user speaks first).
         isFirstTurn: currentMessages.filter(m => m.speaker === 'therapist').length === 0,
       })
 
@@ -474,6 +476,8 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     if (!context) return
 
     const sessionMessages = messagesRef.current ?? []
+    // First turn = the therapist has not yet spoken. Covers both the auto-opening
+    // path (no messages exist) and the open_invitation path (user speaks first).
     const isFirstTurn = sessionMessages.filter(m => m.speaker === 'therapist').length === 0
 
     const instructions = buildTherapistSystemPrompt({
