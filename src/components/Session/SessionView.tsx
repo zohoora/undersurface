@@ -182,6 +182,8 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         isGrounding: isGroundingActive(),
         hrvContext,
         mode: currentSession.mode ?? 'standard',
+        allowRecommendations: unifiedUI,
+        isFirstTurn: currentMessages.filter(m => m.speaker === 'therapist').length === 0,
       })
 
       typewriter.reset()
@@ -289,7 +291,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     // This fallback exists for type-safety only.
     setIsStreaming(false)
     return currentMessages
-  }, [hrv, typewriter, settings.responseSpeed])
+  }, [hrv, typewriter, settings.responseSpeed, unifiedUI])
 
   // Persist a user-authored message (text or voice) and run the synchronous
   // side effects: HRV event, crisis-keyword check, async emotion/weather update.
@@ -471,6 +473,9 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     const context = contextRef.current
     if (!context) return
 
+    const sessionMessages = messagesRef.current ?? []
+    const isFirstTurn = sessionMessages.filter(m => m.speaker === 'therapist').length === 0
+
     const instructions = buildTherapistSystemPrompt({
       phase: sessionRef.current?.phase ?? 'opening',
       recentSessionNotes: context.recentSessionNotes,
@@ -480,6 +485,8 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       isGrounding: isGroundingActive(),
       hrvContext: hrv.buildPromptContext(),
       mode: sessionRef.current?.mode ?? 'standard',
+      allowRecommendations: unifiedUI,
+      isFirstTurn,
     })
 
     const preferredVoice = getGlobalConfig()?.voice?.defaultVoice ?? 'marin'
@@ -504,7 +511,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         }
       },
     })
-  }, [voice, hrv, appendUserMessage, persistVoiceTherapistMessage])
+  }, [voice, hrv, appendUserMessage, persistVoiceTherapistMessage, unifiedUI])
 
   const handleEndVoice = useCallback(() => {
     voice.stop()
