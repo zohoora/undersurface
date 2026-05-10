@@ -157,12 +157,14 @@ export function useVoiceSession() {
       const pc = new RTCPeerConnection()
       pcRef.current = pc
 
-      // The <audio> element primes the stream for browser compat but stays
-      // muted — VoiceField's Web Audio graph handles both playback and the
-      // analyser tap. Single playback path, lossless analyser.
+      // The <audio> element receives the remote stream. In active (two-way)
+      // mode it stays muted because VoiceField's Web Audio graph handles
+      // playback and the analyser tap (single playback path, lossless
+      // analyser). In passive mode there is no VoiceField rendering — the
+      // element must play the stream directly or the user hears nothing.
       const audioEl = document.createElement('audio')
       audioEl.autoplay = true
-      audioEl.muted = true
+      audioEl.muted = !passive
       audioEl.setAttribute('playsinline', 'true')
       audioElRef.current = audioEl
       pc.ontrack = (event) => {
