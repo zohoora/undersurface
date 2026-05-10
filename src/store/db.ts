@@ -21,7 +21,7 @@ import { SEEDED_PARTS } from '../ai/partPrompts'
 import type {
   DiaryEntry, Part, PartMemory, PartThought, ThinkingOutLoudInteraction,
   EntrySummary, UserProfile, PersonalFacts, EntryFossil, PartLetter, SessionLog,
-  InnerWeather, ConsentRecord, Session, SessionMessage, ApiKey,
+  InnerWeather, ConsentRecord, Session, SessionMessage, ApiKey, RelaxSession,
 } from '../types'
 import type { HrvSessionData, CameraHrvConsent } from '../types/hrv'
 import type { DiagnosticEvent } from '../services/diagnostics'
@@ -149,6 +149,7 @@ export const db = {
   sessions: createCollectionProxy<Session>('sessions'),
   apiKeys: createCollectionProxy<ApiKey>('apiKeys'),
   hrvSessions: createCollectionProxy<HrvSessionData>('hrvSessions'),
+  relaxSessions: createCollectionProxy<RelaxSession>('relaxSessions'),
   diagnostics: createCollectionProxy<DiagnosticEvent>('diagnostics'),
 }
 

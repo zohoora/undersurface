@@ -94,6 +94,41 @@ export type EmergenceReason = 'emotional_gravity' | 'tension' | 'user_invitation
 
 export type SessionMode = 'standard' | 'real_talk'
 
+// Relax mode — 4th session surface combining meditation, biofeedback, hypnotherapy.
+// SessionType drives the breath target rate and narration script.
+export type RelaxSessionType = 'breathwork' | 'body_scan' | 'safe_place' | 'open_awareness'
+export type RelaxAudioTrack = 'none' | 'ocean' | 'forest' | 'drone' | 'binaural'
+export type RelaxVisualMode = 'full' | 'minimal' | 'off'
+
+// Persisted record of a single relax session. Stored under
+// users/{uid}/relaxSessions/{id}. Sibling to hrvSessions — never bolted onto
+// the parent chat Session.
+export interface RelaxSession {
+  id: string
+  // Parent chat session id, if relax was entered from inside a session.
+  // Null if/when relax is launched standalone (future: not in v1).
+  parentSessionId: string | null
+  startedAt: number
+  endedAt: number | null
+  sessionType: RelaxSessionType
+  // Planned duration in minutes (5 / 10 / 20). Actual elapsed = endedAt - startedAt.
+  duration: number
+  audioTrack: RelaxAudioTrack
+  voiceEnabled: boolean
+  visualMode: RelaxVisualMode
+  // True if user reached the planned duration. False if ended early.
+  completed: boolean
+  // Snapshot of HRV deltas if biometrics were on. Null if HRV was off or
+  // calibration never produced a baseline.
+  hrvSummary: {
+    startCoherence: number | null
+    endCoherence: number | null
+    startHr: number | null
+    endHr: number | null
+    samplesCount: number
+  } | null
+}
+
 export interface Session {
   id: string
   startedAt: number
@@ -111,6 +146,10 @@ export interface Session {
   // Tone variant for the therapist persona. Optional for backward compat —
   // legacy sessions without this field are treated as 'standard'.
   mode?: SessionMode
+  // Per-session toggle for parts responding when the user pauses inside the
+  // unified Journal surface. Read with `journalPartsEnabled !== false` so
+  // legacy sessions (undefined) default to true (opt-out semantics).
+  journalPartsEnabled?: boolean
 }
 
 export interface SessionMessage {

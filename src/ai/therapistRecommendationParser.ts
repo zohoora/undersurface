@@ -2,7 +2,7 @@
 // `string & {}` preserves the union for autocomplete without collapsing to `string`,
 // so the parser stays forward-compatible with unknown targets while the named members
 // serve as inline documentation.
-export type RecommendationTarget = 'real-talk-on' | 'journal' | 'speak' | (string & {})
+export type RecommendationTarget = 'real-talk-on' | 'journal' | 'speak' | 'relax' | (string & {})
 
 export type RecommendationSegment =
   | { type: 'text'; text: string }

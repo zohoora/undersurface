@@ -1,4 +1,4 @@
-import type { PartMemory, UserProfile, PersonalFacts } from '../types'
+import type { PartMemory, UserProfile, PersonalFacts, RelaxSession } from '../types'
 import { db } from '../store/db'
 
 export interface TherapistContext {
@@ -6,12 +6,16 @@ export interface TherapistContext {
   relevantMemories: PartMemory[]
   userProfile: UserProfile | null
   personalFacts: PersonalFacts | null
+  // Most recent relax sessions across the user's history. Used at session
+  // start to inform the therapist about recent breathwork/meditation work.
+  recentRelaxBreaks: RelaxSession[]
 }
 
 const MEMORY_SOURCE_PARTS = ['open', 'weaver', 'still']
+const RECENT_RELAX_LIMIT = 5
 
 export async function loadTherapistContext(): Promise<TherapistContext> {
-  const [sessions, memories, profiles, facts] = await Promise.all([
+  const [sessions, memories, profiles, facts, relaxBreaks] = await Promise.all([
     db.sessions.orderBy('startedAt').reverse().toArray(),
     Promise.all(
       MEMORY_SOURCE_PARTS.map(partId =>
@@ -20,6 +24,7 @@ export async function loadTherapistContext(): Promise<TherapistContext> {
     ),
     db.userProfile.toArray(),
     db.personalFacts.get('current'),
+    db.relaxSessions.orderBy('startedAt').reverse().limit(RECENT_RELAX_LIMIT * 2).toArray(),
   ])
 
   // Extract notes from the 5 most recent closed sessions
@@ -36,10 +41,27 @@ export async function loadTherapistContext(): Promise<TherapistContext> {
 
   const userProfile = profiles.length > 0 ? profiles[0] : null
 
+  // Filter to completed sessions and trim. Query already returned newest-first
+  // by startedAt; sort by endedAt for display ordering when both fields exist.
+  const recentRelaxBreaks = relaxBreaks
+    .filter(r => r.endedAt !== null)
+    .slice(0, RECENT_RELAX_LIMIT)
+
   return {
     recentSessionNotes,
     relevantMemories: allMemories,
     userProfile,
     personalFacts: facts ?? null,
+    recentRelaxBreaks,
   }
+}
+
+// Loads only the relax sessions that occurred WITHIN the given chat session.
+// Used per-turn during an active chat — the therapist sees in-session breaks
+// without having to reload the full context.
+export async function loadInSessionRelaxBreaks(parentSessionId: string): Promise<RelaxSession[]> {
+  const all = await db.relaxSessions.where('parentSessionId').equals(parentSessionId).toArray()
+  return all
+    .filter(r => r.endedAt !== null)
+    .sort((a, b) => (a.endedAt ?? 0) - (b.endedAt ?? 0))
 }

@@ -236,7 +236,7 @@ export async function exportAllData() {
     'entries', 'parts', 'memories', 'thoughts', 'interactions',
     'entrySummaries', 'userProfile', 'personalFacts', 'fossils', 'letters',
     'sessionLog', 'innerWeather', 'consent', 'sessions',
-    'hrvSessions',
+    'hrvSessions', 'relaxSessions',
   ] as const
 
   const results = await Promise.all(

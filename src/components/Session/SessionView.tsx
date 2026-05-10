@@ -6,7 +6,7 @@ import { InkWeight } from '../../extensions/inkWeight'
 import { useAutocorrect } from '../../hooks/useAutocorrect'
 import { useTypewriter } from '../../hooks/useTypewriter'
 import { useHrvSession } from '../../hooks/useHrvSession'
-import { useSettings } from '../../store/settings'
+import { useSettings, updateSettings } from '../../store/settings'
 import { getGlobalConfig, useGlobalConfig } from '../../store/globalConfig'
 import { SessionBottomBar, type SessionSurface } from './SessionBottomBar'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../../store/db'
@@ -15,7 +15,7 @@ import { buildTherapistMessages, buildTherapistSystemPrompt } from '../../ai/the
 import { useVoiceSession } from '../../hooks/useVoiceSession'
 import { VoiceField } from './VoiceField'
 import { streamChatCompletion, reasoningForSpeed } from '../../ai/openrouter'
-import { loadTherapistContext } from '../../engine/sessionContextLoader'
+import { loadTherapistContext, loadInSessionRelaxBreaks } from '../../engine/sessionContextLoader'
 import type { TherapistContext } from '../../engine/sessionContextLoader'
 import { reflectOnSession } from '../../engine/sessionReflectionEngine'
 import { getWeatherEngine } from '../../store/weatherStore'
@@ -23,6 +23,7 @@ import { isGroundingActive } from '../../hooks/useGroundingMode'
 import { trackEvent } from '../../services/analytics'
 import { SessionMessageBubble } from './SessionMessage'
 import { SessionJournalSurface } from './SessionJournalSurface'
+import { RelaxField } from './Relax/RelaxField'
 import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
 import type { Session, SessionMessage, SessionPhase, SessionMode, EmotionalTone } from '../../types'
@@ -65,9 +66,9 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
   const voice = useVoiceSession()
   const voiceEnabled = getGlobalConfig()?.features?.voiceEnabled === true
+  const relaxEnabled = getGlobalConfig()?.features?.relaxEnabled === true
 
   const globalConfig = useGlobalConfig()
-  const unifiedUI = globalConfig?.features?.unifiedSessionUI === true
   const [surface, setSurface] = useState<SessionSurface>('talk')
   const [journalDraft, setJournalDraft] = useState<string>('')
 
@@ -135,7 +136,8 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       firstLine: '',
       phase: 'opening',
       favorited: false,
-      mode: initialMode ?? 'standard',
+      mode: initialMode ?? settings.lastSessionMode,
+      journalPartsEnabled: true,
     }
 
     await db.sessions.add(newSession)
@@ -197,6 +199,12 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
         const context = contextRef.current
         const hrvContext = hrv.buildPromptContext()
+        // Per-turn refresh of in-session relax breaks (cheap query). Lets the
+        // therapist see breaks that happened mid-conversation without
+        // reloading the entire context.
+        const inSessionRelaxBreaks = currentSession.id
+          ? await loadInSessionRelaxBreaks(currentSession.id)
+          : []
         const promptMessages = buildTherapistMessages(currentMessages, {
           phase,
           recentSessionNotes: context?.recentSessionNotes,
@@ -206,8 +214,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
           isGrounding: isGroundingActive(),
           hrvContext,
           mode: currentSession.mode ?? 'standard',
-          allowRecommendations: unifiedUI,
+          allowRecommendations: true,
           isFirstTurn: isFirstTherapistTurn(currentMessages),
+          inSessionRelaxBreaks,
+          recentRelaxBreaks: context?.recentRelaxBreaks,
         })
 
         typewriter.reset()
@@ -339,7 +349,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     setOpenerError(tr['session.error.therapistUnreachable'])
     setIsStreaming(false)
     return currentMessages
-  }, [hrv, typewriter, settings.responseSpeed, unifiedUI, tr])
+  }, [hrv, typewriter, settings.responseSpeed, tr])
 
   // Persist a user-authored message (text or voice) and run the synchronous
   // side effects: HRV event, crisis-keyword check, async emotion/weather update.
@@ -523,6 +533,8 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
     const isFirstTurn = isFirstTherapistTurn(messagesRef.current ?? [])
 
+    const sessionId = sessionRef.current?.id
+    const inSessionRelaxBreaks = sessionId ? await loadInSessionRelaxBreaks(sessionId) : []
     const instructions = buildTherapistSystemPrompt({
       phase: sessionRef.current?.phase ?? 'opening',
       recentSessionNotes: context.recentSessionNotes,
@@ -532,8 +544,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       isGrounding: isGroundingActive(),
       hrvContext: hrv.buildPromptContext(),
       mode: sessionRef.current?.mode ?? 'standard',
-      allowRecommendations: unifiedUI,
+      allowRecommendations: true,
       isFirstTurn,
+      inSessionRelaxBreaks,
+      recentRelaxBreaks: context.recentRelaxBreaks,
     })
 
     const preferredVoice = getGlobalConfig()?.voice?.defaultVoice ?? 'marin'
@@ -558,21 +572,30 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         }
       },
     })
-  }, [voice, hrv, appendUserMessage, persistVoiceTherapistMessage, unifiedUI])
+  }, [voice, hrv, appendUserMessage, persistVoiceTherapistMessage])
 
   const handleEndVoice = useCallback(() => {
     voice.stop()
     trackEvent('voice_session_ended', { session_id: sessionRef.current?.id ?? '' })
   }, [voice])
 
-  const handleRealTalkToggle = useCallback(async (next: boolean) => {
+  const updateSession = useCallback(async (patch: Partial<Session>) => {
     if (!session?.id) return
-    const nextMode: 'standard' | 'real_talk' = next ? 'real_talk' : 'standard'
-    await db.sessions.update(session.id, { mode: nextMode })
-    // Mode change persists immediately. The session subscription (onSnapshot) updates
-    // local state in the next tick, so the UI reflects the new mode automatically.
-    setSession(prev => prev ? { ...prev, mode: nextMode } : prev)
+    await db.sessions.update(session.id, patch)
+    setSession(prev => prev ? { ...prev, ...patch } : prev)
   }, [session?.id])
+
+  const handleRealTalkToggle = useCallback(async (next: boolean) => {
+    const nextMode: SessionMode = next ? 'real_talk' : 'standard'
+    await updateSession({ mode: nextMode })
+    // Remember-last-choice: future new sessions open in this tone.
+    updateSettings({ lastSessionMode: nextMode })
+  }, [updateSession])
+
+  const handleJournalPartsToggle = useCallback(
+    (next: boolean) => updateSession({ journalPartsEnabled: next }),
+    [updateSession],
+  )
 
   const voiceState = voice.state
   const voiceStop = voice.stop
@@ -602,6 +625,9 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         return
       case 'speak':
         handleSurfaceChange('speak')
+        return
+      case 'relax':
+        handleSurfaceChange('relax')
         return
       default:
         console.warn(`[unifiedSession] Unknown recommendation target: "${target}"`)
@@ -670,14 +696,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   }, [isStreaming, inputEditor, session?.status])
 
   // If voice ends while we're on the Speak surface, return to Talk so the user
-  // is not left without input affordances.
-  //
-  // Deps intentionally include only `voice.state`: the trigger we care about is the
-  // transition to 'idle'. Reading stale `surface`/`unifiedUI` from the closure is
-  // safe here — the guard fails closed (no surface change) if either is stale, which
-  // is the correct behavior anyway.
+  // is not left without input affordances. Deps intentionally only include
+  // voice.state — reading stale `surface` from the closure fails closed.
   useEffect(() => {
-    if (unifiedUI && surface === 'speak' && voice.state === 'idle') {
+    if (surface === 'speak' && voice.state === 'idle') {
       setSurface('talk')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -704,6 +726,8 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     fontSize: 18,
     opacity: 0.6,
   }), [hrv.enabled])
+
+  const journalPartsOn = session?.journalPartsEnabled !== false
 
   return (
     <>
@@ -754,13 +778,6 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         </button>
       )}
 
-      {!unifiedUI && session?.mode === 'real_talk' && (
-        <div className="session-mode-badge" aria-label={tr['session.mode.realTalk']}>
-          <span className="session-mode-glyph" aria-hidden="true">{'◆'}</span>
-          {tr['session.mode.realTalk']}
-        </div>
-      )}
-
       {/* Session note card (for closed sessions) */}
       {isClosed && session?.sessionNote && (
         <div className="session-note-card">
@@ -781,24 +798,6 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
           }}>
             {session.sessionNote}
           </div>
-        </div>
-      )}
-
-      {/* Voice toggle — therapist mode only, inline beside HRV */}
-      {!unifiedUI && voiceEnabled && !isClosed && voice.state === 'idle' && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-          <button
-            onClick={handleStartVoice}
-            className="session-voice-btn"
-            aria-label="Start voice session"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-              <line x1="12" y1="19" x2="12" y2="23" />
-            </svg>
-            Voice
-          </button>
         </div>
       )}
 
@@ -832,23 +831,29 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         </div>
       )}
 
-      {/* Unified-session mode bar — sticky at top so it doesn't drift down
-          as messages accumulate. Shown when the flag is on and the session
-          is active, regardless of which surface (Talk/Journal/Speak) is
-          currently selected. */}
-      {unifiedUI && !isClosed && (
+      {/* Mode bar — sticky at top, regardless of which surface
+          (Talk/Journal/Speak) is currently selected. Hidden once the
+          session is closed. */}
+      {!isClosed && (
         <SessionBottomBar
           activeSurface={surface}
           realTalkOn={session?.mode === 'real_talk'}
+          journalPartsOn={journalPartsOn}
+          showJournalPartsToggle={globalConfig?.features?.partsEnabled !== false}
+          showSpeakSurface={voiceEnabled}
+          showRelaxSurface={relaxEnabled}
           onSurfaceChange={handleSurfaceChange}
           onRealTalkToggle={handleRealTalkToggle}
+          onJournalPartsToggle={handleJournalPartsToggle}
         />
       )}
 
-      {(unifiedUI && surface === 'journal') ? (
+      {surface === 'journal' ? (
         <SessionJournalSurface
           initialContent={journalDraft}
           onChange={setJournalDraft}
+          partsEnabled={journalPartsOn}
+          sessionId={session?.id ?? ''}
         />
       ) : (
         <>
@@ -899,7 +904,6 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
             <SessionMessageBubble
               key={msg.id}
               message={msg}
-              unifiedUI={unifiedUI}
               onRecommendationTap={handleRecommendationTap}
             />
           ))}
@@ -1025,6 +1029,19 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         dominantEmotion={weatherEngine.getCurrentDominantEmotion()}
         onToggleMute={voice.toggleMute}
         onEnd={handleEndVoice}
+      />
+    )}
+
+    {/* Relax mode overlay — meditation/biofeedback/hypnotherapy surface */}
+    {relaxEnabled && surface === 'relax' && (
+      <RelaxField
+        parentSessionId={session?.id ?? null}
+        onClose={() => handleSurfaceChange('talk')}
+        hrv={{
+          enabled: hrv.enabled,
+          calibrating: hrv.calibrating,
+          latest: hrv.latestMeasurement,
+        }}
       />
     )}
     </>

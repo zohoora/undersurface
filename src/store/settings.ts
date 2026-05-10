@@ -1,21 +1,17 @@
 import { useSyncExternalStore } from 'react'
 import { getGlobalConfig } from './globalConfig'
 import { detectBrowserLanguage } from '../i18n/languages'
+import type { RelaxAudioTrack, RelaxSessionType, RelaxVisualMode, SessionMode } from '../types'
 
 export interface AppSettings {
   // Part responsiveness (0.5 = slower, 2.0 = faster)
   responseSpeed: number
-
-  // Editor
-  typewriterScroll: 'off' | 'comfortable' | 'typewriter'
 
   // Autocorrect
   autoCapitalize: boolean
   autocorrect: boolean
 
   // AI text interactions (user can disable even when admin-enabled)
-  textHighlights: boolean
-  ghostText: boolean
   bilateralStimulation: boolean
 
   // Appearance
@@ -26,19 +22,36 @@ export interface AppSettings {
 
   // Timezone (IANA, e.g. 'America/New_York')
   timezone: string
+
+  // Last-used session tone — new sessions start in this mode so the user
+  // doesn't have to re-pick Real Talk every time.
+  lastSessionMode: SessionMode
+
+  // Last-chosen Relax mode preferences. Pre-populate the settings panel so
+  // the user can begin a session in two taps.
+  lastRelaxDuration: 5 | 10 | 20
+  lastRelaxType: RelaxSessionType
+  lastRelaxAudio: RelaxAudioTrack
+  lastRelaxAudioVolume: number  // 0..1
+  lastRelaxVoiceEnabled: boolean
+  lastRelaxVisualMode: RelaxVisualMode
 }
 
 const DEFAULTS: AppSettings = {
   responseSpeed: 1.0,
-  typewriterScroll: 'typewriter',
   autoCapitalize: true,
   autocorrect: true,
-  textHighlights: true,
-  ghostText: true,
   bilateralStimulation: true,
   theme: 'system',
   language: detectBrowserLanguage(),
   timezone: 'America/New_York',
+  lastSessionMode: 'standard',
+  lastRelaxDuration: 10,
+  lastRelaxType: 'breathwork',
+  lastRelaxAudio: 'ocean',
+  lastRelaxAudioVolume: 0.5,
+  lastRelaxVoiceEnabled: false,
+  lastRelaxVisualMode: 'full',
 }
 
 const STORAGE_KEY = 'undersurface:settings'
@@ -51,17 +64,11 @@ function getGlobalDefaults(): Partial<AppSettings> {
   if (!config) return {}
   const overrides: Partial<AppSettings> = {}
   if (config.defaultResponseSpeed) overrides.responseSpeed = config.defaultResponseSpeed
-  if (config.defaultTypewriterScroll) overrides.typewriterScroll = config.defaultTypewriterScroll
-  if (config.features) {
-    if (config.features.autocorrectEnabled === false) {
-      overrides.autocorrect = false
-    }
+  if (config.features?.autocorrectEnabled === false) {
+    overrides.autocorrect = false
   }
   return overrides
 }
-
-// Settings that should always come from globalConfig, never from localStorage
-const ADMIN_CONTROLLED_KEYS: (keyof AppSettings)[] = ['typewriterScroll']
 
 function load(): AppSettings {
   if (cache) return cache
@@ -69,10 +76,6 @@ function load(): AppSettings {
     const raw = localStorage.getItem(STORAGE_KEY)
     const globalDefaults = getGlobalDefaults()
     const local = raw ? JSON.parse(raw) : {}
-    // Remove admin-controlled keys from localStorage so globalConfig always wins
-    for (const key of ADMIN_CONTROLLED_KEYS) {
-      delete local[key]
-    }
     cache = { ...DEFAULTS, ...globalDefaults, ...local }
   } catch {
     cache = { ...DEFAULTS }

@@ -1194,7 +1194,7 @@ export const accountApi = onRequest(
             'entries', 'parts', 'memories', 'thoughts', 'interactions',
             'entrySummaries', 'userProfile', 'personalFacts', 'fossils', 'letters',
             'sessionLog', 'innerWeather', 'consent', 'sessions',
-            'hrvSessions', 'diagnostics',
+            'hrvSessions', 'relaxSessions', 'diagnostics',
           ]
           for (const coll of collections) {
             await deleteCollection(uid, coll)

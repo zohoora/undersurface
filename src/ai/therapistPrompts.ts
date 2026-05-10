@@ -1,4 +1,4 @@
-import type { PartMemory, UserProfile, PersonalFacts, EntrySummary, SessionMessage, SessionPhase, SessionMode, RegisterTierId, InputMode } from '../types'
+import type { PartMemory, UserProfile, PersonalFacts, EntrySummary, SessionMessage, SessionPhase, SessionMode, RegisterTierId, InputMode, RelaxSession, RelaxSessionType } from '../types'
 import { languageDirective, formatDateTime, formatTime, formatShortDate, GROUNDING_DIRECTIVE } from './partPrompts'
 import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from './promptSafety'
 import { REGISTER_TIERS, renderRegisterBlock, applyGroundingCap } from './registerTiers'
@@ -42,7 +42,7 @@ VOICE — THIS IS CRITICAL:
 
 ${SAFETY_RULES}`
 
-const PHASE_HINTS: Record<'standard' | 'real_talk', Record<SessionPhase, string>> = {
+const PHASE_HINTS: Record<SessionMode, Record<SessionPhase, string>> = {
   standard: {
     opening: 'SESSION PHASE: opening. The conversation is just beginning. Be warm but simple. Let the writer settle in. Ask one open question or just greet them.',
     deepening: 'SESSION PHASE: deepening. The conversation has found its footing. Follow the thread. Go where the writer is going, or gently point to what they might be avoiding. Be direct. Stay plain.',
@@ -107,11 +107,13 @@ const RECOMMENDATION_BLOCK = `You can occasionally suggest a tonal or modal shif
   [Can I be more direct with you?](#switch:real-talk-on)
   [write about it for a moment](#switch:journal)
   [say it aloud](#switch:speak)
+  [settle into your body for a few minutes](#switch:relax)
 
 When to use each:
 - #switch:real-talk-on — when softness is becoming avoidance, when the writer would benefit from being called out kindly. Once they accept, your tone sharpens.
 - #switch:journal — when something is brewing under the surface that doesn't want a back-and-forth. The writer steps into a private writing space; you wait quietly.
 - #switch:speak — when the body knows something the typing fingers don't. Voice often surfaces what text holds back.
+- #switch:relax — when the body is wired and the words can't get loose: somatic activation, racing thoughts, hours of rumination, breath you can hear in their sentences. The writer enters a guided meditation/biofeedback session and returns when ready. NEVER suggest this in response to acute distress, panic, or crisis — slow paced breathing can amplify dissociation in someone heading toward overwhelm.
 
 Hard rules:
 - At most one recommendation per ~5 turns. Most responses contain none.
@@ -135,12 +137,36 @@ export interface TherapistPromptOptions {
   // because calling things out during distress is the wrong move.
   mode?: SessionMode
   // Allow the therapist to suggest tonal shifts via inline [phrase](#switch:target)
-  // recommendations. UI gates this on the unifiedSessionUI flag — only the unified UI
-  // can render the tappable spans.
+  // recommendations. The session UI renders the tappable spans inside SessionMessage.
   allowRecommendations?: boolean
   // True only on the very first response in a session. Suppresses recommendations on
   // turn 1; do not pivot before establishing connection.
   isFirstTurn?: boolean
+  // Relax sessions the writer has taken WITHIN this chat session. Surfaces as
+  // context the therapist sees but does not preach about — landing condescending
+  // ("you took 10 minutes to breathe…") is worse than not mentioning it. The
+  // therapist uses this to recognize that breathwork happened and respond to
+  // whatever the writer says next, not to comment on the break itself.
+  inSessionRelaxBreaks?: RelaxSession[]
+  // Relax sessions the writer has taken across recent days. Used at session
+  // start to inform background tone, not to be quoted back at the writer.
+  recentRelaxBreaks?: RelaxSession[]
+}
+
+const RELAX_TYPE_LABELS: Record<RelaxSessionType, string> = {
+  breathwork: 'breathwork',
+  body_scan: 'body scan',
+  safe_place: 'safe-place imagery',
+  open_awareness: 'open awareness',
+}
+
+function formatRelaxBreak(s: RelaxSession): string {
+  const minutes = s.endedAt
+    ? Math.max(1, Math.round((s.endedAt - s.startedAt) / 60_000))
+    : s.duration
+  const label = RELAX_TYPE_LABELS[s.sessionType]
+  const status = s.completed ? 'completed' : 'ended early'
+  return `- ${minutes} min ${label} (${status})`
 }
 
 function formatPersonalFactsBlock(facts: PersonalFacts): string {
@@ -220,6 +246,25 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
       .map(n => `- ${formatShortDate(n.date)}: ${sanitizeForPrompt(n.note)}`)
       .join('\n')
     parts.push(`Notes from recent sessions:\n${notes}`)
+  }
+
+  if (options.inSessionRelaxBreaks && options.inSessionRelaxBreaks.length > 0) {
+    const breaks = options.inSessionRelaxBreaks.map(formatRelaxBreak).join('\n')
+    parts.push(
+      `The writer took a relax break during THIS conversation:\n${breaks}\n\n` +
+      `Notice this happened. Do not lead with it, do not congratulate them, do not analyze it. Respond to whatever they say next.`,
+    )
+  }
+
+  if (options.recentRelaxBreaks && options.recentRelaxBreaks.length > 0) {
+    const breaks = options.recentRelaxBreaks
+      .slice(0, 3)
+      .map(s => {
+        const date = s.endedAt ? formatShortDate(s.endedAt) : formatShortDate(s.startedAt)
+        return `- ${date}: ${formatRelaxBreak(s).replace(/^- /, '')}`
+      })
+      .join('\n')
+    parts.push(`Recent relax sessions (background only — do not quote back):\n${breaks}`)
   }
 
   if (options.relevantMemories && options.relevantMemories.length > 0) {

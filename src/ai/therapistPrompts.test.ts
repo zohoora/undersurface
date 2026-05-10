@@ -508,7 +508,22 @@ describe('buildTherapistSystemPrompt — recommendations', () => {
     expect(prompt).toContain('#switch:speak')
   })
 
-  it('omits all three patterns during grounding', () => {
+  it('teaches the relax recommendation pattern when allowed', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      mode: 'standard',
+      isGrounding: false,
+      isFirstTurn: false,
+      allowRecommendations: true,
+    })
+    expect(prompt).toContain('#switch:relax')
+    // Crisis safety: the prompt must explicitly tell the model not to
+    // suggest relax during acute distress — slow paced breathing can
+    // amplify dissociation in someone heading toward overwhelm.
+    expect(prompt).toMatch(/never suggest this in response to acute distress|panic|crisis/i)
+  })
+
+  it('omits all four patterns during grounding', () => {
     const prompt = buildTherapistSystemPrompt({
       phase: 'deepening',
       mode: 'standard',
@@ -519,6 +534,70 @@ describe('buildTherapistSystemPrompt — recommendations', () => {
     expect(prompt).not.toContain('#switch:real-talk-on')
     expect(prompt).not.toContain('#switch:journal')
     expect(prompt).not.toContain('#switch:speak')
+    expect(prompt).not.toContain('#switch:relax')
+  })
+})
+
+describe('buildTherapistSystemPrompt with relax breaks', () => {
+  const baseRelax: import('../types').RelaxSession = {
+    id: 'r1',
+    parentSessionId: 's1',
+    startedAt: Date.now() - 10 * 60_000,
+    endedAt: Date.now(),
+    sessionType: 'breathwork',
+    duration: 10,
+    audioTrack: 'ocean',
+    voiceEnabled: false,
+    visualMode: 'full',
+    completed: true,
+    hrvSummary: null,
+  }
+
+  it('mentions in-session breaks with explicit "do not lead with it" instruction', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      inSessionRelaxBreaks: [baseRelax],
+    })
+    expect(prompt).toContain('relax break during THIS conversation')
+    expect(prompt).toContain('breathwork')
+    expect(prompt).toMatch(/do not lead with it|do not congratulate|do not analyze/i)
+  })
+
+  it('omits the in-session block when no breaks have happened', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      inSessionRelaxBreaks: [],
+    })
+    expect(prompt).not.toContain('relax break during THIS conversation')
+  })
+
+  it('mentions recent (cross-session) breaks as background context only', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'opening',
+      recentRelaxBreaks: [baseRelax],
+    })
+    expect(prompt).toContain('Recent relax sessions')
+    expect(prompt).toMatch(/background only|do not quote back/i)
+  })
+
+  it('formats body_scan and safe_place labels naturally', () => {
+    const bodyScan = { ...baseRelax, sessionType: 'body_scan' as const }
+    const safePlace = { ...baseRelax, sessionType: 'safe_place' as const }
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      inSessionRelaxBreaks: [bodyScan, safePlace],
+    })
+    expect(prompt).toContain('body scan')
+    expect(prompt).toContain('safe-place imagery')
+  })
+
+  it('marks early-ended sessions as such', () => {
+    const earlyEnd = { ...baseRelax, completed: false }
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      inSessionRelaxBreaks: [earlyEnd],
+    })
+    expect(prompt).toContain('ended early')
   })
 })
 

@@ -4,7 +4,6 @@ import type { GlobalConfig } from './adminTypes'
 
 const DEFAULTS: GlobalConfig = {
   defaultResponseSpeed: 1.0,
-  defaultTypewriterScroll: 'typewriter',
   features: {
     partsEnabled: true,
     visualEffectsEnabled: true,
@@ -18,24 +17,18 @@ const DEFAULTS: GlobalConfig = {
     partQuietReturn: false,
     partCatchphrases: false,
     silenceAsResponse: false,
-    blankPageSpeaks: false,
     quietOneEnabled: false,
     bodyMap: false,
     bilateralStimulation: false,
-    textHighlights: false,
-    ghostText: false,
     echoes: false,
     innerWeather: false,
-    entryFossils: false,
     lettersFromParts: false,
     ritualsNotStreaks: false,
     unfinishedThreads: false,
     emergencyGrounding: false,
-    intentionsEnabled: false,
-    guidedExplorations: false,
     webcamHrv: false,
-    unifiedSessionUI: false,
     voiceEnabled: false,
+    relaxEnabled: false,
   },
   atmosphere: {
     timeShiftIntensity: 0.3,
@@ -56,15 +49,12 @@ const DEFAULTS: GlobalConfig = {
     catchphraseMaxPerPart: 3,
     silenceFlowThreshold: 120,
     silenceChance: 0.2,
-    blankPageDelaySeconds: 30,
   },
   engagement: {
     echoMaxAge: 90,
     echoChance: 0.1,
     echoMaxPerSession: 3,
     weatherUpdateInterval: 5,
-    fossilMinAge: 14,
-    fossilChance: 0.3,
     letterTriggerEntries: 10,
     letterMinParts: 2,
     ritualDetectionWindow: 14,
@@ -76,10 +66,6 @@ const DEFAULTS: GlobalConfig = {
     selfRoleScoreBonus: 40,
     otherRolePenalty: 30,
     intensityThreshold: 3,
-  },
-  explorations: {
-    maxPrompts: 3,
-    triggerOnNewEntry: true,
   },
   voice: {
     defaultVoice: 'marin',
@@ -166,7 +152,6 @@ export function AdminSettings() {
   const setPartInt = sectionSetter('partIntelligence')
   const setEngage = sectionSetter('engagement')
   const setGround = sectionSetter('grounding')
-  const setExplore = sectionSetter('explorations')
   const setVoice = sectionSetter('voice')
 
   const inputStyle = {
@@ -237,18 +222,6 @@ export function AdminSettings() {
           </div>
         </div>
 
-        <div style={{ marginBottom: 0 }}>
-          <label style={labelStyle}>Default Typewriter Scroll</label>
-          <select
-            value={config.defaultTypewriterScroll}
-            onChange={(e) => setConfig({ ...config, defaultTypewriterScroll: e.target.value as GlobalConfig['defaultTypewriterScroll'] })}
-            style={inputStyle}
-          >
-            <option value="off">Off</option>
-            <option value="comfortable">Comfortable</option>
-            <option value="typewriter">Typewriter</option>
-          </select>
-        </div>
       </div>
 
       <div style={sectionStyle}>
@@ -289,11 +262,6 @@ export function AdminSettings() {
               label="Ink Weight"
               checked={config.features.inkWeight !== false}
               onChange={(v) => setFeature('inkWeight', v)}
-            />
-            <ToggleRow
-              label="Color Bleed"
-              checked={config.features.colorBleed !== false}
-              onChange={(v) => setFeature('colorBleed', v)}
             />
             <ToggleRow
               label="Breathing Background"
@@ -505,20 +473,6 @@ export function AdminSettings() {
         )}
 
         <ToggleRow
-          label="Blank Page Speaks"
-          checked={!!config.features.blankPageSpeaks}
-          onChange={(v) => setFeature('blankPageSpeaks', v)}
-        />
-        {config.features.blankPageSpeaks && (
-          <SliderRow
-            label="Blank Page Delay (sec)"
-            value={config.partIntelligence?.blankPageDelaySeconds ?? 30}
-            min={10} max={120} step={5}
-            onChange={(v) => setPartInt('blankPageDelaySeconds', v)}
-          />
-        )}
-
-        <ToggleRow
           label="The Quiet One"
           checked={!!config.features.quietOneEnabled}
           onChange={(v) => setFeature('quietOneEnabled', v)}
@@ -532,17 +486,6 @@ export function AdminSettings() {
           label="Bilateral Stimulation"
           checked={!!config.features.bilateralStimulation}
           onChange={(v) => setFeature('bilateralStimulation', v)}
-        />
-
-        <ToggleRow
-          label="Text Highlights"
-          checked={!!config.features.textHighlights}
-          onChange={(v) => setFeature('textHighlights', v)}
-        />
-        <ToggleRow
-          label="Ghost Text"
-          checked={!!config.features.ghostText}
-          onChange={(v) => setFeature('ghostText', v)}
         />
       </CollapsibleSection>
 
@@ -593,28 +536,6 @@ export function AdminSettings() {
             min={1} max={15} step={1}
             onChange={(v) => setEngage('weatherUpdateInterval', v)}
           />
-        )}
-
-        <ToggleRow
-          label="Entry Fossils"
-          checked={!!config.features.entryFossils}
-          onChange={(v) => setFeature('entryFossils', v)}
-        />
-        {config.features.entryFossils && (
-          <>
-            <SliderRow
-              label="Fossil Min Age (days)"
-              value={config.engagement?.fossilMinAge ?? 14}
-              min={3} max={90} step={1}
-              onChange={(v) => setEngage('fossilMinAge', v)}
-            />
-            <SliderRow
-              label="Fossil Chance"
-              value={config.engagement?.fossilChance ?? 0.3}
-              min={0} max={1} step={0.05}
-              onChange={(v) => setEngage('fossilChance', v)}
-            />
-          </>
         )}
 
         <ToggleRow
@@ -718,33 +639,6 @@ export function AdminSettings() {
         )}
       </CollapsibleSection>
 
-      {/* Writing Guidance */}
-      <CollapsibleSection
-        title="Writing Guidance"
-        isExpanded={!!expanded.guidance}
-        onToggle={() => toggle('guidance')}
-        style={sectionStyle}
-      >
-        <ToggleRow
-          label="Intentions"
-          checked={!!config.features.intentionsEnabled}
-          onChange={(v) => setFeature('intentionsEnabled', v)}
-        />
-        <ToggleRow
-          label="Guided Explorations"
-          checked={!!config.features.guidedExplorations}
-          onChange={(v) => setFeature('guidedExplorations', v)}
-        />
-        {config.features.guidedExplorations && (
-          <SliderRow
-            label="Max Prompts"
-            value={config.explorations?.maxPrompts ?? 3}
-            min={1} max={5} step={1}
-            onChange={(v) => setExplore('maxPrompts', v)}
-          />
-        )}
-      </CollapsibleSection>
-
       {/* Biometric */}
       <CollapsibleSection
         title="Biometric"
@@ -759,18 +653,21 @@ export function AdminSettings() {
         />
       </CollapsibleSection>
 
-      {/* Session UI — unified front-of-house */}
+      {/* Relax Mode (4th session surface) */}
       <CollapsibleSection
-        title="Session UI"
-        isExpanded={!!expanded.sessionUI}
-        onToggle={() => toggle('sessionUI')}
+        title="Relax Mode"
+        isExpanded={!!expanded.relax}
+        onToggle={() => toggle('relax')}
         style={sectionStyle}
       >
         <ToggleRow
-          label="Unified Session UI (bottom bar + Real Talk in-canvas + therapist recommendations)"
-          checked={!!config.features.unifiedSessionUI}
-          onChange={(v) => setFeature('unifiedSessionUI', v)}
+          label="Enable Relax Mode (Session)"
+          checked={!!config.features.relaxEnabled}
+          onChange={(v) => setFeature('relaxEnabled', v)}
         />
+        <div style={{ fontSize: 11, color: '#A09A94', marginTop: 12, lineHeight: 1.5 }}>
+          A meditation/biofeedback/hypnotherapy surface inside Sessions. Adapts to webcam HRV when available; works without it. Background audio + voice guidance are user-toggleable per session.
+        </div>
       </CollapsibleSection>
 
       {/* Voice Mode (Conversation / Therapist only) */}

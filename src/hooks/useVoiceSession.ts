@@ -6,6 +6,11 @@ export type VoiceSessionState = 'idle' | 'connecting' | 'connected' | 'error'
 export interface VoiceSessionOptions {
   instructions: string
   voice?: string
+  // Passive (one-way assistant → user) mode for relaxation/hypnotherapy.
+  // Skips getUserMedia entirely (no mic prompt), uses a recvonly transceiver,
+  // and skips the user-pace adaptation logic. Caller still receives assistant
+  // transcripts.
+  passive?: boolean
   onUserTranscript?: (text: string) => void
   onAssistantTranscript?: (text: string) => void
   // Raw character-level deltas, for callers that want unbuffered output.
@@ -133,14 +138,21 @@ export function useVoiceSession() {
         voice: options.voice,
       })
 
-      const localStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      })
-      localStreamRef.current = localStream
+      const passive = options.passive === true
+
+      // Passive mode: don't acquire the mic. The caller wants one-way
+      // narration (relaxation/hypnotherapy) — no transcription, no echo
+      // cancellation needed, and no user-facing permission prompt.
+      if (!passive) {
+        const localStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        })
+        localStreamRef.current = localStream
+      }
 
       const pc = new RTCPeerConnection()
       pcRef.current = pc
@@ -159,8 +171,15 @@ export function useVoiceSession() {
         setRemoteStream(stream)
       }
 
-      for (const track of localStream.getTracks()) {
-        pc.addTrack(track, localStream)
+      if (passive) {
+        // Receive-only audio: tells the SDP exchange we want the server's audio
+        // but won't send any. No mic = no track to addTrack().
+        pc.addTransceiver('audio', { direction: 'recvonly' })
+        setMuted(true)
+      } else {
+        for (const track of localStreamRef.current!.getTracks()) {
+          pc.addTrack(track, localStreamRef.current!)
+        }
       }
 
       const dc = pc.createDataChannel('oai-events')
@@ -322,6 +341,27 @@ export function useVoiceSession() {
     setMuted(nextMuted)
   }, [muted])
 
+  // Tell the connected assistant to vocalize a specific phrase. The
+  // `instructions` override scopes to this single response — the session-level
+  // persona stays intact. Used by passive (one-way) callers like Relax mode
+  // to pace pre-scripted hypnotherapy cues.
+  const speak = useCallback((text: string) => {
+    const dc = dcRef.current
+    if (!dc || dc.readyState !== 'open') return
+    try {
+      const escaped = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+      dc.send(JSON.stringify({
+        type: 'response.create',
+        response: {
+          modalities: ['audio', 'text'],
+          instructions: `Say exactly this, slowly and softly with natural pauses, in a calm hypnotic voice. Add nothing. Phrase to speak: "${escaped}"`,
+        },
+      }))
+    } catch (err) {
+      console.warn('[useVoiceSession] speak failed', err)
+    }
+  }, [])
+
   useEffect(() => {
     return () => {
       teardown()
@@ -337,6 +377,7 @@ export function useVoiceSession() {
     userSpeaking,
     start,
     stop,
+    speak,
     toggleMute,
   }
 }

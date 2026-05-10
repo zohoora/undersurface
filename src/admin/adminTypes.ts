@@ -1,6 +1,5 @@
 export interface GlobalConfig {
   defaultResponseSpeed: number
-  defaultTypewriterScroll: 'off' | 'comfortable' | 'typewriter'
   features: {
     partsEnabled: boolean
     visualEffectsEnabled: boolean
@@ -16,36 +15,27 @@ export interface GlobalConfig {
     partQuietReturn?: boolean
     partCatchphrases?: boolean
     silenceAsResponse?: boolean
-    blankPageSpeaks?: boolean
     quietOneEnabled?: boolean
     bodyMap?: boolean
     bilateralStimulation?: boolean
     // Memory/Engagement
     echoes?: boolean
     innerWeather?: boolean
-    entryFossils?: boolean
     lettersFromParts?: boolean
     ritualsNotStreaks?: boolean
     unfinishedThreads?: boolean
     // Visual Effects (individual)
     paragraphFade?: boolean
     inkWeight?: boolean
-    colorBleed?: boolean
     breathingBackground?: boolean
-    // Text Interaction
-    textHighlights?: boolean
-    ghostText?: boolean
-    // Safety & Guidance
+    // Safety
     emergencyGrounding?: boolean
-    intentionsEnabled?: boolean
-    guidedExplorations?: boolean
     // Biometric
     webcamHrv?: boolean
-    // Session UI
-    unifiedSessionUI?: boolean
-    // Future Self
-    // Voice (OpenAI Realtime, Conversation/Therapist mode only)
+    // Voice (OpenAI Realtime)
     voiceEnabled?: boolean
+    // Relax mode (4th session surface)
+    relaxEnabled?: boolean
   }
   announcement: {
     message: string
@@ -81,7 +71,6 @@ export interface GlobalConfig {
     catchphraseMaxPerPart?: number
     silenceFlowThreshold?: number
     silenceChance?: number
-    blankPageDelaySeconds?: number
   }
 
   engagement?: {
@@ -89,8 +78,6 @@ export interface GlobalConfig {
     echoChance?: number
     echoMaxPerSession?: number
     weatherUpdateInterval?: number
-    fossilMinAge?: number
-    fossilChance?: number
     letterTriggerEntries?: number
     letterMinParts?: number
     ritualDetectionWindow?: number
@@ -103,11 +90,6 @@ export interface GlobalConfig {
     selfRoleScoreBonus?: number
     otherRolePenalty?: number
     intensityThreshold?: number
-  }
-
-  explorations?: {
-    maxPrompts?: number
-    triggerOnNewEntry?: boolean
   }
 
   voice?: {
