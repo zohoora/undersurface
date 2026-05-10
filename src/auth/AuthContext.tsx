@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, getRedirectResult } from 'firebase/auth'
 import type { User } from 'firebase/auth'
 import { auth } from '../firebase'
 import { AuthContext } from './authContext'
@@ -27,6 +27,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Capture the result of any pending signInWithRedirect (mobile path).
+    // Resolves to null on cold load with no pending redirect; resolves to
+    // a UserCredential when the user is returning from the Google flow.
+    // Errors here are surfaced to Sentry; onAuthStateChanged still fires
+    // for the actual auth state.
+    void getRedirectResult(auth)
+      .then(result => {
+        if (result?.user) {
+          trackEvent('sign_in', { method: 'google' })
+          if (result.user.metadata.creationTime === result.user.metadata.lastSignInTime) {
+            trackAdConversion()
+          }
+        }
+      })
+      .catch(err => {
+        Sentry.captureException(err, { tags: { area: 'auth_redirect' } })
+      })
+
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u)
       setLoading(false)
