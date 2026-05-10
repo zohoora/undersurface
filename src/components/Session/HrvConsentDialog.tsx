@@ -33,7 +33,7 @@ export function HrvConsentDialog({ onAccept, onDecline }: Props) {
       alignItems: 'center',
       justifyContent: 'center',
       background: 'rgba(0,0,0,0.5)',
-      zIndex: 1000,
+      zIndex: 1100,
       padding: '16px',
     }}>
       <div style={{

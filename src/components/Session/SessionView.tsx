@@ -1041,6 +1041,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
           enabled: hrv.enabled,
           calibrating: hrv.calibrating,
           latest: hrv.latestMeasurement,
+          error: hrv.error,
+          measurementCount: hrv.measurementCount,
+          toggle: hrv.toggle,
+          available: getGlobalConfig()?.features?.webcamHrv === true,
         }}
       />
     )}

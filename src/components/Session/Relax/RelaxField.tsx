@@ -6,6 +6,7 @@ import { RelaxSettingsPanel } from './RelaxSettingsPanel'
 import { RelaxBreathCircle } from './RelaxBreathCircle'
 import { RelaxControls } from './RelaxControls'
 import { RelaxClosingSummary } from './RelaxClosingSummary'
+import { BiometricsBar } from '../HrvAmbientBar'
 
 interface Props {
   parentSessionId: string | null
@@ -61,6 +62,9 @@ export function RelaxField({ parentSessionId, onClose, hrv }: Props) {
     }
   })()
 
+  const showBiometricsBar = hrv?.available === true && hrv.enabled === true
+  const showEnableBiometricsButton = hrv?.available === true && hrv.enabled === false
+
   return (
     <div
       role="dialog"
@@ -74,6 +78,85 @@ export function RelaxField({ parentSessionId, onClose, hrv }: Props) {
         overflow: 'hidden',
       }}
     >
+      {/* Top biometrics bar — only when the engine is running. Mirrors the
+          SessionView pattern; the consent dialog (rendered by SessionView) is
+          z-indexed above this overlay so toggle prompts surface cleanly. */}
+      {showBiometricsBar && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 5,
+          padding: 'calc(6px + env(safe-area-inset-top, 0px)) 12px 6px',
+          background: 'rgba(10,11,14,0.85)',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          backdropFilter: 'blur(8px)',
+        }}>
+          <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ flex: 1 }}>
+              <BiometricsBar
+                latest={hrv.latest}
+                measurementCount={hrv.measurementCount ?? 0}
+                isCalibrating={hrv.calibrating}
+                error={hrv.error ?? null}
+              />
+            </div>
+            {hrv.toggle && (
+              <button
+                onClick={hrv.toggle}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(255,255,255,0.14)',
+                  background: 'rgba(178,93,93,0.15)',
+                  color: 'rgba(220,220,230,0.8)',
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 10,
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                {t('relax.biometrics.stop')}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Enable-biometrics affordance when the flag is on but the engine is
+          off. Triggers SessionView's consent flow if no prior consent. */}
+      {showEnableBiometricsButton && hrv?.toggle && (
+        <button
+          onClick={hrv.toggle}
+          aria-label={t('relax.biometrics.enable')}
+          style={{
+            position: 'absolute',
+            top: 'calc(10px + env(safe-area-inset-top, 0px))',
+            right: 12,
+            zIndex: 5,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '6px 10px',
+            borderRadius: 8,
+            border: '1px solid rgba(255,255,255,0.14)',
+            background: 'rgba(255,255,255,0.04)',
+            color: 'rgba(220,220,230,0.7)',
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 11,
+            cursor: 'pointer',
+            backdropFilter: 'blur(6px)',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+            <circle cx="12" cy="13" r="4" />
+          </svg>
+          {t('relax.biometrics.enable')}
+        </button>
+      )}
+
       {relax.state === 'settings' && (
         <RelaxSettingsPanel
           initial={initial}
@@ -142,6 +225,7 @@ export function RelaxField({ parentSessionId, onClose, hrv }: Props) {
               durationMs={relax.durationMs}
               hrvHr={hrv?.latest?.hr ?? null}
               hrvCoherence={relax.smoothedCoherence}
+              hasTopBar={showBiometricsBar}
               onToggleAudio={relax.toggleAudio}
               onToggleVoice={relax.toggleVoice}
               onCycleVisual={relax.cycleVisual}

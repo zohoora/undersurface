@@ -28,6 +28,16 @@ export interface RelaxHrvInput {
   enabled: boolean
   calibrating: boolean
   latest: HrvMeasurement | null
+  // Optional fields used by RelaxField's top biometrics bar. Defaults below
+  // make HRV feedback feature-detection cheap for callers that don't wire
+  // these (e.g. tests, headless renders).
+  error?: string | null
+  measurementCount?: number
+  toggle?: () => void
+  // True when the admin feature flag is on (regardless of whether the user
+  // has consented or started the engine yet). When false, the biometrics
+  // bar / enable button is suppressed entirely.
+  available?: boolean
 }
 
 export interface RelaxSettings {

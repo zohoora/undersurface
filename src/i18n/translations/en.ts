@@ -140,6 +140,8 @@ const en = {
   'relax.calibrating.title': 'Settling',
   'relax.calibrating.subtitle': 'Reading your signal. This takes about half a minute.',
   'relax.calibrating.skip': 'Skip',
+  'relax.biometrics.enable': 'Enable biometrics',
+  'relax.biometrics.stop': 'Stop',
 
   // Emotions (for InnerWeather display)
   'emotion.tender': 'tender',

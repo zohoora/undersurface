@@ -13,6 +13,9 @@ interface Props {
   // nothing in that case rather than placeholder dashes.
   hrvHr?: number | null
   hrvCoherence?: number | null
+  // True when the biometrics bar occupies the top of the overlay; the timer
+  // and HR/coherence ambient text shift down so they don't collide.
+  hasTopBar?: boolean
   onToggleAudio: () => void
   onToggleVoice: () => void
   onCycleVisual: () => void
@@ -36,13 +39,19 @@ export function RelaxControls({
   durationMs,
   hrvHr,
   hrvCoherence,
+  hasTopBar,
   onToggleAudio,
   onToggleVoice,
   onCycleVisual,
   onEnd,
 }: Props) {
   const remainingMs = Math.max(0, durationMs - elapsedMs)
-  const hasBiometrics = (hrvHr ?? null) !== null
+  // HR is shown by the biometrics bar at top when present; only show the
+  // inline coherence number here (it's specific to the relax biofeedback
+  // halo and not in the standard biometrics bar layout).
+  const showInlineCoherence = (hrvCoherence ?? null) !== null
+  const showInlineHr = !hasTopBar && (hrvHr ?? null) !== null
+  const timerTop = hasTopBar ? 64 : 18
 
   return (
     <>
@@ -50,7 +59,7 @@ export function RelaxControls({
         aria-hidden
         style={{
           position: 'absolute',
-          top: 'calc(18px + env(safe-area-inset-top, 0px))',
+          top: `calc(${timerTop}px + env(safe-area-inset-top, 0px))`,
           left: 0,
           right: 0,
           textAlign: 'center',
@@ -64,12 +73,12 @@ export function RelaxControls({
         {fmtTime(remainingMs)}
       </div>
 
-      {hasBiometrics && (
+      {(showInlineHr || showInlineCoherence) && (
         <div
           aria-hidden
           style={{
             position: 'absolute',
-            top: 'calc(40px + env(safe-area-inset-top, 0px))',
+            top: `calc(${timerTop + 22}px + env(safe-area-inset-top, 0px))`,
             left: 0,
             right: 0,
             display: 'flex',
@@ -82,8 +91,8 @@ export function RelaxControls({
             pointerEvents: 'none',
           }}
         >
-          <span>{Math.round(hrvHr ?? 0)} bpm</span>
-          {(hrvCoherence ?? null) !== null && (
+          {showInlineHr && <span>{Math.round(hrvHr ?? 0)} bpm</span>}
+          {showInlineCoherence && (
             <span>coherence {(hrvCoherence ?? 0).toFixed(2)}</span>
           )}
         </div>
