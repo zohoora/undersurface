@@ -52,6 +52,8 @@ export function RelaxField({ parentSessionId, onClose, hrv }: Props) {
 
   const initial: RelaxSettings = (() => {
     const s = getSettings()
+    // The textarea pre-fills from the prompt only — the URL must come from
+    // a fresh prefetch (signed URLs expire and aren't persisted).
     return {
       duration: s.lastRelaxDuration,
       sessionType: s.lastRelaxType,
@@ -59,7 +61,7 @@ export function RelaxField({ parentSessionId, onClose, hrv }: Props) {
       audioVolume: s.lastRelaxAudioVolume,
       voiceEnabled: s.lastRelaxVoiceEnabled,
       visualMode: s.lastRelaxVisualMode,
-      customAudioPrompt: s.lastRelaxCustomPrompt,
+      ...(s.lastRelaxCustomPrompt ? { customAudio: { url: '', prompt: s.lastRelaxCustomPrompt } } : {}),
     }
   })()
 

@@ -6,7 +6,7 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { createHash } from 'crypto'
 import { promptHash, isValidPrompt } from './soundscape/normalize.js'
 import { createElevenLabsProvider, ProviderError } from './soundscape/provider.js'
-import { getOrCreateSoundscape } from './soundscape/cache.js'
+import { getOrCreateSoundscape, SIDECAR_COLLECTION as SOUNDSCAPE_COLLECTION } from './soundscape/cache.js'
 import { buildSoundscapeLimiters } from './soundscape/limits.js'
 
 initializeApp()
@@ -463,8 +463,7 @@ export const soundscapeApi = onRequest(
     }
 
     const hash = promptHash(prompt)
-    const sidecarRef = getFirestore().collection('soundscapes').doc(hash)
-    const sidecarSnap = await sidecarRef.get()
+    const sidecarSnap = await getFirestore().collection(SOUNDSCAPE_COLLECTION).doc(hash).get()
     const isCacheHit = sidecarSnap.exists
 
     // Hard generation limiter only fires for actual ElevenLabs calls. Hits
@@ -477,7 +476,8 @@ export const soundscapeApi = onRequest(
 
     try {
       const provider = createElevenLabsProvider({ apiKey: elevenLabsKey.value() })
-      const result = await getOrCreateSoundscape({ hash, prompt: prompt.trim(), provider })
+      // Pass the snapshot through so cache.ts skips a redundant Firestore read.
+      const result = await getOrCreateSoundscape({ hash, prompt: prompt.trim(), provider, sidecarSnap })
       res.json(result)
     } catch (err) {
       if (err instanceof ProviderError) {

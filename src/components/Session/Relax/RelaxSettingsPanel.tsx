@@ -24,19 +24,13 @@ export function RelaxSettingsPanel({ initial, onBegin, onCancel }: Props) {
   const [audioVolume, setAudioVolume] = useState(initial.audioVolume)
   const [voiceEnabled, setVoiceEnabled] = useState(initial.voiceEnabled)
   const [visualMode, setVisualMode] = useState<RelaxVisualMode>(initial.visualMode)
-  const [customPrompt, setCustomPrompt] = useState(initial.customAudioPrompt ?? '')
+  const [customPrompt, setCustomPrompt] = useState(initial.customAudio?.prompt ?? '')
 
   const customSoundscapesEnabled = getGlobalConfig()?.features?.customSoundscapesEnabled === true
-  const prefetch = useSoundscapePrefetch(customPrompt, audioTrack === 'custom' && customSoundscapesEnabled)
-
   const isCustom = audioTrack === 'custom'
-  const customReady = isCustom && prefetch.status === 'ready' && prefetch.url
-  const customBlocked = isCustom && (
-    prefetch.status === 'idle' ||
-    prefetch.status === 'loading' ||
-    prefetch.status === 'error'
-  )
-  const beginDisabled = customBlocked && !customReady
+  const prefetch = useSoundscapePrefetch(customPrompt, isCustom && customSoundscapesEnabled)
+
+  const beginDisabled = isCustom && prefetch.status !== 'ready'
 
   // The Begin button click is the load-bearing user gesture for audio play()
   // and wake lock acquire. Both must fire synchronously inside this handler.
@@ -49,8 +43,9 @@ export function RelaxSettingsPanel({ initial, onBegin, onCancel }: Props) {
       audioVolume,
       voiceEnabled,
       visualMode,
-      customAudioUrl: isCustom && prefetch.url ? prefetch.url : undefined,
-      customAudioPrompt: isCustom ? (prefetch.resolvedPrompt ?? customPrompt.trim()) : undefined,
+      customAudio: isCustom && prefetch.audio
+        ? { url: prefetch.audio.url, prompt: prefetch.audio.prompt }
+        : undefined,
     })
   }
 
@@ -109,7 +104,7 @@ export function RelaxSettingsPanel({ initial, onBegin, onCancel }: Props) {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
               {SOUNDSCAPE_PRESETS.map(p => (
                 <Pill key={p.id} active={customPrompt === p.prompt} onClick={() => setCustomPrompt(p.prompt)}>
-                  {t(p.i18nKey as Parameters<typeof t>[0])}
+                  {t(`relax.settings.audio.preset.${p.id}` as const)}
                 </Pill>
               ))}
             </div>
@@ -134,7 +129,7 @@ export function RelaxSettingsPanel({ initial, onBegin, onCancel }: Props) {
               }}
             />
             <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-              <PrefetchStatus status={prefetch.status} cached={prefetch.cached} errorKind={prefetch.errorKind} onRetry={prefetch.retry} />
+              <PrefetchStatus status={prefetch.status} cached={prefetch.audio?.cached ?? false} errorKind={prefetch.errorKind} onRetry={prefetch.retry} />
               <span style={{ fontSize: 10, color: 'rgba(200,200,210,0.4)' }}>
                 {customPrompt.length}/200
               </span>

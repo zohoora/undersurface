@@ -6,6 +6,7 @@ import { buildRelaxInstructions } from '../ai/relaxPrompts'
 import { updateSettings } from '../store/settings'
 import { getGlobalConfig } from '../store/globalConfig'
 import { useVoiceSession } from './useVoiceSession'
+import { createAudioContext } from './audioContext'
 import type { HrvMeasurement, RelaxAudioTrack, RelaxSession, RelaxSessionType, RelaxVisualMode } from '../types'
 
 export type RelaxState = 'idle' | 'settings' | 'calibrating' | 'guiding' | 'ending'
@@ -47,11 +48,10 @@ export interface RelaxSettings {
   audioVolume: number  // 0..1
   voiceEnabled: boolean
   visualMode: RelaxVisualMode
-  // Populated when audioTrack === 'custom'. Both come from the panel's
-  // soundscape prefetch (which has already resolved a signed Storage URL
-  // and pre-warmed the audio buffer in a hidden element).
-  customAudioUrl?: string
-  customAudioPrompt?: string
+  // Populated when audioTrack === 'custom'. Comes from the panel's
+  // soundscape prefetch (signed Storage URL + the prompt that produced
+  // it; URL expires, so we don't persist it).
+  customAudio?: { url: string; prompt: string }
 }
 
 export interface UseRelaxSessionResult {
@@ -79,13 +79,11 @@ const STATIC_AUDIO_PATHS: Partial<Record<RelaxAudioTrack, string>> = {
   binaural: '/audio/binaural.mp3',
 }
 
-// Resolve the audio URL for a given settings snapshot. Static tracks point
-// to the bundled MP3s in /public/audio/; the 'custom' track returns the
-// signed URL pre-fetched by the settings panel. Returns null when there's
-// no audio to play (silence or missing custom URL).
+// Static tracks → bundled MP3 path. 'custom' → the signed URL pre-fetched
+// by the panel. Null = silence or missing custom URL.
 function resolveAudioSrc(s: RelaxSettings): string | null {
   if (s.audioTrack === 'none') return null
-  if (s.audioTrack === 'custom') return s.customAudioUrl ?? null
+  if (s.audioTrack === 'custom') return s.customAudio?.url ?? null
   return STATIC_AUDIO_PATHS[s.audioTrack] ?? null
 }
 
@@ -94,10 +92,6 @@ function resolveAudioSrc(s: RelaxSettings): string | null {
 const DUCKING_GAIN = 0.3
 const DUCK_ATTACK_S = 0.15
 const DUCK_RELEASE_S = 0.6
-
-interface WindowWithWebkit extends Window {
-  webkitAudioContext?: typeof AudioContext
-}
 
 export function useRelaxSession(
   parentSessionId: string | null,
@@ -249,7 +243,7 @@ export function useRelaxSession(
       lastRelaxAudioVolume: s.audioVolume,
       lastRelaxVoiceEnabled: s.voiceEnabled,
       lastRelaxVisualMode: s.visualMode,
-      ...(s.audioTrack === 'custom' && s.customAudioPrompt ? { lastRelaxCustomPrompt: s.customAudioPrompt } : {}),
+      ...(s.audioTrack === 'custom' && s.customAudio ? { lastRelaxCustomPrompt: s.customAudio.prompt } : {}),
     })
 
     const audioPath = resolveAudioSrc(s)
@@ -263,28 +257,23 @@ export function useRelaxSession(
       el.crossOrigin = 'anonymous'
       audioRef.current = el
 
-      // If voice is on, we want to duck — route the element through a gain
-      // node so we can ramp it during narration. If voice is off, skip the
-      // Web Audio overhead and let the element play directly.
+      // If voice is on, route the element through a gain node so we can
+      // duck during narration. Voice off → skip the Web Audio overhead.
       if (s.voiceEnabled) {
-        const w = window as WindowWithWebkit
-        const Ctx = window.AudioContext ?? w.webkitAudioContext
-        if (Ctx) {
-          try {
-            const ctx = new Ctx()
+        try {
+          const ctx = createAudioContext()
+          if (ctx) {
             const source = ctx.createMediaElementSource(el)
             const gain = ctx.createGain()
             gain.gain.value = 1.0
             source.connect(gain).connect(ctx.destination)
             audioCtxRef.current = ctx
             audioGainRef.current = gain
-            // Some browsers start the context suspended until a gesture
-            // resolves — begin() runs inside the gesture, so resuming here
-            // is safe.
+            // begin() runs inside a user gesture, so resume() is safe here.
             if (ctx.state === 'suspended') void ctx.resume().catch(() => { /* noop */ })
-          } catch (err) {
-            console.warn('[relax] Web Audio routing failed; falling back to direct playback', err)
           }
+        } catch (err) {
+          console.warn('[relax] Web Audio routing failed; falling back to direct playback', err)
         }
       }
 
@@ -315,10 +304,9 @@ export function useRelaxSession(
       audioTrack: s.audioTrack,
       voiceEnabled: s.voiceEnabled,
       visualMode: s.visualMode,
-      customAudioPrompt: s.audioTrack === 'custom' ? s.customAudioPrompt ?? null : null,
-      // The signed URL expires; we don't persist it. The hash isn't known
-      // here yet (we only have the URL); the panel could pass it through if
-      // we want it on the Firestore record — wired in a follow-up if needed.
+      customAudioPrompt: s.audioTrack === 'custom' ? s.customAudio?.prompt ?? null : null,
+      // Hash not threaded through from the panel; URL is signed/expiring
+      // so we deliberately don't persist it.
       customAudioHash: null,
       completed: false,
       hrvSummary: null,

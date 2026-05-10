@@ -1,26 +1,31 @@
 import { getStorage } from 'firebase-admin/storage'
-import { getFirestore, FieldValue } from 'firebase-admin/firestore'
-import type { SoundscapeProvider } from './provider'
+import { getFirestore, FieldValue, type DocumentSnapshot } from 'firebase-admin/firestore'
+import type { SoundscapeProvider } from './provider.js'
 
 // Firestore sidecar collection. Top-level (not under users/) because the cache
 // is shared across the userbase by content hash. Default-deny in
 // firestore.rules covers writes from clients.
-const SIDECAR_COLLECTION = 'soundscapes'
+export const SIDECAR_COLLECTION = 'soundscapes'
 
-// Storage path within the default bucket.
+// 30-day browser/CDN cache for the underlying bytes. The signed URL changes
+// per request (different signature) but the file behind it is stable.
+const CACHE_CONTROL = 'public, max-age=2592000'
+
+// 1-hour signed URL TTL — covers a relax session and a small panel-to-Begin delay.
+const SIGNED_URL_TTL_MS = 60 * 60 * 1000
+
+// Cost recorded per generation for monthly accounting. ElevenLabs SFX V2 is
+// ~$0.05 per clip — recorded in cents so dashboard math is integer-safe.
+const GENERATION_COST_CENTS = 5
+
+// Skip lastAccessedAt + customTime touches if the doc was already touched
+// within this window — keeps hot prompts from generating thousands of
+// no-op writes per minute.
+const ACCESS_TOUCH_THROTTLE_MS = 60 * 1000
+
 function storagePath(hash: string): string {
   return `soundscapes/${hash}.mp3`
 }
-
-const SIGNED_URL_TTL_MS = 60 * 60 * 1000 // 1 hour
-// 30-day browser/CDN cache for the underlying bytes. Each new signed URL
-// looks unique (different signature) but the file behind it is stable, so
-// downstream caches can serve from disk.
-const CACHE_CONTROL = 'public, max-age=2592000'
-
-// Cost recorded per generation for monthly accounting. ElevenLabs SFX V2 is
-// ~$0.05 per clip — we record in cents so the dashboard math is integer-safe.
-const GENERATION_COST_CENTS = 5
 
 export interface CachedSoundscape {
   url: string
@@ -39,54 +44,51 @@ interface SidecarDoc {
   sourceProvider: string
 }
 
-export async function getOrCreateSoundscape(opts: { hash: string; prompt: string; provider: SoundscapeProvider }): Promise<CachedSoundscape> {
+export async function getOrCreateSoundscape(opts: {
+  hash: string
+  prompt: string
+  provider: SoundscapeProvider
+  // Optional: if the caller already fetched the sidecar (e.g. to gate rate
+  // limiting on cache miss), pass it through to avoid a second round-trip.
+  sidecarSnap?: DocumentSnapshot
+}): Promise<CachedSoundscape> {
   const { hash, prompt, provider } = opts
   const bucket = getStorage().bucket()
   const file = bucket.file(storagePath(hash))
   const sidecarRef = getFirestore().collection(SIDECAR_COLLECTION).doc(hash)
 
-  // Mint a signed URL with v4 signing. 1-hour TTL covers a relax session and
-  // a small post-settings delay before Begin.
-  const mintUrl = async (): Promise<{ url: string; expiresAt: number }> => {
+  const mintUrl = async () => {
     const expiresAt = Date.now() + SIGNED_URL_TTL_MS
-    const [url] = await file.getSignedUrl({
-      version: 'v4',
-      action: 'read',
-      expires: expiresAt,
-    })
+    const [url] = await file.getSignedUrl({ version: 'v4', action: 'read', expires: expiresAt })
     return { url, expiresAt }
   }
 
-  const sidecarSnap = await sidecarRef.get()
+  const sidecarSnap = opts.sidecarSnap ?? await sidecarRef.get()
+
   if (sidecarSnap.exists) {
-    // Sidecar present → assume Storage object exists. Bump access counters
-    // (used by the lifecycle pruning job to evict stale entries) and mint
-    // a fresh signed URL.
-    const [exists] = await file.exists()
-    if (exists) {
-      void sidecarRef.update({
-        lastAccessedAt: Date.now(),
-        hitCount: FieldValue.increment(1),
-      }).catch(() => { /* non-fatal */ })
-      // Touch customTime so the Storage lifecycle rule sees this object as fresh.
-      void file.setMetadata({ customTime: new Date().toISOString() }).catch(() => { /* non-fatal */ })
-      const { url, expiresAt } = await mintUrl()
-      return { url, cached: true, hash, expiresAt }
+    // Trust the sidecar — skip file.exists(). If the file is missing
+    // (rare drift), the signed URL will 404 on fetch and the next
+    // request can self-heal. The savings on every other hit are worth
+    // the rare miss.
+    //
+    // Throttle access touches: a hot prompt would otherwise generate
+    // hundreds of no-op writes per minute. Skip if last touch < 60s ago.
+    const last = sidecarSnap.get('lastAccessedAt') as number | undefined
+    if (typeof last !== 'number' || Date.now() - last >= ACCESS_TOUCH_THROTTLE_MS) {
+      void Promise.all([
+        sidecarRef.update({
+          lastAccessedAt: Date.now(),
+          hitCount: FieldValue.increment(1),
+        }),
+        file.setMetadata({ customTime: new Date().toISOString() }),
+      ]).catch(() => { /* non-fatal telemetry */ })
     }
-    // Sidecar exists but file is missing — drift. Re-generate to self-heal.
-    console.warn('[soundscape] sidecar/file drift, regenerating', hash)
+    const { url, expiresAt } = await mintUrl()
+    return { url, cached: true, hash, expiresAt }
   }
 
-  // Cache miss: generate, upload, write sidecar.
+  // Cache miss: generate, then upload + write sidecar concurrently.
   const audio = await provider.generate(prompt)
-  await file.save(audio.bytes, {
-    metadata: {
-      contentType: audio.mime,
-      cacheControl: CACHE_CONTROL,
-      customTime: new Date().toISOString(),
-    },
-    resumable: false,
-  })
   const sidecar: SidecarDoc = {
     hash,
     prompt,
@@ -96,7 +98,18 @@ export async function getOrCreateSoundscape(opts: { hash: string; prompt: string
     generationCostCents: GENERATION_COST_CENTS,
     sourceProvider: 'elevenlabs_sfx_v2',
   }
-  await sidecarRef.set(sidecar)
+  await Promise.all([
+    file.save(audio.bytes, {
+      metadata: {
+        contentType: audio.mime,
+        cacheControl: CACHE_CONTROL,
+        customTime: new Date().toISOString(),
+      },
+      resumable: false,
+    }),
+    sidecarRef.set(sidecar),
+  ])
   const { url, expiresAt } = await mintUrl()
   return { url, cached: false, hash, expiresAt }
 }
+

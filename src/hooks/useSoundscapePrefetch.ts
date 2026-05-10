@@ -15,14 +15,16 @@ import { generateSoundscape, SoundscapeError, type SoundscapeErrorKind as ApiErr
 export type SoundscapeStatus = 'idle' | 'loading' | 'ready' | 'error'
 export type SoundscapeErrorKind = ApiErrorKind
 
+interface ResolvedAudio {
+  url: string
+  cached: boolean
+  prompt: string
+}
+
 export interface SoundscapePrefetchState {
   status: SoundscapeStatus
-  url: string | null
-  cached: boolean
+  audio: ResolvedAudio | null
   errorKind: SoundscapeErrorKind | null
-  // The prompt that produced this URL — useful to commit to the relax record
-  // alongside the URL when the user clicks Begin.
-  resolvedPrompt: string | null
   retry: () => void
 }
 
@@ -30,14 +32,11 @@ const DEBOUNCE_MS = 800
 
 export function useSoundscapePrefetch(prompt: string, enabled: boolean): SoundscapePrefetchState {
   const [status, setStatus] = useState<SoundscapeStatus>('idle')
-  const [result, setResult] = useState<SoundscapeResult | null>(null)
+  const [audio, setAudio] = useState<ResolvedAudio | null>(null)
   const [errorKind, setErrorKind] = useState<SoundscapeErrorKind | null>(null)
-  const [resolvedPrompt, setResolvedPrompt] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const enabledRef = useRef(enabled)
-  useEffect(() => { enabledRef.current = enabled }, [enabled])
 
   const fire = useCallback(async (text: string) => {
     abortRef.current?.abort()
@@ -46,10 +45,9 @@ export function useSoundscapePrefetch(prompt: string, enabled: boolean): Soundsc
     setStatus('loading')
     setErrorKind(null)
     try {
-      const r = await generateSoundscape(text, ctrl.signal)
+      const r: SoundscapeResult = await generateSoundscape(text, ctrl.signal)
       if (ctrl.signal.aborted) return
-      setResult(r)
-      setResolvedPrompt(text)
+      setAudio({ url: r.url, cached: r.cached, prompt: text })
       setStatus('ready')
     } catch (err) {
       if ((err as { name?: string } | null)?.name === 'AbortError') return
@@ -67,13 +65,13 @@ export function useSoundscapePrefetch(prompt: string, enabled: boolean): Soundsc
 
     if (!enabled || trimmed.length === 0) {
       abortRef.current?.abort()
-      // Defer the state resets to a microtask so the setState calls don't
-      // cascade renders inside the effect body (set-state-in-effect rule).
+      // Defer state resets to a microtask so setState calls don't cascade
+      // renders inside the effect body (set-state-in-effect rule). Also
+      // guards against re-firing renders when already idle.
       queueMicrotask(() => {
-        setStatus('idle')
-        setResult(null)
-        setErrorKind(null)
-        setResolvedPrompt(null)
+        setStatus(prev => prev === 'idle' ? prev : 'idle')
+        setAudio(prev => prev === null ? prev : null)
+        setErrorKind(prev => prev === null ? prev : null)
       })
       return
     }
@@ -90,17 +88,16 @@ export function useSoundscapePrefetch(prompt: string, enabled: boolean): Soundsc
   // Pre-warm a hidden <audio> element so iOS Safari has buffered audio
   // ready when the Begin button fires play() in its gesture handler.
   useEffect(() => {
-    if (status !== 'ready' || !result) return
+    if (status !== 'ready' || !audio) return
     const el = document.createElement('audio')
     el.preload = 'auto'
-    el.src = result.url
+    el.src = audio.url
     el.load()
     return () => {
       el.src = ''
     }
-  }, [status, result])
+  }, [status, audio])
 
-  // Abort + clear timers on unmount.
   useEffect(() => () => {
     abortRef.current?.abort()
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -112,12 +109,5 @@ export function useSoundscapePrefetch(prompt: string, enabled: boolean): Soundsc
     void fire(trimmed)
   }, [prompt, fire])
 
-  return {
-    status,
-    url: result?.url ?? null,
-    cached: result?.cached ?? false,
-    errorKind,
-    resolvedPrompt,
-    retry,
-  }
+  return { status, audio, errorKind, retry }
 }

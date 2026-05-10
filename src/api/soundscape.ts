@@ -10,24 +10,31 @@ export interface SoundscapeResult {
 
 export type SoundscapeErrorKind = 'rate_limit' | 'validation' | 'provider' | 'network' | 'auth' | 'unknown'
 
+const DEFAULT_MESSAGES: Record<SoundscapeErrorKind, string> = {
+  rate_limit: 'Rate limit reached',
+  validation: 'Invalid prompt',
+  provider: 'Service unavailable',
+  network: 'Network error',
+  auth: 'Not authenticated',
+  unknown: 'Unknown error',
+}
+
 // Typed errors so the UI can show different copy per failure mode.
 export class SoundscapeError extends Error {
   readonly kind: SoundscapeErrorKind
-  constructor(kind: SoundscapeErrorKind, message: string) {
-    super(message)
+  constructor(kind: SoundscapeErrorKind, message?: string) {
+    super(message ?? DEFAULT_MESSAGES[kind])
     this.name = 'SoundscapeError'
     this.kind = kind
   }
 }
 
-// POST /api/soundscape with the current user's bearer token. Surfaces typed
-// errors keyed off HTTP status so the panel can route to the right copy.
 export async function generateSoundscape(prompt: string, signal?: AbortSignal): Promise<SoundscapeResult> {
   let token: string
   try {
     token = await getAuthToken()
   } catch {
-    throw new SoundscapeError('auth', 'Not authenticated')
+    throw new SoundscapeError('auth')
   }
 
   let response: Response
@@ -43,14 +50,14 @@ export async function generateSoundscape(prompt: string, signal?: AbortSignal): 
     })
   } catch (err) {
     if ((err as { name?: string } | null)?.name === 'AbortError') throw err
-    throw new SoundscapeError('network', 'Network error')
+    throw new SoundscapeError('network')
   }
 
   if (!response.ok) {
-    if (response.status === 401) throw new SoundscapeError('auth', 'Not authenticated')
-    if (response.status === 429) throw new SoundscapeError('rate_limit', 'Rate limit reached')
-    if (response.status === 400) throw new SoundscapeError('validation', 'Invalid prompt')
-    if (response.status >= 500 && response.status < 600) throw new SoundscapeError('provider', 'Service unavailable')
+    if (response.status === 401) throw new SoundscapeError('auth')
+    if (response.status === 429) throw new SoundscapeError('rate_limit')
+    if (response.status === 400) throw new SoundscapeError('validation')
+    if (response.status >= 500) throw new SoundscapeError('provider')
     throw new SoundscapeError('unknown', `HTTP ${response.status}`)
   }
 
