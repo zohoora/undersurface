@@ -97,7 +97,7 @@ export type SessionMode = 'standard' | 'real_talk'
 // Relax mode — 4th session surface combining meditation, biofeedback, hypnotherapy.
 // SessionType drives the breath target rate and narration script.
 export type RelaxSessionType = 'breathwork' | 'body_scan' | 'safe_place' | 'open_awareness'
-export type RelaxAudioTrack = 'none' | 'ocean' | 'forest' | 'drone' | 'binaural'
+export type RelaxAudioTrack = 'none' | 'ocean' | 'forest' | 'drone' | 'binaural' | 'custom'
 export type RelaxVisualMode = 'full' | 'minimal' | 'off'
 
 // Persisted record of a single relax session. Stored under
@@ -116,6 +116,12 @@ export interface RelaxSession {
   audioTrack: RelaxAudioTrack
   voiceEnabled: boolean
   visualMode: RelaxVisualMode
+  // For audioTrack === 'custom' only. The prompt the user described and the
+  // hash that addresses the cached generated audio. The signed URL is NOT
+  // persisted (it expires); we keep the hash for analytics + cache lookup
+  // when re-opening a closed session.
+  customAudioPrompt?: string | null
+  customAudioHash?: string | null
   // True if user reached the planned duration. False if ended early.
   completed: boolean
   // Snapshot of HRV deltas if biometrics were on. Null if HRV was off or

@@ -36,6 +36,8 @@ export interface GlobalConfig {
     voiceEnabled?: boolean
     // Relax mode (4th session surface)
     relaxEnabled?: boolean
+    // Custom soundscape generation in Relax mode (text prompt → ElevenLabs)
+    customSoundscapesEnabled?: boolean
   }
   announcement: {
     message: string

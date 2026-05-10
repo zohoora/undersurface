@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import { t } from '../../../i18n'
+import { getGlobalConfig } from '../../../store/globalConfig'
+import { useSoundscapePrefetch, type SoundscapeErrorKind } from '../../../hooks/useSoundscapePrefetch'
+import { SOUNDSCAPE_PRESETS } from './soundscapePresets'
 import type { RelaxAudioTrack, RelaxSessionType, RelaxVisualMode } from '../../../types'
 import type { RelaxSettings } from '../../../hooks/useRelaxSession'
 
@@ -11,7 +14,7 @@ interface Props {
 
 const DURATIONS: RelaxSettings['duration'][] = [5, 10, 20]
 const TYPES: RelaxSessionType[] = ['breathwork', 'body_scan', 'safe_place', 'open_awareness']
-const TRACKS: RelaxAudioTrack[] = ['none', 'ocean', 'forest', 'drone', 'binaural']
+const STATIC_TRACKS: RelaxAudioTrack[] = ['none', 'ocean', 'forest', 'drone', 'binaural']
 const VISUAL_MODES: RelaxVisualMode[] = ['full', 'minimal', 'off']
 
 export function RelaxSettingsPanel({ initial, onBegin, onCancel }: Props) {
@@ -21,11 +24,34 @@ export function RelaxSettingsPanel({ initial, onBegin, onCancel }: Props) {
   const [audioVolume, setAudioVolume] = useState(initial.audioVolume)
   const [voiceEnabled, setVoiceEnabled] = useState(initial.voiceEnabled)
   const [visualMode, setVisualMode] = useState<RelaxVisualMode>(initial.visualMode)
+  const [customPrompt, setCustomPrompt] = useState(initial.customAudioPrompt ?? '')
+
+  const customSoundscapesEnabled = getGlobalConfig()?.features?.customSoundscapesEnabled === true
+  const prefetch = useSoundscapePrefetch(customPrompt, audioTrack === 'custom' && customSoundscapesEnabled)
+
+  const isCustom = audioTrack === 'custom'
+  const customReady = isCustom && prefetch.status === 'ready' && prefetch.url
+  const customBlocked = isCustom && (
+    prefetch.status === 'idle' ||
+    prefetch.status === 'loading' ||
+    prefetch.status === 'error'
+  )
+  const beginDisabled = customBlocked && !customReady
 
   // The Begin button click is the load-bearing user gesture for audio play()
   // and wake lock acquire. Both must fire synchronously inside this handler.
   const handleBegin = () => {
-    onBegin({ duration, sessionType, audioTrack, audioVolume, voiceEnabled, visualMode })
+    if (beginDisabled) return
+    onBegin({
+      duration,
+      sessionType,
+      audioTrack,
+      audioVolume,
+      voiceEnabled,
+      visualMode,
+      customAudioUrl: isCustom && prefetch.url ? prefetch.url : undefined,
+      customAudioPrompt: isCustom ? (prefetch.resolvedPrompt ?? customPrompt.trim()) : undefined,
+    })
   }
 
   return (
@@ -65,12 +91,59 @@ export function RelaxSettingsPanel({ initial, onBegin, onCancel }: Props) {
         </Group>
 
         <Group label={t('relax.settings.audio.label')}>
-          {TRACKS.map(tr => (
+          {STATIC_TRACKS.map(tr => (
             <Pill key={tr} active={audioTrack === tr} onClick={() => setAudioTrack(tr)}>
               {t(`relax.settings.audio.${tr}`)}
             </Pill>
           ))}
+          {customSoundscapesEnabled && (
+            <Pill active={audioTrack === 'custom'} onClick={() => setAudioTrack('custom')}>
+              {t('relax.settings.audio.custom')}
+            </Pill>
+          )}
         </Group>
+
+        {isCustom && customSoundscapesEnabled && (
+          <div>
+            <label style={labelStyle}>{t('relax.settings.audio.promptLabel')}</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {SOUNDSCAPE_PRESETS.map(p => (
+                <Pill key={p.id} active={customPrompt === p.prompt} onClick={() => setCustomPrompt(p.prompt)}>
+                  {t(p.i18nKey as Parameters<typeof t>[0])}
+                </Pill>
+              ))}
+            </div>
+            <textarea
+              value={customPrompt}
+              onChange={e => setCustomPrompt(e.target.value.slice(0, 200))}
+              placeholder={t('relax.settings.audio.promptPlaceholder')}
+              maxLength={200}
+              rows={2}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid rgba(255,255,255,0.14)',
+                background: 'rgba(255,255,255,0.04)',
+                color: 'rgba(240,240,250,0.95)',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                resize: 'none',
+                outline: 'none',
+                lineHeight: 1.4,
+              }}
+            />
+            <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <PrefetchStatus status={prefetch.status} cached={prefetch.cached} errorKind={prefetch.errorKind} onRetry={prefetch.retry} />
+              <span style={{ fontSize: 10, color: 'rgba(200,200,210,0.4)' }}>
+                {customPrompt.length}/200
+              </span>
+            </div>
+            <div style={{ fontSize: 10, color: 'rgba(200,200,210,0.45)', marginTop: 4, lineHeight: 1.4 }}>
+              {t('relax.settings.audio.promptHelp')}
+            </div>
+          </div>
+        )}
 
         {audioTrack !== 'none' && (
           <div>
@@ -108,12 +181,67 @@ export function RelaxSettingsPanel({ initial, onBegin, onCancel }: Props) {
           <button onClick={onCancel} style={cancelBtnStyle} type="button">
             {t('relax.settings.cancel')}
           </button>
-          <button onClick={handleBegin} style={beginBtnStyle} type="button">
+          <button
+            onClick={handleBegin}
+            style={{ ...beginBtnStyle, opacity: beginDisabled ? 0.4 : 1, cursor: beginDisabled ? 'not-allowed' : 'pointer' }}
+            type="button"
+            disabled={beginDisabled}
+          >
             {t('relax.settings.begin')}
           </button>
         </div>
       </div>
     </div>
+  )
+}
+
+function PrefetchStatus({ status, cached, errorKind, onRetry }: {
+  status: ReturnType<typeof useSoundscapePrefetch>['status']
+  cached: boolean
+  errorKind: SoundscapeErrorKind | null
+  onRetry: () => void
+}) {
+  if (status === 'idle') return <span aria-hidden style={{ minHeight: 16 }} />
+  if (status === 'loading') {
+    return (
+      <span style={{ fontSize: 11, color: 'rgba(200,200,210,0.55)' }}>
+        {t('relax.settings.audio.generating')}
+      </span>
+    )
+  }
+  if (status === 'ready') {
+    const label = cached ? t('relax.settings.audio.cached') : t('relax.settings.audio.ready')
+    return (
+      <span style={{ fontSize: 11, color: 'rgba(140,200,160,0.75)' }}>
+        ✓ {label}
+      </span>
+    )
+  }
+  // status === 'error'
+  const errorKey: Parameters<typeof t>[0] =
+    errorKind === 'rate_limit' ? 'relax.settings.audio.error.rateLimit'
+    : errorKind === 'validation' ? 'relax.settings.audio.error.validation'
+    : errorKind === 'network' ? 'relax.settings.audio.error.network'
+    : 'relax.settings.audio.error.provider'
+  return (
+    <span style={{ fontSize: 11, color: 'rgba(220,150,150,0.85)', display: 'flex', alignItems: 'center', gap: 6 }}>
+      ! {t(errorKey)}
+      <button
+        type="button"
+        onClick={onRetry}
+        style={{
+          background: 'transparent',
+          border: '1px solid rgba(255,255,255,0.18)',
+          borderRadius: 6,
+          color: 'inherit',
+          fontSize: 10,
+          padding: '2px 6px',
+          cursor: 'pointer',
+        }}
+      >
+        {t('relax.settings.audio.error.retry')}
+      </button>
+    </span>
   )
 }
 

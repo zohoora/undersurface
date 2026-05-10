@@ -59,6 +59,7 @@ export function RelaxField({ parentSessionId, onClose, hrv }: Props) {
       audioVolume: s.lastRelaxAudioVolume,
       voiceEnabled: s.lastRelaxVoiceEnabled,
       visualMode: s.lastRelaxVisualMode,
+      customAudioPrompt: s.lastRelaxCustomPrompt,
     }
   })()
 

@@ -29,6 +29,7 @@ const DEFAULTS: GlobalConfig = {
     webcamHrv: false,
     voiceEnabled: false,
     relaxEnabled: false,
+    customSoundscapesEnabled: false,
   },
   atmosphere: {
     timeShiftIntensity: 0.3,
@@ -668,6 +669,21 @@ export function AdminSettings() {
         <div style={{ fontSize: 11, color: '#A09A94', marginTop: 12, lineHeight: 1.5 }}>
           A meditation/biofeedback/hypnotherapy surface inside Sessions. Adapts to webcam HRV when available; works without it. Background audio + voice guidance are user-toggleable per session.
         </div>
+
+        {config.features.relaxEnabled && (
+          <>
+            <div style={{ marginTop: 16 }}>
+              <ToggleRow
+                label="Custom soundscapes (Relax)"
+                checked={!!config.features.customSoundscapesEnabled}
+                onChange={(v) => setFeature('customSoundscapesEnabled', v)}
+              />
+            </div>
+            <div style={{ fontSize: 11, color: '#A09A94', marginTop: 12, lineHeight: 1.5 }}>
+              Lets users describe a soundscape (e.g. "rain on a tin roof") and the system generates a 30s loop via ElevenLabs Sound Effects. Cached globally by content hash. Per-user limits: 5 generations / hour, 60 requests / hour.
+            </div>
+          </>
+        )}
       </CollapsibleSection>
 
       {/* Voice Mode (Conversation / Therapist only) */}

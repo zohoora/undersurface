@@ -47,6 +47,11 @@ export interface RelaxSettings {
   audioVolume: number  // 0..1
   voiceEnabled: boolean
   visualMode: RelaxVisualMode
+  // Populated when audioTrack === 'custom'. Both come from the panel's
+  // soundscape prefetch (which has already resolved a signed Storage URL
+  // and pre-warmed the audio buffer in a hidden element).
+  customAudioUrl?: string
+  customAudioPrompt?: string
 }
 
 export interface UseRelaxSessionResult {
@@ -67,12 +72,31 @@ export interface UseRelaxSessionResult {
   cycleVisual: () => void
 }
 
-const AUDIO_PATHS: Record<RelaxAudioTrack, string | null> = {
-  none: null,
+const STATIC_AUDIO_PATHS: Partial<Record<RelaxAudioTrack, string>> = {
   ocean: '/audio/ocean.mp3',
   forest: '/audio/forest.mp3',
   drone: '/audio/drone.mp3',
   binaural: '/audio/binaural.mp3',
+}
+
+// Resolve the audio URL for a given settings snapshot. Static tracks point
+// to the bundled MP3s in /public/audio/; the 'custom' track returns the
+// signed URL pre-fetched by the settings panel. Returns null when there's
+// no audio to play (silence or missing custom URL).
+function resolveAudioSrc(s: RelaxSettings): string | null {
+  if (s.audioTrack === 'none') return null
+  if (s.audioTrack === 'custom') return s.customAudioUrl ?? null
+  return STATIC_AUDIO_PATHS[s.audioTrack] ?? null
+}
+
+// Voice ducking — when the realtime narration speaks, the soundscape gain
+// drops to this floor for clarity, then ramps back to 1.0.
+const DUCKING_GAIN = 0.3
+const DUCK_ATTACK_S = 0.15
+const DUCK_RELEASE_S = 0.6
+
+interface WindowWithWebkit extends Window {
+  webkitAudioContext?: typeof AudioContext
 }
 
 export function useRelaxSession(
@@ -89,6 +113,8 @@ export function useRelaxSession(
   const voice = useVoiceSession()
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const audioGainRef = useRef<GainNode | null>(null)
   const startedAtRef = useRef<number>(0)
   const pausedTotalRef = useRef<number>(0)
   const lastHiddenAtRef = useRef<number | null>(null)
@@ -98,6 +124,7 @@ export function useRelaxSession(
   const calibrationStartedAtRef = useRef<number | null>(null)
   const startSnapshotRef = useRef<{ coherence: number | null; hr: number | null } | null>(null)
   const hrvSamplesCountRef = useRef(0)
+  const lastAssistantSpeakingRef = useRef(false)
 
   useEffect(() => { stateRef.current = state }, [state])
 
@@ -111,10 +138,39 @@ export function useRelaxSession(
 
   const stopAudio = useCallback(() => {
     const el = audioRef.current
-    if (!el) return
-    el.pause()
-    el.src = ''
-    audioRef.current = null
+    if (el) {
+      el.pause()
+      el.src = ''
+      audioRef.current = null
+    }
+    if (audioCtxRef.current) {
+      void audioCtxRef.current.close().catch(() => { /* noop */ })
+      audioCtxRef.current = null
+    }
+    audioGainRef.current = null
+  }, [])
+
+  // Drop soundscape gain when narration starts; ramp back when it ends.
+  // Web Audio scheduling beats CSS/setTimeout because the AudioContext clock
+  // is sample-accurate and immune to JS event-loop jitter.
+  const duckAudio = useCallback(() => {
+    const ctx = audioCtxRef.current
+    const gain = audioGainRef.current
+    if (!ctx || !gain) return
+    const now = ctx.currentTime
+    gain.gain.cancelScheduledValues(now)
+    gain.gain.setValueAtTime(gain.gain.value, now)
+    gain.gain.linearRampToValueAtTime(DUCKING_GAIN, now + DUCK_ATTACK_S)
+  }, [])
+
+  const unduckAudio = useCallback(() => {
+    const ctx = audioCtxRef.current
+    const gain = audioGainRef.current
+    if (!ctx || !gain) return
+    const now = ctx.currentTime
+    gain.gain.cancelScheduledValues(now)
+    gain.gain.setValueAtTime(gain.gain.value, now)
+    gain.gain.linearRampToValueAtTime(1.0, now + DUCK_RELEASE_S)
   }, [])
 
   const end = useCallback(() => {
@@ -193,14 +249,45 @@ export function useRelaxSession(
       lastRelaxAudioVolume: s.audioVolume,
       lastRelaxVoiceEnabled: s.voiceEnabled,
       lastRelaxVisualMode: s.visualMode,
+      ...(s.audioTrack === 'custom' && s.customAudioPrompt ? { lastRelaxCustomPrompt: s.customAudioPrompt } : {}),
     })
 
-    const audioPath = AUDIO_PATHS[s.audioTrack]
+    const audioPath = resolveAudioSrc(s)
     if (audioPath) {
       const el = new Audio(audioPath)
       el.loop = true
       el.volume = s.audioVolume
+      // CORS attribute is required for Web Audio routing of cross-origin
+      // audio (the signed Storage URL is a different origin from our app).
+      // Without this, the AudioContext source becomes silent for security.
+      el.crossOrigin = 'anonymous'
       audioRef.current = el
+
+      // If voice is on, we want to duck — route the element through a gain
+      // node so we can ramp it during narration. If voice is off, skip the
+      // Web Audio overhead and let the element play directly.
+      if (s.voiceEnabled) {
+        const w = window as WindowWithWebkit
+        const Ctx = window.AudioContext ?? w.webkitAudioContext
+        if (Ctx) {
+          try {
+            const ctx = new Ctx()
+            const source = ctx.createMediaElementSource(el)
+            const gain = ctx.createGain()
+            gain.gain.value = 1.0
+            source.connect(gain).connect(ctx.destination)
+            audioCtxRef.current = ctx
+            audioGainRef.current = gain
+            // Some browsers start the context suspended until a gesture
+            // resolves — begin() runs inside the gesture, so resuming here
+            // is safe.
+            if (ctx.state === 'suspended') void ctx.resume().catch(() => { /* noop */ })
+          } catch (err) {
+            console.warn('[relax] Web Audio routing failed; falling back to direct playback', err)
+          }
+        }
+      }
+
       el.play().catch(err => console.warn('[relax] audio play failed', err))
     }
 
@@ -228,6 +315,11 @@ export function useRelaxSession(
       audioTrack: s.audioTrack,
       voiceEnabled: s.voiceEnabled,
       visualMode: s.visualMode,
+      customAudioPrompt: s.audioTrack === 'custom' ? s.customAudioPrompt ?? null : null,
+      // The signed URL expires; we don't persist it. The hash isn't known
+      // here yet (we only have the URL); the panel could pass it through if
+      // we want it on the Firestore record — wired in a follow-up if needed.
+      customAudioHash: null,
       completed: false,
       hrvSummary: null,
     }
@@ -310,6 +402,20 @@ export function useRelaxSession(
     const id = setInterval(tick, 250)
     return () => clearInterval(id)
   }, [state, settings, voiceMuted, voice, durationMs, end])
+
+  // Duck the soundscape while the voice narration is speaking. Watches
+  // the realtime API's assistantSpeaking flag (true while audio frames are
+  // arriving), not the cue dispatch — gives sample-accurate timing.
+  useEffect(() => {
+    if (state !== 'guiding') return
+    const speaking = voice.assistantSpeaking
+    if (speaking && !lastAssistantSpeakingRef.current) {
+      duckAudio()
+    } else if (!speaking && lastAssistantSpeakingRef.current) {
+      unduckAudio()
+    }
+    lastAssistantSpeakingRef.current = speaking
+  }, [voice.assistantSpeaking, state, duckAudio, unduckAudio])
 
   useEffect(() => {
     if (state !== 'guiding') return

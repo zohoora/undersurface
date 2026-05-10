@@ -35,6 +35,9 @@ export interface AppSettings {
   lastRelaxAudioVolume: number  // 0..1
   lastRelaxVoiceEnabled: boolean
   lastRelaxVisualMode: RelaxVisualMode
+  // Last-used custom soundscape prompt. Pre-fills the textarea when user
+  // re-enters Relax mode so they don't have to retype.
+  lastRelaxCustomPrompt?: string
 }
 
 const DEFAULTS: AppSettings = {
