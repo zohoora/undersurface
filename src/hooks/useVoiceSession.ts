@@ -53,6 +53,10 @@ export function useVoiceSession() {
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
+  // Silent AudioContext used in passive mode to synthesize a muted audio
+  // track. The Realtime API rejects recvonly SDP, so we send a silent
+  // sendrecv track instead and close the context on teardown.
+  const silentCtxRef = useRef<AudioContext | null>(null)
   const audioElRef = useRef<HTMLAudioElement | null>(null)
   const optsRef = useRef<VoiceSessionOptions | null>(null)
   const assistantBufferRef = useRef<string>('')
@@ -99,6 +103,11 @@ export function useVoiceSession() {
     if (localStreamRef.current) {
       for (const track of localStreamRef.current.getTracks()) track.stop()
       localStreamRef.current = null
+    }
+
+    if (silentCtxRef.current) {
+      try { void silentCtxRef.current.close() } catch { /* noop */ }
+      silentCtxRef.current = null
     }
 
     if (audioElRef.current) {
@@ -174,9 +183,26 @@ export function useVoiceSession() {
       }
 
       if (passive) {
-        // Receive-only audio: tells the SDP exchange we want the server's audio
-        // but won't send any. No mic = no track to addTrack().
-        pc.addTransceiver('audio', { direction: 'recvonly' })
+        // The Realtime API rejects recvonly SDP — it expects bidirectional
+        // (sendrecv) audio negotiation. We synthesize a silent track and
+        // send that, so the SDP exchange succeeds but no real audio leaves
+        // the device. No mic permission prompt either.
+        const w = window as Window & { webkitAudioContext?: typeof AudioContext }
+        const Ctx = window.AudioContext ?? w.webkitAudioContext
+        if (Ctx) {
+          const ctx = new Ctx()
+          silentCtxRef.current = ctx
+          const dst = ctx.createMediaStreamDestination()
+          const osc = ctx.createOscillator()
+          const gain = ctx.createGain()
+          gain.gain.value = 0
+          osc.connect(gain).connect(dst)
+          osc.start()
+          localStreamRef.current = dst.stream
+          for (const track of dst.stream.getTracks()) {
+            pc.addTrack(track, dst.stream)
+          }
+        }
         setMuted(true)
       } else {
         for (const track of localStreamRef.current!.getTracks()) {
@@ -325,8 +351,8 @@ export function useVoiceSession() {
         break
       }
       case 'error': {
-        const err = event.error as { message?: string } | undefined
-        console.error('[useVoiceSession] server error', event)
+        const err = event.error as { message?: string; code?: string; type?: string } | undefined
+        console.error('[useVoiceSession] server error:', err?.message ?? '(no message)', err?.code ?? '', err?.type ?? '', event)
         setError(err?.message ?? 'Voice session error')
         break
       }
