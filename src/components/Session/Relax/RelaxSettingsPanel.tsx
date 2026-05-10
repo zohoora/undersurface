@@ -128,11 +128,31 @@ export function RelaxSettingsPanel({ initial, onBegin, onCancel }: Props) {
                 lineHeight: 1.4,
               }}
             />
-            <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-              <PrefetchStatus status={prefetch.status} cached={prefetch.audio?.cached ?? false} errorKind={prefetch.errorKind} onRetry={prefetch.retry} />
+            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <button
+                type="button"
+                onClick={prefetch.generate}
+                disabled={!prefetch.canGenerate}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  border: '1px solid rgba(160,180,210,0.35)',
+                  background: prefetch.canGenerate ? 'rgba(120,140,180,0.5)' : 'rgba(120,140,180,0.18)',
+                  color: prefetch.canGenerate ? '#fff' : 'rgba(220,220,230,0.4)',
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: prefetch.canGenerate ? 'pointer' : 'not-allowed',
+                }}
+              >
+                {prefetch.status === 'loading' ? t('relax.settings.audio.generating') : t('relax.settings.audio.generate')}
+              </button>
               <span style={{ fontSize: 10, color: 'rgba(200,200,210,0.4)' }}>
                 {customPrompt.length}/200
               </span>
+            </div>
+            <div style={{ marginTop: 6, minHeight: 14 }}>
+              <PrefetchStatus status={prefetch.status} cached={prefetch.audio?.cached ?? false} errorKind={prefetch.errorKind} />
             </div>
             <div style={{ fontSize: 10, color: 'rgba(200,200,210,0.45)', marginTop: 4, lineHeight: 1.4 }}>
               {t('relax.settings.audio.promptHelp')}
@@ -190,20 +210,12 @@ export function RelaxSettingsPanel({ initial, onBegin, onCancel }: Props) {
   )
 }
 
-function PrefetchStatus({ status, cached, errorKind, onRetry }: {
+function PrefetchStatus({ status, cached, errorKind }: {
   status: ReturnType<typeof useSoundscapePrefetch>['status']
   cached: boolean
   errorKind: SoundscapeErrorKind | null
-  onRetry: () => void
 }) {
-  if (status === 'idle') return <span aria-hidden style={{ minHeight: 16 }} />
-  if (status === 'loading') {
-    return (
-      <span style={{ fontSize: 11, color: 'rgba(200,200,210,0.55)' }}>
-        {t('relax.settings.audio.generating')}
-      </span>
-    )
-  }
+  if (status === 'idle' || status === 'loading') return null
   if (status === 'ready') {
     const label = cached ? t('relax.settings.audio.cached') : t('relax.settings.audio.ready')
     return (
@@ -219,23 +231,8 @@ function PrefetchStatus({ status, cached, errorKind, onRetry }: {
     : errorKind === 'network' ? 'relax.settings.audio.error.network'
     : 'relax.settings.audio.error.provider'
   return (
-    <span style={{ fontSize: 11, color: 'rgba(220,150,150,0.85)', display: 'flex', alignItems: 'center', gap: 6 }}>
+    <span style={{ fontSize: 11, color: 'rgba(220,150,150,0.85)' }}>
       ! {t(errorKey)}
-      <button
-        type="button"
-        onClick={onRetry}
-        style={{
-          background: 'transparent',
-          border: '1px solid rgba(255,255,255,0.18)',
-          borderRadius: 6,
-          color: 'inherit',
-          fontSize: 10,
-          padding: '2px 6px',
-          cursor: 'pointer',
-        }}
-      >
-        {t('relax.settings.audio.error.retry')}
-      </button>
     </span>
   )
 }
