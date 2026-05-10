@@ -1,0 +1,14 @@
+[
+  {
+    "origin": [
+      "https://undersurface.me",
+      "https://undersurfaceme.web.app",
+      "https://undersurfaceme.firebaseapp.com",
+      "http://localhost:5173",
+      "capacitor://localhost"
+    ],
+    "method": ["GET", "HEAD"],
+    "maxAgeSeconds": 3600,
+    "responseHeader": ["Content-Type", "Cache-Control", "ETag", "Last-Modified"]
+  }
+]
