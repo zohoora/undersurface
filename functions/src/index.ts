@@ -301,15 +301,22 @@ export const chat = onRequest(
 
 const REALTIME_VOICES = new Set(['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'])
 const REALTIME_DEFAULT_VOICE = 'marin'
-const REALTIME_MODEL = 'gpt-realtime'
+// Latest reasoning realtime model. `gpt-realtime-2025-08-28` pins the
+// snapshot under the rolling `gpt-realtime-2` alias for predictable behavior.
+const REALTIME_MODEL = 'gpt-realtime-2'
+// Newer transcription model: lower latency and tighter integration with the
+// realtime audio path than legacy `whisper-1`.
+const REALTIME_TRANSCRIPTION_MODEL = 'gpt-realtime-whisper'
 const REALTIME_INSTRUCTIONS_MAX = 16000
 
 // Tempo settings — therapist should sound unhurried.
 // 0.88 = ~12% slower than default; client-side pace-matching may lower further.
 const REALTIME_BASE_SPEED = 0.88
-// silence_duration_ms: how long to wait after the user stops talking before
-// responding. Default is ~500ms; 900ms gives the AI a human-like beat of thought.
-const REALTIME_SILENCE_MS = 900
+
+// Semantic VAD eagerness. `low` (8s max timeout) fits the unhurried therapy
+// register — the model waits longer before assuming the user is done.
+// `medium` (4s) is the API default; `high` (2s) feels rushed for this UX.
+const REALTIME_VAD_EAGERNESS = 'low'
 
 const VOICE_PACING_ADDENDUM = `
 VOICE DELIVERY (this is a live voice conversation, not text):
@@ -373,12 +380,12 @@ export const realtimeTokenApi = onRequest(
           instructions: voiceInstructions,
           audio: {
             input: {
-              transcription: { model: 'whisper-1' },
+              transcription: { model: REALTIME_TRANSCRIPTION_MODEL },
               turn_detection: {
-                type: 'server_vad',
-                threshold: 0.5,
-                prefix_padding_ms: 300,
-                silence_duration_ms: REALTIME_SILENCE_MS,
+                type: 'semantic_vad',
+                eagerness: REALTIME_VAD_EAGERNESS,
+                create_response: true,
+                interrupt_response: true,
               },
             },
             output: {
