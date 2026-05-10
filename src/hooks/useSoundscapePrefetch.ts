@@ -6,10 +6,13 @@ import { generateSoundscape, SoundscapeError, type SoundscapeErrorKind as ApiErr
 // generation invalidates the result (status returns to idle) so the
 // user must explicitly regenerate.
 //
-// Pre-warms a hidden <audio preload="auto"> element with the resulting
-// URL once `ready` so the gesture chain on the Begin button has a buffered
-// element to play() — critical for iOS Safari, which rejects play() if
-// the gesture window has closed before the first audio packet arrives.
+// Two-step fetch: (1) POST /api/soundscape returns a signed Storage URL;
+// (2) we fetch the URL ourselves and wrap the bytes in a Blob URL.
+// The <audio> element then plays from the Blob (same-origin, no CSP/CORS
+// surprises). Direct signed-URL playback fails Chrome's "URL safety
+// check" on cross-origin audio elements — fetch + Blob avoids it
+// entirely. The bytes are already needed in the browser anyway, so the
+// extra hop is fine.
 
 export type SoundscapeStatus = 'idle' | 'loading' | 'ready' | 'error'
 export type SoundscapeErrorKind = ApiErrorKind
@@ -18,6 +21,12 @@ interface ResolvedAudio {
   url: string
   cached: boolean
   prompt: string
+}
+
+function revokeBlobRef(prev: ResolvedAudio | null) {
+  if (prev?.url.startsWith('blob:')) {
+    try { URL.revokeObjectURL(prev.url) } catch { /* noop */ }
+  }
 }
 
 export interface SoundscapePrefetchState {
@@ -48,7 +57,10 @@ export function useSoundscapePrefetch(prompt: string, enabled: boolean): Soundsc
       abortRef.current?.abort()
       queueMicrotask(() => {
         setStatus(prev => prev === 'idle' ? prev : 'idle')
-        setAudio(prev => prev === null ? prev : null)
+        setAudio(prev => {
+          revokeBlobRef(prev)
+          return prev === null ? prev : null
+        })
         setErrorKind(prev => prev === null ? prev : null)
       })
       return
@@ -58,7 +70,10 @@ export function useSoundscapePrefetch(prompt: string, enabled: boolean): Soundsc
     if (stale || editingClearsError) {
       queueMicrotask(() => {
         setStatus('idle')
-        setAudio(null)
+        setAudio(prev => {
+          revokeBlobRef(prev)
+          return null
+        })
         setErrorKind(null)
       })
     }
@@ -67,6 +82,7 @@ export function useSoundscapePrefetch(prompt: string, enabled: boolean): Soundsc
   const generate = useCallback(async () => {
     if (!enabled || !trimmed) return
     abortRef.current?.abort()
+    revokeBlobRef(audio)
     const ctrl = new AbortController()
     abortRef.current = ctrl
     setStatus('loading')
@@ -74,7 +90,15 @@ export function useSoundscapePrefetch(prompt: string, enabled: boolean): Soundsc
     try {
       const r: SoundscapeResult = await generateSoundscape(trimmed, ctrl.signal)
       if (ctrl.signal.aborted) return
-      setAudio({ url: r.url, cached: r.cached, prompt: trimmed })
+      // Fetch the audio bytes and wrap in a Blob URL — direct <audio src=
+      // signedUrl> trips Chrome's URL safety check; same-origin Blob
+      // URLs play cleanly.
+      const audioRes = await fetch(r.url, { signal: ctrl.signal })
+      if (!audioRes.ok) throw new SoundscapeError('provider', `audio fetch ${audioRes.status}`)
+      const blob = await audioRes.blob()
+      if (ctrl.signal.aborted) return
+      const blobUrl = URL.createObjectURL(blob)
+      setAudio({ url: blobUrl, cached: r.cached, prompt: trimmed })
       setStatus('ready')
     } catch (err) {
       if ((err as { name?: string } | null)?.name === 'AbortError') return
@@ -82,7 +106,7 @@ export function useSoundscapePrefetch(prompt: string, enabled: boolean): Soundsc
       setErrorKind(kind)
       setStatus('error')
     }
-  }, [trimmed, enabled])
+  }, [trimmed, enabled, audio])
 
   // Pre-warm a hidden <audio> element so iOS Safari has buffered audio
   // ready when the Begin button fires play() in its gesture handler.
@@ -99,6 +123,10 @@ export function useSoundscapePrefetch(prompt: string, enabled: boolean): Soundsc
 
   useEffect(() => () => {
     abortRef.current?.abort()
+    revokeBlobRef(audio)
+  // Intentionally only run on unmount; the audio dep would otherwise revoke
+  // a still-active Blob URL on every state update.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const canGenerate = enabled && trimmed.length > 0 && status !== 'loading'

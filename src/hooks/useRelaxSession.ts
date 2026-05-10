@@ -251,10 +251,6 @@ export function useRelaxSession(
       const el = new Audio(audioPath)
       el.loop = true
       el.volume = s.audioVolume
-      // CORS attribute is required for Web Audio routing of cross-origin
-      // audio (the signed Storage URL is a different origin from our app).
-      // Without this, the AudioContext source becomes silent for security.
-      el.crossOrigin = 'anonymous'
       audioRef.current = el
 
       // If voice is on, route the element through a gain node so we can
