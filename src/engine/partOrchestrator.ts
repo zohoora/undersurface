@@ -1,8 +1,7 @@
-import type { Part, PauseEvent, PauseType, PartThought, EmotionalTone, IFSRole, PartAnnotations } from '../types'
+import type { Part, PauseEvent, PauseType, PartThought, EmotionalTone, IFSRole } from '../types'
 import type { AutonomicState } from '../types/hrv'
 import { buildPartMessages } from '../ai/partPrompts'
 import { streamChatCompletion, analyzeEmotionAndDistress, classifyCrisisRisk, reasoningForSpeed } from '../ai/openrouter'
-import { parseAnnotations, isDelimiterPrefix, DELIMITER, fixGhostCapitalization } from '../ai/annotationParser'
 import { db, generateId } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { getSettings } from '../store/settings'
@@ -93,7 +92,6 @@ interface OrchestratorCallbacks {
   onDisagreementStart?: (partId: string, partName: string, partColor: string) => void
   onDisagreementToken?: (token: string) => void
   onDisagreementComplete?: (thought: PartThought) => void
-  onAnnotations?: (annotations: PartAnnotations, partColor: string) => void
   onEcho?: (echo: { text: string, entryId: string, date: number, partId: string, partName: string, partColor: string, partColorLight: string }) => void
   onSilence?: (partId: string, partName: string, partColor: string, partColorLight: string) => void
 }
@@ -389,12 +387,6 @@ export class PartOrchestrator {
       this.ritualEngine.detectRituals(),
     ])
 
-    const config = getGlobalConfig()
-    const userSettings = getSettings()
-    const annotateHighlights = config?.features?.textHighlights === true && userSettings.textHighlights
-    const annotateGhostText = config?.features?.ghostText === true && userSettings.ghostText
-    const wantAnnotations = annotateHighlights || annotateGhostText
-
     const messages = buildPartMessages(
       part,
       event.currentText,
@@ -410,57 +402,19 @@ export class PartOrchestrator {
         ritualContext: rituals.length > 0 ? rituals[0].description : undefined,
         isGrounding: isGroundingActive() || undefined,
         intention: this.intention || undefined,
-        annotateHighlights,
-        annotateGhostText,
       },
     )
 
     this.callbacks.onThoughtStart(part.id, getPartDisplayName(part), part.color)
 
-    // Delimiter buffering state for annotation suppression
-    let delimiterBuffer = ''
-    let pastDelimiter = false
-
     await streamChatCompletion(
       messages,
       {
         onToken: (token) => {
-          if (pastDelimiter) return // suppress tokens after delimiter
-
-          if (!wantAnnotations) {
-            this.callbacks.onThoughtToken(token)
-            return
-          }
-
-          // Buffer tokens that might be part of the delimiter
-          for (const ch of token) {
-            delimiterBuffer += ch
-
-            if (isDelimiterPrefix(delimiterBuffer)) {
-              if (delimiterBuffer === DELIMITER) {
-                pastDelimiter = true
-                delimiterBuffer = ''
-                return
-              }
-              // Keep buffering — could still be the delimiter
-            } else {
-              // False alarm — flush buffer as display tokens
-              this.callbacks.onThoughtToken(delimiterBuffer)
-              delimiterBuffer = ''
-            }
-          }
+          this.callbacks.onThoughtToken(token)
         },
         onComplete: (fullText) => {
-          // Flush any remaining buffer (partial delimiter that never completed)
-          if (delimiterBuffer.length > 0 && !pastDelimiter) {
-            this.callbacks.onThoughtToken(delimiterBuffer)
-          }
-
-          // Parse annotations from full text
-          const { thoughtText, annotations } = wantAnnotations
-            ? parseAnnotations(fullText)
-            : { thoughtText: fullText, annotations: null }
-
+          const thoughtText = fullText
           const thought: PartThought = {
             id: generateId(),
             partId: part.id,
@@ -505,14 +459,6 @@ export class PartOrchestrator {
 
           this.callbacks.onThoughtComplete(thought)
           trackEvent('part_thought', { part_name: part.name, emotion: this.currentEmotion, pause_type: event.type })
-
-          // Fire annotations callback (fix capitalization deterministically)
-          if (annotations) {
-            if (annotations.ghostText) {
-              annotations.ghostText = fixGhostCapitalization(annotations.ghostText, event.recentText)
-            }
-            this.callbacks.onAnnotations?.(annotations, part.color)
-          }
 
           // Track activity for quiet return system
           this.quietTracker.updateLastActive(part.id)
@@ -559,7 +505,7 @@ export class PartOrchestrator {
           this.callbacks.onError(error)
         },
       },
-      wantAnnotations ? 250 : 150,
+      150,
       reasoningForSpeed(getSettings().responseSpeed),
     )
   }

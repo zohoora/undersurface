@@ -17,12 +17,26 @@ vi.mock('../../i18n', () => ({
       'session.bottomBar.journal': 'Journal',
       'session.bottomBar.speak': 'Speak',
       'session.bottomBar.realTalk': 'Real Talk',
+      'session.bottomBar.parts': 'Inner voices',
       'session.bottomBar.journalDisabled': 'Coming soon',
       'session.bottomBar.speakDisabled': 'Coming soon',
     }
     return map[key] ?? key
   },
 }))
+
+// Default props that exercise both toggles in a sensible baseline state.
+const baseProps = (overrides: Partial<Parameters<typeof SessionBottomBar>[0]> = {}) => ({
+  activeSurface: 'talk' as SessionSurface,
+  realTalkOn: false,
+  journalPartsOn: true,
+  showJournalPartsToggle: true,
+  showSpeakSurface: true,
+  onSurfaceChange: vi.fn(),
+  onRealTalkToggle: vi.fn(),
+  onJournalPartsToggle: vi.fn(),
+  ...overrides,
+})
 
 describe('SessionBottomBar', () => {
   it('exports a named function component', () => {
@@ -116,5 +130,63 @@ describe('SessionBottomBar', () => {
     const nearSpeak = SOURCE.slice(speakButtonStart, speakButtonStart + 200)
     expect(nearSpeak).toContain('onClick')
     expect(nearSpeak).not.toContain('disabled')
+  })
+
+  describe('Inner voices (parts) toggle', () => {
+    it('source: parts toggle is rendered only when activeSurface is journal', () => {
+      // Source-level guard — the JSX branch must check both activeSurface and the
+      // showJournalPartsToggle flag before rendering.
+      expect(SOURCE).toContain("activeSurface === 'journal' && showJournalPartsToggle")
+    })
+
+    it('source: parts toggle uses aria-checked bound to journalPartsOn', () => {
+      const buttonIdx = SOURCE.indexOf('session-bottom-bar__parts')
+      expect(buttonIdx).toBeGreaterThan(-1)
+      const nearButton = SOURCE.slice(buttonIdx, buttonIdx + 400)
+      expect(nearButton).toContain('aria-checked={journalPartsOn}')
+      expect(nearButton).toContain('role="switch"')
+    })
+
+    it('source: parts toggle click inverts journalPartsOn via onJournalPartsToggle', () => {
+      const idx = SOURCE.indexOf('onJournalPartsToggle(!journalPartsOn)')
+      expect(idx).toBeGreaterThan(-1)
+    })
+
+    it('renders without throwing when activeSurface=journal and journalPartsOn=true', () => {
+      const props = baseProps({ activeSurface: 'journal', journalPartsOn: true })
+      expect(() => SessionBottomBar(props)).not.toThrow()
+    })
+
+    it('renders without throwing when journalPartsOn=false (toggle off state)', () => {
+      const props = baseProps({ activeSurface: 'journal', journalPartsOn: false })
+      expect(() => SessionBottomBar(props)).not.toThrow()
+    })
+
+    it('renders without throwing when showJournalPartsToggle=false (admin disabled)', () => {
+      const props = baseProps({ activeSurface: 'journal', showJournalPartsToggle: false })
+      expect(() => SessionBottomBar(props)).not.toThrow()
+    })
+
+    it('renders without throwing when activeSurface is not journal (toggle hidden)', () => {
+      for (const surface of ['talk', 'speak'] as SessionSurface[]) {
+        const props = baseProps({ activeSurface: surface })
+        expect(() => SessionBottomBar(props)).not.toThrow()
+      }
+    })
+
+    it('Inner voices and Real Talk are siblings inside the same toggles container', () => {
+      // The plan calls for the parts toggle "beside Real Talk" — same flex group,
+      // so they sit on the same right side of the bar.
+      const togglesIdx = SOURCE.indexOf('session-bottom-bar__toggles')
+      expect(togglesIdx).toBeGreaterThan(-1)
+      const wrapperEnd = SOURCE.indexOf('</div>', togglesIdx)
+      expect(wrapperEnd).toBeGreaterThan(togglesIdx)
+      const inner = SOURCE.slice(togglesIdx, wrapperEnd)
+      expect(inner).toContain('session-bottom-bar__parts')
+      // Real Talk must sit after the parts toggle in the same wrapper.
+      const partsPos = inner.indexOf('session-bottom-bar__parts')
+      const realTalkPos = inner.indexOf('session-bottom-bar__realtalk')
+      expect(realTalkPos).toBeGreaterThan(partsPos)
+    })
   })
 })

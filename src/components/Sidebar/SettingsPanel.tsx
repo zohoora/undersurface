@@ -316,25 +316,11 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
           </div>
 
 
-          {/* AI Interactions — only show when admin has enabled features */}
-          {(globalConfig?.features?.textHighlights === true || globalConfig?.features?.ghostText === true || globalConfig?.features?.bilateralStimulation === true) && (
+          {globalConfig?.features?.bilateralStimulation === true && (
             <div className="settings-section">
-              <div className="settings-section-label">{t['settings.aiInteractions']}</div>
-              {globalConfig?.features?.textHighlights === true && (
-                <SettingRow label={t['settings.textHighlights']}>
-                  <Toggle checked={settings.textHighlights} onChange={(v) => set('textHighlights', v)} />
-                </SettingRow>
-              )}
-              {globalConfig?.features?.ghostText === true && (
-                <SettingRow label={t['settings.ghostText']}>
-                  <Toggle checked={settings.ghostText} onChange={(v) => set('ghostText', v)} />
-                </SettingRow>
-              )}
-              {globalConfig?.features?.bilateralStimulation === true && (
-                <SettingRow label={t['settings.bilateralStimulation']}>
-                  <Toggle checked={settings.bilateralStimulation} onChange={(v) => set('bilateralStimulation', v)} />
-                </SettingRow>
-              )}
+              <SettingRow label={t['settings.bilateralStimulation']}>
+                <Toggle checked={settings.bilateralStimulation} onChange={(v) => set('bilateralStimulation', v)} />
+              </SettingRow>
             </div>
           )}
 

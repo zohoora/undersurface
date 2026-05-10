@@ -133,20 +133,18 @@ describe('SessionView', () => {
   })
 })
 
-describe('SessionView — unifiedSessionUI bottom bar integration', () => {
+describe('SessionView — unified mode bar (only path)', () => {
   it('imports SessionBottomBar from ./SessionBottomBar', async () => {
     const mod = await import('./SessionBottomBar')
     expect(typeof mod.SessionBottomBar).toBe('function')
   })
 
-  it('imports useGlobalConfig from store/globalConfig', async () => {
-    const mod = await import('../../store/globalConfig')
-    expect(typeof mod.useGlobalConfig).toBe('function')
-  })
-
-  it('SessionView source references unifiedSessionUI flag', async () => {
+  it('SessionView no longer references the legacy unifiedSessionUI flag', async () => {
+    // The flag was removed when unified became the only path. If this fails,
+    // someone resurrected the old branching — collapse it again.
     const src = await import('./SessionView?raw')
-    expect(src.default).toContain('unifiedSessionUI')
+    expect(src.default).not.toContain('unifiedSessionUI')
+    expect(src.default).not.toContain('unifiedUI')
   })
 
   it('SessionView source renders SessionBottomBar', async () => {
@@ -154,10 +152,11 @@ describe('SessionView — unifiedSessionUI bottom bar integration', () => {
     expect(src.default).toContain('SessionBottomBar')
   })
 
-  it('SessionView source gates legacy badge behind !unifiedUI', async () => {
+  it('SessionView no longer renders the legacy session-mode-badge', async () => {
+    // Real Talk now lives only as a switch in the mode bar; the legacy
+    // standalone badge in the header is gone.
     const src = await import('./SessionView?raw')
-    expect(src.default).toContain('!unifiedUI')
-    expect(src.default).toContain('session-mode-badge')
+    expect(src.default).not.toContain('session-mode-badge')
   })
 })
 
@@ -187,9 +186,11 @@ describe('SessionView — recommendation rendering integration', () => {
     expect(src.default).toContain('RecommendationSegments')
   })
 
-  it('SessionMessageBubble source accepts unifiedUI prop', async () => {
+  it('SessionMessageBubble no longer takes the legacy unifiedUI prop', async () => {
+    // Recommendation rendering is now unconditional for therapist messages
+    // since the unified UI is the only path.
     const src = await import('./SessionMessage?raw')
-    expect(src.default).toContain('unifiedUI')
+    expect(src.default).not.toContain('unifiedUI')
   })
 
   it('handleRecommendationTap dispatches real-talk-on to handleRealTalkToggle(true)', async () => {

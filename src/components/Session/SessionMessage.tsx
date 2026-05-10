@@ -4,18 +4,16 @@ import { RecommendationSegments } from './RecommendationSegments'
 
 interface Props {
   message: SessionMessageType
-  unifiedUI?: boolean
   onRecommendationTap?: (target: string) => void
 }
 
 export const SessionMessageBubble = memo(function SessionMessageBubble({
   message,
-  unifiedUI,
   onRecommendationTap,
 }: Props) {
   const isUser = message.speaker === 'user'
   const showRecommendations =
-    unifiedUI === true && !isUser && typeof message.content === 'string' && onRecommendationTap
+    !isUser && typeof message.content === 'string' && onRecommendationTap
 
   return (
     <>

@@ -1243,22 +1243,6 @@ body {
   50% { opacity: 0.6; }
 }
 
-/* ── Fossil Thought (commentary on old entry) ──────────── */
-
-.part-thought.fossil-thought {
-  border-left-style: dotted;
-  opacity: 0.8;
-}
-
-.part-thought.fossil-thought .fossil-label {
-  font-size: 10px;
-  color: var(--text-ghost);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 4px;
-  font-weight: 500;
-}
-
 /* ── Quote Thought (quoting past writing) ──────────────── */
 
 .part-thought.quote-thought .quoted-text {
@@ -1855,37 +1839,6 @@ body {
   60% { opacity: 1; transform: scale(1.0) translateY(2px); }
 }
 
-/* ── Session mode badge (Real Talk header marker) ── */
-
-.session-mode-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 8px 0 12px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-family: 'Inter', sans-serif;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  color: var(--text-secondary);
-  background: rgba(181, 109, 72, 0.08);
-  border: 1px solid rgba(181, 109, 72, 0.18);
-  width: fit-content;
-}
-
-[data-theme="dark"] .session-mode-badge {
-  background: rgba(212, 130, 90, 0.10);
-  border-color: rgba(212, 130, 90, 0.22);
-}
-
-.session-mode-glyph {
-  font-size: 10px;
-  opacity: 0.75;
-  display: inline-block;
-  transform: translateY(-0.5px);
-}
-
 /* ── Session mode bar (sticky-top affordance row) ── */
 
 .session-bottom-bar {
@@ -1927,7 +1880,14 @@ body {
   cursor: not-allowed;
 }
 
-.session-bottom-bar__realtalk {
+.session-bottom-bar__toggles {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.session-bottom-bar__realtalk,
+.session-bottom-bar__parts {
   border: none;
   background: none;
   cursor: pointer;
@@ -1936,9 +1896,19 @@ body {
   padding: 4px 8px;
 }
 
+.session-bottom-bar__realtalk[aria-checked="true"],
+.session-bottom-bar__parts[aria-checked="true"] {
+  font-weight: 500;
+}
+
 .session-bottom-bar__realtalk[aria-checked="true"] {
   color: var(--accent-warm);
-  font-weight: 500;
+}
+
+/* Inner voices uses --text-primary so it's visually distinct from Real
+   Talk's warm-amber active state when both toggles are on. */
+.session-bottom-bar__parts[aria-checked="true"] {
+  color: var(--text-primary);
 }
 
 @keyframes blink {
