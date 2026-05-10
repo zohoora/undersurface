@@ -378,10 +378,12 @@ export function useVoiceSession() {
     if (!dc || dc.readyState !== 'open') return
     try {
       const escaped = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+      // Realtime API default output_modalities is ["audio"]; omit the field
+      // and rely on the session-level audio config. The old `modalities`
+      // shape was rejected by gpt-realtime as an unknown parameter.
       dc.send(JSON.stringify({
         type: 'response.create',
         response: {
-          modalities: ['audio', 'text'],
           instructions: `Say exactly this, slowly and softly with natural pauses, in a calm hypnotic voice. Add nothing. Phrase to speak: "${escaped}"`,
         },
       }))
