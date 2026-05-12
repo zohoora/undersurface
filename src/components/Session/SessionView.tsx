@@ -76,7 +76,12 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, typewriter.displayedContent])
 
-  // Initialize session
+  // Init effect — runs once per sessionId change. Suppressed deps are
+  // `startNewSession`, `typewriter`, `hrv`: all three are useCallback/hook
+  // returns whose reference changes whenever their own internal deps change
+  // (settings, response speed, etc). Including them would re-run session init
+  // on unrelated state churn, which would re-fire the opener LLM call.
+  // The `cancelled` flag below guarantees teardown safety regardless.
   useEffect(() => {
     let cancelled = false
 
@@ -150,6 +155,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         setOpenerError(err instanceof Error ? err.message : 'Failed to start session')
       }
     }
+  // startNewSession runs exactly once per session lifetime (called from init
+  // effect when sessionId is null). Adding `generateTherapistMessage` or
+  // `settings.lastSessionMode` to deps would just rebuild this callback on
+  // unrelated renders without changing its observable behavior.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openingMethod, onSessionCreated, initialMode])
 
@@ -366,14 +375,13 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   }, [isStreaming, inputEditor, session?.status])
 
   // If voice ends while we're on the Speak surface, return to Talk so the user
-  // is not left without input affordances. Deps intentionally only include
-  // voice.state — reading stale `surface` from the closure fails closed.
+  // is not left without input affordances. The guard prevents the effect from
+  // re-firing setSurface on unrelated surface transitions.
   useEffect(() => {
     if (surface === 'speak' && voice.state === 'idle') {
       setSurface('talk')
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voice.state])
+  }, [voice.state, surface])
 
   const isClosed = session?.status === 'closed'
   const canEnd = !isStreaming && messages.length >= 2 && !isClosed
