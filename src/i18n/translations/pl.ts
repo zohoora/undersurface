@@ -182,6 +182,94 @@ const pl = {
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
 
   'echo.label': 'Przeszłość',
+
+  // Bilateral stimulation
+  'settings.bilateralStimulation': 'Rytm bilateralny',
+
+  // Body map
+  'bodyMap.title': 'Ciało',
+  'bodyMap.dormant': 'Pisz. Wezmę kształt.',
+  'bodyMap.region.head': 'Głowa',
+  'bodyMap.region.eyes': 'Oczy',
+  'bodyMap.region.throat': 'Gardło',
+  'bodyMap.region.chest': 'Klatka piersiowa',
+  'bodyMap.region.stomach': 'Brzuch',
+  'bodyMap.region.shoulders': 'Barki',
+  'bodyMap.region.hands': 'Dłonie',
+  'bodyMap.region.back': 'Plecy',
+  'bodyMap.region.hips': 'Biodra',
+  'bodyMap.region.legs': 'Nogi i stopy',
+
+  // Session bottom bar
+  'session.bottomBar.relax': 'Wyciszenie',
+
+  // Relax mode — settings
+  'relax.settings.title': 'Ułóż się',
+  'relax.settings.duration.label': 'Czas',
+  'relax.settings.duration.5': '5 min',
+  'relax.settings.duration.10': '10 min',
+  'relax.settings.duration.20': '20 min',
+  'relax.settings.type.label': 'Praktyka',
+  'relax.settings.type.breathwork': 'Praca z oddechem',
+  'relax.settings.type.body_scan': 'Skanowanie ciała',
+  'relax.settings.type.safe_place': 'Bezpieczne miejsce',
+  'relax.settings.type.open_awareness': 'Otwarta świadomość',
+  'relax.settings.audio.label': 'Tło',
+  'relax.settings.audio.none': 'Cisza',
+  'relax.settings.audio.ocean': 'Ocean',
+  'relax.settings.audio.forest': 'Las',
+  'relax.settings.audio.drone': 'Drone',
+  'relax.settings.audio.binaural': 'Binauralny',
+  'relax.settings.audio.custom': 'Własny',
+  'relax.settings.audio.volume': 'Głośność',
+  'relax.settings.audio.promptLabel': 'Opisz dźwięk',
+  'relax.settings.audio.promptPlaceholder': 'deszcz na blaszanym dachu z odległymi grzmotami',
+  'relax.settings.audio.promptHelp': 'Do 200 znaków. Tworzy 30-sekundową pętlę.',
+  'relax.settings.audio.generate': 'Generuj',
+  'relax.settings.audio.generating': 'Tworzę…',
+  'relax.settings.audio.ready': 'Gotowe',
+  'relax.settings.audio.cached': 'Użyte ponownie',
+  'relax.settings.audio.error.network': 'Nie udało się połączyć z usługą dźwiękową.',
+  'relax.settings.audio.error.rateLimit': 'Ostatnio za dużo dźwięków. Wybierz preset albo poczekaj chwilę.',
+  'relax.settings.audio.error.provider': 'Nie udało się stworzyć tego dźwięku. Spróbuj innych słów.',
+  'relax.settings.audio.error.validation': 'Ten opis nie jest obsługiwany. Krótko i konkretnie.',
+  'relax.settings.audio.error.retry': 'Spróbuj ponownie',
+  'relax.settings.audio.preset.rain': 'Deszcz na blaszanym dachu',
+  'relax.settings.audio.preset.forest': 'Strumień leśny',
+  'relax.settings.audio.preset.thunder': 'Odległe grzmoty',
+  'relax.settings.audio.preset.cave': 'Morska jaskinia',
+  'relax.settings.voice.label': 'Głos prowadzący',
+  'relax.settings.voice.on': 'Włączony',
+  'relax.settings.voice.off': 'Wyłączony',
+  'relax.settings.visual.label': 'Wizualne',
+  'relax.settings.visual.full': 'Pełne',
+  'relax.settings.visual.minimal': 'Minimalne',
+  'relax.settings.visual.off': 'Wyłączone',
+  'relax.settings.cancel': 'Wstecz',
+  'relax.settings.begin': 'Zaczynamy',
+
+  // Relax mode — controls
+  'relax.controls.muteAudio': 'Wycisz dźwięk',
+  'relax.controls.unmuteAudio': 'Włącz dźwięk',
+  'relax.controls.muteVoice': 'Wycisz głos',
+  'relax.controls.unmuteVoice': 'Włącz głos',
+  'relax.controls.cycleVisual': 'Zmień widok',
+  'relax.controls.end': 'Zakończ sesję',
+
+  // Relax mode — summary
+  'relax.summary.title': 'Koniec',
+  'relax.summary.minutes': 'minuty',
+  'relax.summary.subtitle': 'Kiedy będziesz gotowy.',
+  'relax.summary.completed': 'Kiedy będziesz gotowy.',
+
+  // Relax mode — calibrating
+  'relax.calibrating.title': 'Wycisz się',
+  'relax.calibrating.subtitle': 'Czytam twój sygnał. To zajmuje około pół minuty.',
+  'relax.calibrating.skip': 'Pomiń',
+
+  // Relax mode — biometrics
+  'relax.biometrics.enable': 'Włącz biometrię',
+  'relax.biometrics.stop': 'Zatrzymaj',
 } as const
 
 export default pl

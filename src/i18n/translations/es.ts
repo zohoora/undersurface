@@ -182,6 +182,94 @@ const es = {
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
 
   'echo.label': 'El Pasado',
+
+  // Bilateral stimulation
+  'settings.bilateralStimulation': 'Ritmo bilateral',
+
+  // Body map
+  'bodyMap.title': 'Cuerpo',
+  'bodyMap.dormant': 'Escribe. Tomaré forma.',
+  'bodyMap.region.head': 'Cabeza',
+  'bodyMap.region.eyes': 'Ojos',
+  'bodyMap.region.throat': 'Garganta',
+  'bodyMap.region.chest': 'Pecho',
+  'bodyMap.region.stomach': 'Estómago',
+  'bodyMap.region.shoulders': 'Hombros',
+  'bodyMap.region.hands': 'Manos',
+  'bodyMap.region.back': 'Espalda',
+  'bodyMap.region.hips': 'Caderas',
+  'bodyMap.region.legs': 'Piernas y pies',
+
+  // Session bottom bar
+  'session.bottomBar.relax': 'Relajar',
+
+  // Relax mode — settings
+  'relax.settings.title': 'Acomódate',
+  'relax.settings.duration.label': 'Duración',
+  'relax.settings.duration.5': '5 min',
+  'relax.settings.duration.10': '10 min',
+  'relax.settings.duration.20': '20 min',
+  'relax.settings.type.label': 'Práctica',
+  'relax.settings.type.breathwork': 'Respiración',
+  'relax.settings.type.body_scan': 'Escaneo corporal',
+  'relax.settings.type.safe_place': 'Lugar seguro',
+  'relax.settings.type.open_awareness': 'Conciencia abierta',
+  'relax.settings.audio.label': 'Fondo',
+  'relax.settings.audio.none': 'Silencio',
+  'relax.settings.audio.ocean': 'Océano',
+  'relax.settings.audio.forest': 'Bosque',
+  'relax.settings.audio.drone': 'Drone',
+  'relax.settings.audio.binaural': 'Binaural',
+  'relax.settings.audio.custom': 'Personalizado',
+  'relax.settings.audio.volume': 'Volumen',
+  'relax.settings.audio.promptLabel': 'Describe el sonido',
+  'relax.settings.audio.promptPlaceholder': 'lluvia sobre techo de zinc con truenos lejanos',
+  'relax.settings.audio.promptHelp': 'Hasta 200 caracteres. Genera un bucle de 30 segundos.',
+  'relax.settings.audio.generate': 'Generar',
+  'relax.settings.audio.generating': 'Componiendo…',
+  'relax.settings.audio.ready': 'Listo',
+  'relax.settings.audio.cached': 'Reutilizado',
+  'relax.settings.audio.error.network': 'No se pudo conectar con el servicio de sonidos.',
+  'relax.settings.audio.error.rateLimit': 'Demasiados paisajes sonoros últimamente. Prueba un preestablecido o espera un poco.',
+  'relax.settings.audio.error.provider': 'No se pudo generar ese paisaje sonoro. Prueba otras palabras.',
+  'relax.settings.audio.error.validation': 'Esa descripción no es compatible. Manténla breve y descriptiva.',
+  'relax.settings.audio.error.retry': 'Reintentar',
+  'relax.settings.audio.preset.rain': 'Lluvia sobre techo de zinc',
+  'relax.settings.audio.preset.forest': 'Arroyo del bosque',
+  'relax.settings.audio.preset.thunder': 'Trueno lejano',
+  'relax.settings.audio.preset.cave': 'Cueva marina',
+  'relax.settings.voice.label': 'Guía vocal',
+  'relax.settings.voice.on': 'Activada',
+  'relax.settings.voice.off': 'Desactivada',
+  'relax.settings.visual.label': 'Visual',
+  'relax.settings.visual.full': 'Completo',
+  'relax.settings.visual.minimal': 'Mínimo',
+  'relax.settings.visual.off': 'Apagado',
+  'relax.settings.cancel': 'Atrás',
+  'relax.settings.begin': 'Comenzar',
+
+  // Relax mode — controls
+  'relax.controls.muteAudio': 'Silenciar audio',
+  'relax.controls.unmuteAudio': 'Activar audio',
+  'relax.controls.muteVoice': 'Silenciar voz',
+  'relax.controls.unmuteVoice': 'Activar voz',
+  'relax.controls.cycleVisual': 'Cambiar visual',
+  'relax.controls.end': 'Finalizar sesión',
+
+  // Relax mode — summary
+  'relax.summary.title': 'Listo',
+  'relax.summary.minutes': 'minutos',
+  'relax.summary.subtitle': 'Cuando estés listo.',
+  'relax.summary.completed': 'Cuando estés listo.',
+
+  // Relax mode — calibrating
+  'relax.calibrating.title': 'Asentando',
+  'relax.calibrating.subtitle': 'Leyendo tu señal. Toma alrededor de medio minuto.',
+  'relax.calibrating.skip': 'Saltar',
+
+  // Relax mode — biometrics
+  'relax.biometrics.enable': 'Activar biometría',
+  'relax.biometrics.stop': 'Detener',
 } as const
 
 export default es

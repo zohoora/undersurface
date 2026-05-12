@@ -182,6 +182,94 @@ const zh = {
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
 
   'echo.label': '过去',
+
+  // Bilateral stimulation
+  'settings.bilateralStimulation': '双侧节奏',
+
+  // Body map
+  'bodyMap.title': '身体',
+  'bodyMap.dormant': '写吧，我会慢慢成形。',
+  'bodyMap.region.head': '头',
+  'bodyMap.region.eyes': '眼',
+  'bodyMap.region.throat': '喉咙',
+  'bodyMap.region.chest': '胸',
+  'bodyMap.region.stomach': '腹',
+  'bodyMap.region.shoulders': '肩',
+  'bodyMap.region.hands': '手',
+  'bodyMap.region.back': '背',
+  'bodyMap.region.hips': '臀',
+  'bodyMap.region.legs': '腿与脚',
+
+  // Session bottom bar
+  'session.bottomBar.relax': '放松',
+
+  // Relax mode — settings
+  'relax.settings.title': '安顿下来',
+  'relax.settings.duration.label': '时长',
+  'relax.settings.duration.5': '5分钟',
+  'relax.settings.duration.10': '10分钟',
+  'relax.settings.duration.20': '20分钟',
+  'relax.settings.type.label': '练习',
+  'relax.settings.type.breathwork': '呼吸练习',
+  'relax.settings.type.body_scan': '身体扫描',
+  'relax.settings.type.safe_place': '安全之地',
+  'relax.settings.type.open_awareness': '开放觉知',
+  'relax.settings.audio.label': '背景',
+  'relax.settings.audio.none': '静默',
+  'relax.settings.audio.ocean': '海洋',
+  'relax.settings.audio.forest': '森林',
+  'relax.settings.audio.drone': '低频',
+  'relax.settings.audio.binaural': '双耳节拍',
+  'relax.settings.audio.custom': '自定义',
+  'relax.settings.audio.volume': '音量',
+  'relax.settings.audio.promptLabel': '描述声音',
+  'relax.settings.audio.promptPlaceholder': '雨打铁皮屋顶，远处隐约的雷声',
+  'relax.settings.audio.promptHelp': '不超过200字。生成30秒循环。',
+  'relax.settings.audio.generate': '生成',
+  'relax.settings.audio.generating': '正在生成…',
+  'relax.settings.audio.ready': '已就绪',
+  'relax.settings.audio.cached': '复用先前',
+  'relax.settings.audio.error.network': '无法连接声音服务。',
+  'relax.settings.audio.error.rateLimit': '最近生成得太多了。试试预设，或稍等一会儿。',
+  'relax.settings.audio.error.provider': '没能生成那段声音。换些词试试。',
+  'relax.settings.audio.error.validation': '这段描述不支持。请简短而具体。',
+  'relax.settings.audio.error.retry': '重试',
+  'relax.settings.audio.preset.rain': '雨打铁皮屋顶',
+  'relax.settings.audio.preset.forest': '林间溪流',
+  'relax.settings.audio.preset.thunder': '远处的雷声',
+  'relax.settings.audio.preset.cave': '海蚀洞',
+  'relax.settings.voice.label': '语音引导',
+  'relax.settings.voice.on': '开',
+  'relax.settings.voice.off': '关',
+  'relax.settings.visual.label': '画面',
+  'relax.settings.visual.full': '完整',
+  'relax.settings.visual.minimal': '极简',
+  'relax.settings.visual.off': '关闭',
+  'relax.settings.cancel': '返回',
+  'relax.settings.begin': '开始',
+
+  // Relax mode — controls
+  'relax.controls.muteAudio': '静音背景声',
+  'relax.controls.unmuteAudio': '恢复背景声',
+  'relax.controls.muteVoice': '静音语音',
+  'relax.controls.unmuteVoice': '恢复语音',
+  'relax.controls.cycleVisual': '切换画面',
+  'relax.controls.end': '结束会话',
+
+  // Relax mode — summary
+  'relax.summary.title': '完成',
+  'relax.summary.minutes': '分钟',
+  'relax.summary.subtitle': '你准备好了，再继续。',
+  'relax.summary.completed': '你准备好了，再继续。',
+
+  // Relax mode — calibrating
+  'relax.calibrating.title': '稳定中',
+  'relax.calibrating.subtitle': '正在读取你的信号，大约半分钟。',
+  'relax.calibrating.skip': '跳过',
+
+  // Relax mode — biometrics
+  'relax.biometrics.enable': '启用生物指标',
+  'relax.biometrics.stop': '停止',
 } as const
 
 export default zh

@@ -182,6 +182,94 @@ const nl = {
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
 
   'echo.label': 'Het Verleden',
+
+  // Bilateral stimulation
+  'settings.bilateralStimulation': 'Bilateraal ritme',
+
+  // Body map
+  'bodyMap.title': 'Lichaam',
+  'bodyMap.dormant': 'Schrijf maar. Ik krijg vorm.',
+  'bodyMap.region.head': 'Hoofd',
+  'bodyMap.region.eyes': 'Ogen',
+  'bodyMap.region.throat': 'Keel',
+  'bodyMap.region.chest': 'Borst',
+  'bodyMap.region.stomach': 'Buik',
+  'bodyMap.region.shoulders': 'Schouders',
+  'bodyMap.region.hands': 'Handen',
+  'bodyMap.region.back': 'Rug',
+  'bodyMap.region.hips': 'Heupen',
+  'bodyMap.region.legs': 'Benen en voeten',
+
+  // Session bottom bar
+  'session.bottomBar.relax': 'Ontspannen',
+
+  // Relax mode — settings
+  'relax.settings.title': 'Kom tot rust',
+  'relax.settings.duration.label': 'Duur',
+  'relax.settings.duration.5': '5 min',
+  'relax.settings.duration.10': '10 min',
+  'relax.settings.duration.20': '20 min',
+  'relax.settings.type.label': 'Oefening',
+  'relax.settings.type.breathwork': 'Ademwerk',
+  'relax.settings.type.body_scan': 'Bodyscan',
+  'relax.settings.type.safe_place': 'Veilige plek',
+  'relax.settings.type.open_awareness': 'Open gewaarzijn',
+  'relax.settings.audio.label': 'Achtergrond',
+  'relax.settings.audio.none': 'Stilte',
+  'relax.settings.audio.ocean': 'Oceaan',
+  'relax.settings.audio.forest': 'Bos',
+  'relax.settings.audio.drone': 'Drone',
+  'relax.settings.audio.binaural': 'Binauraal',
+  'relax.settings.audio.custom': 'Eigen',
+  'relax.settings.audio.volume': 'Volume',
+  'relax.settings.audio.promptLabel': 'Beschrijf het geluid',
+  'relax.settings.audio.promptPlaceholder': 'regen op een blikken dak met onweer in de verte',
+  'relax.settings.audio.promptHelp': 'Tot 200 tekens. Genereert een lus van 30 seconden.',
+  'relax.settings.audio.generate': 'Genereren',
+  'relax.settings.audio.generating': 'Componeren…',
+  'relax.settings.audio.ready': 'Klaar',
+  'relax.settings.audio.cached': 'Opnieuw gebruikt',
+  'relax.settings.audio.error.network': 'Kon de geluidsservice niet bereiken.',
+  'relax.settings.audio.error.rateLimit': 'Te veel klanklandschappen recent. Probeer een preset of wacht even.',
+  'relax.settings.audio.error.provider': 'Dat klanklandschap kon ik niet maken. Probeer andere woorden.',
+  'relax.settings.audio.error.validation': 'Die beschrijving wordt niet ondersteund. Houd het kort en beschrijvend.',
+  'relax.settings.audio.error.retry': 'Opnieuw',
+  'relax.settings.audio.preset.rain': 'Regen op blikken dak',
+  'relax.settings.audio.preset.forest': 'Bosbeek',
+  'relax.settings.audio.preset.thunder': 'Onweer in de verte',
+  'relax.settings.audio.preset.cave': 'Zeegrot',
+  'relax.settings.voice.label': 'Stembegeleiding',
+  'relax.settings.voice.on': 'Aan',
+  'relax.settings.voice.off': 'Uit',
+  'relax.settings.visual.label': 'Beeld',
+  'relax.settings.visual.full': 'Vol',
+  'relax.settings.visual.minimal': 'Minimaal',
+  'relax.settings.visual.off': 'Uit',
+  'relax.settings.cancel': 'Terug',
+  'relax.settings.begin': 'Beginnen',
+
+  // Relax mode — controls
+  'relax.controls.muteAudio': 'Geluid dempen',
+  'relax.controls.unmuteAudio': 'Geluid aan',
+  'relax.controls.muteVoice': 'Stem dempen',
+  'relax.controls.unmuteVoice': 'Stem aan',
+  'relax.controls.cycleVisual': 'Beeld wisselen',
+  'relax.controls.end': 'Sessie beëindigen',
+
+  // Relax mode — summary
+  'relax.summary.title': 'Klaar',
+  'relax.summary.minutes': 'minuten',
+  'relax.summary.subtitle': 'Wanneer je er klaar voor bent.',
+  'relax.summary.completed': 'Wanneer je er klaar voor bent.',
+
+  // Relax mode — calibrating
+  'relax.calibrating.title': 'Kom tot rust',
+  'relax.calibrating.subtitle': 'Ik lees je signaal. Duurt ongeveer een halve minuut.',
+  'relax.calibrating.skip': 'Overslaan',
+
+  // Relax mode — biometrics
+  'relax.biometrics.enable': 'Biometrie aan',
+  'relax.biometrics.stop': 'Stop',
 } as const
 
 export default nl

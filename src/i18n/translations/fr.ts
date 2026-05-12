@@ -182,6 +182,94 @@ const fr = {
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
 
   'echo.label': 'Le Passé',
+
+  // Bilateral stimulation
+  'settings.bilateralStimulation': 'Rythme bilatéral',
+
+  // Body map
+  'bodyMap.title': 'Corps',
+  'bodyMap.dormant': 'Écris. Je prendrai forme.',
+  'bodyMap.region.head': 'Tête',
+  'bodyMap.region.eyes': 'Yeux',
+  'bodyMap.region.throat': 'Gorge',
+  'bodyMap.region.chest': 'Poitrine',
+  'bodyMap.region.stomach': 'Ventre',
+  'bodyMap.region.shoulders': 'Épaules',
+  'bodyMap.region.hands': 'Mains',
+  'bodyMap.region.back': 'Dos',
+  'bodyMap.region.hips': 'Hanches',
+  'bodyMap.region.legs': 'Jambes et pieds',
+
+  // Session bottom bar
+  'session.bottomBar.relax': 'Détente',
+
+  // Relax mode — settings
+  'relax.settings.title': 'Installe-toi',
+  'relax.settings.duration.label': 'Durée',
+  'relax.settings.duration.5': '5 min',
+  'relax.settings.duration.10': '10 min',
+  'relax.settings.duration.20': '20 min',
+  'relax.settings.type.label': 'Pratique',
+  'relax.settings.type.breathwork': 'Souffle',
+  'relax.settings.type.body_scan': 'Scan corporel',
+  'relax.settings.type.safe_place': 'Lieu sûr',
+  'relax.settings.type.open_awareness': 'Conscience ouverte',
+  'relax.settings.audio.label': 'Fond sonore',
+  'relax.settings.audio.none': 'Silence',
+  'relax.settings.audio.ocean': 'Océan',
+  'relax.settings.audio.forest': 'Forêt',
+  'relax.settings.audio.drone': 'Drone',
+  'relax.settings.audio.binaural': 'Binaural',
+  'relax.settings.audio.custom': 'Personnalisé',
+  'relax.settings.audio.volume': 'Volume',
+  'relax.settings.audio.promptLabel': 'Décris le son',
+  'relax.settings.audio.promptPlaceholder': 'pluie sur un toit de tôle avec tonnerre lointain',
+  'relax.settings.audio.promptHelp': 'Jusqu\'à 200 caractères. Génère une boucle de 30 secondes.',
+  'relax.settings.audio.generate': 'Générer',
+  'relax.settings.audio.generating': 'Composition…',
+  'relax.settings.audio.ready': 'Prêt',
+  'relax.settings.audio.cached': 'Réutilisé',
+  'relax.settings.audio.error.network': 'Impossible de joindre le service sonore.',
+  'relax.settings.audio.error.rateLimit': 'Trop de paysages sonores récemment. Essaie un préréglage, ou attends un peu.',
+  'relax.settings.audio.error.provider': 'Impossible de générer ce paysage sonore. Essaie d\'autres mots.',
+  'relax.settings.audio.error.validation': 'Cette description n\'est pas prise en charge. Reste bref et descriptif.',
+  'relax.settings.audio.error.retry': 'Réessayer',
+  'relax.settings.audio.preset.rain': 'Pluie sur toit de tôle',
+  'relax.settings.audio.preset.forest': 'Ruisseau de forêt',
+  'relax.settings.audio.preset.thunder': 'Tonnerre lointain',
+  'relax.settings.audio.preset.cave': 'Grotte marine',
+  'relax.settings.voice.label': 'Voix guide',
+  'relax.settings.voice.on': 'Activée',
+  'relax.settings.voice.off': 'Désactivée',
+  'relax.settings.visual.label': 'Visuel',
+  'relax.settings.visual.full': 'Complet',
+  'relax.settings.visual.minimal': 'Minimal',
+  'relax.settings.visual.off': 'Éteint',
+  'relax.settings.cancel': 'Retour',
+  'relax.settings.begin': 'Commencer',
+
+  // Relax mode — controls
+  'relax.controls.muteAudio': 'Couper le son',
+  'relax.controls.unmuteAudio': 'Activer le son',
+  'relax.controls.muteVoice': 'Couper la voix',
+  'relax.controls.unmuteVoice': 'Activer la voix',
+  'relax.controls.cycleVisual': 'Changer le visuel',
+  'relax.controls.end': 'Terminer la séance',
+
+  // Relax mode — summary
+  'relax.summary.title': 'Terminé',
+  'relax.summary.minutes': 'minutes',
+  'relax.summary.subtitle': 'Quand tu es prêt.',
+  'relax.summary.completed': 'Quand tu es prêt.',
+
+  // Relax mode — calibrating
+  'relax.calibrating.title': 'On s\'installe',
+  'relax.calibrating.subtitle': 'Je lis ton signal. Cela prend environ une demi-minute.',
+  'relax.calibrating.skip': 'Passer',
+
+  // Relax mode — biometrics
+  'relax.biometrics.enable': 'Activer la biométrie',
+  'relax.biometrics.stop': 'Arrêter',
 } as const
 
 export default fr

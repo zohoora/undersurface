@@ -182,6 +182,94 @@ const ru = {
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
 
   'echo.label': 'Прошлое',
+
+  // Bilateral stimulation
+  'settings.bilateralStimulation': 'Билатеральный ритм',
+
+  // Body map
+  'bodyMap.title': 'Тело',
+  'bodyMap.dormant': 'Пиши. Я обрету форму.',
+  'bodyMap.region.head': 'Голова',
+  'bodyMap.region.eyes': 'Глаза',
+  'bodyMap.region.throat': 'Горло',
+  'bodyMap.region.chest': 'Грудь',
+  'bodyMap.region.stomach': 'Живот',
+  'bodyMap.region.shoulders': 'Плечи',
+  'bodyMap.region.hands': 'Руки',
+  'bodyMap.region.back': 'Спина',
+  'bodyMap.region.hips': 'Бёдра',
+  'bodyMap.region.legs': 'Ноги и стопы',
+
+  // Session bottom bar
+  'session.bottomBar.relax': 'Расслабление',
+
+  // Relax mode — settings
+  'relax.settings.title': 'Устройся',
+  'relax.settings.duration.label': 'Длительность',
+  'relax.settings.duration.5': '5 мин',
+  'relax.settings.duration.10': '10 мин',
+  'relax.settings.duration.20': '20 мин',
+  'relax.settings.type.label': 'Практика',
+  'relax.settings.type.breathwork': 'Дыхание',
+  'relax.settings.type.body_scan': 'Сканирование тела',
+  'relax.settings.type.safe_place': 'Безопасное место',
+  'relax.settings.type.open_awareness': 'Открытое внимание',
+  'relax.settings.audio.label': 'Фон',
+  'relax.settings.audio.none': 'Тишина',
+  'relax.settings.audio.ocean': 'Океан',
+  'relax.settings.audio.forest': 'Лес',
+  'relax.settings.audio.drone': 'Дрон',
+  'relax.settings.audio.binaural': 'Бинауральный',
+  'relax.settings.audio.custom': 'Свой',
+  'relax.settings.audio.volume': 'Громкость',
+  'relax.settings.audio.promptLabel': 'Опиши звук',
+  'relax.settings.audio.promptPlaceholder': 'дождь по жестяной крыше с далёким громом',
+  'relax.settings.audio.promptHelp': 'До 200 символов. Создаёт 30-секундный цикл.',
+  'relax.settings.audio.generate': 'Создать',
+  'relax.settings.audio.generating': 'Создаю…',
+  'relax.settings.audio.ready': 'Готово',
+  'relax.settings.audio.cached': 'Использую старое',
+  'relax.settings.audio.error.network': 'Не удалось связаться со звуковой службой.',
+  'relax.settings.audio.error.rateLimit': 'Слишком много звуков за последнее время. Попробуй пресет или подожди немного.',
+  'relax.settings.audio.error.provider': 'Не получилось создать этот звук. Попробуй другие слова.',
+  'relax.settings.audio.error.validation': 'Такое описание не поддерживается. Кратко и по делу.',
+  'relax.settings.audio.error.retry': 'Ещё раз',
+  'relax.settings.audio.preset.rain': 'Дождь по жестяной крыше',
+  'relax.settings.audio.preset.forest': 'Лесной ручей',
+  'relax.settings.audio.preset.thunder': 'Далёкий гром',
+  'relax.settings.audio.preset.cave': 'Морской грот',
+  'relax.settings.voice.label': 'Голос-проводник',
+  'relax.settings.voice.on': 'Вкл.',
+  'relax.settings.voice.off': 'Выкл.',
+  'relax.settings.visual.label': 'Визуальное',
+  'relax.settings.visual.full': 'Полно',
+  'relax.settings.visual.minimal': 'Минимум',
+  'relax.settings.visual.off': 'Выкл.',
+  'relax.settings.cancel': 'Назад',
+  'relax.settings.begin': 'Начать',
+
+  // Relax mode — controls
+  'relax.controls.muteAudio': 'Заглушить звук',
+  'relax.controls.unmuteAudio': 'Включить звук',
+  'relax.controls.muteVoice': 'Заглушить голос',
+  'relax.controls.unmuteVoice': 'Включить голос',
+  'relax.controls.cycleVisual': 'Сменить визуал',
+  'relax.controls.end': 'Завершить сеанс',
+
+  // Relax mode — summary
+  'relax.summary.title': 'Готово',
+  'relax.summary.minutes': 'минут',
+  'relax.summary.subtitle': 'Когда будешь готов.',
+  'relax.summary.completed': 'Когда будешь готов.',
+
+  // Relax mode — calibrating
+  'relax.calibrating.title': 'Усаживаюсь',
+  'relax.calibrating.subtitle': 'Считываю сигнал. Это занимает около полминуты.',
+  'relax.calibrating.skip': 'Пропустить',
+
+  // Relax mode — biometrics
+  'relax.biometrics.enable': 'Включить биометрию',
+  'relax.biometrics.stop': 'Стоп',
 } as const
 
 export default ru

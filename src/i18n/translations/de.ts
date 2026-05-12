@@ -182,6 +182,94 @@ const de = {
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
 
   'echo.label': 'Die Vergangenheit',
+
+  // Bilateral stimulation
+  'settings.bilateralStimulation': 'Bilateraler Rhythmus',
+
+  // Body map
+  'bodyMap.title': 'Körper',
+  'bodyMap.dormant': 'Schreib. Ich nehme Gestalt an.',
+  'bodyMap.region.head': 'Kopf',
+  'bodyMap.region.eyes': 'Augen',
+  'bodyMap.region.throat': 'Hals',
+  'bodyMap.region.chest': 'Brust',
+  'bodyMap.region.stomach': 'Bauch',
+  'bodyMap.region.shoulders': 'Schultern',
+  'bodyMap.region.hands': 'Hände',
+  'bodyMap.region.back': 'Rücken',
+  'bodyMap.region.hips': 'Hüften',
+  'bodyMap.region.legs': 'Beine & Füße',
+
+  // Session bottom bar
+  'session.bottomBar.relax': 'Entspannen',
+
+  // Relax mode — settings
+  'relax.settings.title': 'Komm an',
+  'relax.settings.duration.label': 'Dauer',
+  'relax.settings.duration.5': '5 Min.',
+  'relax.settings.duration.10': '10 Min.',
+  'relax.settings.duration.20': '20 Min.',
+  'relax.settings.type.label': 'Übung',
+  'relax.settings.type.breathwork': 'Atemarbeit',
+  'relax.settings.type.body_scan': 'Körperreise',
+  'relax.settings.type.safe_place': 'Sicherer Ort',
+  'relax.settings.type.open_awareness': 'Offenes Gewahrsein',
+  'relax.settings.audio.label': 'Hintergrund',
+  'relax.settings.audio.none': 'Stille',
+  'relax.settings.audio.ocean': 'Meer',
+  'relax.settings.audio.forest': 'Wald',
+  'relax.settings.audio.drone': 'Drone',
+  'relax.settings.audio.binaural': 'Binaural',
+  'relax.settings.audio.custom': 'Eigene',
+  'relax.settings.audio.volume': 'Lautstärke',
+  'relax.settings.audio.promptLabel': 'Beschreibe den Klang',
+  'relax.settings.audio.promptPlaceholder': 'Regen auf Blechdach mit fernem Donner',
+  'relax.settings.audio.promptHelp': 'Bis zu 200 Zeichen. Erzeugt eine 30-sekündige Schleife.',
+  'relax.settings.audio.generate': 'Erzeugen',
+  'relax.settings.audio.generating': 'Komponiert…',
+  'relax.settings.audio.ready': 'Bereit',
+  'relax.settings.audio.cached': 'Wiederverwendet',
+  'relax.settings.audio.error.network': 'Der Klangdienst war nicht erreichbar.',
+  'relax.settings.audio.error.rateLimit': 'Zu viele Klanglandschaften in letzter Zeit. Probier eine Voreinstellung oder warte kurz.',
+  'relax.settings.audio.error.provider': 'Diese Klanglandschaft ließ sich nicht erzeugen. Versuch andere Worte.',
+  'relax.settings.audio.error.validation': 'Diese Eingabe wird nicht unterstützt. Halte sie kurz und beschreibend.',
+  'relax.settings.audio.error.retry': 'Erneut versuchen',
+  'relax.settings.audio.preset.rain': 'Regen auf Blechdach',
+  'relax.settings.audio.preset.forest': 'Waldbach',
+  'relax.settings.audio.preset.thunder': 'Ferner Donner',
+  'relax.settings.audio.preset.cave': 'Meereshöhle',
+  'relax.settings.voice.label': 'Sprachführung',
+  'relax.settings.voice.on': 'An',
+  'relax.settings.voice.off': 'Aus',
+  'relax.settings.visual.label': 'Visuell',
+  'relax.settings.visual.full': 'Voll',
+  'relax.settings.visual.minimal': 'Minimal',
+  'relax.settings.visual.off': 'Aus',
+  'relax.settings.cancel': 'Zurück',
+  'relax.settings.begin': 'Beginnen',
+
+  // Relax mode — controls
+  'relax.controls.muteAudio': 'Klang stumm',
+  'relax.controls.unmuteAudio': 'Klang an',
+  'relax.controls.muteVoice': 'Stimme stumm',
+  'relax.controls.unmuteVoice': 'Stimme an',
+  'relax.controls.cycleVisual': 'Visuell wechseln',
+  'relax.controls.end': 'Sitzung beenden',
+
+  // Relax mode — summary
+  'relax.summary.title': 'Fertig',
+  'relax.summary.minutes': 'Minuten',
+  'relax.summary.subtitle': 'Wann immer du bereit bist.',
+  'relax.summary.completed': 'Wann immer du bereit bist.',
+
+  // Relax mode — calibrating
+  'relax.calibrating.title': 'Ankommen',
+  'relax.calibrating.subtitle': 'Ich lese dein Signal. Das dauert etwa eine halbe Minute.',
+  'relax.calibrating.skip': 'Überspringen',
+
+  // Relax mode — biometrics
+  'relax.biometrics.enable': 'Biometrie aktivieren',
+  'relax.biometrics.stop': 'Stopp',
 } as const
 
 export default de

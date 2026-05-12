@@ -182,6 +182,94 @@ const vi = {
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
 
   'echo.label': 'Quá Khứ',
+
+  // Bilateral stimulation
+  'settings.bilateralStimulation': 'Nhịp hai bên',
+
+  // Body map
+  'bodyMap.title': 'Cơ thể',
+  'bodyMap.dormant': 'Hãy viết. Mình sẽ thành hình.',
+  'bodyMap.region.head': 'Đầu',
+  'bodyMap.region.eyes': 'Mắt',
+  'bodyMap.region.throat': 'Cổ họng',
+  'bodyMap.region.chest': 'Ngực',
+  'bodyMap.region.stomach': 'Bụng',
+  'bodyMap.region.shoulders': 'Vai',
+  'bodyMap.region.hands': 'Bàn tay',
+  'bodyMap.region.back': 'Lưng',
+  'bodyMap.region.hips': 'Hông',
+  'bodyMap.region.legs': 'Chân và bàn chân',
+
+  // Session bottom bar
+  'session.bottomBar.relax': 'Thư giãn',
+
+  // Relax mode — settings
+  'relax.settings.title': 'Ngồi yên',
+  'relax.settings.duration.label': 'Thời lượng',
+  'relax.settings.duration.5': '5 phút',
+  'relax.settings.duration.10': '10 phút',
+  'relax.settings.duration.20': '20 phút',
+  'relax.settings.type.label': 'Thực hành',
+  'relax.settings.type.breathwork': 'Thở',
+  'relax.settings.type.body_scan': 'Quét cơ thể',
+  'relax.settings.type.safe_place': 'Nơi an toàn',
+  'relax.settings.type.open_awareness': 'Tỉnh thức rộng mở',
+  'relax.settings.audio.label': 'Nền',
+  'relax.settings.audio.none': 'Im lặng',
+  'relax.settings.audio.ocean': 'Đại dương',
+  'relax.settings.audio.forest': 'Rừng',
+  'relax.settings.audio.drone': 'Drone',
+  'relax.settings.audio.binaural': 'Binaural',
+  'relax.settings.audio.custom': 'Tuỳ chỉnh',
+  'relax.settings.audio.volume': 'Âm lượng',
+  'relax.settings.audio.promptLabel': 'Mô tả âm thanh',
+  'relax.settings.audio.promptPlaceholder': 'mưa trên mái tôn cùng tiếng sấm xa',
+  'relax.settings.audio.promptHelp': 'Tối đa 200 ký tự. Tạo vòng lặp 30 giây.',
+  'relax.settings.audio.generate': 'Tạo',
+  'relax.settings.audio.generating': 'Đang tạo…',
+  'relax.settings.audio.ready': 'Sẵn sàng',
+  'relax.settings.audio.cached': 'Dùng lại',
+  'relax.settings.audio.error.network': 'Không kết nối được dịch vụ âm thanh.',
+  'relax.settings.audio.error.rateLimit': 'Tạo quá nhiều âm thanh gần đây. Thử một bản có sẵn, hoặc chờ chút.',
+  'relax.settings.audio.error.provider': 'Không tạo được âm thanh đó. Thử từ khác nhé.',
+  'relax.settings.audio.error.validation': 'Mô tả đó chưa được hỗ trợ. Hãy ngắn và rõ ràng.',
+  'relax.settings.audio.error.retry': 'Thử lại',
+  'relax.settings.audio.preset.rain': 'Mưa trên mái tôn',
+  'relax.settings.audio.preset.forest': 'Suối trong rừng',
+  'relax.settings.audio.preset.thunder': 'Sấm xa',
+  'relax.settings.audio.preset.cave': 'Hang động biển',
+  'relax.settings.voice.label': 'Giọng hướng dẫn',
+  'relax.settings.voice.on': 'Bật',
+  'relax.settings.voice.off': 'Tắt',
+  'relax.settings.visual.label': 'Hình ảnh',
+  'relax.settings.visual.full': 'Đầy đủ',
+  'relax.settings.visual.minimal': 'Tối thiểu',
+  'relax.settings.visual.off': 'Tắt',
+  'relax.settings.cancel': 'Quay lại',
+  'relax.settings.begin': 'Bắt đầu',
+
+  // Relax mode — controls
+  'relax.controls.muteAudio': 'Tắt tiếng nền',
+  'relax.controls.unmuteAudio': 'Bật tiếng nền',
+  'relax.controls.muteVoice': 'Tắt giọng nói',
+  'relax.controls.unmuteVoice': 'Bật giọng nói',
+  'relax.controls.cycleVisual': 'Đổi hình',
+  'relax.controls.end': 'Kết thúc phiên',
+
+  // Relax mode — summary
+  'relax.summary.title': 'Xong',
+  'relax.summary.minutes': 'phút',
+  'relax.summary.subtitle': 'Khi nào bạn sẵn sàng.',
+  'relax.summary.completed': 'Khi nào bạn sẵn sàng.',
+
+  // Relax mode — calibrating
+  'relax.calibrating.title': 'Đang lắng xuống',
+  'relax.calibrating.subtitle': 'Đang đọc tín hiệu của bạn. Khoảng nửa phút.',
+  'relax.calibrating.skip': 'Bỏ qua',
+
+  // Relax mode — biometrics
+  'relax.biometrics.enable': 'Bật sinh trắc',
+  'relax.biometrics.stop': 'Dừng',
 } as const
 
 export default vi

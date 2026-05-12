@@ -49,8 +49,12 @@ android/app/src/main/assets/public
 # Claude tooling cache
 .superpowers/
 
-# Local test screenshots
+# Local test screenshots & loose debug snapshots at repo root
 test-*.png
+/*.png
+
+# Playwright MCP scratch dir
+.playwright-mcp/
 
 # Benchmark output
 scripts/benchmark-results.json

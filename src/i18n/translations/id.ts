@@ -182,6 +182,94 @@ const id = {
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
 
   'echo.label': 'Masa Lalu',
+
+  // Bilateral stimulation
+  'settings.bilateralStimulation': 'Irama bilateral',
+
+  // Body map
+  'bodyMap.title': 'Tubuh',
+  'bodyMap.dormant': 'Menulislah. Aku akan terbentuk.',
+  'bodyMap.region.head': 'Kepala',
+  'bodyMap.region.eyes': 'Mata',
+  'bodyMap.region.throat': 'Tenggorokan',
+  'bodyMap.region.chest': 'Dada',
+  'bodyMap.region.stomach': 'Perut',
+  'bodyMap.region.shoulders': 'Bahu',
+  'bodyMap.region.hands': 'Tangan',
+  'bodyMap.region.back': 'Punggung',
+  'bodyMap.region.hips': 'Pinggul',
+  'bodyMap.region.legs': 'Kaki',
+
+  // Session bottom bar
+  'session.bottomBar.relax': 'Santai',
+
+  // Relax mode — settings
+  'relax.settings.title': 'Tenangkan diri',
+  'relax.settings.duration.label': 'Durasi',
+  'relax.settings.duration.5': '5 mnt',
+  'relax.settings.duration.10': '10 mnt',
+  'relax.settings.duration.20': '20 mnt',
+  'relax.settings.type.label': 'Latihan',
+  'relax.settings.type.breathwork': 'Pernapasan',
+  'relax.settings.type.body_scan': 'Pemindaian tubuh',
+  'relax.settings.type.safe_place': 'Tempat aman',
+  'relax.settings.type.open_awareness': 'Kesadaran terbuka',
+  'relax.settings.audio.label': 'Latar',
+  'relax.settings.audio.none': 'Hening',
+  'relax.settings.audio.ocean': 'Laut',
+  'relax.settings.audio.forest': 'Hutan',
+  'relax.settings.audio.drone': 'Drone',
+  'relax.settings.audio.binaural': 'Binaural',
+  'relax.settings.audio.custom': 'Kustom',
+  'relax.settings.audio.volume': 'Volume',
+  'relax.settings.audio.promptLabel': 'Gambarkan suaranya',
+  'relax.settings.audio.promptPlaceholder': 'hujan di atap seng dengan guntur jauh',
+  'relax.settings.audio.promptHelp': 'Sampai 200 karakter. Menghasilkan loop 30 detik.',
+  'relax.settings.audio.generate': 'Buat',
+  'relax.settings.audio.generating': 'Merangkai…',
+  'relax.settings.audio.ready': 'Siap',
+  'relax.settings.audio.cached': 'Dipakai ulang',
+  'relax.settings.audio.error.network': 'Tidak bisa menghubungi layanan suara.',
+  'relax.settings.audio.error.rateLimit': 'Terlalu banyak suara akhir-akhir ini. Coba preset, atau tunggu sebentar.',
+  'relax.settings.audio.error.provider': 'Suasana itu tidak bisa dibuat. Coba kata lain.',
+  'relax.settings.audio.error.validation': 'Deskripsi itu tidak didukung. Buat singkat dan jelas.',
+  'relax.settings.audio.error.retry': 'Coba lagi',
+  'relax.settings.audio.preset.rain': 'Hujan di atap seng',
+  'relax.settings.audio.preset.forest': 'Aliran hutan',
+  'relax.settings.audio.preset.thunder': 'Guntur jauh',
+  'relax.settings.audio.preset.cave': 'Gua laut',
+  'relax.settings.voice.label': 'Panduan suara',
+  'relax.settings.voice.on': 'Aktif',
+  'relax.settings.voice.off': 'Nonaktif',
+  'relax.settings.visual.label': 'Visual',
+  'relax.settings.visual.full': 'Penuh',
+  'relax.settings.visual.minimal': 'Minimal',
+  'relax.settings.visual.off': 'Mati',
+  'relax.settings.cancel': 'Kembali',
+  'relax.settings.begin': 'Mulai',
+
+  // Relax mode — controls
+  'relax.controls.muteAudio': 'Bisukan suara',
+  'relax.controls.unmuteAudio': 'Aktifkan suara',
+  'relax.controls.muteVoice': 'Bisukan panduan',
+  'relax.controls.unmuteVoice': 'Aktifkan panduan',
+  'relax.controls.cycleVisual': 'Ganti visual',
+  'relax.controls.end': 'Akhiri sesi',
+
+  // Relax mode — summary
+  'relax.summary.title': 'Selesai',
+  'relax.summary.minutes': 'menit',
+  'relax.summary.subtitle': 'Kapan pun kamu siap.',
+  'relax.summary.completed': 'Kapan pun kamu siap.',
+
+  // Relax mode — calibrating
+  'relax.calibrating.title': 'Menyesuaikan',
+  'relax.calibrating.subtitle': 'Membaca sinyalmu. Sekitar setengah menit.',
+  'relax.calibrating.skip': 'Lewati',
+
+  // Relax mode — biometrics
+  'relax.biometrics.enable': 'Aktifkan biometrik',
+  'relax.biometrics.stop': 'Berhenti',
 } as const
 
 export default id

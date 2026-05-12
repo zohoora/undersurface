@@ -182,6 +182,94 @@ const it = {
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
 
   'echo.label': 'Il Passato',
+
+  // Bilateral stimulation
+  'settings.bilateralStimulation': 'Ritmo bilaterale',
+
+  // Body map
+  'bodyMap.title': 'Corpo',
+  'bodyMap.dormant': 'Scrivi. Prenderò forma.',
+  'bodyMap.region.head': 'Testa',
+  'bodyMap.region.eyes': 'Occhi',
+  'bodyMap.region.throat': 'Gola',
+  'bodyMap.region.chest': 'Petto',
+  'bodyMap.region.stomach': 'Stomaco',
+  'bodyMap.region.shoulders': 'Spalle',
+  'bodyMap.region.hands': 'Mani',
+  'bodyMap.region.back': 'Schiena',
+  'bodyMap.region.hips': 'Fianchi',
+  'bodyMap.region.legs': 'Gambe e piedi',
+
+  // Session bottom bar
+  'session.bottomBar.relax': 'Rilassa',
+
+  // Relax mode — settings
+  'relax.settings.title': 'Accomodati',
+  'relax.settings.duration.label': 'Durata',
+  'relax.settings.duration.5': '5 min',
+  'relax.settings.duration.10': '10 min',
+  'relax.settings.duration.20': '20 min',
+  'relax.settings.type.label': 'Pratica',
+  'relax.settings.type.breathwork': 'Respiro',
+  'relax.settings.type.body_scan': 'Scansione corporea',
+  'relax.settings.type.safe_place': 'Luogo sicuro',
+  'relax.settings.type.open_awareness': 'Consapevolezza aperta',
+  'relax.settings.audio.label': 'Sfondo',
+  'relax.settings.audio.none': 'Silenzio',
+  'relax.settings.audio.ocean': 'Oceano',
+  'relax.settings.audio.forest': 'Foresta',
+  'relax.settings.audio.drone': 'Drone',
+  'relax.settings.audio.binaural': 'Binaurale',
+  'relax.settings.audio.custom': 'Personalizzato',
+  'relax.settings.audio.volume': 'Volume',
+  'relax.settings.audio.promptLabel': 'Descrivi il suono',
+  'relax.settings.audio.promptPlaceholder': 'pioggia su tetto di lamiera con tuoni lontani',
+  'relax.settings.audio.promptHelp': 'Fino a 200 caratteri. Crea un loop di 30 secondi.',
+  'relax.settings.audio.generate': 'Genera',
+  'relax.settings.audio.generating': 'Compongo…',
+  'relax.settings.audio.ready': 'Pronto',
+  'relax.settings.audio.cached': 'Riutilizzato',
+  'relax.settings.audio.error.network': 'Impossibile raggiungere il servizio audio.',
+  'relax.settings.audio.error.rateLimit': 'Troppi paesaggi sonori di recente. Prova un preset, o aspetta un attimo.',
+  'relax.settings.audio.error.provider': 'Non sono riuscito a generare quel paesaggio sonoro. Prova altre parole.',
+  'relax.settings.audio.error.validation': 'Quella descrizione non è supportata. Mantienila breve e descrittiva.',
+  'relax.settings.audio.error.retry': 'Riprova',
+  'relax.settings.audio.preset.rain': 'Pioggia su tetto di lamiera',
+  'relax.settings.audio.preset.forest': 'Ruscello della foresta',
+  'relax.settings.audio.preset.thunder': 'Tuono lontano',
+  'relax.settings.audio.preset.cave': 'Grotta marina',
+  'relax.settings.voice.label': 'Guida vocale',
+  'relax.settings.voice.on': 'Attiva',
+  'relax.settings.voice.off': 'Disattivata',
+  'relax.settings.visual.label': 'Visivo',
+  'relax.settings.visual.full': 'Pieno',
+  'relax.settings.visual.minimal': 'Minimo',
+  'relax.settings.visual.off': 'Spento',
+  'relax.settings.cancel': 'Indietro',
+  'relax.settings.begin': 'Inizia',
+
+  // Relax mode — controls
+  'relax.controls.muteAudio': 'Silenzia audio',
+  'relax.controls.unmuteAudio': 'Attiva audio',
+  'relax.controls.muteVoice': 'Silenzia voce',
+  'relax.controls.unmuteVoice': 'Attiva voce',
+  'relax.controls.cycleVisual': 'Cambia visivo',
+  'relax.controls.end': 'Termina sessione',
+
+  // Relax mode — summary
+  'relax.summary.title': 'Fatto',
+  'relax.summary.minutes': 'minuti',
+  'relax.summary.subtitle': 'Quando sei pronto.',
+  'relax.summary.completed': 'Quando sei pronto.',
+
+  // Relax mode — calibrating
+  'relax.calibrating.title': 'Mi sintonizzo',
+  'relax.calibrating.subtitle': 'Sto leggendo il tuo segnale. Ci vuole circa mezzo minuto.',
+  'relax.calibrating.skip': 'Salta',
+
+  // Relax mode — biometrics
+  'relax.biometrics.enable': 'Attiva biometria',
+  'relax.biometrics.stop': 'Ferma',
 } as const
 
 export default it

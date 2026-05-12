@@ -32,11 +32,15 @@ npm run build && firebase deploy --only hosting
 
 ### 2. Cloud Functions (Firebase Functions, Node.js 22)
 
-Four functions in `functions/src/index.ts`:
-- **`chat`** — proxies AI requests to OpenAI (512MiB, minInstances: 1)
-- **`accountApi`** — account deletion + contact form (256MiB, 60s)
-- **`adminApi`** — admin dashboard backend (512MiB, 120s)
-- **`mcpApi`** — MCP server with 4 read-only tools (512MiB, 120s)
+Six functions split across `functions/src/`:
+- **`chat`** (`functions/src/chat.ts`) — proxies AI requests to OpenAI (512MiB, minInstances: 1)
+- **`realtimeTokenApi`** (`functions/src/realtime.ts`) — mints OpenAI Realtime client secrets (256MiB, minInstances: 1)
+- **`soundscapeApi`** (`functions/src/soundscapeApi.ts`) — ElevenLabs-backed custom soundscape generator + cache (256MiB, 60s)
+- **`accountApi`** (`functions/src/account.ts`) — account deletion + contact form, table-driven action dispatch (256MiB, 60s)
+- **`adminApi`** (`functions/src/admin/`) — admin dashboard backend, table-driven action dispatch; handlers in `admin/handlers.ts`, analytics in `admin/analytics.ts` (512MiB, 120s)
+- **`mcpApi`** (`functions/src/mcp.ts`) — MCP server with 4 read-only tools (256MiB, 30s)
+
+Shared cross-handler code in `functions/src/shared/`: `init.ts` (initializeApp), `auth.ts` (verifyAuth/Admin + `ADMIN_EMAILS`), `cors.ts` (`ALLOWED_ORIGINS`), `rateLimit.ts` (`makeRateLimiter`), `secrets.ts` (defineSecret instances). `functions/src/index.ts` is a slim re-export so deploy targets are unchanged.
 
 ```bash
 cd functions && npx tsc && cd .. && firebase deploy --only functions
@@ -89,7 +93,7 @@ Account: Settings → accountApi Cloud Function → delete/contact
 
 Detailed file-by-file reference: `.claude/docs/key-files.md`
 
-Core entry points: `src/ai/openrouter.ts` (API calls), `src/ai/partPrompts.ts` (system prompts + `SHARED_INSTRUCTIONS`), `src/ai/sessionPrompts.ts` (session mode part prompts), `src/ai/therapistPrompts.ts` (therapist companion prompts — `THERAPIST_CORE` warm + `REAL_TALK_CORE` calling-out + `SAFETY_RULES`), `src/engine/partOrchestrator.ts` (part selection + scoring), `src/engine/sessionOrchestrator.ts` (session phase detection + crisis keywords + emotion check), `src/engine/pauseDetector.ts` (pause detection), `src/engine/sessionContextLoader.ts` (`loadTherapistContext`), `src/engine/hrvEngine.ts` (webcam HRV biofeedback), `src/engine/hrvSignalWorker.ts` (CHROM rPPG signal processing Web Worker), `src/engine/hrvTimeline.ts` (HRV timeline + shift detection + prompt context), `src/components/Editor/LivingEditor.tsx` (TipTap editor), `src/components/Session/SessionView.tsx` (therapist session UI), `src/components/EntryChoice.tsx` (3-way choice screen: Journal / Conversation / Real Talk), `src/store/db.ts` (Firestore wrapper), `functions/src/index.ts` (Cloud Functions).
+Core entry points: `src/ai/openrouter.ts` (API calls), `src/ai/partPrompts.ts` (system prompts + `SHARED_INSTRUCTIONS`), `src/ai/sessionPrompts.ts` (session mode part prompts), `src/ai/therapistPrompts.ts` (therapist companion prompts — `THERAPIST_CORE` warm + `REAL_TALK_CORE` calling-out + `SAFETY_RULES`), `src/engine/partOrchestrator.ts` (part selection + scoring), `src/engine/sessionOrchestrator.ts` (session phase detection + crisis keywords + emotion check), `src/engine/pauseDetector.ts` (pause detection), `src/engine/sessionContextLoader.ts` (`loadTherapistContext`), `src/engine/hrvEngine.ts` (webcam HRV biofeedback), `src/engine/hrvSignalWorker.ts` (CHROM rPPG signal processing Web Worker), `src/engine/hrvTimeline.ts` (HRV timeline + shift detection + prompt context), `src/components/Editor/LivingEditor.tsx` (TipTap editor), `src/components/Session/SessionView.tsx` (therapist session UI), `src/components/EntryChoice.tsx` (3-way choice screen: Journal / Conversation / Real Talk), `src/store/db.ts` (Firestore wrapper). Cloud Functions: `functions/src/{chat,realtime,soundscapeApi,account,mcp}.ts` (per-handler modules) + `functions/src/admin/` (handler map + helpers + analytics) + `functions/src/shared/` (auth, cors, rate-limit, secrets).
 
 ### Data storage
 
@@ -101,7 +105,7 @@ Core entry points: `src/ai/openrouter.ts` (API calls), `src/ai/partPrompts.ts` (
 
 ### Auth
 
-Firebase Authentication: Google Sign-In + Email/Password. `App.tsx` gates app behind auth. Cloud Functions verify ID tokens. `adminApi` checks `ADMIN_EMAILS` allowlist (in `functions/src/index.ts` and `src/App.tsx`).
+Firebase Authentication: Google Sign-In + Email/Password. `App.tsx` gates app behind auth. Cloud Functions verify ID tokens. `adminApi` checks `ADMIN_EMAILS` allowlist (in `functions/src/shared/auth.ts` and `src/App.tsx`).
 
 ### URL routing
 
@@ -189,7 +193,7 @@ npm run smoke-test       # Post-deploy smoke test against live site
 
 ### Changing the chat model
 
-The model is pinned server-side. Update `OPENAI_CHAT_MODEL` at the top of `functions/src/index.ts`, then `cd functions && npx tsc && cd .. && firebase deploy --only functions`. The client no longer sends a model field.
+The model is pinned server-side. Update `OPENAI_CHAT_MODEL` at the top of `functions/src/chat.ts`, then `cd functions && npx tsc && cd .. && firebase deploy --only functions`. The client no longer sends a model field.
 
 ### Updating the OpenAI API key
 
@@ -207,7 +211,7 @@ Add to `SEEDED_PARTS` in `partPrompts.ts`. Scoring is role-based (`ifsRole`) —
 1. Add proxy in `db.ts` (add to the `db` object literal)
 2. Add interface in `src/types/index.ts`
 3. Add `'collectionName'` to `collectionNames` array in `exportAllData()` in `db.ts`
-4. Add to `deleteAccount` collections array in `functions/src/index.ts`
+4. Add to `deleteAccount` collections array in `functions/src/account.ts` (`handleDeleteAccount`)
 
 ### Toggling features without deploying
 

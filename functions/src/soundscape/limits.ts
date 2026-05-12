@@ -4,20 +4,15 @@
 //    calls). Bounds direct cost.
 // 2. checkSoundscapeRequest — counts every request (hits + misses). Bounds
 //    abuse (e.g. scraping signed URLs).
-//
-// The makeRateLimiter factory lives in functions/src/index.ts. We re-export
-// from there to keep the limiter implementation single-sourced.
 
-interface RateLimiter {
-  (key: string): boolean
-}
+import { makeRateLimiter } from '../shared/rateLimit.js'
 
 export interface SoundscapeLimiters {
-  generate: RateLimiter
-  request: RateLimiter
+  generate: (key: string) => boolean
+  request: (key: string) => boolean
 }
 
-export function buildSoundscapeLimiters(makeRateLimiter: (opts: { windowMs: number; max: number }) => RateLimiter): SoundscapeLimiters {
+export function buildSoundscapeLimiters(): SoundscapeLimiters {
   return {
     generate: makeRateLimiter({ windowMs: 60 * 60 * 1000, max: 5 }),
     request: makeRateLimiter({ windowMs: 60 * 60 * 1000, max: 60 }),

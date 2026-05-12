@@ -69,6 +69,7 @@ export function useVoiceSession() {
   const lastUserDurationRef = useRef<number | null>(null)
   const userRatesRef = useRef<number[]>([])
   const currentSpeedRef = useRef<number>(BASE_SPEED)
+  const handleServerEventRef = useRef<(event: Record<string, unknown>) => void>(() => {})
 
   function computeTargetSpeed(): number {
     const rates = userRatesRef.current
@@ -220,7 +221,10 @@ export function useVoiceSession() {
       dc.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data)
-          handleServerEvent(msg)
+          // Through-ref dispatch so `handleServerEvent` doesn't have to be a
+          // dependency of `start`. The handler closes over only refs/setters,
+          // so a single instance is fine for the session's lifetime.
+          handleServerEventRef.current(msg)
         } catch (err) {
           console.warn('Voice session: ignoring malformed datachannel event', err)
         }
@@ -257,7 +261,7 @@ export function useVoiceSession() {
     }
   }, [state, teardown])
 
-  function handleServerEvent(event: Record<string, unknown>) {
+  handleServerEventRef.current = function handleServerEvent(event: Record<string, unknown>) {
     const opts = optsRef.current
     if (!opts) return
     const type = event.type as string | undefined

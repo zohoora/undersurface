@@ -182,6 +182,94 @@ const tr = {
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
 
   'echo.label': 'Geçmiş',
+
+  // Bilateral stimulation
+  'settings.bilateralStimulation': 'İki taraflı ritim',
+
+  // Body map
+  'bodyMap.title': 'Beden',
+  'bodyMap.dormant': 'Yaz, ben şekil alırım.',
+  'bodyMap.region.head': 'Baş',
+  'bodyMap.region.eyes': 'Gözler',
+  'bodyMap.region.throat': 'Boğaz',
+  'bodyMap.region.chest': 'Göğüs',
+  'bodyMap.region.stomach': 'Karın',
+  'bodyMap.region.shoulders': 'Omuzlar',
+  'bodyMap.region.hands': 'Eller',
+  'bodyMap.region.back': 'Sırt',
+  'bodyMap.region.hips': 'Kalça',
+  'bodyMap.region.legs': 'Bacaklar ve ayaklar',
+
+  // Session bottom bar
+  'session.bottomBar.relax': 'Gevşe',
+
+  // Relax mode — settings
+  'relax.settings.title': 'Yerleş',
+  'relax.settings.duration.label': 'Süre',
+  'relax.settings.duration.5': '5 dk',
+  'relax.settings.duration.10': '10 dk',
+  'relax.settings.duration.20': '20 dk',
+  'relax.settings.type.label': 'Uygulama',
+  'relax.settings.type.breathwork': 'Nefes çalışması',
+  'relax.settings.type.body_scan': 'Beden taraması',
+  'relax.settings.type.safe_place': 'Güvenli yer',
+  'relax.settings.type.open_awareness': 'Açık farkındalık',
+  'relax.settings.audio.label': 'Arka plan',
+  'relax.settings.audio.none': 'Sessizlik',
+  'relax.settings.audio.ocean': 'Okyanus',
+  'relax.settings.audio.forest': 'Orman',
+  'relax.settings.audio.drone': 'Drone',
+  'relax.settings.audio.binaural': 'Binaural',
+  'relax.settings.audio.custom': 'Özel',
+  'relax.settings.audio.volume': 'Ses',
+  'relax.settings.audio.promptLabel': 'Sesi tarif et',
+  'relax.settings.audio.promptPlaceholder': 'tenekedeki yağmur ve uzaktan gök gürültüsü',
+  'relax.settings.audio.promptHelp': '200 karaktere kadar. 30 saniyelik bir döngü üretir.',
+  'relax.settings.audio.generate': 'Üret',
+  'relax.settings.audio.generating': 'Dokuyor…',
+  'relax.settings.audio.ready': 'Hazır',
+  'relax.settings.audio.cached': 'Daha öncekinden',
+  'relax.settings.audio.error.network': 'Ses servisine ulaşılamadı.',
+  'relax.settings.audio.error.rateLimit': 'Son zamanlarda çok ses üretildi. Bir hazır ayar dene ya da biraz bekle.',
+  'relax.settings.audio.error.provider': 'Bu sesi üretemedim. Başka sözcükler dene.',
+  'relax.settings.audio.error.validation': 'Bu açıklama desteklenmiyor. Kısa ve betimleyici tut.',
+  'relax.settings.audio.error.retry': 'Tekrar dene',
+  'relax.settings.audio.preset.rain': 'Tenekede yağmur',
+  'relax.settings.audio.preset.forest': 'Orman deresi',
+  'relax.settings.audio.preset.thunder': 'Uzakta gök gürültüsü',
+  'relax.settings.audio.preset.cave': 'Deniz mağarası',
+  'relax.settings.voice.label': 'Sesli rehber',
+  'relax.settings.voice.on': 'Açık',
+  'relax.settings.voice.off': 'Kapalı',
+  'relax.settings.visual.label': 'Görsel',
+  'relax.settings.visual.full': 'Tam',
+  'relax.settings.visual.minimal': 'Az',
+  'relax.settings.visual.off': 'Kapalı',
+  'relax.settings.cancel': 'Geri',
+  'relax.settings.begin': 'Başla',
+
+  // Relax mode — controls
+  'relax.controls.muteAudio': 'Sesi kapat',
+  'relax.controls.unmuteAudio': 'Sesi aç',
+  'relax.controls.muteVoice': 'Konuşmayı kapat',
+  'relax.controls.unmuteVoice': 'Konuşmayı aç',
+  'relax.controls.cycleVisual': 'Görseli değiştir',
+  'relax.controls.end': 'Seansı bitir',
+
+  // Relax mode — summary
+  'relax.summary.title': 'Bitti',
+  'relax.summary.minutes': 'dakika',
+  'relax.summary.subtitle': 'Hazır olduğunda.',
+  'relax.summary.completed': 'Hazır olduğunda.',
+
+  // Relax mode — calibrating
+  'relax.calibrating.title': 'Yerleşiyorum',
+  'relax.calibrating.subtitle': 'Sinyalini okuyorum. Yarım dakika kadar sürer.',
+  'relax.calibrating.skip': 'Geç',
+
+  // Relax mode — biometrics
+  'relax.biometrics.enable': 'Biyometriyi aç',
+  'relax.biometrics.stop': 'Durdur',
 } as const
 
 export default tr

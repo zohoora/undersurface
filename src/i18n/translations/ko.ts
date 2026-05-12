@@ -182,6 +182,94 @@ const ko = {
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
 
   'echo.label': '과거',
+
+  // Bilateral stimulation
+  'settings.bilateralStimulation': '양측 리듬',
+
+  // Body map
+  'bodyMap.title': '몸',
+  'bodyMap.dormant': '써봐. 형태가 잡힐 거야.',
+  'bodyMap.region.head': '머리',
+  'bodyMap.region.eyes': '눈',
+  'bodyMap.region.throat': '목',
+  'bodyMap.region.chest': '가슴',
+  'bodyMap.region.stomach': '배',
+  'bodyMap.region.shoulders': '어깨',
+  'bodyMap.region.hands': '손',
+  'bodyMap.region.back': '등',
+  'bodyMap.region.hips': '엉덩이',
+  'bodyMap.region.legs': '다리와 발',
+
+  // Session bottom bar
+  'session.bottomBar.relax': '이완',
+
+  // Relax mode — settings
+  'relax.settings.title': '자리를 잡아봐',
+  'relax.settings.duration.label': '시간',
+  'relax.settings.duration.5': '5분',
+  'relax.settings.duration.10': '10분',
+  'relax.settings.duration.20': '20분',
+  'relax.settings.type.label': '연습',
+  'relax.settings.type.breathwork': '호흡 명상',
+  'relax.settings.type.body_scan': '바디 스캔',
+  'relax.settings.type.safe_place': '안전한 장소',
+  'relax.settings.type.open_awareness': '열린 자각',
+  'relax.settings.audio.label': '배경',
+  'relax.settings.audio.none': '고요',
+  'relax.settings.audio.ocean': '바다',
+  'relax.settings.audio.forest': '숲',
+  'relax.settings.audio.drone': '드론',
+  'relax.settings.audio.binaural': '바이노럴',
+  'relax.settings.audio.custom': '직접 입력',
+  'relax.settings.audio.volume': '음량',
+  'relax.settings.audio.promptLabel': '소리를 묘사해봐',
+  'relax.settings.audio.promptPlaceholder': '함석지붕에 떨어지는 비와 멀리서 들리는 천둥',
+  'relax.settings.audio.promptHelp': '200자까지. 30초 루프를 만든다.',
+  'relax.settings.audio.generate': '만들기',
+  'relax.settings.audio.generating': '엮는 중…',
+  'relax.settings.audio.ready': '준비됨',
+  'relax.settings.audio.cached': '이전 결과 재사용',
+  'relax.settings.audio.error.network': '사운드 서비스에 연결할 수 없었어.',
+  'relax.settings.audio.error.rateLimit': '최근에 사운드스케이프를 너무 많이 만들었어. 프리셋을 써보거나 잠시 기다려.',
+  'relax.settings.audio.error.provider': '그 사운드스케이프는 만들지 못했어. 다른 표현으로 시도해봐.',
+  'relax.settings.audio.error.validation': '그 입력은 지원되지 않아. 짧고 분명하게.',
+  'relax.settings.audio.error.retry': '다시',
+  'relax.settings.audio.preset.rain': '함석지붕 위의 비',
+  'relax.settings.audio.preset.forest': '숲속 시냇물',
+  'relax.settings.audio.preset.thunder': '먼 천둥',
+  'relax.settings.audio.preset.cave': '바다 동굴',
+  'relax.settings.voice.label': '음성 안내',
+  'relax.settings.voice.on': '켬',
+  'relax.settings.voice.off': '끔',
+  'relax.settings.visual.label': '시각 효과',
+  'relax.settings.visual.full': '전체',
+  'relax.settings.visual.minimal': '최소',
+  'relax.settings.visual.off': '끔',
+  'relax.settings.cancel': '뒤로',
+  'relax.settings.begin': '시작',
+
+  // Relax mode — controls
+  'relax.controls.muteAudio': '소리 끄기',
+  'relax.controls.unmuteAudio': '소리 켜기',
+  'relax.controls.muteVoice': '음성 끄기',
+  'relax.controls.unmuteVoice': '음성 켜기',
+  'relax.controls.cycleVisual': '시각 전환',
+  'relax.controls.end': '세션 종료',
+
+  // Relax mode — summary
+  'relax.summary.title': '끝',
+  'relax.summary.minutes': '분',
+  'relax.summary.subtitle': '준비되면 언제든.',
+  'relax.summary.completed': '준비되면 언제든.',
+
+  // Relax mode — calibrating
+  'relax.calibrating.title': '가라앉히는 중',
+  'relax.calibrating.subtitle': '신호를 읽고 있어. 30초쯤 걸려.',
+  'relax.calibrating.skip': '건너뛰기',
+
+  // Relax mode — biometrics
+  'relax.biometrics.enable': '생체 신호 켜기',
+  'relax.biometrics.stop': '중지',
 } as const
 
 export default ko

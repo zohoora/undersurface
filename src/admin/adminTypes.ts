@@ -348,3 +348,4 @@ export type AdminAction =
   | 'getAnalytics'
   | 'refreshAnalytics'
   | 'getSessionMessages'
+  | 'getDiagnostics'

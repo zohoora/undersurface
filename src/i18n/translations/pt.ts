@@ -182,6 +182,94 @@ const pt = {
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
 
   'echo.label': 'O Passado',
+
+  // Bilateral stimulation
+  'settings.bilateralStimulation': 'Ritmo bilateral',
+
+  // Body map
+  'bodyMap.title': 'Corpo',
+  'bodyMap.dormant': 'Escreva. Eu vou tomando forma.',
+  'bodyMap.region.head': 'Cabeça',
+  'bodyMap.region.eyes': 'Olhos',
+  'bodyMap.region.throat': 'Garganta',
+  'bodyMap.region.chest': 'Peito',
+  'bodyMap.region.stomach': 'Estômago',
+  'bodyMap.region.shoulders': 'Ombros',
+  'bodyMap.region.hands': 'Mãos',
+  'bodyMap.region.back': 'Costas',
+  'bodyMap.region.hips': 'Quadris',
+  'bodyMap.region.legs': 'Pernas e pés',
+
+  // Session bottom bar
+  'session.bottomBar.relax': 'Relaxar',
+
+  // Relax mode — settings
+  'relax.settings.title': 'Se acomode',
+  'relax.settings.duration.label': 'Duração',
+  'relax.settings.duration.5': '5 min',
+  'relax.settings.duration.10': '10 min',
+  'relax.settings.duration.20': '20 min',
+  'relax.settings.type.label': 'Prática',
+  'relax.settings.type.breathwork': 'Respiração',
+  'relax.settings.type.body_scan': 'Varredura corporal',
+  'relax.settings.type.safe_place': 'Lugar seguro',
+  'relax.settings.type.open_awareness': 'Consciência aberta',
+  'relax.settings.audio.label': 'Fundo',
+  'relax.settings.audio.none': 'Silêncio',
+  'relax.settings.audio.ocean': 'Oceano',
+  'relax.settings.audio.forest': 'Floresta',
+  'relax.settings.audio.drone': 'Drone',
+  'relax.settings.audio.binaural': 'Binaural',
+  'relax.settings.audio.custom': 'Personalizado',
+  'relax.settings.audio.volume': 'Volume',
+  'relax.settings.audio.promptLabel': 'Descreva o som',
+  'relax.settings.audio.promptPlaceholder': 'chuva no telhado de zinco com trovões ao longe',
+  'relax.settings.audio.promptHelp': 'Até 200 caracteres. Cria um loop de 30 segundos.',
+  'relax.settings.audio.generate': 'Gerar',
+  'relax.settings.audio.generating': 'Compondo…',
+  'relax.settings.audio.ready': 'Pronto',
+  'relax.settings.audio.cached': 'Reutilizado',
+  'relax.settings.audio.error.network': 'Não consegui falar com o serviço de som.',
+  'relax.settings.audio.error.rateLimit': 'Muitas paisagens sonoras nos últimos minutos. Tente um preset, ou espere um pouco.',
+  'relax.settings.audio.error.provider': 'Não consegui gerar essa paisagem sonora. Tente outras palavras.',
+  'relax.settings.audio.error.validation': 'Esse texto não é suportado. Curto e descritivo funciona melhor.',
+  'relax.settings.audio.error.retry': 'Tentar de novo',
+  'relax.settings.audio.preset.rain': 'Chuva no telhado de zinco',
+  'relax.settings.audio.preset.forest': 'Riacho da floresta',
+  'relax.settings.audio.preset.thunder': 'Trovão distante',
+  'relax.settings.audio.preset.cave': 'Caverna oceânica',
+  'relax.settings.voice.label': 'Voz guia',
+  'relax.settings.voice.on': 'Ativada',
+  'relax.settings.voice.off': 'Desativada',
+  'relax.settings.visual.label': 'Visual',
+  'relax.settings.visual.full': 'Completo',
+  'relax.settings.visual.minimal': 'Mínimo',
+  'relax.settings.visual.off': 'Desligado',
+  'relax.settings.cancel': 'Voltar',
+  'relax.settings.begin': 'Começar',
+
+  // Relax mode — controls
+  'relax.controls.muteAudio': 'Silenciar som',
+  'relax.controls.unmuteAudio': 'Ativar som',
+  'relax.controls.muteVoice': 'Silenciar voz',
+  'relax.controls.unmuteVoice': 'Ativar voz',
+  'relax.controls.cycleVisual': 'Mudar visual',
+  'relax.controls.end': 'Encerrar sessão',
+
+  // Relax mode — summary
+  'relax.summary.title': 'Pronto',
+  'relax.summary.minutes': 'minutos',
+  'relax.summary.subtitle': 'Quando você estiver pronto.',
+  'relax.summary.completed': 'Quando você estiver pronto.',
+
+  // Relax mode — calibrating
+  'relax.calibrating.title': 'Me sintonizando',
+  'relax.calibrating.subtitle': 'Lendo seu sinal. Leva uns trinta segundos.',
+  'relax.calibrating.skip': 'Pular',
+
+  // Relax mode — biometrics
+  'relax.biometrics.enable': 'Ativar biometria',
+  'relax.biometrics.stop': 'Parar',
 } as const
 
 export default pt

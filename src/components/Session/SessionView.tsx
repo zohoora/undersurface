@@ -413,7 +413,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       .catch(console.error)
 
     return { updatedMessages, firstLine, phase }
-  }, [hrv])
+  }, [hrv, weatherEngine])
 
   const handleSend = useCallback(async (editorInstance?: ReturnType<typeof useEditor>) => {
     const ed = editorInstance

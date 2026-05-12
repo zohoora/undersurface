@@ -182,6 +182,94 @@ const ja = {
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
 
   'echo.label': '過去',
+
+  // Bilateral stimulation
+  'settings.bilateralStimulation': 'バイラテラル・リズム',
+
+  // Body map
+  'bodyMap.title': 'からだ',
+  'bodyMap.dormant': '書いてみて。かたちが現れるから。',
+  'bodyMap.region.head': '頭',
+  'bodyMap.region.eyes': '目',
+  'bodyMap.region.throat': 'のど',
+  'bodyMap.region.chest': '胸',
+  'bodyMap.region.stomach': 'お腹',
+  'bodyMap.region.shoulders': '肩',
+  'bodyMap.region.hands': '手',
+  'bodyMap.region.back': '背中',
+  'bodyMap.region.hips': '腰',
+  'bodyMap.region.legs': '脚と足',
+
+  // Session bottom bar
+  'session.bottomBar.relax': 'リラックス',
+
+  // Relax mode — settings
+  'relax.settings.title': '腰を落ち着けて',
+  'relax.settings.duration.label': '時間',
+  'relax.settings.duration.5': '5分',
+  'relax.settings.duration.10': '10分',
+  'relax.settings.duration.20': '20分',
+  'relax.settings.type.label': 'プラクティス',
+  'relax.settings.type.breathwork': '呼吸法',
+  'relax.settings.type.body_scan': 'ボディスキャン',
+  'relax.settings.type.safe_place': '安心の場所',
+  'relax.settings.type.open_awareness': '開かれた気づき',
+  'relax.settings.audio.label': '背景音',
+  'relax.settings.audio.none': '静けさ',
+  'relax.settings.audio.ocean': '海',
+  'relax.settings.audio.forest': '森',
+  'relax.settings.audio.drone': 'ドローン',
+  'relax.settings.audio.binaural': 'バイノーラル',
+  'relax.settings.audio.custom': 'カスタム',
+  'relax.settings.audio.volume': '音量',
+  'relax.settings.audio.promptLabel': '音を描写してみて',
+  'relax.settings.audio.promptPlaceholder': 'トタン屋根に降る雨と遠雷',
+  'relax.settings.audio.promptHelp': '200文字以内。30秒のループを生成します。',
+  'relax.settings.audio.generate': '生成',
+  'relax.settings.audio.generating': '紡いでいる…',
+  'relax.settings.audio.ready': '準備できた',
+  'relax.settings.audio.cached': '前のものを再利用',
+  'relax.settings.audio.error.network': '音のサービスに接続できなかった。',
+  'relax.settings.audio.error.rateLimit': '最近作りすぎたみたい。プリセットを試すか、少し待って。',
+  'relax.settings.audio.error.provider': 'その音は作れなかった。別の言葉で試してみて。',
+  'relax.settings.audio.error.validation': 'その入力には対応していない。短くて分かりやすい言葉で。',
+  'relax.settings.audio.error.retry': 'もう一度',
+  'relax.settings.audio.preset.rain': 'トタン屋根の雨',
+  'relax.settings.audio.preset.forest': '森の小川',
+  'relax.settings.audio.preset.thunder': '遠雷',
+  'relax.settings.audio.preset.cave': '海の洞窟',
+  'relax.settings.voice.label': '音声ガイド',
+  'relax.settings.voice.on': 'オン',
+  'relax.settings.voice.off': 'オフ',
+  'relax.settings.visual.label': 'ビジュアル',
+  'relax.settings.visual.full': 'フル',
+  'relax.settings.visual.minimal': '最小限',
+  'relax.settings.visual.off': 'オフ',
+  'relax.settings.cancel': '戻る',
+  'relax.settings.begin': 'はじめる',
+
+  // Relax mode — controls
+  'relax.controls.muteAudio': '音をミュート',
+  'relax.controls.unmuteAudio': '音を戻す',
+  'relax.controls.muteVoice': '声をミュート',
+  'relax.controls.unmuteVoice': '声を戻す',
+  'relax.controls.cycleVisual': 'ビジュアル切替',
+  'relax.controls.end': 'セッション終了',
+
+  // Relax mode — summary
+  'relax.summary.title': '終わり',
+  'relax.summary.minutes': '分',
+  'relax.summary.subtitle': '準備ができたら、いつでも。',
+  'relax.summary.completed': '準備ができたら、いつでも。',
+
+  // Relax mode — calibrating
+  'relax.calibrating.title': '落ち着いていく',
+  'relax.calibrating.subtitle': '信号を読んでいる。30秒くらいかかる。',
+  'relax.calibrating.skip': 'スキップ',
+
+  // Relax mode — biometrics
+  'relax.biometrics.enable': 'バイオメトリクスを有効に',
+  'relax.biometrics.stop': '停止',
 } as const
 
 export default ja

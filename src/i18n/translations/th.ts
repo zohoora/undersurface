@@ -182,6 +182,94 @@ const th = {
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
 
   'echo.label': 'อดีต',
+
+  // Bilateral stimulation
+  'settings.bilateralStimulation': 'จังหวะสองข้าง',
+
+  // Body map
+  'bodyMap.title': 'ร่างกาย',
+  'bodyMap.dormant': 'เขียนเลย ฉันจะค่อยๆ เป็นรูปร่าง',
+  'bodyMap.region.head': 'ศีรษะ',
+  'bodyMap.region.eyes': 'ตา',
+  'bodyMap.region.throat': 'ลำคอ',
+  'bodyMap.region.chest': 'หน้าอก',
+  'bodyMap.region.stomach': 'ท้อง',
+  'bodyMap.region.shoulders': 'ไหล่',
+  'bodyMap.region.hands': 'มือ',
+  'bodyMap.region.back': 'หลัง',
+  'bodyMap.region.hips': 'สะโพก',
+  'bodyMap.region.legs': 'ขาและเท้า',
+
+  // Session bottom bar
+  'session.bottomBar.relax': 'พักผ่อน',
+
+  // Relax mode — settings
+  'relax.settings.title': 'ค่อยๆ ลงตัว',
+  'relax.settings.duration.label': 'ระยะเวลา',
+  'relax.settings.duration.5': '5 นาที',
+  'relax.settings.duration.10': '10 นาที',
+  'relax.settings.duration.20': '20 นาที',
+  'relax.settings.type.label': 'การฝึก',
+  'relax.settings.type.breathwork': 'ฝึกลมหายใจ',
+  'relax.settings.type.body_scan': 'สแกนร่างกาย',
+  'relax.settings.type.safe_place': 'พื้นที่ปลอดภัย',
+  'relax.settings.type.open_awareness': 'รับรู้แบบเปิดกว้าง',
+  'relax.settings.audio.label': 'พื้นหลัง',
+  'relax.settings.audio.none': 'เงียบ',
+  'relax.settings.audio.ocean': 'ทะเล',
+  'relax.settings.audio.forest': 'ป่า',
+  'relax.settings.audio.drone': 'โดรน',
+  'relax.settings.audio.binaural': 'ไบนอรัล',
+  'relax.settings.audio.custom': 'กำหนดเอง',
+  'relax.settings.audio.volume': 'ระดับเสียง',
+  'relax.settings.audio.promptLabel': 'อธิบายเสียง',
+  'relax.settings.audio.promptPlaceholder': 'ฝนตกบนหลังคาสังกะสีกับเสียงฟ้าร้องไกลๆ',
+  'relax.settings.audio.promptHelp': 'ไม่เกิน 200 ตัวอักษร สร้างเสียงวนยาว 30 วินาที',
+  'relax.settings.audio.generate': 'สร้าง',
+  'relax.settings.audio.generating': 'กำลังเรียบเรียง…',
+  'relax.settings.audio.ready': 'พร้อม',
+  'relax.settings.audio.cached': 'ใช้ของเดิม',
+  'relax.settings.audio.error.network': 'ติดต่อบริการเสียงไม่ได้',
+  'relax.settings.audio.error.rateLimit': 'สร้างเสียงเยอะเกินไปช่วงนี้ ลองพรีเซ็ตหรือรอสักครู่',
+  'relax.settings.audio.error.provider': 'สร้างเสียงนั้นไม่ได้ ลองใช้คำอื่นดู',
+  'relax.settings.audio.error.validation': 'ข้อความนี้ใช้ไม่ได้ ขอแบบสั้นและตรงประเด็น',
+  'relax.settings.audio.error.retry': 'ลองอีกครั้ง',
+  'relax.settings.audio.preset.rain': 'ฝนบนหลังคาสังกะสี',
+  'relax.settings.audio.preset.forest': 'ลำธารในป่า',
+  'relax.settings.audio.preset.thunder': 'ฟ้าร้องไกลๆ',
+  'relax.settings.audio.preset.cave': 'ถ้ำริมทะเล',
+  'relax.settings.voice.label': 'เสียงนำทาง',
+  'relax.settings.voice.on': 'เปิด',
+  'relax.settings.voice.off': 'ปิด',
+  'relax.settings.visual.label': 'ภาพ',
+  'relax.settings.visual.full': 'เต็ม',
+  'relax.settings.visual.minimal': 'น้อยที่สุด',
+  'relax.settings.visual.off': 'ปิด',
+  'relax.settings.cancel': 'ย้อนกลับ',
+  'relax.settings.begin': 'เริ่ม',
+
+  // Relax mode — controls
+  'relax.controls.muteAudio': 'ปิดเสียง',
+  'relax.controls.unmuteAudio': 'เปิดเสียง',
+  'relax.controls.muteVoice': 'ปิดเสียงพูด',
+  'relax.controls.unmuteVoice': 'เปิดเสียงพูด',
+  'relax.controls.cycleVisual': 'สลับภาพ',
+  'relax.controls.end': 'จบเซสชัน',
+
+  // Relax mode — summary
+  'relax.summary.title': 'เสร็จแล้ว',
+  'relax.summary.minutes': 'นาที',
+  'relax.summary.subtitle': 'เมื่อพร้อมแล้ว',
+  'relax.summary.completed': 'เมื่อพร้อมแล้ว',
+
+  // Relax mode — calibrating
+  'relax.calibrating.title': 'กำลังลงตัว',
+  'relax.calibrating.subtitle': 'กำลังอ่านสัญญาณ ใช้เวลาประมาณครึ่งนาที',
+  'relax.calibrating.skip': 'ข้าม',
+
+  // Relax mode — biometrics
+  'relax.biometrics.enable': 'เปิดไบโอเมตริก',
+  'relax.biometrics.stop': 'หยุด',
 } as const
 
 export default th

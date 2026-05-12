@@ -182,6 +182,94 @@ const hi = {
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
 
   'echo.label': 'अतीत',
+
+  // Bilateral stimulation
+  'settings.bilateralStimulation': 'द्विपक्षीय लय',
+
+  // Body map
+  'bodyMap.title': 'शरीर',
+  'bodyMap.dormant': 'लिखो। मैं आकार ले लूँगा।',
+  'bodyMap.region.head': 'सिर',
+  'bodyMap.region.eyes': 'आँखें',
+  'bodyMap.region.throat': 'गला',
+  'bodyMap.region.chest': 'छाती',
+  'bodyMap.region.stomach': 'पेट',
+  'bodyMap.region.shoulders': 'कंधे',
+  'bodyMap.region.hands': 'हाथ',
+  'bodyMap.region.back': 'पीठ',
+  'bodyMap.region.hips': 'कूल्हे',
+  'bodyMap.region.legs': 'पैर और तलवे',
+
+  // Session bottom bar
+  'session.bottomBar.relax': 'आराम',
+
+  // Relax mode — settings
+  'relax.settings.title': 'बैठ जाओ',
+  'relax.settings.duration.label': 'अवधि',
+  'relax.settings.duration.5': '5 मिनट',
+  'relax.settings.duration.10': '10 मिनट',
+  'relax.settings.duration.20': '20 मिनट',
+  'relax.settings.type.label': 'अभ्यास',
+  'relax.settings.type.breathwork': 'साँस का अभ्यास',
+  'relax.settings.type.body_scan': 'शरीर स्कैन',
+  'relax.settings.type.safe_place': 'सुरक्षित स्थान',
+  'relax.settings.type.open_awareness': 'खुली चेतना',
+  'relax.settings.audio.label': 'पृष्ठभूमि',
+  'relax.settings.audio.none': 'मौन',
+  'relax.settings.audio.ocean': 'समुद्र',
+  'relax.settings.audio.forest': 'जंगल',
+  'relax.settings.audio.drone': 'ड्रोन',
+  'relax.settings.audio.binaural': 'बाइनॉरल',
+  'relax.settings.audio.custom': 'कस्टम',
+  'relax.settings.audio.volume': 'आवाज़',
+  'relax.settings.audio.promptLabel': 'ध्वनि का वर्णन करो',
+  'relax.settings.audio.promptPlaceholder': 'टीन की छत पर बारिश, दूर से गड़गड़ाहट',
+  'relax.settings.audio.promptHelp': '200 अक्षरों तक। 30-सेकंड का लूप बनाता है।',
+  'relax.settings.audio.generate': 'बनाओ',
+  'relax.settings.audio.generating': 'बना रहा है…',
+  'relax.settings.audio.ready': 'तैयार',
+  'relax.settings.audio.cached': 'पहले से सहेजा गया',
+  'relax.settings.audio.error.network': 'ध्वनि सेवा तक नहीं पहुँच सके।',
+  'relax.settings.audio.error.rateLimit': 'हाल ही में बहुत सारे साउंडस्केप बने। कोई प्रीसेट आज़माओ, या थोड़ा रुको।',
+  'relax.settings.audio.error.provider': 'यह साउंडस्केप नहीं बना सके। दूसरे शब्द आज़माओ।',
+  'relax.settings.audio.error.validation': 'यह विवरण समर्थित नहीं है। छोटा और स्पष्ट रखो।',
+  'relax.settings.audio.error.retry': 'फिर कोशिश करो',
+  'relax.settings.audio.preset.rain': 'टीन की छत पर बारिश',
+  'relax.settings.audio.preset.forest': 'जंगल की धारा',
+  'relax.settings.audio.preset.thunder': 'दूर की गड़गड़ाहट',
+  'relax.settings.audio.preset.cave': 'समुद्री गुफा',
+  'relax.settings.voice.label': 'आवाज़ का मार्गदर्शन',
+  'relax.settings.voice.on': 'चालू',
+  'relax.settings.voice.off': 'बंद',
+  'relax.settings.visual.label': 'दृश्य',
+  'relax.settings.visual.full': 'पूर्ण',
+  'relax.settings.visual.minimal': 'न्यूनतम',
+  'relax.settings.visual.off': 'बंद',
+  'relax.settings.cancel': 'वापस',
+  'relax.settings.begin': 'शुरू करो',
+
+  // Relax mode — controls
+  'relax.controls.muteAudio': 'ध्वनि बंद',
+  'relax.controls.unmuteAudio': 'ध्वनि चालू',
+  'relax.controls.muteVoice': 'आवाज़ बंद',
+  'relax.controls.unmuteVoice': 'आवाज़ चालू',
+  'relax.controls.cycleVisual': 'दृश्य बदलो',
+  'relax.controls.end': 'सत्र समाप्त',
+
+  // Relax mode — summary
+  'relax.summary.title': 'पूरा',
+  'relax.summary.minutes': 'मिनट',
+  'relax.summary.subtitle': 'जब तुम तैयार हो।',
+  'relax.summary.completed': 'जब तुम तैयार हो।',
+
+  // Relax mode — calibrating
+  'relax.calibrating.title': 'बैठ रहा हूँ',
+  'relax.calibrating.subtitle': 'तुम्हारा संकेत पढ़ रहा हूँ। करीब आधा मिनट लगता है।',
+  'relax.calibrating.skip': 'छोड़ो',
+
+  // Relax mode — biometrics
+  'relax.biometrics.enable': 'बायोमेट्रिक्स चालू करो',
+  'relax.biometrics.stop': 'रोको',
 } as const
 
 export default hi
