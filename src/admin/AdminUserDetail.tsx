@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { adminFetch } from './adminApi'
 import { useAdminUser } from './useAdminUser'
+import { useAdminQuery } from './useAdminQuery'
 import type { AdminConversation, AdminSessionMessage } from './adminTypes'
 import type { DiagnosticEvent, Severity } from '../services/diagnostics'
 
