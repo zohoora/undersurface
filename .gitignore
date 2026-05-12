@@ -58,3 +58,9 @@ test-*.png
 
 # Benchmark output
 scripts/benchmark-results.json
+
+# Seed soundscape MP3s — hosted in Firebase Storage (seed-audio/v1/), not in git
+# and not in the build. Local backup copies live in .local-audio-backup/ for
+# re-upload convenience. See src/hooks/useRelaxSession.ts for the bucket path.
+public/audio/
+.local-audio-backup/

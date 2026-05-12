@@ -72,11 +72,17 @@ export interface UseRelaxSessionResult {
   cycleVisual: () => void
 }
 
+// Seed soundscape MP3s live in the default Firebase Storage bucket at
+// `seed-audio/v1/` with public-read ACLs and an immutable cache-control header.
+// They are NOT in the git repo (~26MB combined). If a URL stops working,
+// check the bucket via `gsutil ls gs://undersurfaceme.firebasestorage.app/seed-audio/v1/`.
+// To roll a new version, upload to `seed-audio/v2/` and bump SEED_AUDIO_BASE.
+const SEED_AUDIO_BASE = 'https://storage.googleapis.com/undersurfaceme.firebasestorage.app/seed-audio/v1'
 const STATIC_AUDIO_PATHS: Partial<Record<RelaxAudioTrack, string>> = {
-  ocean: '/audio/ocean.mp3',
-  forest: '/audio/forest.mp3',
-  drone: '/audio/drone.mp3',
-  binaural: '/audio/binaural.mp3',
+  ocean: `${SEED_AUDIO_BASE}/ocean.mp3`,
+  forest: `${SEED_AUDIO_BASE}/forest.mp3`,
+  drone: `${SEED_AUDIO_BASE}/drone.mp3`,
+  binaural: `${SEED_AUDIO_BASE}/binaural.mp3`,
 }
 
 // Static tracks → bundled MP3 path. 'custom' → the signed URL pre-fetched
