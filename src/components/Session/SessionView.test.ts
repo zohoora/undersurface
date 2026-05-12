@@ -296,14 +296,14 @@ describe('SessionView — surface switching (Journal & Speak)', () => {
     expect(src.default).toContain('appendUserMessage(journalDraft.trim()')
   })
 
-  it('handleSurfaceChange starts voice on Speak entry via handleStartVoice', async () => {
+  it('handleSurfaceChange starts voice on Speak entry via useSessionVoice', async () => {
     const src = await import('./SessionView?raw')
-    expect(src.default).toContain('void handleStartVoice()')
+    expect(src.default).toContain('void voiceHandleStart()')
   })
 
   it('handleSurfaceChange stops voice on Speak exit', async () => {
     const src = await import('./SessionView?raw')
-    expect(src.default).toContain('voice.stop()')
+    expect(src.default).toContain('voiceStop()')
   })
 
   it('voice-idle effect auto-reverts surface to talk', async () => {

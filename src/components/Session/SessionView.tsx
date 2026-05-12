@@ -11,8 +11,8 @@ import { getGlobalConfig, useGlobalConfig } from '../../store/globalConfig'
 import { SessionBottomBar, type SessionSurface } from './SessionBottomBar'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../../store/db'
 import { SessionOrchestrator } from '../../engine/sessionOrchestrator'
-import { buildTherapistMessages, buildTherapistSystemPrompt } from '../../ai/therapistPrompts'
-import { useVoiceSession } from '../../hooks/useVoiceSession'
+import { buildTherapistMessages } from '../../ai/therapistPrompts'
+import { useSessionVoice } from '../../hooks/useSessionVoice'
 import { VoiceField } from './VoiceField'
 import { streamChatCompletion, reasoningForSpeed } from '../../ai/openrouter'
 import { loadTherapistContext, loadInSessionRelaxBreaks } from '../../engine/sessionContextLoader'
@@ -64,7 +64,6 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const messagesRef = useRef<SessionMessage[]>([])
   const handleSendRef = useRef<() => void>(() => {})
 
-  const voice = useVoiceSession()
   const voiceEnabled = getGlobalConfig()?.features?.voiceEnabled === true
   const relaxEnabled = getGlobalConfig()?.features?.relaxEnabled === true
 
@@ -415,6 +414,17 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     return { updatedMessages, firstLine, phase }
   }, [hrv, weatherEngine])
 
+  const voice = useSessionVoice({
+    sessionRef,
+    messagesRef,
+    contextRef,
+    orchestratorRef,
+    setSession,
+    setMessages,
+    appendUserMessage,
+    hrv,
+  })
+
   const handleSend = useCallback(async (editorInstance?: ReturnType<typeof useEditor>) => {
     const ed = editorInstance
     const trimmed = ed?.getText().trim() ?? ''
@@ -484,100 +494,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       message_count: finalMessages.length,
       duration_ms: endedAt - currentSession.startedAt,
     })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isStreaming, generateTherapistMessage, hrv])
-
-  // ─── Voice session wiring ───────────────────────────────
-  // User-side voice turns delegate to appendUserMessage (shared with text path).
-  // Therapist-side voice turns persist directly — no crisis/emotion/HRV side
-  // effects since the realtime model produces the response, not us.
-  const persistVoiceTherapistMessage = useCallback(async (content: string) => {
-    const currentSession = sessionRef.current
-    if (!currentSession || currentSession.status === 'closed') return
-    const trimmed = content.trim()
-    if (!trimmed) return
-
-    const currentMessages = messagesRef.current
-    const phase = orchestratorRef.current.detectPhase(currentMessages)
-    const message: SessionMessage = {
-      id: generateId(),
-      speaker: 'therapist',
-      partId: null,
-      partName: null,
-      content: trimmed,
-      timestamp: Date.now(),
-      phase,
-      isEmergence: false,
-      inputMethod: 'voice',
-    }
-
-    await sessionMessagesDb.add(currentSession.id, message)
-
-    const updatedMessages = [...currentMessages, message]
-    const firstLine = currentSession.firstLine || trimmed.slice(0, 100)
-
-    await db.sessions.update(currentSession.id, {
-      messageCount: updatedMessages.length,
-      firstLine,
-      phase,
-    })
-
-    setSession(prev => prev ? { ...prev, messageCount: updatedMessages.length, firstLine, phase } : prev)
-    setMessages(updatedMessages)
-    messagesRef.current = updatedMessages
-  }, [])
-
-  const handleStartVoice = useCallback(async () => {
-    const context = contextRef.current
-    if (!context) return
-
-    const isFirstTurn = isFirstTherapistTurn(messagesRef.current ?? [])
-
-    const sessionId = sessionRef.current?.id
-    const inSessionRelaxBreaks = sessionId ? await loadInSessionRelaxBreaks(sessionId) : []
-    const instructions = buildTherapistSystemPrompt({
-      phase: sessionRef.current?.phase ?? 'opening',
-      recentSessionNotes: context.recentSessionNotes,
-      relevantMemories: context.relevantMemories,
-      profile: context.userProfile,
-      personalFacts: context.personalFacts,
-      isGrounding: isGroundingActive(),
-      hrvContext: hrv.buildPromptContext(),
-      mode: sessionRef.current?.mode ?? 'standard',
-      allowRecommendations: true,
-      isFirstTurn,
-      inSessionRelaxBreaks,
-      recentRelaxBreaks: context.recentRelaxBreaks,
-    })
-
-    const preferredVoice = getGlobalConfig()?.voice?.defaultVoice ?? 'marin'
-
-    trackEvent('voice_session_started', { session_id: sessionRef.current?.id ?? '' })
-
-    await voice.start({
-      instructions,
-      voice: preferredVoice,
-      onUserTranscript: (text) => {
-        void appendUserMessage(text, 'voice')
-      },
-      onAssistantTranscript: (text) => {
-        void persistVoiceTherapistMessage(text)
-      },
-      onAssistantSpeakingChange: (speaking) => {
-        if (hrv.enabled) {
-          hrv.addConversationEvent(
-            speaking ? 'ai_response_start' : 'ai_response_complete',
-            messagesRef.current.length,
-          )
-        }
-      },
-    })
-  }, [voice, hrv, appendUserMessage, persistVoiceTherapistMessage])
-
-  const handleEndVoice = useCallback(() => {
-    voice.stop()
-    trackEvent('voice_session_ended', { session_id: sessionRef.current?.id ?? '' })
-  }, [voice])
+  }, [isStreaming, generateTherapistMessage, hrv, weatherEngine])
 
   const updateSession = useCallback(async (patch: Partial<Session>) => {
     if (!session?.id) return
@@ -599,6 +516,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
   const voiceState = voice.state
   const voiceStop = voice.stop
+  const voiceHandleStart = voice.handleStart
   const handleSurfaceChange = useCallback((next: SessionSurface) => {
     // Leaving Journal with non-empty text: append it as a user message so the
     // therapist receives it as context on her next turn.
@@ -607,13 +525,13 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       setJournalDraft('')
     }
     if (surface !== 'speak' && next === 'speak') {
-      void handleStartVoice()
+      void voiceHandleStart()
     }
     if (surface === 'speak' && next !== 'speak' && voiceState !== 'idle') {
       voiceStop()
     }
     setSurface(next)
-  }, [surface, journalDraft, appendUserMessage, handleStartVoice, voiceState, voiceStop])
+  }, [surface, journalDraft, appendUserMessage, voiceHandleStart, voiceState, voiceStop])
 
   const handleRecommendationTap = useCallback((target: string) => {
     switch (target) {
@@ -1028,7 +946,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         remoteStream={voice.remoteStream}
         dominantEmotion={weatherEngine.getCurrentDominantEmotion()}
         onToggleMute={voice.toggleMute}
-        onEnd={handleEndVoice}
+        onEnd={voice.handleEnd}
       />
     )}
 
