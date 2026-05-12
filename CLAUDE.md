@@ -122,6 +122,8 @@ Full list + settings cascade + tuning params: `.claude/docs/feature-flags.md`
 
 At `/admin` for admins only. Lazy-loaded. 6 tabs, 9 API actions. Overview shows live user count + cached rich metrics (writing habits, emotional landscape, feature adoption). Users table is sortable (9 columns). UserDetail has 8 tabs covering all 12 Firestore subcollections. Details: `.claude/docs/admin.md`
 
+**Data loading pattern.** All one-shot admin views fetch through `useAdminQuery<T>(action, params?)` in `src/admin/useAdminQuery.ts` — a generic race-protected hook that wraps `adminFetch`. Stable `paramsKey` (JSON-stringified) prevents fresh-object-literal churn from triggering refetches. Returns `{ data, error, loading, setData, setError }`. Specialized wrappers: `useAdminUser` (typed `getUserDetail`), `useAdminConfig` (the `appConfig/global` round-trip with save + signalUpdate + resetDefaults). Lazy/event-driven fetches (AdminInsights "generate", AdminAnalytics "refresh", per-row session-message loads, the save round-trip itself) call `adminFetch` directly.
+
 ### Subsystems
 
 Dark mode, adaptive parts, i18n (17 languages), emergency grounding, bundle splitting, intentions, explorations, session closing, autocorrect, body map, data export, webcam HRV biofeedback — all documented in `.claude/docs/subsystems.md`
@@ -282,3 +284,5 @@ Add to `SEEDED_PARTS` in `partPrompts.ts`. Scoring is role-based (`ifsRole`) —
 - **PWA API calls not cached** — go through Firebase rewrites
 - **Sentry source maps** read `process.env` (not `import.meta.env`), disabled without `SENTRY_AUTH_TOKEN`
 - **Autocorrect** uses LLM-based sentence correction (`src/ai/llmCorrect.ts`) — works in all languages with sentence-ending punctuation (CJK fullwidth, Hindi danda); Thai silently skipped (no standard sentence punctuation)
+- **`npm run build` uses `tsc -b` (incremental)** — its `.tsbuildinfo` cache can mask type errors that a clean `tsc --noEmit` would catch. Before committing/deploying anything non-trivial, run `npx tsc --noEmit -p tsconfig.json` explicitly. Vite/esbuild emits the JS bundle regardless of TS errors, so a "successful" build is NOT proof of type-safety.
+- **Major dep upgrades** (TS 6, ESLint 10, Vite 8, @vitejs/plugin-react 6, @sentry/vite-plugin 5) are all blocked by `typescript-eslint@8`'s peer dep `typescript@<6.0.0`. Re-attempt once `typescript-eslint@9` ships.
