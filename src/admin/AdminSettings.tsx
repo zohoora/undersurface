@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
-import { adminFetch } from './adminApi'
+import { useState } from 'react'
 import type { GlobalConfig } from './adminTypes'
+import { useAdminConfig } from './useAdminConfig'
 
 const DEFAULTS: GlobalConfig = {
   defaultResponseSpeed: 1.0,
@@ -77,83 +77,30 @@ const DEFAULTS: GlobalConfig = {
 }
 
 export function AdminSettings() {
-  const [config, setConfig] = useState<GlobalConfig | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const {
+    config,
+    setConfig,
+    loading,
+    saving,
+    message,
+    save: handleSave,
+    signalUpdate: handleSignalUpdate,
+    resetDefaults: handleResetDefaults,
+    updateSection,
+  } = useAdminConfig(DEFAULTS)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-
-  useEffect(() => {
-    adminFetch<{ config: GlobalConfig | null }>('getConfig')
-      .then((res) => {
-        setConfig(res.config ?? { ...DEFAULTS })
-        setLoading(false)
-      })
-      .catch((e) => {
-        setMessage({ type: 'error', text: e.message })
-        setLoading(false)
-      })
-  }, [])
-
-  const handleSave = async () => {
-    if (!config) return
-    setSaving(true)
-    setMessage(null)
-    try {
-      const result = await adminFetch<{ config: GlobalConfig }>('updateConfig', { config })
-      setConfig(result.config)
-      setMessage({ type: 'success', text: 'Settings saved' })
-    } catch (e) {
-      setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Failed to save' })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleSignalUpdate = async () => {
-    if (!config) return
-    setSaving(true)
-    setMessage(null)
-    try {
-      const updated = { ...config, buildVersion: Date.now().toString() }
-      const result = await adminFetch<{ config: GlobalConfig }>('updateConfig', { config: updated })
-      setConfig(result.config)
-      setMessage({ type: 'success', text: 'Update signaled — users will see a refresh prompt' })
-    } catch (e) {
-      setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Failed to signal' })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleResetDefaults = () => {
-    if (!config) return
-    setConfig({
-      ...DEFAULTS,
-      // Preserve identity fields
-      buildVersion: config.buildVersion,
-      announcement: config.announcement,
-      updatedAt: config.updatedAt,
-      updatedBy: config.updatedBy,
-    })
-    setMessage({ type: 'success', text: 'Reset to defaults — click Save to apply' })
-  }
 
   const toggle = (key: string) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
 
   if (loading) return <div style={{ fontSize: 13, color: '#A09A94', padding: 20 }}>Loading...</div>
   if (!config) return <div style={{ fontSize: 13, color: '#A09A94', padding: 20 }}>No config loaded</div>
 
-  const sectionSetter = <K extends keyof GlobalConfig>(section: K) =>
-    (key: string, value: unknown) =>
-      setConfig({ ...config, [section]: { ...(config[section] as object), [key]: value } })
-
-  const setFeature = sectionSetter('features')
-  const setAtmo = sectionSetter('atmosphere')
-  const setPartInt = sectionSetter('partIntelligence')
-  const setEngage = sectionSetter('engagement')
-  const setGround = sectionSetter('grounding')
-  const setVoice = sectionSetter('voice')
+  const setFeature = (key: string, value: unknown) => updateSection('features', key, value)
+  const setAtmo = (key: string, value: unknown) => updateSection('atmosphere', key, value)
+  const setPartInt = (key: string, value: unknown) => updateSection('partIntelligence', key, value)
+  const setEngage = (key: string, value: unknown) => updateSection('engagement', key, value)
+  const setGround = (key: string, value: unknown) => updateSection('grounding', key, value)
+  const setVoice = (key: string, value: unknown) => updateSection('voice', key, value)
 
   const inputStyle = {
     padding: '8px 12px',
