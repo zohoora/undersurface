@@ -1,18 +1,9 @@
-import { useState, useEffect } from 'react'
-import { adminFetch } from './adminApi'
+import { useAdminQuery } from './useAdminQuery'
 import type { ContactMessage } from './adminTypes'
 
 export function AdminMessages() {
-  const [messages, setMessages] = useState<ContactMessage[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    adminFetch<{ messages: ContactMessage[] }>('getContactMessages')
-      .then((data) => setMessages(data.messages))
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
-  }, [])
+  const { data, error, loading } = useAdminQuery<{ messages: ContactMessage[] }>('getContactMessages')
+  const messages = data?.messages ?? []
 
   if (loading) return <div style={{ color: '#A09A94', fontSize: 13 }}>Loading messages...</div>
   if (error) return <div style={{ color: '#C4705A', fontSize: 13 }}>Error: {error}</div>

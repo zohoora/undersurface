@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { adminFetch } from './adminApi'
 import { useAdminUser } from './useAdminUser'
 import type { AdminConversation, AdminSessionMessage } from './adminTypes'
@@ -370,15 +370,10 @@ export function AdminUserDetail({ uid, onBack }: Props) {
 }
 
 function DiagnosticsTab({ uid }: { uid: string }) {
-  const [events, setEvents] = useState<DiagnosticEvent[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const diagnosticsParams = useMemo(() => ({ uid, limit: 200 }), [uid])
+  const { data, error } = useAdminQuery<{ events: DiagnosticEvent[] }>('getDiagnostics', diagnosticsParams)
+  const events = data?.events ?? null
   const [expanded, setExpanded] = useState<string | null>(null)
-
-  useEffect(() => {
-    adminFetch<{ events: DiagnosticEvent[] }>('getDiagnostics', { uid, limit: 200 })
-      .then((r) => setEvents(r.events))
-      .catch((e) => setError(e.message))
-  }, [uid])
 
   if (error) return <div style={{ color: '#B91C1C', fontSize: 13 }}>Error: {error}</div>
   if (!events) return <div style={{ fontSize: 13, color: '#A09A94' }}>Loading...</div>
