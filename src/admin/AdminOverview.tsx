@@ -1,16 +1,8 @@
-import { useState, useEffect } from 'react'
-import { adminFetch } from './adminApi'
+import { useAdminQuery } from './useAdminQuery'
 import type { AdminOverviewResponse } from './adminTypes'
 
 export function AdminOverview() {
-  const [data, setData] = useState<AdminOverviewResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    adminFetch<AdminOverviewResponse>('getOverview')
-      .then(setData)
-      .catch((e) => setError(e.message))
-  }, [])
+  const { data, error } = useAdminQuery<AdminOverviewResponse>('getOverview')
 
   if (error) return <div style={{ color: '#B91C1C', fontSize: 13, padding: 20 }}>Error: {error}</div>
   if (!data) return <div style={{ fontSize: 13, color: '#A09A94', padding: 20 }}>Loading...</div>

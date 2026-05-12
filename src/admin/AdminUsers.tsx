@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react'
-import { adminFetch } from './adminApi'
+import { useState, useMemo } from 'react'
+import { useAdminQuery } from './useAdminQuery'
 import type { AdminUser } from './adminTypes'
 import { AdminUserDetail } from './AdminUserDetail'
 
@@ -18,17 +18,11 @@ const columns: { key: SortKey; label: string }[] = [
 ]
 
 export function AdminUsers() {
-  const [users, setUsers] = useState<AdminUser[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { data, error } = useAdminQuery<{ users: AdminUser[] }>('getUserList')
+  const users = data?.users ?? null
   const [selectedUid, setSelectedUid] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<SortKey>('lastActive')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-
-  useEffect(() => {
-    adminFetch<{ users: AdminUser[] }>('getUserList')
-      .then((res) => setUsers(res.users))
-      .catch((e) => setError(e.message))
-  }, [])
 
   const sortedUsers = useMemo(() => {
     if (!users) return null

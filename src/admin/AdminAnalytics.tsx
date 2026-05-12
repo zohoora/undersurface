@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { adminFetch } from './adminApi'
+import { useAdminQuery } from './useAdminQuery'
 import type { AdminAnalyticsResponse } from './adminTypes'
 
 const cardStyle = {
@@ -43,15 +44,8 @@ function BarChart({ items, labelKey, valueKey, colorKey }: {
 }
 
 export function AdminAnalytics() {
-  const [data, setData] = useState<AdminAnalyticsResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { data, error, setData, setError } = useAdminQuery<AdminAnalyticsResponse>('getAnalytics')
   const [refreshing, setRefreshing] = useState(false)
-
-  useEffect(() => {
-    adminFetch<AdminAnalyticsResponse>('getAnalytics')
-      .then(setData)
-      .catch((e) => setError(e.message))
-  }, [])
 
   const handleRefresh = async () => {
     setRefreshing(true)
