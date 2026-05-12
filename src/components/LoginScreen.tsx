@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { useAuth } from '../auth/useAuth'
 import PolicyModal from './PolicyModal'
 import { useTranslation, SUPPORTED_LANGUAGES } from '../i18n'
 import { getSettings, updateSettings } from '../store/settings'
-import { trackEvent } from '../services/analytics'
+import { useLoginFlow } from './useLoginFlow'
 
 function getSubmitLabel(
   t: Record<string, string>,
@@ -41,11 +41,6 @@ const policyLinkStyle = {
   textDecoration: 'underline',
   textUnderlineOffset: 3,
 } as const
-
-function cleanFirebaseError(err: unknown): string {
-  const message = err instanceof Error ? err.message : 'Sign-in failed'
-  return message.replace('Firebase: ', '').replace(/\(auth\/.*\)/, '').trim()
-}
 
 // --- Demo content ---
 
@@ -234,63 +229,22 @@ function DemoEditor() {
 const showAppleSignIn = Capacitor.getPlatform() === 'ios'
 
 export function LoginScreen() {
-  const { signIn, signInWithApple, signInWithEmail, signUpWithEmail, resetPassword } = useAuth()
+  const auth = useAuth()
   const t = useTranslation()
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [isSigningIn, setIsSigningIn] = useState(false)
+  const drivers = useMemo(() => ({
+    signIn: auth.signIn,
+    signInWithApple: auth.signInWithApple,
+    signInWithEmail: auth.signInWithEmail,
+    signUpWithEmail: auth.signUpWithEmail,
+    resetPassword: auth.resetPassword,
+  }), [auth.signIn, auth.signInWithApple, auth.signInWithEmail, auth.signUpWithEmail, auth.resetPassword])
+  const messages = useMemo(() => ({ resetSuccess: t['login.resetSuccess'] }), [t])
+  const {
+    email, setEmail, password, setPassword, mode, error, success, isSigningIn,
+    handleGoogleSignIn, handleAppleSignIn, handleEmailSubmit, switchMode,
+  } = useLoginFlow(drivers, messages)
   const [policyOpen, setPolicyOpen] = useState<'privacy' | 'disclaimer' | null>(null)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [mode, setMode] = useState<'signin' | 'signup' | 'reset'>('signin')
   const authRef = useRef<HTMLDivElement>(null)
-
-  const runSocialSignIn = async (method: 'google' | 'apple', driver: () => Promise<void>) => {
-    setError(null)
-    setSuccess(null)
-    setIsSigningIn(true)
-    try {
-      await driver()
-    } catch (err) {
-      trackEvent('auth_error', { method })
-      setError(err instanceof Error ? err.message : 'Sign-in failed')
-    } finally {
-      setIsSigningIn(false)
-    }
-  }
-
-  const handleGoogleSignIn = () => runSocialSignIn('google', signIn)
-  const handleAppleSignIn = () => runSocialSignIn('apple', signInWithApple)
-
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setSuccess(null)
-    setIsSigningIn(true)
-    trackEvent('auth_form_submitted', { mode })
-    try {
-      if (mode === 'reset') {
-        await resetPassword(email)
-        setSuccess(t['login.resetSuccess'])
-        setMode('signin')
-      } else if (mode === 'signup') {
-        await signUpWithEmail(email, password)
-      } else {
-        await signInWithEmail(email, password)
-      }
-    } catch (err) {
-      trackEvent('auth_error', { method: 'email', mode })
-      setError(cleanFirebaseError(err))
-    } finally {
-      setIsSigningIn(false)
-    }
-  }
-
-  const switchMode = (newMode: 'signin' | 'signup' | 'reset') => {
-    setMode(newMode)
-    setError(null)
-    setSuccess(null)
-  }
 
   const scrollToAuth = () => {
     authRef.current?.scrollIntoView({ behavior: 'smooth' })

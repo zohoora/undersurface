@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { adminFetch } from './adminApi'
-import type { AdminUserDetailResponse, AdminConversation, AdminSessionMessage } from './adminTypes'
+import { useAdminUser } from './useAdminUser'
+import type { AdminConversation, AdminSessionMessage } from './adminTypes'
 import type { DiagnosticEvent, Severity } from '../services/diagnostics'
 
 type DetailTab = 'entries' | 'parts' | 'conversations' | 'thoughts' | 'memories' | 'profile' | 'sessions' | 'weather' | 'letters' | 'fossils' | 'diagnostics'
@@ -11,15 +12,8 @@ interface Props {
 }
 
 export function AdminUserDetail({ uid, onBack }: Props) {
-  const [data, setData] = useState<AdminUserDetailResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { data, error } = useAdminUser(uid)
   const [tab, setTab] = useState<DetailTab>('entries')
-
-  useEffect(() => {
-    adminFetch<AdminUserDetailResponse>('getUserDetail', { uid })
-      .then(setData)
-      .catch((e) => setError(e.message))
-  }, [uid])
 
   if (error) return <div style={{ color: '#B91C1C', fontSize: 13, padding: 20 }}>Error: {error}</div>
   if (!data) return <div style={{ fontSize: 13, color: '#A09A94', padding: 20 }}>Loading...</div>
