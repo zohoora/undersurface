@@ -130,14 +130,16 @@ export function SessionJournalSurface({
 
   /* eslint-disable react-hooks/immutability */
   useEffect(() => {
-    if (editor) {
-      const vfx = globalConfig?.features?.visualEffectsEnabled !== false
-      editor.storage.inkWeight.disabled =
-        !(vfx && globalConfig?.features?.inkWeight !== false)
-      editor.storage.paragraphSettle.disabled =
-        !(vfx && globalConfig?.features?.paragraphFade !== false)
-      editor.view.dispatch(editor.state.tr)
-    }
+    if (!editor) return
+    // Storage entries can be undefined in transient editor states; the TS
+    // module augmentation does not reflect that runtime gap.
+    const ink = editor.storage.inkWeight
+    const settle = editor.storage.paragraphSettle
+    if (!ink || !settle) return
+    const vfx = globalConfig?.features?.visualEffectsEnabled !== false
+    ink.disabled = !(vfx && globalConfig?.features?.inkWeight !== false)
+    settle.disabled = !(vfx && globalConfig?.features?.paragraphFade !== false)
+    editor.view.dispatch(editor.state.tr)
   }, [editor, globalConfig])
   /* eslint-enable react-hooks/immutability */
 

@@ -353,11 +353,14 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   // Keep handleSendRef in sync
   useEffect(() => { handleSendRef.current = () => handleSend(inputEditor) }, [handleSend, inputEditor])
 
-  // Sync InkWeight disabled state
+  // Sync InkWeight disabled state. Storage can be undefined in production
+  // during transient editor states (Sentry 9b6f8301275743e88045df9cfe2b1965);
+  // the TS module augmentation lies about this — runtime can be empty.
   useEffect(() => {
-    if (!inputEditor) return
+    const ink = inputEditor?.storage.inkWeight
+    if (!ink) return
     const vfx = getGlobalConfig()?.features?.visualEffectsEnabled !== false
-    inputEditor.storage.inkWeight.disabled = !(vfx && getGlobalConfig()?.features?.inkWeight !== false)
+    ink.disabled = !(vfx && getGlobalConfig()?.features?.inkWeight !== false)
   }, [inputEditor])
 
   // Clear editor content when streaming starts
