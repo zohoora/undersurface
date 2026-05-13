@@ -21,23 +21,24 @@ function mockFetch(body: unknown, ok = true, status = 200) {
   })))
 }
 
+// vi.resetModules() in each describe's beforeEach blows away the hoisted
+// firebase/auth mock at the top of the file, so re-mock before re-importing.
+async function loadOpenrouter() {
+  vi.doMock('firebase/auth', () => ({
+    getAuth: vi.fn(() => ({
+      currentUser: { getIdToken: vi.fn(() => Promise.resolve('mock-token')) },
+    })),
+  }))
+  return import('./openrouter')
+}
+
 describe('chatCompletion', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.restoreAllMocks()
   })
 
-  async function loadChatCompletion() {
-    vi.doMock('firebase/auth', () => ({
-      getAuth: vi.fn(() => ({
-        currentUser: {
-          getIdToken: vi.fn(() => Promise.resolve('mock-token')),
-        },
-      })),
-    }))
-    const mod = await import('./openrouter')
-    return mod.chatCompletion
-  }
+  const loadChatCompletion = async () => (await loadOpenrouter()).chatCompletion
 
   it('returns content from valid response', async () => {
     mockFetch({ choices: [{ message: { content: 'Hello' } }] })
@@ -86,17 +87,7 @@ describe('classifyCrisisRisk', () => {
     vi.restoreAllMocks()
   })
 
-  async function loadClassify() {
-    vi.doMock('firebase/auth', () => ({
-      getAuth: vi.fn(() => ({
-        currentUser: {
-          getIdToken: vi.fn(() => Promise.resolve('mock-token')),
-        },
-      })),
-    }))
-    const mod = await import('./openrouter')
-    return mod.classifyCrisisRisk
-  }
+  const loadClassify = async () => (await loadOpenrouter()).classifyCrisisRisk
 
   it('returns parsed risk + reason from valid classifier response', async () => {
     mockFetch({
@@ -198,6 +189,188 @@ describe('classifyCrisisRisk', () => {
 
     expect(result.risk).toBe(1)
     expect(result.reason).toBe('burden framing')
+  })
+})
+
+// ── streamChatCompletion preamble parsing ────────────────────────────────────
+//
+// The therapist response stream begins with `<<RISK:N>>\n\n` (see
+// RISK_PREAMBLE_INSTRUCTIONS in therapistPrompts.ts). The parser strips it
+// from the content forwarded to onToken and fires onRisk once with the
+// parsed risk. These tests exercise the parser without mocking the parser
+// itself — they drive real SSE bytes through a fake fetch body.
+
+function sse(content: string): string {
+  return `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`
+}
+
+function mockStream(chunks: string[]) {
+  const encoder = new TextEncoder()
+  let i = 0
+  const reader = {
+    read: () => {
+      if (i >= chunks.length) return Promise.resolve({ done: true, value: undefined })
+      const chunk = chunks[i++]
+      return Promise.resolve({ done: false, value: encoder.encode(chunk) })
+    },
+  }
+  vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
+    ok: true,
+    status: 200,
+    body: { getReader: () => reader },
+    text: () => Promise.resolve(''),
+  })))
+}
+
+const loadStream = async () => (await loadOpenrouter()).streamChatCompletion
+
+describe('streamChatCompletion — risk preamble parsing', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.restoreAllMocks()
+  })
+
+  it('parses `<<RISK:0>>` and strips it from forwarded content', async () => {
+    mockStream([
+      sse('<<RISK:0>>\n\nHey, '),
+      sse('how are you?'),
+      'data: [DONE]\n\n',
+    ])
+    const stream = await loadStream()
+
+    const tokens: string[] = []
+    let risk: number | null = null
+    let complete = ''
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: (t) => tokens.push(t),
+        onRisk: (r) => { risk = r },
+        onComplete: (full) => { complete = full },
+        onError: () => {},
+      },
+    )
+
+    expect(risk).toBe(0)
+    expect(tokens.join('')).toBe('Hey, how are you?')
+    expect(complete).toBe('Hey, how are you?')
+    expect(tokens.join('')).not.toContain('<<RISK')
+  })
+
+  it('parses `<<RISK:2>>` and fires onRisk before any content token', async () => {
+    mockStream([
+      sse('<<RISK:2>>\n\n'),
+      sse('Please reach out for help.'),
+      'data: [DONE]\n\n',
+    ])
+    const stream = await loadStream()
+
+    let risk: number | null = null
+    let riskFiredAt: number | null = null
+    const tokens: string[] = []
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: (t) => { tokens.push(t); if (riskFiredAt === null) riskFiredAt = -1 },
+        onRisk: (r) => { risk = r; riskFiredAt = tokens.length },
+        onComplete: () => {},
+        onError: () => {},
+      },
+    )
+
+    expect(risk).toBe(2)
+    // onRisk fired before any token reached onToken (token count was 0).
+    expect(riskFiredAt).toBe(0)
+    expect(tokens.join('')).toBe('Please reach out for help.')
+  })
+
+  it('handles preamble split across multiple stream chunks', async () => {
+    mockStream([
+      sse('<<RIS'),
+      sse('K:1>>'),
+      sse('\n\nThat sounds heavy.'),
+      'data: [DONE]\n\n',
+    ])
+    const stream = await loadStream()
+
+    let risk: number | null = null
+    const tokens: string[] = []
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: (t) => tokens.push(t),
+        onRisk: (r) => { risk = r },
+        onComplete: () => {},
+        onError: () => {},
+      },
+    )
+
+    expect(risk).toBe(1)
+    expect(tokens.join('')).toBe('That sounds heavy.')
+  })
+
+  it('fails open with risk=0 when no preamble appears within the fail-open budget', async () => {
+    // A response longer than PREAMBLE_FAIL_OPEN_CHARS (80) with no
+    // `<<RISK:...` prefix. Parser should accumulate until the threshold,
+    // fire onRisk(0), then surface buffered content as normal response.
+    // Must be non-repeating to avoid tripping the repetition-loop detector
+    // that operates on the same fullText buffer once the preamble flushes.
+    const longContent = 'The quick brown fox jumps over the lazy dog while a curious cat watches from afar with mild interest.'
+    mockStream([sse(longContent), 'data: [DONE]\n\n'])
+    const stream = await loadStream()
+
+    let risk: number | null = null
+    let complete = ''
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: () => {},
+        onRisk: (r) => { risk = r },
+        onComplete: (full) => { complete = full },
+        onError: () => {},
+      },
+    )
+
+    expect(risk).toBe(0)
+    expect(complete).toBe(longContent)
+  })
+
+  it('fires onRisk(0) at end-of-stream when the response was shorter than the fail-open budget and had no preamble', async () => {
+    mockStream([sse('hi'), 'data: [DONE]\n\n'])
+    const stream = await loadStream()
+
+    let risk: number | null = null
+    let complete = ''
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: () => {},
+        onRisk: (r) => { risk = r },
+        onComplete: (full) => { complete = full },
+        onError: () => {},
+      },
+    )
+
+    expect(risk).toBe(0)
+    expect(complete).toBe('hi')
+  })
+
+  it('only fires onRisk once per call', async () => {
+    mockStream([sse('<<RISK:0>>\n\nHey.'), 'data: [DONE]\n\n'])
+    const stream = await loadStream()
+
+    const risks: number[] = []
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: () => {},
+        onRisk: (r) => risks.push(r),
+        onComplete: () => {},
+        onError: () => {},
+      },
+    )
+
+    expect(risks).toEqual([0])
   })
 })
 

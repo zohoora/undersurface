@@ -5,9 +5,9 @@ import { buildTherapistMessages } from '../ai/therapistPrompts'
 import { streamChatCompletion, reasoningForSpeed } from '../ai/openrouter'
 import { loadInSessionRelaxBreaks } from '../engine/sessionContextLoader'
 import type { TherapistContext } from '../engine/sessionContextLoader'
-import { isGroundingActive } from './useGroundingMode'
+import { isGroundingActive, activateGrounding } from './useGroundingMode'
 import { getWeatherEngine } from '../store/weatherStore'
-import { useTranslation, getLanguageCode } from '../i18n'
+import { useTranslation } from '../i18n'
 import type { useTypewriter } from './useTypewriter'
 import type { useHrvSession } from './useHrvSession'
 import type { SessionOrchestrator } from '../engine/sessionOrchestrator'
@@ -53,14 +53,14 @@ export function useSessionStream(wiring: SessionStreamWiring) {
 
   // Returns the updated messages array after the therapist message is finalized.
   //
-  // Crisis-detection race: on the first attempt, fires the L2 classifier in
-  // parallel with therapist generation. If risk=2 returns before the
-  // therapist's first token arrives, the in-flight stream is aborted and a
-  // single retry runs with the now-flipped grounding state — so the user
-  // sees a grounded response rather than a Real Talk callout or whatever
-  // the original prompt would have produced. After first token has arrived,
-  // the response finishes (already constrained by SAFETY_RULES) and grounding
-  // takes effect on the next turn.
+  // Crisis detection (L2) is folded into this same call: the therapist emits
+  // `<<RISK:N>>\n\n` as the first content of the stream, parsed and stripped by
+  // streamChatCompletion before any token reaches the typewriter. On risk=2,
+  // activateGrounding fires immediately; on the first attempt the in-flight
+  // stream is also aborted so the retry rebuilds the prompt with
+  // isGrounding=true (which flips Real Talk → standard core via the
+  // load-bearing useRealTalk guard). On retries, we trust the model's response
+  // (already constrained by SAFETY_RULES) and let it stream.
   const generateTherapistMessage = useCallback(async (
     currentMessages: SessionMessage[],
     currentSession: Session,
@@ -69,7 +69,6 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     setOpenerError(null)
 
     const orchestrator = orchestratorRef.current
-    const lastUserMessage = [...currentMessages].reverse().find(m => m.speaker === 'user')
 
     // Up to 3 total attempts to get non-empty content. The therapist sometimes
     // emits zero content tokens — model exhausts its budget on internal reasoning,
@@ -168,20 +167,6 @@ export function useSessionStream(wiring: SessionStreamWiring) {
         let firstTokenArrived = false
         let crisisAborted = false
 
-        // Fire L2 only on the first crisis attempt of the first empty-attempt.
-        // Re-running it on subsequent retries would waste calls; if it already
-        // returned risk=2, grounding is already active for the retry prompt.
-        if (emptyAttempt === 0 && attempt === 0 && lastUserMessage) {
-          orchestrator.checkCrisisRisk(lastUserMessage.content, getLanguageCode())
-            .then(result => {
-              if (result.risk === 2 && !firstTokenArrived && !crisisAborted) {
-                crisisAborted = true
-                crisisAbortController.abort()
-              }
-            })
-            .catch(() => { /* fail-open inside checkCrisisRisk */ })
-        }
-
         await streamChatCompletion(
           promptMessages,
           {
@@ -190,6 +175,18 @@ export function useSessionStream(wiring: SessionStreamWiring) {
               typewriter.appendToken(token)
               if (hrv.enabled && hrv.markResponseStarted()) {
                 hrv.addConversationEvent('ai_response_start', currentMessages.length)
+              }
+            },
+            onRisk: (risk) => {
+              if (risk !== 2) return
+              activateGrounding('auto')
+              // First attempt only: abort so the retry rebuilds the prompt
+              // with isGrounding=true (which flips Real Talk → standard core
+              // via useRealTalk). After first content token, SAFETY_RULES
+              // already constrains the in-flight response.
+              if (attempt === 0 && !firstTokenArrived) {
+                crisisAborted = true
+                crisisAbortController.abort()
               }
             },
             onComplete: () => {

@@ -1,7 +1,6 @@
 import type { SessionMessage, SessionPhase } from '../types'
 import { buildTherapistSessionNotePrompt } from '../ai/therapistPrompts'
-import { chatCompletion, analyzeEmotionAndDistress, classifyCrisisRisk } from '../ai/openrouter'
-import type { CrisisRiskResult } from '../ai/openrouter'
+import { chatCompletion, analyzeEmotionAndDistress } from '../ai/openrouter'
 import { activateGrounding } from '../store/groundingState'
 
 // Fast keyword-based crisis detection — no LLM, no cooldown, no feature flag.
@@ -94,25 +93,12 @@ export class SessionOrchestrator {
     return false
   }
 
-  // L2 — synchronous LLM crisis classifier. Multilingual + ambiguous coverage.
-  // Calibrated for precision over recall via crisisClassifierPrompt.ts and
-  // crisisClassifier.eval.ts. risk=2 activates full grounding immediately;
-  // risk=1 is returned to the caller for soft-grounding handling but does not
-  // flip global grounding state. Fail-open on classifier error (returns risk=0).
-  //
-  // Intended to be fired in parallel with therapist generation. Caller may
-  // race the result against the in-flight stream's first token to decide
-  // whether to abort and restart with a grounded prompt.
-  async checkCrisisRisk(text: string, language?: string): Promise<CrisisRiskResult> {
-    const result = await classifyCrisisRisk(text, language)
-    if (result.risk === 2) {
-      activateGrounding('auto')
-    }
-    return result
-  }
+  // L2 lives in the therapist stream as a `<<RISK:N>>` preamble — see
+  // RISK_PREAMBLE_INSTRUCTIONS. Diary mode keeps the standalone classifier
+  // at partOrchestrator.checkCrisisInJournalMode (no stream to fold into).
 
-  // L3 — emotion tagging for innerWeather and part scoring. L2 owns grounding
-  // decisions; the distressLevel field this returns is informational only.
+  // L3 — emotion tagging for innerWeather and part scoring. The
+  // distressLevel field this returns is informational only.
   async checkEmotionAfterMessage(text: string): Promise<{ emotion: string; distressLevel: number } | null> {
     return analyzeEmotionAndDistress(text)
   }

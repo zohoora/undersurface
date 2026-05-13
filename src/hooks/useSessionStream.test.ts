@@ -23,8 +23,10 @@ vi.mock('../engine/sessionContextLoader', () => ({
 }))
 
 const isGroundingMock = vi.fn(() => false)
+const activateGroundingMock = vi.fn()
 vi.mock('./useGroundingMode', () => ({
   isGroundingActive: () => isGroundingMock(),
+  activateGrounding: (...a: unknown[]) => activateGroundingMock(...a),
 }))
 
 const sessionMessageAddMock = vi.fn(async () => {})
@@ -118,7 +120,6 @@ function makeTypewriter(): TypewriterMock {
 function makeOrchestrator(over: Partial<{
   detectPhase: () => 'opening' | 'deepening' | 'closing'
   getMaxTokens: () => number
-  checkCrisisRisk: (text: string, lang: string) => Promise<{ risk: 0 | 1 | 2; reason: string }>
   checkCrisisKeywords: (text: string) => void
   checkEmotionAfterMessage: (text: string) => Promise<{ emotion: string } | null>
   generateSessionNote: () => Promise<string>
@@ -126,7 +127,6 @@ function makeOrchestrator(over: Partial<{
   return {
     detectPhase: vi.fn(() => 'opening' as const),
     getMaxTokens: vi.fn(() => 300),
-    checkCrisisRisk: vi.fn(async () => ({ risk: 0 as const, reason: '' })),
     checkCrisisKeywords: vi.fn(),
     checkEmotionAfterMessage: vi.fn(async () => null),
     generateSessionNote: vi.fn(async () => ''),
@@ -178,6 +178,7 @@ beforeEach(() => {
   weatherRecordMock.mockClear()
   weatherShouldPersistMock.mockClear()
   weatherPersistMock.mockClear()
+  activateGroundingMock.mockClear()
   isGroundingMock.mockReturnValue(false)
   idCounter = 0
 })
@@ -277,63 +278,82 @@ describe('useSessionStream — empty-completion retries', () => {
   })
 })
 
-// ─── Tests: crisis-detection race (load-bearing safety invariant) ─────────
+// ─── Tests: onRisk wiring (load-bearing safety invariant) ─────────────────
 
-describe('useSessionStream — crisis-detection race wiring', () => {
-  // Note: the precise abort-before-first-token timing is sensitive to JS
-  // microtask scheduling and is hard to reproduce reliably in jsdom. These
-  // tests verify the STRUCTURE — the classifier is fired in parallel with
-  // streaming, with the right inputs, and on the right turns. The aborting
-  // behavior itself is validated end-to-end on the live site.
+describe('useSessionStream — onRisk preamble wiring', () => {
+  // The therapist now emits <<RISK:N>>\\n\\n as the first content of the
+  // stream; the openrouter preamble parser strips it and fires onRisk
+  // before any token reaches the typewriter. These tests cover the hook's
+  // handling of that callback: risk=2 activates grounding, risk=2 on the
+  // first attempt aborts and retries, risk=0/1 do not affect grounding.
 
-  it('fires checkCrisisRisk in parallel on the first attempt when a user message exists', async () => {
-    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
-      callbacks.onToken('safe')
+  it('does NOT activate grounding when onRisk fires with risk=0', async () => {
+    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onRisk?: (r: 0 | 1 | 2) => void; onComplete: () => void }) => {
+      callbacks.onRisk?.(0)
+      callbacks.onToken('All clear.')
       callbacks.onComplete()
     })
 
-    const orchestrator = makeOrchestrator({
-      checkCrisisRisk: vi.fn(async () => ({ risk: 0 as const, reason: '' })),
-    })
     const tw = makeTypewriter()
-    const wiring = makeWiring({
-      orchestrator,
-      typewriter: tw,
-      messages: [{ id: 'u1', speaker: 'user', partId: null, partName: null, content: 'how are you?', timestamp: 1, phase: 'opening', isEmergence: false }],
-    })
-
-    const { result } = renderHook(() => useSessionStream(wiring))
-
-    await act(async () => {
-      const p = result.current.generateTherapistMessage(wiring.messagesRef.current!, wiring.sessionRef.current!)
-      await Promise.resolve()
-      await tw.pendingComplete?.('all good')
-      await p
-    })
-
-    expect(orchestrator.checkCrisisRisk).toHaveBeenCalledWith('how are you?', 'en')
-  })
-
-  it('does NOT fire the L2 classifier when the conversation has no user message yet (opening turn)', async () => {
-    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
-      callbacks.onToken('Hello.')
-      callbacks.onComplete()
-    })
-
-    const orchestrator = makeOrchestrator()
-    const tw = makeTypewriter()
-    const wiring = makeWiring({ orchestrator, typewriter: tw })
-
+    const wiring = makeWiring({ typewriter: tw })
     const { result } = renderHook(() => useSessionStream(wiring))
 
     await act(async () => {
       const p = result.current.generateTherapistMessage([], wiring.sessionRef.current!)
       await Promise.resolve()
-      await tw.pendingComplete?.('Hello.')
+      await tw.pendingComplete?.('All clear.')
       await p
     })
 
-    expect(orchestrator.checkCrisisRisk).not.toHaveBeenCalled()
+    expect(activateGroundingMock).not.toHaveBeenCalled()
+  })
+
+  it('does NOT activate grounding when onRisk fires with risk=1', async () => {
+    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onRisk?: (r: 0 | 1 | 2) => void; onComplete: () => void }) => {
+      callbacks.onRisk?.(1)
+      callbacks.onToken('soft signal')
+      callbacks.onComplete()
+    })
+
+    const tw = makeTypewriter()
+    const wiring = makeWiring({ typewriter: tw })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    await act(async () => {
+      const p = result.current.generateTherapistMessage([], wiring.sessionRef.current!)
+      await Promise.resolve()
+      await tw.pendingComplete?.('soft signal')
+      await p
+    })
+
+    expect(activateGroundingMock).not.toHaveBeenCalled()
+  })
+
+  it('activates grounding without aborting when risk=2 arrives AFTER first content token', async () => {
+    // Once the first content token has reached the typewriter, the hook
+    // trusts SAFETY_RULES to constrain the in-flight response and does NOT
+    // abort/retry — re-running on a Real Talk callout would loop forever.
+    let callCount = 0
+    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onRisk?: (r: 0 | 1 | 2) => void; onComplete: () => void }) => {
+      callCount++
+      callbacks.onToken('content arrived')
+      callbacks.onRisk?.(2)
+      callbacks.onComplete()
+    })
+
+    const tw = makeTypewriter()
+    const wiring = makeWiring({ typewriter: tw })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    await act(async () => {
+      const p = result.current.generateTherapistMessage([], wiring.sessionRef.current!)
+      await Promise.resolve()
+      await tw.pendingComplete?.('content arrived')
+      await p
+    })
+
+    expect(callCount).toBe(1) // No retry — stream was not aborted
+    expect(activateGroundingMock).toHaveBeenCalledWith('auto')
   })
 
   it('forwards an AbortSignal to streamChatCompletion (the abort plumbing exists)', async () => {
@@ -342,9 +362,8 @@ describe('useSessionStream — crisis-detection race wiring', () => {
       callbacks.onComplete()
     })
 
-    const orchestrator = makeOrchestrator()
     const tw = makeTypewriter()
-    const wiring = makeWiring({ orchestrator, typewriter: tw })
+    const wiring = makeWiring({ typewriter: tw })
 
     const { result } = renderHook(() => useSessionStream(wiring))
 

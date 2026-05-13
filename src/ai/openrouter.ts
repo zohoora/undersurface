@@ -3,6 +3,13 @@ import { getAuthToken } from '../api/authedFetch'
 import { CRISIS_CLASSIFIER_PROMPT } from './crisisClassifierPrompt'
 import { engineLog } from '../services/diagnostics'
 
+export type CrisisRisk = 0 | 1 | 2
+
+export interface CrisisRiskResult {
+  risk: CrisisRisk
+  reason?: string
+}
+
 interface Message {
   role: 'system' | 'user' | 'assistant'
   content: string
@@ -12,7 +19,14 @@ interface StreamCallbacks {
   onToken: (token: string) => void
   onComplete: (fullText: string) => void
   onError: (error: Error) => void
+  // Fires at most once per call. Missing preamble → risk=0 (fail-open).
+  onRisk?: (risk: CrisisRisk) => void
 }
+
+// Anchored — a stray `<<RISK:2>>` quoted later in the response does not
+// retroactively trigger grounding.
+const RISK_PREAMBLE_PATTERN = /^<<RISK:([012])>>\n\n/
+const PREAMBLE_FAIL_OPEN_CHARS = 80
 
 export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh'
 
@@ -123,6 +137,49 @@ export async function streamChatCompletion(
     let buffer = ''
     let loopDetected = false
 
+    // Parser for the `<<RISK:N>>\n\n` preamble emitted by the therapist (see
+    // RISK_PREAMBLE_INSTRUCTIONS). Buffer until match or fail-open threshold.
+    let preambleConsumed = false
+    let preambleBuffer = ''
+
+    const fireRisk = (risk: CrisisRisk): void => {
+      if (preambleConsumed) return
+      preambleConsumed = true
+      callbacks.onRisk?.(risk)
+    }
+
+    const processContent = (chunk: string): void => {
+      if (controller.signal.aborted) return
+
+      if (preambleConsumed) {
+        fullText += chunk
+        callbacks.onToken(chunk)
+        return
+      }
+
+      preambleBuffer += chunk
+      const match = preambleBuffer.match(RISK_PREAMBLE_PATTERN)
+      if (match) {
+        const risk = parseInt(match[1], 10) as CrisisRisk
+        fireRisk(risk)
+        if (controller.signal.aborted) return
+        const remainder = preambleBuffer.slice(match[0].length)
+        preambleBuffer = ''
+        if (remainder) {
+          fullText += remainder
+          callbacks.onToken(remainder)
+        }
+        return
+      }
+      if (preambleBuffer.length > PREAMBLE_FAIL_OPEN_CHARS) {
+        fireRisk(0)
+        if (controller.signal.aborted) return
+        fullText += preambleBuffer
+        callbacks.onToken(preambleBuffer)
+        preambleBuffer = ''
+      }
+    }
+
     try {
       while (true) {
         const { done, value } = await reader.read()
@@ -142,11 +199,11 @@ export async function streamChatCompletion(
             const parsed = JSON.parse(data)
             const token = parsed.choices?.[0]?.delta?.content
             if (token) {
-              fullText += token
-              callbacks.onToken(token)
+              processContent(token)
 
               // Repetition loop detection: if the last 40 chars appear
               // earlier in the text, the model is stuck in a loop — abort.
+              // fullText excludes the stripped preamble.
               if (fullText.length > 100) {
                 const tail = fullText.slice(-40)
                 const searchArea = fullText.slice(0, -40)
@@ -169,6 +226,14 @@ export async function streamChatCompletion(
       }
     } finally {
       clearTimeout(timeout)
+    }
+
+    // Fail-open if preamble never matched and we ended below the threshold.
+    fireRisk(0)
+    if (preambleBuffer.length > 0 && !controller.signal.aborted) {
+      fullText += preambleBuffer
+      callbacks.onToken(preambleBuffer)
+      preambleBuffer = ''
     }
 
     // If loop detected, trim the repeated content
@@ -225,13 +290,6 @@ Distress scale (err on the side of LOW scores — processing hard feelings is no
   return { emotion: found ?? 'neutral', distressLevel: 0 }
 }
 
-export type CrisisRisk = 0 | 1 | 2
-
-export interface CrisisRiskResult {
-  risk: CrisisRisk
-  reason?: string
-}
-
 /**
  * Synchronous L2 crisis classifier — multilingual, narrow-by-construction.
  *
@@ -244,7 +302,8 @@ export interface CrisisRiskResult {
  * here, so falling open leaves the existing safety net intact. The
  * alternative — bricking message send on transient API failure — is worse.
  *
- * Intended to be fired in parallel with therapist generation, not before.
+ * Used by partOrchestrator for diary-mode crisis classification. In session
+ * mode, L2 is folded into the therapist stream as a `<<RISK:N>>` preamble.
  */
 export async function classifyCrisisRisk(
   text: string,

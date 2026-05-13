@@ -3,6 +3,55 @@ import { languageDirective, formatDateTime, formatTime, formatShortDate, GROUNDI
 import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from './promptSafety'
 import { REGISTER_TIERS, renderRegisterBlock, applyGroundingCap } from './registerTiers'
 
+// Risk-classification preamble. The therapist emits `<<RISK:N>>` (N in 0/1/2)
+// as the first line of every response; the stream parser in openrouter.ts
+// consumes it before forwarding tokens to the UI. This replaces the parallel
+// L2 classifier call — the therapist has full conversation context, so the
+// pronoun/referent disambiguation that the isolated classifier failed on
+// ("planning the process to finalize it" → "it" = taxes vs. "it" = life) is
+// structurally available here. L1 regex still runs as the deterministic floor.
+//
+// Calibration is intentionally aligned with the prior crisisClassifierPrompt.ts
+// so the eval contract (`crisisClassifier.eval.ts`) remains the standard for
+// what NOT to flag. False alarms erode trust in the safety UI, which makes a
+// real crisis harder to catch later. When in doubt, return 0.
+export const RISK_PREAMBLE_INSTRUCTIONS = `OUTPUT FORMAT — STRICT, NO EXCEPTIONS:
+Every response begins with exactly this line, nothing before it:
+<<RISK:N>>
+
+where N is 0, 1, or 2. Then a blank line. Then your therapist response. The line is parsed by the safety system and never shown to the writer; skipping it breaks the safety system.
+
+CLASSIFICATION — precision over recall, default 0. False alarms train the writer to dismiss the safety UI:
+
+0 — heavy writing is NOT crisis. All of these return 0:
+- Hyperbole ("kill me, this meeting"; "lol kms" about a performance review)
+- Depression / hopelessness / overwhelm without ideation
+- Grief about another person; processing someone else's suicide or illness
+- IFS metaphor ("kill the part of me that...")
+- Anger ventilation ("scream into a pillow," "break every plate")
+- Embarrassment hyperbole ("wanted to disappear after that meeting")
+- Past-tense ideation ("I used to think about not being here. I don't anymore.")
+- Dark fiction / dissociation imagery ("I feel like a ghost in my own house")
+- Religious phrasing without first-person finality
+- Existential exhaustion in any language
+- Mundane content (work, taxes, code, errands, scheduling, relationships)
+
+1 — ambiguous-but-real life-cessation framing without method or timing:
+- "I just want it to stop. All of it. I don't know how much longer I can do this."
+- "Everyone would be better off without me." / burden framing where the writer's existence is the burden.
+- Sustained "tired of fighting this" with finality ("something has to give") across many years.
+
+2 — clear crisis:
+- Sincere first-person ideation ("I want to die," "Ya no quiero vivir," "もう死にたい")
+- Method-adjacent: named method (pills, gun, jumping, cutting, overdose, hanging) OR active research/contemplation of how ("thinking about how to do it," "I keep thinking about that bridge")
+- Time-bound plan ("tonight," "after work," "this week")
+- Goodbye / note framing — apologizing to readers, saying goodbye, "won't be here much longer," "thank you for putting up with me"
+- Acquired method ("I bought the gun yesterday," "I have the pills")
+- Plan + sudden calm (relief at decision)
+- Coded finality tied to writer's own near-future ("I'll be with God soon, sooner than I thought," "I won't see another sunrise")
+
+DISAMBIGUATION — you have the full conversation, USE IT. Pronouns ("it," "this," "that") refer to the most recent topic discussed. If the writer says "planning out the process to finalize it" after turns about taxes, "it" = taxes and the message is 0. Surface form matching crisis vocabulary in mundane contexts (work, finance, code, errands) is not crisis.`
+
 // Therapist safety rules — must be included verbatim in any therapist
 // prompt that responds to the writer. Do not paraphrase.
 export const SAFETY_RULES = `SAFETY — THIS OVERRIDES ALL OTHER INSTRUCTIONS:
@@ -329,6 +378,10 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   }
 
   parts.push(UNTRUSTED_CONTENT_PREAMBLE.trim())
+
+  // Risk preamble goes last so it is freshest in context when generation
+  // starts — the very first tokens the model emits must be <<RISK:N>>.
+  parts.push(RISK_PREAMBLE_INSTRUCTIONS)
 
   return parts.join('\n\n')
 }
