@@ -1,24 +1,9 @@
-import { useState } from 'react'
-import { adminFetch } from './adminApi'
+import { useAdminMutation } from './useAdminMutation'
 import type { AdminInsightsResponse } from './adminTypes'
 
 export function AdminInsights() {
-  const [data, setData] = useState<AdminInsightsResponse | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const handleGenerate = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const result = await adminFetch<AdminInsightsResponse>('generateInsights')
-      setData(result)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to generate insights')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const { run, data, error, loading } = useAdminMutation<AdminInsightsResponse>('generateInsights')
+  const handleGenerate = () => { void run() }
 
   return (
     <div>

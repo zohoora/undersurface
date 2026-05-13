@@ -1,6 +1,5 @@
-import { useState } from 'react'
-import { adminFetch } from './adminApi'
 import { useAdminQuery } from './useAdminQuery'
+import { useAdminMutation } from './useAdminMutation'
 import type { AdminAnalyticsResponse } from './adminTypes'
 
 const cardStyle = {
@@ -45,18 +44,16 @@ function BarChart({ items, labelKey, valueKey, colorKey }: {
 
 export function AdminAnalytics() {
   const { data, error, setData, setError } = useAdminQuery<AdminAnalyticsResponse>('getAnalytics')
-  const [refreshing, setRefreshing] = useState(false)
+  const refresh = useAdminMutation<AdminAnalyticsResponse>('refreshAnalytics')
+  const refreshing = refresh.loading
 
   const handleRefresh = async () => {
-    setRefreshing(true)
     setError(null)
     try {
-      const result = await adminFetch<AdminAnalyticsResponse>('refreshAnalytics')
+      const result = await refresh.run()
       setData(result)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Refresh failed')
-    } finally {
-      setRefreshing(false)
+    } catch {
+      setError(refresh.error ?? 'Refresh failed')
     }
   }
 
