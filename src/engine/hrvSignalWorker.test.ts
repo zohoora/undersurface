@@ -7,6 +7,11 @@ import {
   detectPeaks,
   computeHrvMetrics,
   classifyAutonomicState,
+  computeRRFromSignal,
+  fuseRespiratoryRate,
+  variance,
+  chestPresent,
+  CHEST_VARIANCE_MIN,
 } from './hrvSignalWorker'
 
 // --- extractGreenChannel ---
@@ -288,5 +293,128 @@ describe('findHeartRateFFT', () => {
     const result = findHeartRateFFT(signal, fps)
     expect(result).not.toBeNull()
     expect(result!.confidence).toBeGreaterThan(0)
+  })
+})
+
+// --- variance ---
+
+describe('variance', () => {
+  it('returns 0 for empty / single-sample input', () => {
+    expect(variance([])).toBe(0)
+    expect(variance([5])).toBe(0)
+  })
+  it('returns 0 for a constant signal', () => {
+    expect(variance([3, 3, 3, 3, 3])).toBe(0)
+  })
+  it('matches the textbook definition for a small example', () => {
+    // mean = 3, deviations 4, 1, 0, 1, 4, sum 10, /5 = 2
+    expect(variance([1, 2, 3, 4, 5])).toBe(2)
+  })
+})
+
+// --- chestPresent ---
+
+describe('chestPresent', () => {
+  it('is false for a flat signal (chest out of frame)', () => {
+    expect(chestPresent(Array.from({ length: 100 }, () => 120))).toBe(false)
+  })
+  it('is false for signal with imperceptible variance', () => {
+    // Camera noise ~±0.3 around mean. Below the threshold by design.
+    expect(chestPresent(Array.from({ length: 100 }, (_, i) => 120 + 0.2 * Math.sin(i))))
+      .toBe(false)
+  })
+  it('is true for an oscillating signal at chest-motion amplitude', () => {
+    // Amplitude 2 → variance ~2, comfortably above CHEST_VARIANCE_MIN (0.5)
+    expect(chestPresent(Array.from({ length: 100 }, (_, i) => 120 + 2 * Math.sin(i))))
+      .toBe(true)
+  })
+  it('threshold constant is exported for tuning visibility', () => {
+    expect(CHEST_VARIANCE_MIN).toBeGreaterThan(0)
+  })
+})
+
+// --- computeRRFromSignal ---
+
+describe('computeRRFromSignal', () => {
+  const fps = 30
+  function sinusoid(freqHz: number, durationSec: number, amplitude = 1): number[] {
+    const n = Math.round(fps * durationSec)
+    return Array.from({ length: n }, (_, i) => amplitude * Math.sin(2 * Math.PI * freqHz * i / fps))
+  }
+
+  it('returns null when buffer is shorter than RR_MIN_BUFFER_SECONDS', () => {
+    expect(computeRRFromSignal(sinusoid(0.25, 10), fps)).toBeNull()
+  })
+
+  it('finds the correct rate for a synthetic 15 BPM signal', () => {
+    // 15 BPM = 0.25 Hz, well inside 0.15-0.45 Hz band
+    const result = computeRRFromSignal(sinusoid(0.25, 30), fps)
+    expect(result).not.toBeNull()
+    expect(result!.rr).toBeGreaterThan(13)
+    expect(result!.rr).toBeLessThan(17)
+    expect(result!.confidence).toBeGreaterThan(0)
+  })
+
+  it('returns null for a flat signal (no spectral peak)', () => {
+    expect(computeRRFromSignal(Array.from({ length: fps * 30 }, () => 0), fps)).toBeNull()
+  })
+
+  it('finds a rate at the upper band edge (27 BPM = 0.45 Hz)', () => {
+    const result = computeRRFromSignal(sinusoid(0.45, 30), fps)
+    expect(result).not.toBeNull()
+    expect(result!.rr).toBeGreaterThan(25)
+    expect(result!.rr).toBeLessThan(29)
+  })
+})
+
+// --- fuseRespiratoryRate ---
+
+describe('fuseRespiratoryRate', () => {
+  it('returns null when every source is null', () => {
+    expect(fuseRespiratoryRate([null, null, null])).toBeNull()
+  })
+
+  it('returns the single non-null source unchanged', () => {
+    const result = fuseRespiratoryRate([null, { rr: 14, confidence: 0.5 }, null])
+    expect(result).not.toBeNull()
+    expect(result!.rr).toBeCloseTo(14, 5)
+    expect(result!.confidence).toBe(0.5)
+  })
+
+  it('biases the fused rate toward the higher-confidence source', () => {
+    // Source A: rr=10 conf=0.9 (w=0.81), Source B: rr=20 conf=0.3 (w=0.09)
+    // Expected weighted mean: (10*0.81 + 20*0.09) / 0.9 = 11.0
+    const result = fuseRespiratoryRate([
+      { rr: 10, confidence: 0.9 },
+      { rr: 20, confidence: 0.3 },
+    ])
+    expect(result).not.toBeNull()
+    expect(result!.rr).toBeCloseTo(11, 1)
+    expect(result!.confidence).toBe(0.9)
+  })
+
+  it('lets a single high-confidence source dominate two low-confidence ones', () => {
+    // RSA noisy at conf 0.15, two strong signals agree at 12
+    const result = fuseRespiratoryRate([
+      { rr: 18, confidence: 0.15 },
+      { rr: 12, confidence: 0.7 },
+      { rr: 12, confidence: 0.8 },
+    ])
+    expect(result).not.toBeNull()
+    expect(result!.rr).toBeGreaterThan(11.5)
+    expect(result!.rr).toBeLessThan(13)
+  })
+
+  it('skips null sources in the input array', () => {
+    const result = fuseRespiratoryRate([null, { rr: 15, confidence: 0.5 }, null, { rr: 15, confidence: 0.5 }])
+    expect(result).not.toBeNull()
+    expect(result!.rr).toBeCloseTo(15, 5)
+  })
+
+  it('emits zero total weight as null (defensive)', () => {
+    expect(fuseRespiratoryRate([
+      { rr: 12, confidence: 0 },
+      { rr: 14, confidence: 0 },
+    ])).toBeNull()
   })
 })

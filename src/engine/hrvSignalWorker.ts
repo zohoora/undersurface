@@ -353,6 +353,90 @@ export function respiratoryBandpass(signal: number[], sampleRate: number): numbe
 }
 
 // ---------------------------------------------------------------------------
+// Respiratory rate from a single signal + multi-source fusion
+// ---------------------------------------------------------------------------
+
+/** Min buffer to attempt an RR estimate (signal length in samples). */
+export const RR_MIN_BUFFER_SECONDS = 20
+/** Skip-leading-window fraction to drop bandpass settling transient. */
+const RR_SKIP_FRACTION = 0.2
+/** Plausible respiratory rate range (BPM). Worker emits null outside this. */
+const RR_PLAUSIBLE_MIN = 8
+const RR_PLAUSIBLE_MAX = 30
+
+/**
+ * Apply the respiratory bandpass + windowed FFT to an arbitrary signal,
+ * returning the dominant breath-band frequency (BPM) and a confidence score.
+ * Returns null when the buffer is too short, the bandpass cannot stabilize,
+ * or the peak falls outside the plausible RR range.
+ *
+ * Used by three signal sources: CHROM-derived RSA, face-centroid Y motion,
+ * and chest-ROI intensity. Same pipeline, different inputs.
+ */
+export function computeRRFromSignal(
+  signal: number[],
+  sampleRate: number,
+): { rr: number; confidence: number } | null {
+  if (signal.length < sampleRate * RR_MIN_BUFFER_SECONDS) return null
+  const filtered = respiratoryBandpass(signal, sampleRate)
+  const skip = Math.min(sampleRate * 5, Math.floor(filtered.length * RR_SKIP_FRACTION))
+  const stable = filtered.slice(skip)
+  if (stable.length < sampleRate * 10) return null
+  const result = findHeartRateFFT(stable, sampleRate, 0.15, 0.45)
+  if (!result) return null
+  if (result.hr < RR_PLAUSIBLE_MIN || result.hr > RR_PLAUSIBLE_MAX) return null
+  return { rr: result.hr, confidence: result.confidence }
+}
+
+/**
+ * Confidence-weighted fusion of multiple RR estimates. Each source contributes
+ * with weight = confidence² (sharp falloff so a weak source can't dominate).
+ * Returns null if no source has a valid estimate.
+ *
+ * The squared-confidence shape matches the existing multi-ROI HR merge — see
+ * the compute handler for the pattern.
+ */
+export function fuseRespiratoryRate(
+  sources: ReadonlyArray<{ rr: number; confidence: number } | null>,
+): { rr: number; confidence: number } | null {
+  let weighted = 0
+  let totalWeight = 0
+  let bestConfidence = 0
+  for (const s of sources) {
+    if (!s) continue
+    const w = s.confidence * s.confidence
+    weighted += s.rr * w
+    totalWeight += w
+    if (s.confidence > bestConfidence) bestConfidence = s.confidence
+  }
+  if (totalWeight === 0) return null
+  return { rr: weighted / totalWeight, confidence: bestConfidence }
+}
+
+/** Mean-and-variance helper for the chest-present gate. */
+export function variance(signal: number[]): number {
+  if (signal.length < 2) return 0
+  let sum = 0
+  for (const v of signal) sum += v
+  const mean = sum / signal.length
+  let sq = 0
+  for (const v of signal) sq += (v - mean) ** 2
+  return sq / signal.length
+}
+
+/**
+ * Chest-ROI present detection. A flat (chest-out-of-frame, lens-cap, dark
+ * ceiling) ROI has near-zero intensity variance over a 20s window; a real
+ * chest produces variance of several intensity units squared from the
+ * breath-driven reflection changes. Threshold is permissive — the FFT
+ * confidence is the primary signal-quality gate.
+ */
+export const CHEST_VARIANCE_MIN = 0.5
+export function chestPresent(signal: number[]): boolean {
+  return variance(signal) >= CHEST_VARIANCE_MIN
+}
+
+// ---------------------------------------------------------------------------
 // Peak detection (for IBI-based RMSSD)
 // ---------------------------------------------------------------------------
 
@@ -576,6 +660,10 @@ interface WorkerState {
   recentHrs: number[]
   /** Consecutive compute ticks where signal confidence was inadequate. */
   lowConfRun: number
+  /** Face skin-pixel Y centroid per frame (head-bob → respiratory signal). */
+  faceCentroidY: number[]
+  /** Chest ROI mean intensity per frame (direct breathing motion). */
+  chestIntensity: number[]
 }
 
 // Diagnostic emission. Routed back to main thread via postMessage; main thread
@@ -629,6 +717,8 @@ const state: WorkerState = {
   smoothedRR: null,
   recentHrs: [],
   lowConfRun: 0,
+  faceCentroidY: [],
+  chestIntensity: [],
 }
 
 function resetState(): void {
@@ -644,6 +734,8 @@ function resetState(): void {
   state.smoothedRR = null
   state.recentHrs = []
   state.lowConfRun = 0
+  state.faceCentroidY = []
+  state.chestIntensity = []
 }
 
 function computeTrend(recent: number[]): HrvTrend {
@@ -662,7 +754,12 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
     const { type, data } = event.data as { type: string; data: unknown }
 
     if (type === 'rgb_multi') {
-      const { regions } = data as { regions: Array<{ region: string; r: number; g: number; b: number; pixels: number }> }
+      const payload = data as {
+        regions: Array<{ region: string; r: number; g: number; b: number; pixels: number }>
+        faceCentroidY?: number | null
+        chestIntensity?: number | null
+      }
+      const { regions, faceCentroidY, chestIntensity } = payload
       const now = Date.now()
 
       // Gap detection
@@ -670,6 +767,8 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
         state.regions = makeEmptyRegions()
         state.timestamps = []
         state.ibis = []
+        state.faceCentroidY = []
+        state.chestIntensity = []
       }
 
       // Push RGB data for each region
@@ -682,6 +781,9 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
         }
       }
       state.timestamps.push(now)
+
+      if (typeof faceCentroidY === 'number') state.faceCentroidY.push(faceCentroidY)
+      if (typeof chestIntensity === 'number') state.chestIntensity.push(chestIntensity)
 
       if (state.calibrationStart === null) {
         state.calibrationStart = now
@@ -703,6 +805,8 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
           if (buf.r.length > maxBuf) { buf.r.shift(); buf.g.shift(); buf.b.shift() }
         }
       }
+      while (state.faceCentroidY.length > maxBuf) state.faceCentroidY.shift()
+      while (state.chestIntensity.length > maxBuf) state.chestIntensity.shift()
 
       // Calibration progress
       const elapsed = now - state.calibrationStart
@@ -861,23 +965,24 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
       const trend = computeTrend(state.recentRmssds)
       const confidence = Math.round(Math.min(1, mergedConf) * 100) / 100
 
-      // Respiratory rate from best pulse
+      // Respiratory rate via three-source confidence-weighted fusion.
+      // Source 1: CHROM-derived RSA (existing, weakest signal — RR encoded in
+      //   heart-rate variability at the respiratory frequency)
+      // Source 2: face-centroid Y motion (subtle head bob with breath, always
+      //   available because the face skin pixels are already being tracked)
+      // Source 3: chest ROI mean intensity (strongest signal when chest is in
+      //   frame; variance-gated out when framing puts chest off-screen)
       let respiratoryRate: number | null = null
-      if (bestPulse.length >= fps * 20) {
-        const breathFiltered = respiratoryBandpass(bestPulse, fps)
-        const breathSkip = Math.min(fps * 5, Math.floor(breathFiltered.length * 0.2))
-        const breathStable = breathFiltered.slice(breathSkip)
-        if (breathStable.length >= fps * 10) {
-          const breathResult = findHeartRateFFT(breathStable, fps, 0.15, 0.45)
-          if (breathResult && breathResult.confidence > 0.1) {
-            const rawRR = breathResult.hr
-            if (rawRR >= 8 && rawRR <= 30) {
-              if (state.smoothedRR === null) state.smoothedRR = rawRR
-              else state.smoothedRR = state.smoothedRR + 0.2 * (rawRR - state.smoothedRR)
-              respiratoryRate = Math.round(state.smoothedRR * 10) / 10
-            }
-          }
-        }
+      const rsaRR = computeRRFromSignal(bestPulse, fps)
+      const faceRR = computeRRFromSignal(state.faceCentroidY, fps)
+      const chestRR = chestPresent(state.chestIntensity)
+        ? computeRRFromSignal(state.chestIntensity, fps)
+        : null
+      const fused = fuseRespiratoryRate([rsaRR, faceRR, chestRR])
+      if (fused && fused.confidence > 0.1) {
+        if (state.smoothedRR === null) state.smoothedRR = fused.rr
+        else state.smoothedRR = state.smoothedRR + 0.2 * (fused.rr - state.smoothedRR)
+        respiratoryRate = Math.round(state.smoothedRR * 10) / 10
       }
 
       // Compute derived HRV metrics from IBI series

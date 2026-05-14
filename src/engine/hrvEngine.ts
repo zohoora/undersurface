@@ -275,6 +275,11 @@ export class HrvEngine {
 
     const rgbRegions: Array<{ region: string; r: number; g: number; b: number; pixels: number }> = []
 
+    // Accumulators for global skin-pixel Y centroid across all face sub-regions.
+    // Drives the face-landmark respiratory signal — subtle head bob with breath.
+    let globalSumY = 0
+    let globalSkinCount = 0
+
     for (const reg of regions) {
       const sx = Math.floor(roiW * reg.rx)
       const sy = Math.floor(roiH * reg.ry)
@@ -282,7 +287,7 @@ export class HrvEngine {
       const sh = Math.floor(roiH * reg.rh)
       if (sw <= 0 || sh <= 0) continue
 
-      let sumR = 0, sumG = 0, sumB = 0, count = 0
+      let sumR = 0, sumG = 0, sumB = 0, count = 0, sumY = 0
       for (let py = sy; py < sy + sh && py < roiH; py++) {
         for (let px = sx; px < sx + sw && px < roiW; px++) {
           const idx = (py * roiW + px) * 4
@@ -294,6 +299,7 @@ export class HrvEngine {
             sumR += r
             sumG += g
             sumB += b
+            sumY += py
             count++
           }
         }
@@ -307,13 +313,40 @@ export class HrvEngine {
           b: sumB / count,
           pixels: count,
         })
+        globalSumY += sumY
+        globalSkinCount += count
       }
+    }
+
+    const faceCentroidY = globalSkinCount > 0 ? globalSumY / globalSkinCount : null
+
+    // Chest ROI — lower 25% of frame, center 60% horizontally. Captures the
+    // direct mechanical breathing motion when the user's chest is in frame;
+    // worker variance-gates this to zero weight when the framing puts the
+    // chest out of view (camera tilted up, user too close, etc.).
+    const cx0 = Math.floor(vw * 0.2)
+    const cy0 = Math.floor(vh * 0.7)
+    const cw = Math.floor(vw * 0.6)
+    const ch = Math.floor(vh * 0.25)
+    let chestIntensity: number | null = null
+    if (cw > 0 && ch > 0 && cy0 + ch <= vh) {
+      const chestImage = this.ctx.getImageData(cx0, cy0, cw, ch)
+      const chestPixels = chestImage.data
+      let chestSum = 0
+      // Subsample every 4th pixel — chest motion is large-scale, no need for
+      // every-pixel precision, and the saving keeps the per-frame cost low.
+      let sampled = 0
+      for (let i = 0; i < chestPixels.length; i += 16) {
+        chestSum += chestPixels[i + 1] // green channel
+        sampled++
+      }
+      if (sampled > 0) chestIntensity = chestSum / sampled
     }
 
     if (this.worker && rgbRegions.length > 0) {
       this.worker.postMessage({
         type: 'rgb_multi',
-        data: { regions: rgbRegions },
+        data: { regions: rgbRegions, faceCentroidY, chestIntensity },
       })
     }
 
