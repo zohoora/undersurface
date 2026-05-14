@@ -158,10 +158,23 @@ function RespiratoryDiagnostics({
       color: 'var(--text-tertiary, #888)',
     }}>
       <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.7, marginBottom: 4 }}>
-        Breath sources
+        Breath sources — rPPG
       </div>
-      <RrRow label="RSA" source={diag.rsa} />
-      <RrRow label="Face" source={diag.face} />
+      <RrRow label="Pulse" source={diag.pulse} />
+      <RrRow label="RIAV" source={diag.riav} />
+      <RrRow label="RIIV" source={diag.riiv} />
+      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.7, margin: '6px 0 4px' }}>
+        Motion
+      </div>
+      <RrRow
+        label="Face"
+        source={diag.face}
+        trailing={
+          <span style={{ opacity: 0.5, fontSize: 9 }}>
+            {diag.landmarksAvailable ? 'landmarks ok' : 'no landmarks'}
+          </span>
+        }
+      />
       <RrRow
         label="Chest"
         source={diag.chest}

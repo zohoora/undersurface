@@ -16,16 +16,33 @@ export interface RespiratoryEstimate {
 }
 
 /**
- * Per-source breakdown of the three respiratory-rate estimates that feed
- * the fused output. Surfaced in the BiometricsBar expanded panel and signal
- * dumps. A source is null when its buffer is too short, the bandpass cannot
- * find a plausible peak, or (for chest) the variance gate rejects the frame.
+ * Per-source breakdown of every respiratory-rate estimate that feeds the
+ * fused output. Five candidate sources spanning rPPG-derived modulations
+ * (pulse-low-freq, per-beat amplitude RIAV, per-beat baseline RIIV) and
+ * mechanical-motion derived signals (face landmark tracking, chest ROI).
+ *
+ * Each source is null when its buffer is too short, the bandpass cannot
+ * find a plausible peak, or its enable-gate (e.g. chestPresent, landmark
+ * availability) blocks contribution.
+ *
+ * Lazaro et al. (PMC6058306) showed that RIAV/RIIV pick up respiration
+ * when the pulse-modulation (RSA-like) channel is buried in noise, and
+ * vice versa — fusion is what makes it robust.
  */
 export interface HrvRespiratoryDiagnostics {
-  rsa: RespiratoryEstimate | null
+  /** Low-frequency modulation of CHROM pulse signal (formerly "rsa"). */
+  pulse: RespiratoryEstimate | null
+  /** Per-beat pulse amplitude series (RIAV). */
+  riav: RespiratoryEstimate | null
+  /** Per-beat baseline / DC envelope series (RIIV). */
+  riiv: RespiratoryEstimate | null
+  /** Sparse facial-landmark median Y motion (philtrum, nose, chin, nostrils). */
   face: RespiratoryEstimate | null
+  /** Chest ROI intensity, adaptive ROI gated by chestPresent. */
   chest: RespiratoryEstimate | null
   chestPresent: boolean
+  /** Whether MediaPipe FaceLandmarker has produced landmarks recently. */
+  landmarksAvailable: boolean
   fused: RespiratoryEstimate | null
 }
 
@@ -80,6 +97,8 @@ export interface HrvSignalDump {
   fftPeakBpm: number | null
   peaks: number[]
   ibis: number[]
+  /** Per-channel respiratory estimates from the latest compute tick. */
+  respiratory?: HrvRespiratoryDiagnostics | null
 }
 
 export interface HrvSessionData {

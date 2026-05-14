@@ -8,7 +8,14 @@ import {
   computeHrvMetrics,
   classifyAutonomicState,
   computeRRFromSignal,
+  computeRRFromIrregular,
   fuseRespiratoryRate,
+  peakConditionedFuse,
+  nlmsFilter,
+  extractRIAV,
+  extractRIIV,
+  resampleUniform,
+  recentValidRatio,
   variance,
   chestPresent,
   CHEST_VARIANCE_MIN,
@@ -416,5 +423,243 @@ describe('fuseRespiratoryRate', () => {
       { rr: 12, confidence: 0 },
       { rr: 14, confidence: 0 },
     ])).toBeNull()
+  })
+})
+
+// --- nlmsFilter ---
+
+describe('nlmsFilter', () => {
+  it('returns input length and finite values for typical input', () => {
+    const target = Array.from({ length: 200 }, (_, i) => Math.sin(i * 0.1) + Math.random() * 0.1)
+    const reference = Array.from({ length: 200 }, (_, i) => Math.cos(i * 0.05))
+    const out = nlmsFilter(target, reference)
+    expect(out).toHaveLength(target.length)
+    for (const v of out) expect(isFinite(v)).toBe(true)
+  })
+
+  it('returns target unchanged when reference length mismatches', () => {
+    const target = [1, 2, 3, 4, 5]
+    const reference = [1, 2, 3]
+    const out = nlmsFilter(target, reference)
+    expect(out).toEqual(target)
+  })
+
+  it('suppresses a perfectly-correlated reference (motion-only target)', () => {
+    // target = reference (purely correlated noise, no breath component).
+    // After NLMS convergence the residual should be much smaller than target.
+    const n = 400
+    const noise = Array.from({ length: n }, (_, i) => Math.sin(i * 0.2))
+    const out = nlmsFilter(noise, noise, 0.1, 8)
+    const targetEnergy = noise.slice(100).reduce((s, v) => s + v * v, 0)
+    const residualEnergy = out.slice(100).reduce((s, v) => s + v * v, 0)
+    expect(residualEnergy).toBeLessThan(targetEnergy * 0.5)
+  })
+
+  it('preserves an independent signal even when noise is present', () => {
+    // target = breath signal + correlated noise; reference = noise.
+    // NLMS should remove the noise and leave the breath signal.
+    const n = 400
+    const breath = Array.from({ length: n }, (_, i) => Math.sin(2 * Math.PI * 0.25 * i / 4))
+    const noise = Array.from({ length: n }, (_, i) => 0.5 * Math.sin(i * 0.05))
+    const target = breath.map((b, i) => b + noise[i])
+    const out = nlmsFilter(target, noise, 0.1, 8)
+    // The residual after convergence should correlate strongly with the breath signal
+    const settled = out.slice(150)
+    const breathSettled = breath.slice(150)
+    let dot = 0, normA = 0, normB = 0
+    for (let i = 0; i < settled.length; i++) {
+      dot += settled[i] * breathSettled[i]
+      normA += settled[i] * settled[i]
+      normB += breathSettled[i] * breathSettled[i]
+    }
+    const correlation = dot / Math.sqrt(normA * normB)
+    expect(correlation).toBeGreaterThan(0.5)
+  })
+})
+
+// --- extractRIAV / extractRIIV ---
+
+describe('extractRIAV', () => {
+  it('returns empty for fewer than 2 peaks', () => {
+    expect(extractRIAV([1, 2, 3], [], 30)).toEqual([])
+    expect(extractRIAV([1, 2, 3], [1], 30)).toEqual([])
+  })
+
+  it('returns amplitude samples timestamped at trough indices', () => {
+    // Build a simple pulse: peaks at index 10, 30; troughs at 0, 20
+    // Pulse: rising from 0 to 1 by index 10, falling to 0 by 20, rising to 1 by 30
+    const pulse: number[] = []
+    for (let i = 0; i < 40; i++) {
+      pulse.push(Math.sin(2 * Math.PI * i / 20))
+    }
+    const peaks = [5, 25] // sin peaks at i=5 and i=25 (sin(π/2) and sin(5π/2))
+    const samples = extractRIAV(pulse, peaks, 30)
+    expect(samples).toHaveLength(1) // peaks.length - 1
+    expect(samples[0].value).toBeGreaterThan(1.5) // amplitude ~2 for a sine
+    expect(samples[0].time).toBeGreaterThan(0)
+  })
+
+  it('skips beats with too-close peaks', () => {
+    const pulse = Array.from({ length: 20 }, (_, i) => Math.sin(i))
+    const peaks = [5, 6, 10, 15] // 5 and 6 are too close (diff < 4)
+    const samples = extractRIAV(pulse, peaks, 30)
+    // First pair (5,6) skipped; pairs (6,10) and (10,15) produce 2 samples
+    expect(samples.length).toBeLessThanOrEqual(2)
+  })
+})
+
+describe('extractRIIV', () => {
+  it('returns empty for fewer than 2 peaks', () => {
+    expect(extractRIIV([1, 2], [0], 30)).toEqual([])
+  })
+
+  it('returns mean-over-beat samples', () => {
+    const pulse = Array.from({ length: 40 }, () => 5) // constant
+    const peaks = [5, 25]
+    const samples = extractRIIV(pulse, peaks, 30)
+    expect(samples).toHaveLength(1)
+    expect(samples[0].value).toBeCloseTo(5, 1)
+  })
+
+  it('tracks slow envelope drift', () => {
+    // Pulse with linear drift over time
+    const pulse = Array.from({ length: 60 }, (_, i) => i * 0.1)
+    const peaks = [10, 30, 50]
+    const samples = extractRIIV(pulse, peaks, 30)
+    expect(samples).toHaveLength(2)
+    expect(samples[1].value).toBeGreaterThan(samples[0].value)
+  })
+})
+
+// --- resampleUniform ---
+
+describe('resampleUniform', () => {
+  it('returns null for too-few samples', () => {
+    expect(resampleUniform([], 4, 12)).toBeNull()
+    expect(resampleUniform([{ time: 0, value: 1 }], 4, 12)).toBeNull()
+  })
+
+  it('returns null when total duration is below minDurationSec', () => {
+    const samples = Array.from({ length: 6 }, (_, i) => ({ time: i, value: 1 }))
+    expect(resampleUniform(samples, 4, 12)).toBeNull() // 5s span, need 12s
+  })
+
+  it('produces a uniformly-spaced signal at the requested rate', () => {
+    // 15 samples spaced 1s apart → 14s span
+    const samples = Array.from({ length: 15 }, (_, i) => ({ time: i, value: Math.sin(i * 0.5) }))
+    const result = resampleUniform(samples, 4, 12)
+    expect(result).not.toBeNull()
+    expect(result!.rateHz).toBe(4)
+    expect(result!.signal.length).toBe(14 * 4) // 14s × 4 Hz
+  })
+
+  it('preserves a periodic signal under resampling', () => {
+    // 0.25 Hz signal sampled at 1 Hz over 30s, resampled to 4 Hz
+    const samples = Array.from({ length: 30 }, (_, i) => ({
+      time: i,
+      value: Math.sin(2 * Math.PI * 0.25 * i),
+    }))
+    const result = resampleUniform(samples, 4, 12)
+    expect(result).not.toBeNull()
+    // FFT should still find peak at 0.25 Hz
+    const peak = findHeartRateFFT(result!.signal, result!.rateHz, 0.1, 0.5)
+    expect(peak).not.toBeNull()
+    expect(peak!.hr).toBeGreaterThan(13)
+    expect(peak!.hr).toBeLessThan(17)
+  })
+})
+
+// --- computeRRFromIrregular ---
+
+describe('computeRRFromIrregular', () => {
+  it('returns null for too-few samples', () => {
+    expect(computeRRFromIrregular([])).toBeNull()
+  })
+
+  it('finds RR from per-beat amplitude-style irregular samples', () => {
+    // Synthesize per-beat samples (one per heartbeat ~1.2s apart) over 30s,
+    // amplitude modulated by 0.25 Hz breath
+    const samples: Array<{ time: number; value: number }> = []
+    let t = 0
+    while (t < 30) {
+      samples.push({ time: t, value: 1 + 0.3 * Math.sin(2 * Math.PI * 0.25 * t) })
+      t += 1.0 + Math.random() * 0.2 // ~1s IBI with jitter
+    }
+    const rr = computeRRFromIrregular(samples)
+    expect(rr).not.toBeNull()
+    expect(rr!.rr).toBeGreaterThan(12)
+    expect(rr!.rr).toBeLessThan(18)
+  })
+})
+
+// --- peakConditionedFuse ---
+
+describe('peakConditionedFuse', () => {
+  it('returns null when every source is null', () => {
+    expect(peakConditionedFuse([null, null, null], null)).toBeNull()
+  })
+
+  it('returns a single source unchanged when others are null', () => {
+    const result = peakConditionedFuse([null, { rr: 14, confidence: 0.5 }, null], null)
+    expect(result).not.toBeNull()
+    expect(result!.rr).toBeCloseTo(14, 5)
+    expect(result!.contributors).toBe(1)
+    expect(result!.agreement).toBe(1)
+  })
+
+  it('biases toward sources within the peak-conditioning tolerance of the prior', () => {
+    // Prior = 14. Source A=16 conf=0.5, Source B=20 conf=0.5.
+    // A is within ±3 of prior, B is not. A should dominate.
+    const result = peakConditionedFuse([
+      { rr: 16, confidence: 0.5 },
+      { rr: 20, confidence: 0.5 },
+    ], 14)
+    expect(result).not.toBeNull()
+    expect(result!.rr).toBeLessThan(18) // A pulled fusion toward 16
+  })
+
+  it('penalizes confidence when sources strongly disagree', () => {
+    // Two sources, very different rates, no prior.
+    const result = peakConditionedFuse([
+      { rr: 10, confidence: 0.8 },
+      { rr: 25, confidence: 0.8 },
+    ], null)
+    expect(result).not.toBeNull()
+    expect(result!.confidence).toBeLessThan(0.8) // penalty applied
+    expect(result!.agreement).toBeLessThan(1) // spread > 0
+  })
+
+  it('reports full agreement when sources agree closely', () => {
+    const result = peakConditionedFuse([
+      { rr: 14, confidence: 0.6 },
+      { rr: 14.5, confidence: 0.7 },
+      { rr: 13.8, confidence: 0.5 },
+    ], 14)
+    expect(result).not.toBeNull()
+    expect(result!.confidence).toBe(0.7) // no penalty
+    expect(result!.agreement).toBeGreaterThan(0.9)
+    expect(result!.contributors).toBe(3)
+  })
+})
+
+// --- recentValidRatio ---
+
+describe('recentValidRatio', () => {
+  it('returns 0 for empty input', () => {
+    expect(recentValidRatio([], 10)).toBe(0)
+  })
+
+  it('returns 0 for non-positive lookback', () => {
+    expect(recentValidRatio([true, true, true], 0)).toBe(0)
+  })
+
+  it('counts ratio over the last `lookback` flags only', () => {
+    const flags = [false, false, false, true, true, true, true] // last 4 all true
+    expect(recentValidRatio(flags, 4)).toBe(1)
+    expect(recentValidRatio(flags, 7)).toBeCloseTo(4 / 7)
+  })
+
+  it('returns 1 when all flags are true', () => {
+    expect(recentValidRatio([true, true, true], 3)).toBe(1)
   })
 })

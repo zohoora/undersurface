@@ -374,8 +374,9 @@ const RR_PLAUSIBLE_MAX = 30
  * Returns the dominant breath-band frequency (BPM) and a confidence score,
  * or null if the buffer is too short / the peak is implausible.
  *
- * Same pipeline for three sources: CHROM-derived RSA, face-centroid Y
- * motion, and chest-ROI intensity.
+ * Used for time-domain respiratory sources sampled at `sampleRate`:
+ * CHROM pulse low-frequency modulation, landmark median-Y motion, chest
+ * ROI intensity, and resampled RIAV/RIIV beat-amplitude/baseline series.
  */
 export function computeRRFromSignal(
   signal: number[],
@@ -393,8 +394,222 @@ export function computeRRFromSignal(
 }
 
 /**
- * Confidence-weighted fusion of multiple RR estimates. Weight = confidence²
- * (sharp falloff so a weak source can't dominate). Null if no source is valid.
+ * Normalized Least-Mean-Square adaptive filter. Subtracts a noise-correlated
+ * reference signal from the target. Used to suppress lighting flicker and
+ * global motion artifacts (estimated from non-skin "background" pixels)
+ * before bandpass + FFT, leaving the breath-driven signal cleaner.
+ *
+ * Output length matches target length. Reference must be the same length.
+ * Short tap count + small mu keeps the filter from chasing the breath
+ * signal itself (the reference shouldn't carry breath info if the skin
+ * mask is correct).
+ *
+ * Reference: Two-Stage MA Reduction for rPPG (PMC10088718).
+ */
+export function nlmsFilter(
+  target: number[],
+  reference: number[],
+  mu = 0.01,
+  taps = 16,
+): number[] {
+  const n = Math.min(target.length, reference.length)
+  if (n === 0) return target.slice()
+  if (reference.length !== target.length) return target.slice()
+  const w = new Array(taps).fill(0)
+  const output = new Array(n)
+  for (let i = 0; i < n; i++) {
+    let y = 0
+    let refNorm = 1e-6
+    const maxK = Math.min(taps, i + 1)
+    for (let k = 0; k < maxK; k++) {
+      const rk = reference[i - k]
+      y += w[k] * rk
+      refNorm += rk * rk
+    }
+    const e = target[i] - y
+    output[i] = e
+    const step = mu / refNorm
+    for (let k = 0; k < maxK; k++) {
+      w[k] += step * e * reference[i - k]
+    }
+  }
+  return output
+}
+
+/**
+ * Extract RIAV (per-beat pulse amplitude) series from CHROM pulse + peak
+ * indices. For each peak, amplitude = peak value − minimum value in the
+ * trough region immediately before the peak. Returns sample time
+ * (in seconds, fractional) and amplitude value, irregular spacing.
+ *
+ * Empty if fewer than 2 peaks. The trough-search window is the inter-peak
+ * gap (capped) to handle variable HR.
+ */
+export function extractRIAV(
+  pulse: number[],
+  peaks: number[],
+  sampleRate: number,
+): Array<{ time: number; value: number }> {
+  if (peaks.length < 2) return []
+  const samples: Array<{ time: number; value: number }> = []
+  for (let i = 1; i < peaks.length; i++) {
+    const p0 = peaks[i - 1]
+    const p1 = peaks[i]
+    if (p1 - p0 < 4) continue
+    let troughIdx = p0
+    let troughVal = pulse[p0]
+    for (let j = p0 + 1; j < p1; j++) {
+      if (pulse[j] < troughVal) { troughVal = pulse[j]; troughIdx = j }
+    }
+    const amplitude = pulse[p1] - troughVal
+    if (!isFinite(amplitude)) continue
+    // Time-stamp the sample at the trough (midway proxy is fine too).
+    samples.push({ time: troughIdx / sampleRate, value: amplitude })
+  }
+  return samples
+}
+
+/**
+ * Extract RIIV (per-beat baseline / DC envelope) series from CHROM pulse +
+ * peak indices. For each peak, baseline = mean of pulse value over the
+ * inter-peak interval. Captures slow envelope modulation driven by
+ * intra-thoracic pressure changes during breathing.
+ */
+export function extractRIIV(
+  pulse: number[],
+  peaks: number[],
+  sampleRate: number,
+): Array<{ time: number; value: number }> {
+  if (peaks.length < 2) return []
+  const samples: Array<{ time: number; value: number }> = []
+  for (let i = 1; i < peaks.length; i++) {
+    const p0 = peaks[i - 1]
+    const p1 = peaks[i]
+    if (p1 - p0 < 4) continue
+    let sum = 0
+    for (let j = p0; j <= p1; j++) sum += pulse[j]
+    const mean = sum / (p1 - p0 + 1)
+    if (!isFinite(mean)) continue
+    samples.push({ time: (p0 + p1) / 2 / sampleRate, value: mean })
+  }
+  return samples
+}
+
+/**
+ * Linearly interpolate irregular (time, value) samples to a uniform-rate
+ * grid suitable for FFT. Defaults to 4 Hz (oversamples the 0.5 Hz
+ * respiratory band). Returns null if too few samples to be useful.
+ */
+export function resampleUniform(
+  samples: ReadonlyArray<{ time: number; value: number }>,
+  targetRateHz = 4,
+  minDurationSec = 12,
+): { signal: number[]; rateHz: number } | null {
+  if (samples.length < 4) return null
+  const sorted = [...samples].sort((a, b) => a.time - b.time)
+  const tStart = sorted[0].time
+  const tEnd = sorted[sorted.length - 1].time
+  const duration = tEnd - tStart
+  if (duration < minDurationSec) return null
+
+  const n = Math.floor(duration * targetRateHz)
+  if (n < 16) return null
+
+  const signal = new Array<number>(n)
+  let j = 0
+  for (let i = 0; i < n; i++) {
+    const t = tStart + i / targetRateHz
+    while (j < sorted.length - 2 && sorted[j + 1].time < t) j++
+    const a = sorted[j]
+    const b = sorted[j + 1] ?? a
+    const span = b.time - a.time
+    const w = span > 0 ? (t - a.time) / span : 0
+    signal[i] = a.value + w * (b.value - a.value)
+  }
+  return { signal, rateHz: targetRateHz }
+}
+
+/**
+ * Compute RR from an irregular per-beat samples series (RIAV or RIIV).
+ * Resamples to 4 Hz, bandpasses, peaks via FFT. Returns null if the
+ * series is too sparse for a meaningful spectral estimate.
+ */
+export function computeRRFromIrregular(
+  samples: ReadonlyArray<{ time: number; value: number }>,
+): RespiratoryEstimate | null {
+  const resampled = resampleUniform(samples, 4, 12)
+  if (!resampled) return null
+  return computeRRFromSignal(resampled.signal, resampled.rateHz)
+}
+
+/**
+ * Peak-conditioned fusion. Each source's effective weight is scaled by
+ * (1) its confidence² and (2) a "trust" bump if its rate sits within
+ * a tolerance of the prior fused estimate (Lazaro et al., PMC6058306).
+ * The final confidence is *penalized* when the surviving sources
+ * disagree by more than DISAGREEMENT_BPM — disagreement is itself a
+ * signal that something is wrong, even if individual FFT confidences
+ * look high.
+ *
+ * `priorRR` is the previously-emitted (smoothed) RR. Pass null on
+ * cold start; no peak-conditioning bonus applies until we have a prior.
+ */
+export interface FusedRespiratory {
+  rr: number
+  confidence: number
+  agreement: number   // 0..1, 1 = sources agree, 0 = wide spread
+  contributors: number // count of sources that survived gating
+}
+
+const PEAK_COND_TOL_BPM = 3
+const PEAK_COND_BONUS = 1.5
+const DISAGREEMENT_BPM = 3
+const DISAGREEMENT_PENALTY = 0.5
+
+export function peakConditionedFuse(
+  sources: ReadonlyArray<RespiratoryEstimate | null>,
+  priorRR: number | null,
+): FusedRespiratory | null {
+  const valid = sources.filter((s): s is RespiratoryEstimate => s != null && s.confidence > 0)
+  if (valid.length === 0) return null
+
+  let weighted = 0
+  let totalWeight = 0
+  let bestConfidence = 0
+  for (const s of valid) {
+    let w = s.confidence * s.confidence
+    if (priorRR != null && Math.abs(s.rr - priorRR) <= PEAK_COND_TOL_BPM) {
+      w *= PEAK_COND_BONUS
+    }
+    weighted += s.rr * w
+    totalWeight += w
+    if (s.confidence > bestConfidence) bestConfidence = s.confidence
+  }
+  if (totalWeight === 0) return null
+
+  const rr = weighted / totalWeight
+
+  // Agreement score: 1 - normalized RR spread across valid sources.
+  let minRR = valid[0].rr
+  let maxRR = valid[0].rr
+  for (const s of valid) {
+    if (s.rr < minRR) minRR = s.rr
+    if (s.rr > maxRR) maxRR = s.rr
+  }
+  const spread = maxRR - minRR
+  const agreement = valid.length === 1
+    ? 1
+    : Math.max(0, 1 - spread / 10) // 10 BPM spread → agreement 0
+  const confidence = spread > DISAGREEMENT_BPM
+    ? bestConfidence * DISAGREEMENT_PENALTY
+    : bestConfidence
+
+  return { rr, confidence, agreement, contributors: valid.length }
+}
+
+/**
+ * Backward-compatible simple fusion kept for legacy callers / tests.
+ * New code should use peakConditionedFuse.
  */
 export function fuseRespiratoryRate(
   sources: ReadonlyArray<RespiratoryEstimate | null>,
@@ -433,6 +648,23 @@ export function variance(signal: number[]): number {
 export const CHEST_VARIANCE_MIN = 0.5
 export function chestPresent(signal: number[]): boolean {
   return variance(signal) >= CHEST_VARIANCE_MIN
+}
+
+/**
+ * Fraction of the most-recent `lookback` flags that are true. Used to
+ * decide whether a forward-filled buffer (landmark Y, chest intensity)
+ * has enough genuine recent samples to be a usable channel.
+ */
+export function recentValidRatio(flags: ReadonlyArray<boolean>, lookback: number): number {
+  if (lookback <= 0 || flags.length === 0) return 0
+  const start = Math.max(0, flags.length - lookback)
+  let count = 0
+  let total = 0
+  for (let i = start; i < flags.length; i++) {
+    if (flags[i]) count++
+    total++
+  }
+  return total > 0 ? count / total : 0
 }
 
 // ---------------------------------------------------------------------------
@@ -634,7 +866,7 @@ function computeCoherence(ibis: number[]): number {
 // ---------------------------------------------------------------------------
 
 const CALIBRATION_MIN_MS = 30_000
-const BUFFER_SECONDS = 20
+const BUFFER_SECONDS = 30
 const REGION_NAMES = ['forehead', 'leftCheek', 'rightCheek'] as const
 
 interface RegionBuffer {
@@ -657,10 +889,18 @@ interface WorkerState {
   recentHrs: number[]
   /** Consecutive compute ticks where signal confidence was inadequate. */
   lowConfRun: number
-  /** Face skin-pixel Y centroid per frame (head-bob → respiratory signal). */
-  faceCentroidY: number[]
-  /** Chest ROI mean intensity per frame (direct breathing motion). */
+  /** Median Y of tracked breath-relevant landmarks (philtrum, nose,
+   *  chin, nostrils) from MediaPipe FaceLandmarker. Forward-filled
+   *  when landmarks momentarily unavailable. */
+  landmarkMotionY: number[]
+  /** Parallel: true if landmark data was present on the frame. */
+  landmarkValid: boolean[]
+  /** Adaptive chest ROI intensity. Forward-filled when out of frame. */
   chestIntensity: number[]
+  /** Parallel: true if chest was in frame on this frame. */
+  chestValid: boolean[]
+  /** Non-skin pixel mean intensity in face ROI (NLMS reference). */
+  backgroundIntensity: number[]
 }
 
 // Diagnostic emission. Routed back to main thread via postMessage; main thread
@@ -714,8 +954,11 @@ const state: WorkerState = {
   smoothedRR: null,
   recentHrs: [],
   lowConfRun: 0,
-  faceCentroidY: [],
+  landmarkMotionY: [],
+  landmarkValid: [],
   chestIntensity: [],
+  chestValid: [],
+  backgroundIntensity: [],
 }
 
 function resetState(): void {
@@ -731,8 +974,11 @@ function resetState(): void {
   state.smoothedRR = null
   state.recentHrs = []
   state.lowConfRun = 0
-  state.faceCentroidY = []
+  state.landmarkMotionY = []
+  state.landmarkValid = []
   state.chestIntensity = []
+  state.chestValid = []
+  state.backgroundIntensity = []
 }
 
 function computeTrend(recent: number[]): HrvTrend {
@@ -753,19 +999,23 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
     if (type === 'rgb_multi') {
       const payload = data as {
         regions: Array<{ region: string; r: number; g: number; b: number; pixels: number }>
-        faceCentroidY?: number | null
+        landmarkMotionY?: number | null
         chestIntensity?: number | null
+        backgroundIntensity?: number | null
       }
-      const { regions, faceCentroidY, chestIntensity } = payload
+      const { regions, landmarkMotionY, chestIntensity, backgroundIntensity } = payload
       const now = Date.now()
 
-      // Gap detection
+      // Gap detection: reset all parallel buffers atomically
       if (state.timestamps.length > 0 && now - state.timestamps[state.timestamps.length - 1] > 2000) {
         state.regions = makeEmptyRegions()
         state.timestamps = []
         state.ibis = []
-        state.faceCentroidY = []
+        state.landmarkMotionY = []
+        state.landmarkValid = []
         state.chestIntensity = []
+        state.chestValid = []
+        state.backgroundIntensity = []
       }
 
       // Push RGB data for each region
@@ -779,8 +1029,21 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
       }
       state.timestamps.push(now)
 
-      if (typeof faceCentroidY === 'number') state.faceCentroidY.push(faceCentroidY)
-      if (typeof chestIntensity === 'number') state.chestIntensity.push(chestIntensity)
+      // Landmark + chest + background buffers stay parallel via forward-fill.
+      // Validity flags let downstream gating decide if the channel is usable.
+      const lastLandmark = state.landmarkMotionY[state.landmarkMotionY.length - 1] ?? 0
+      const lastChest = state.chestIntensity[state.chestIntensity.length - 1] ?? 0
+      const lastBg = state.backgroundIntensity[state.backgroundIntensity.length - 1] ?? 0
+
+      const haveLandmark = typeof landmarkMotionY === 'number' && isFinite(landmarkMotionY)
+      const haveChest = typeof chestIntensity === 'number' && isFinite(chestIntensity)
+      const haveBg = typeof backgroundIntensity === 'number' && isFinite(backgroundIntensity)
+
+      state.landmarkMotionY.push(haveLandmark ? (landmarkMotionY as number) : lastLandmark)
+      state.landmarkValid.push(haveLandmark)
+      state.chestIntensity.push(haveChest ? (chestIntensity as number) : lastChest)
+      state.chestValid.push(haveChest)
+      state.backgroundIntensity.push(haveBg ? (backgroundIntensity as number) : lastBg)
 
       if (state.calibrationStart === null) {
         state.calibrationStart = now
@@ -793,7 +1056,7 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
         if (dt > 0) state.actualFps = Math.round((recent.length - 1) / dt)
       }
 
-      // Trim buffers
+      // Trim buffers in lockstep so every parallel array has the same length
       const maxBuf = state.actualFps * BUFFER_SECONDS
       while (state.timestamps.length > maxBuf) {
         state.timestamps.shift()
@@ -801,9 +1064,12 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
           const buf = state.regions[name]
           if (buf.r.length > maxBuf) { buf.r.shift(); buf.g.shift(); buf.b.shift() }
         }
+        if (state.landmarkMotionY.length > maxBuf) state.landmarkMotionY.shift()
+        if (state.landmarkValid.length > maxBuf) state.landmarkValid.shift()
+        if (state.chestIntensity.length > maxBuf) state.chestIntensity.shift()
+        if (state.chestValid.length > maxBuf) state.chestValid.shift()
+        if (state.backgroundIntensity.length > maxBuf) state.backgroundIntensity.shift()
       }
-      while (state.faceCentroidY.length > maxBuf) state.faceCentroidY.shift()
-      while (state.chestIntensity.length > maxBuf) state.chestIntensity.shift()
 
       // Calibration progress
       const elapsed = now - state.calibrationStart
@@ -962,26 +1228,69 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
       const trend = computeTrend(state.recentRmssds)
       const confidence = round2(Math.min(1, mergedConf))
 
-      // Respiratory rate: confidence-weighted fusion of CHROM-derived RSA,
-      // face-centroid Y motion, and chest ROI intensity. Chest is gated by
-      // chestPresent() because the framing may put it out of view.
+      // Five-channel respiratory rate fusion:
+      //   rPPG-derived: pulse (low-freq CHROM modulation), RIAV, RIIV
+      //   motion-derived: face landmark median Y, chest ROI intensity
+      // NLMS pre-filters time-domain channels using non-skin background
+      // pixel intensity as a motion/lighting reference. Peak-conditioned
+      // fusion biases toward the smoothed prior estimate and penalizes
+      // disagreement across surviving channels.
       let respiratoryRate: number | null = null
-      const rsaRR = computeRRFromSignal(bestPulse, fps)
-      const faceRR = computeRRFromSignal(state.faceCentroidY, fps)
-      const isChestPresent = chestPresent(state.chestIntensity)
-      const chestRR = isChestPresent ? computeRRFromSignal(state.chestIntensity, fps) : null
-      const fused = fuseRespiratoryRate([rsaRR, faceRR, chestRR])
+      const bgRef = state.backgroundIntensity
+      const landmarkRatio = recentValidRatio(state.landmarkValid, bufLen)
+      const chestRatio = recentValidRatio(state.chestValid, bufLen)
+
+      // rPPG channel 1: pulse low-frequency modulation
+      const pulseClean = bgRef.length === bestPulse.length
+        ? nlmsFilter(bestPulse, bgRef, 0.005, 16)
+        : bestPulse
+      const pulseRR = computeRRFromSignal(pulseClean, fps)
+
+      // rPPG channel 2: RIAV — per-beat pulse amplitude series
+      const riavSamples = extractRIAV(stableBest, peaks, fps)
+      const riavRR = computeRRFromIrregular(riavSamples)
+
+      // rPPG channel 3: RIIV — per-beat baseline series
+      const riivSamples = extractRIIV(stableBest, peaks, fps)
+      const riivRR = computeRRFromIrregular(riivSamples)
+
+      // Motion channel 1: landmark median Y (gated by landmark availability)
+      const faceClean = bgRef.length === state.landmarkMotionY.length
+        ? nlmsFilter(state.landmarkMotionY, bgRef, 0.005, 16)
+        : state.landmarkMotionY
+      const faceRR = landmarkRatio >= 0.6
+        ? computeRRFromSignal(faceClean, fps)
+        : null
+
+      // Motion channel 2: chest ROI intensity (gated by frame visibility +
+      // variance — frame gating from main thread, variance as backup)
+      const chestVarianceOk = chestPresent(state.chestIntensity)
+      const isChestUsable = chestRatio >= 0.7 && chestVarianceOk
+      const chestClean = bgRef.length === state.chestIntensity.length
+        ? nlmsFilter(state.chestIntensity, bgRef, 0.005, 16)
+        : state.chestIntensity
+      const chestRR = isChestUsable ? computeRRFromSignal(chestClean, fps) : null
+
+      const fused = peakConditionedFuse(
+        [pulseRR, riavRR, riivRR, faceRR, chestRR],
+        state.smoothedRR,
+      )
+
       if (fused && fused.confidence > 0.1) {
         if (state.smoothedRR === null) state.smoothedRR = fused.rr
-        else state.smoothedRR = state.smoothedRR + 0.2 * (fused.rr - state.smoothedRR)
+        else state.smoothedRR = state.smoothedRR + 0.4 * (fused.rr - state.smoothedRR)
         respiratoryRate = round1(state.smoothedRR)
       }
+
       const respiratoryDiagnostics = {
-        rsa: roundEstimate(rsaRR),
+        pulse: roundEstimate(pulseRR),
+        riav: roundEstimate(riavRR),
+        riiv: roundEstimate(riivRR),
         face: roundEstimate(faceRR),
         chest: roundEstimate(chestRR),
-        chestPresent: isChestPresent,
-        fused: roundEstimate(fused),
+        chestPresent: isChestUsable,
+        landmarksAvailable: landmarkRatio >= 0.5,
+        fused: fused ? { rr: round1(fused.rr), confidence: round2(fused.confidence) } : null,
       }
 
       // Compute derived HRV metrics from IBI series
@@ -999,7 +1308,9 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
         derived,
       }
 
-      // Signal dump (from best region)
+      // Signal dump (from best region) — also persist the per-channel RR
+      // diagnostics so we can mine offline whether each new channel
+      // (riav/riiv/face/chest) is actually contributing in real sessions.
       const bestBuf = state.regions[regionResults.find(r => r.confidence === bestConfidence)?.region ?? 'forehead']
       const signalDump = {
         timestamp: Date.now(),
@@ -1014,6 +1325,7 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
         fftPeakBpm: rawHr,
         peaks: [...peaks],
         ibis: [...state.ibis],
+        respiratory: respiratoryDiagnostics,
       }
 
       self.postMessage({ type: 'measurement', data: measurement, signalDump })

@@ -1,6 +1,7 @@
 import type { HrvMeasurement, HrvError, HrvSignalDump } from '../types/hrv'
 import { engineLog } from '../services/diagnostics'
 import type { WorkerEngineLogMessage } from '../services/diagnostics'
+import type { FaceLandmarker as FaceLandmarkerType } from '@mediapipe/tasks-vision'
 
 // Module-level HR accessor for cross-component use (like isGroundingActive)
 let currentHeartRate: number | null = null
@@ -11,6 +12,32 @@ export function getCurrentHeartRate(): number | null {
 type MeasurementCallback = (m: HrvMeasurement) => void
 type CalibrationCallback = (baseline: number) => void
 type ErrorCallback = (error: HrvError) => void
+
+/**
+ * MediaPipe FaceMesh landmark IDs whose Y coordinates we average per
+ * frame for the respiratory motion signal. Chosen because they sit
+ * near the lower-mid face where breath-driven motion is most visible
+ * and head pose has the least leverage:
+ *   1   — nose tip
+ *   164 — philtrum (centre, under nose)
+ *   0   — upper lip vermillion border
+ *   17  — lower lip
+ *   152 — chin (mental protuberance)
+ * Tracking multiple points and taking the median makes the signal
+ * robust to single-landmark jitter that plagued the old "Y centroid
+ * of all skin pixels" approach.
+ */
+const BREATH_LANDMARK_IDS = [1, 164, 0, 17, 152]
+const CHIN_LANDMARK_ID = 152
+
+// Adaptive chest ROI. The chest channel only contributes when the chin
+// landmark sits in the upper part of the frame — otherwise the band we'd
+// sample below it is desk/keyboard, not chest. The band itself starts
+// just below the chin and runs down to ~30% of frame height to catch the
+// upper chest where breath-driven reflection is largest.
+const CHEST_CHIN_Y_MAX = 0.62
+const CHEST_BAND_TOP_OFFSET = 0.06
+const CHEST_BAND_BOTTOM_OFFSET = 0.30
 
 export class HrvEngine {
   private stream: MediaStream | null = null
@@ -24,6 +51,8 @@ export class HrvEngine {
   private calibrating = true
   private baseline: number | null = null
   private greenBuffer: number[] = []
+  private faceLandmarker: FaceLandmarkerType | null = null
+  private landmarkerInitStarted = false
 
   private signalDumps: HrvSignalDump[] = []
   private currentSessionId: string | null = null
@@ -137,6 +166,11 @@ export class HrvEngine {
       console.warn('[HRV Engine] Failed to create worker, running on main thread:', err)
     }
 
+    // Kick off MediaPipe FaceLandmarker init in parallel. Don't await it —
+    // capture can run without landmarks (motion channel is gated downstream
+    // by recentValidRatio when landmark data is sparse).
+    this.initFaceLandmarker()
+
     this.captureFrames()
 
     // Request computation every 5 seconds
@@ -197,6 +231,56 @@ export class HrvEngine {
     this.latest = null
     this.calibrating = true
     currentHeartRate = null
+
+    if (this.faceLandmarker) {
+      try { this.faceLandmarker.close() } catch { /* noop */ }
+      this.faceLandmarker = null
+    }
+    this.landmarkerInitStarted = false
+  }
+
+  /**
+   * Lazily load MediaPipe FaceLandmarker. WASM is fetched from the
+   * jsDelivr CDN to keep our bundle small; the model file is hosted on
+   * Google's mediapipe-models bucket (already allowed by our CSP under
+   * the *.googleapis.com wildcard). Init is fire-and-forget — capture
+   * begins immediately and the motion channel comes online once init
+   * resolves (typically 1–3 seconds, well before calibration ends).
+   *
+   * The `landmarkerInitStarted` guard doubles as a cancellation flag:
+   * if `stop()` clears it while init is still awaiting, we close the
+   * landmarker and drop the result rather than assigning to a stopped
+   * engine (which would leak the instance across start/stop cycles).
+   */
+  private async initFaceLandmarker(): Promise<void> {
+    if (this.landmarkerInitStarted) return
+    this.landmarkerInitStarted = true
+    try {
+      const mp = await import('@mediapipe/tasks-vision')
+      if (!this.landmarkerInitStarted) return
+      const filesetResolver = await mp.FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm',
+      )
+      if (!this.landmarkerInitStarted) return
+      const landmarker = await mp.FaceLandmarker.createFromOptions(filesetResolver, {
+        baseOptions: {
+          modelAssetPath:
+            'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+        },
+        runningMode: 'VIDEO',
+        numFaces: 1,
+        outputFaceBlendshapes: false,
+        outputFacialTransformationMatrixes: false,
+      })
+      if (!this.landmarkerInitStarted) {
+        try { landmarker.close() } catch { /* noop */ }
+        return
+      }
+      this.faceLandmarker = landmarker
+    } catch (err) {
+      console.warn('[HRV Engine] FaceLandmarker init failed; motion channel disabled:', err)
+      this.faceLandmarker = null
+    }
   }
 
   getLatest(): HrvMeasurement | null {
@@ -246,11 +330,38 @@ export class HrvEngine {
 
     this.ctx.drawImage(this.video, 0, 0, vw, vh)
 
-    // Single getImageData covering face (top) + chest (bottom). Combined to
-    // halve per-frame canvas→JS readbacks (the dominant per-frame cost).
-    // Layout (combined-local y):
-    //   y in [0, faceRoiH)        — face ROI; skin-pixel sub-regions iterate here
-    //   y in [chestY0, roiH)      — chest ROI; linear subsampled sweep over bytes
+    // FaceLandmarker runs against the live video element. The model is
+    // fed full-resolution frames at the rAF cadence; MediaPipe internally
+    // throttles to its model rate (~30 Hz on most hardware) and returns
+    // the latest result, so we can call every frame without backpressure.
+    let landmarkMotionY: number | null = null
+    let chinYAbs: number | null = null
+    if (this.faceLandmarker) {
+      try {
+        const result = this.faceLandmarker.detectForVideo(this.video, performance.now())
+        const lms = result.faceLandmarks[0]
+        if (lms) {
+          const yValues: number[] = []
+          for (const id of BREATH_LANDMARK_IDS) {
+            const p = lms[id]
+            if (p && isFinite(p.y)) yValues.push(p.y * vh)
+          }
+          if (yValues.length > 0) {
+            yValues.sort((a, b) => a - b)
+            landmarkMotionY = yValues[Math.floor(yValues.length / 2)]
+          }
+          const chin = lms[CHIN_LANDMARK_ID]
+          if (chin && isFinite(chin.y)) chinYAbs = chin.y * vh
+        }
+      } catch {
+        // detectForVideo can throw on some frames during init; ignore single failures
+      }
+    }
+
+    // Single getImageData covering face (top) + chest band. Even though
+    // chest extraction is now adaptive, the bytes already in `pixels`
+    // cover y ∈ [0.2*vh, 0.95*vh] so the chest sweep is free given the
+    // face read.
     const x0 = Math.floor(vw * 0.2)
     const x1 = Math.floor(vw * 0.8)
     const y0 = Math.floor(vh * 0.2)
@@ -258,8 +369,7 @@ export class HrvEngine {
     const roiW = x1 - x0
     const roiH = yEnd - y0
     const faceRoiH = Math.floor(vh * 0.6)
-    const chestY0 = Math.floor(vh * 0.5) // = vh*0.7 - vh*0.2, in combined-local y
-    if (roiW <= 0 || roiH <= 0 || faceRoiH <= 0 || chestY0 >= roiH) {
+    if (roiW <= 0 || roiH <= 0 || faceRoiH <= 0) {
       this.animFrameId = requestAnimationFrame(() => this.captureFrames())
       return
     }
@@ -267,10 +377,6 @@ export class HrvEngine {
     const imageData = this.ctx.getImageData(x0, y0, roiW, roiH)
     const pixels = imageData.data
 
-    // Face sub-regions, skin-color filtered.
-    // Forehead: top 30%, middle 80% horizontally
-    // Cheeks: middle 40% vertically, outer thirds horizontally
-    // ry/rh are fractions of faceRoiH (the face portion of the combined ROI).
     const regions = [
       { name: 'forehead', ry: 0, rh: 0.3, rx: 0.1, rw: 0.8 },
       { name: 'leftCheek', ry: 0.3, rh: 0.4, rx: 0, rw: 0.33 },
@@ -279,10 +385,11 @@ export class HrvEngine {
 
     const rgbRegions: Array<{ region: string; r: number; g: number; b: number; pixels: number }> = []
 
-    // Global skin-pixel Y centroid across face sub-regions — feeds the
-    // face-landmark respiratory signal (subtle head bob with breath).
-    let globalSumY = 0
-    let globalSkinCount = 0
+    // Non-skin pixel intensity sweep across the face ROI. Provides the
+    // NLMS reference signal — non-skin pixels move with camera shake and
+    // ambient lighting changes but not with the breath/heartbeat signals.
+    let bgSum = 0
+    let bgCount = 0
 
     for (const reg of regions) {
       const sx = Math.floor(roiW * reg.rx)
@@ -291,7 +398,7 @@ export class HrvEngine {
       const sh = Math.floor(faceRoiH * reg.rh)
       if (sw <= 0 || sh <= 0) continue
 
-      let sumR = 0, sumG = 0, sumB = 0, count = 0, sumY = 0
+      let sumR = 0, sumG = 0, sumB = 0, count = 0
       for (let py = sy; py < sy + sh && py < faceRoiH; py++) {
         for (let px = sx; px < sx + sw && px < roiW; px++) {
           const idx = (py * roiW + px) * 4
@@ -303,13 +410,16 @@ export class HrvEngine {
             sumR += r
             sumG += g
             sumB += b
-            sumY += py
             count++
+          } else {
+            // Background pixel — track grey-equivalent intensity for NLMS
+            bgSum += (r + g + b) / 3
+            bgCount++
           }
         }
       }
 
-      if (count > 10) { // need at least some skin pixels
+      if (count > 10) {
         rgbRegions.push({
           region: reg.name,
           r: sumR / count,
@@ -317,32 +427,39 @@ export class HrvEngine {
           b: sumB / count,
           pixels: count,
         })
-        globalSumY += sumY
-        globalSkinCount += count
       }
     }
 
-    const faceCentroidY = globalSkinCount > 0 ? globalSumY / globalSkinCount : null
+    const backgroundIntensity = bgCount > 0 ? bgSum / bgCount : null
 
-    // Chest portion of the combined buffer. Direct mechanical breathing
-    // motion when the chest is in frame; worker variance-gates this to zero
-    // weight when framing or posture puts it out of view.
+    // Adaptive chest ROI driven by the chin landmark. When the chin sits
+    // too low in the frame the band below it is desk/keyboard, not chest,
+    // so we don't sample.
     let chestIntensity: number | null = null
-    let chestSum = 0
-    let chestSampled = 0
-    const chestStartByte = chestY0 * roiW * 4
-    const chestEndByte = roiH * roiW * 4
-    // Step 16 = every 4th pixel (RGBA stride 4 × subsample 4).
-    for (let i = chestStartByte; i < chestEndByte; i += 16) {
-      chestSum += pixels[i + 1] // green channel
-      chestSampled++
+    if (chinYAbs !== null && chinYAbs < vh * CHEST_CHIN_Y_MAX) {
+      const chestY0Local = Math.floor(chinYAbs + vh * CHEST_BAND_TOP_OFFSET) - y0
+      const chestY1Local = Math.min(yEnd, Math.floor(chinYAbs + vh * CHEST_BAND_BOTTOM_OFFSET)) - y0
+      if (chestY1Local > chestY0Local && chestY0Local >= 0 && chestY1Local <= roiH) {
+        let chestSum = 0
+        let chestSampled = 0
+        const endByte = chestY1Local * roiW * 4
+        for (let i = chestY0Local * roiW * 4; i < endByte; i += 16) {
+          chestSum += pixels[i + 1] // green channel
+          chestSampled++
+        }
+        if (chestSampled > 0) chestIntensity = chestSum / chestSampled
+      }
     }
-    if (chestSampled > 0) chestIntensity = chestSum / chestSampled
 
     if (this.worker && rgbRegions.length > 0) {
       this.worker.postMessage({
         type: 'rgb_multi',
-        data: { regions: rgbRegions, faceCentroidY, chestIntensity },
+        data: {
+          regions: rgbRegions,
+          landmarkMotionY,
+          chestIntensity,
+          backgroundIntensity,
+        },
       })
     }
 
