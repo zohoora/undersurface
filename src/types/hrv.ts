@@ -9,6 +9,22 @@ export interface HrvDerivedMetrics {
   coherence: number        // cardiac coherence 0-1 — how regular/sinusoidal HRV is
 }
 
+/**
+ * Per-source breakdown of the three respiratory-rate estimates that feed
+ * the fused output. Used for debug/observability — surfaced in the
+ * BiometricsBar expanded panel and signal dumps. Each source is null when
+ * its buffer is too short, the bandpass cannot find a plausible peak, or
+ * (for chest) the variance gate rejects the frame.
+ */
+export interface HrvRespiratoryDiagnostics {
+  rsa: { rr: number; confidence: number } | null      // CHROM-derived
+  face: { rr: number; confidence: number } | null     // face-centroid Y motion
+  chest: { rr: number; confidence: number } | null    // chest ROI intensity
+  chestPresent: boolean                               // variance-gate verdict
+  fusedRaw: number | null                             // pre-smoothing fused estimate
+  fusedConfidence: number | null                      // max confidence across sources
+}
+
 export interface HrvMeasurement {
   timestamp: number
   hr: number
@@ -17,6 +33,8 @@ export interface HrvMeasurement {
   trend: HrvTrend
   confidence: number
   respiratoryRate: number | null
+  /** Per-source RR breakdown for debug; null until first compute tick fires. */
+  respiratoryDiagnostics?: HrvRespiratoryDiagnostics | null
   derived: HrvDerivedMetrics | null
 }
 

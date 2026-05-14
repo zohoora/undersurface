@@ -963,14 +963,23 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
       let respiratoryRate: number | null = null
       const rsaRR = computeRRFromSignal(bestPulse, fps)
       const faceRR = computeRRFromSignal(state.faceCentroidY, fps)
-      const chestRR = chestPresent(state.chestIntensity)
-        ? computeRRFromSignal(state.chestIntensity, fps)
-        : null
+      const isChestPresent = chestPresent(state.chestIntensity)
+      const chestRR = isChestPresent ? computeRRFromSignal(state.chestIntensity, fps) : null
       const fused = fuseRespiratoryRate([rsaRR, faceRR, chestRR])
       if (fused && fused.confidence > 0.1) {
         if (state.smoothedRR === null) state.smoothedRR = fused.rr
         else state.smoothedRR = state.smoothedRR + 0.2 * (fused.rr - state.smoothedRR)
         respiratoryRate = Math.round(state.smoothedRR * 10) / 10
+      }
+      const roundSource = (s: { rr: number; confidence: number } | null) =>
+        s ? { rr: Math.round(s.rr * 10) / 10, confidence: Math.round(s.confidence * 100) / 100 } : null
+      const respiratoryDiagnostics = {
+        rsa: roundSource(rsaRR),
+        face: roundSource(faceRR),
+        chest: roundSource(chestRR),
+        chestPresent: isChestPresent,
+        fusedRaw: fused ? Math.round(fused.rr * 10) / 10 : null,
+        fusedConfidence: fused ? Math.round(fused.confidence * 100) / 100 : null,
       }
 
       // Compute derived HRV metrics from IBI series
@@ -984,6 +993,7 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
         trend,
         confidence,
         respiratoryRate,
+        respiratoryDiagnostics,
         derived,
       }
 

@@ -63,6 +63,18 @@ export function BiometricsBar({ latest, measurementCount, isCalibrating, error }
           <span style={{ fontWeight: 400, fontSize: 10, color: 'var(--text-tertiary, #888)' }}> bpm</span>
         </span>
 
+        {latest?.respiratoryRate != null && (
+          <span style={{
+            fontWeight: 600,
+            color: 'var(--text-primary)',
+            fontVariantNumeric: 'tabular-nums',
+            fontSize: 13,
+          }}>
+            {latest.respiratoryRate}
+            <span style={{ fontWeight: 400, fontSize: 10, color: 'var(--text-tertiary, #888)' }}> br/m</span>
+          </span>
+        )}
+
         <span style={{ fontSize: 11, textTransform: 'capitalize' }}>
           {statusText}
         </span>
@@ -83,25 +95,31 @@ export function BiometricsBar({ latest, measurementCount, isCalibrating, error }
 
       {expanded && latest && (
         <div style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '4px 14px',
           marginTop: 6,
           paddingTop: 6,
           borderTop: '1px solid var(--border-subtle, rgba(255,255,255,0.08))',
-          fontSize: 11,
-          fontFamily: "'Inter', sans-serif",
-          color: 'var(--text-tertiary, #888)',
         }}>
-          <Metric label="RMSSD" value={`${latest.rmssd.toFixed(1)} ms`} />
-          {latest.respiratoryRate != null && (
-            <Metric label="Breath" value={`${latest.respiratoryRate}/min`} />
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '4px 14px',
+            fontSize: 11,
+            fontFamily: "'Inter', sans-serif",
+            color: 'var(--text-tertiary, #888)',
+          }}>
+            <Metric label="RMSSD" value={`${latest.rmssd.toFixed(1)} ms`} />
+            {latest.derived?.lfHfRatio != null && (
+              <Metric label="LF/HF" value={`${latest.derived.lfHfRatio}`} />
+            )}
+            <Metric label="Signal" value={`${confidencePercent}%`} color={signalDot} />
+            <Metric label="Samples" value={`${measurementCount}`} />
+          </div>
+          {latest.respiratoryDiagnostics && (
+            <RespiratoryDiagnostics
+              smoothed={latest.respiratoryRate}
+              diag={latest.respiratoryDiagnostics}
+            />
           )}
-          {latest.derived?.lfHfRatio != null && (
-            <Metric label="LF/HF" value={`${latest.derived.lfHfRatio}`} />
-          )}
-          <Metric label="Signal" value={`${confidencePercent}%`} color={signalDot} />
-          <Metric label="Samples" value={`${measurementCount}`} />
         </div>
       )}
     </div>
@@ -120,5 +138,70 @@ function Metric({ label, value, color }: { label: string; value: string; color?:
         {value}
       </span>
     </span>
+  )
+}
+
+function RespiratoryDiagnostics({
+  smoothed,
+  diag,
+}: {
+  smoothed: number | null
+  diag: NonNullable<HrvMeasurement['respiratoryDiagnostics']>
+}) {
+  return (
+    <div style={{
+      marginTop: 8,
+      paddingTop: 6,
+      borderTop: '1px dashed var(--border-subtle, rgba(255,255,255,0.06))',
+      fontSize: 10,
+      fontFamily: "'Inter', sans-serif",
+      color: 'var(--text-tertiary, #888)',
+    }}>
+      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.7, marginBottom: 4 }}>
+        Breath sources
+      </div>
+      <SourceRow label="RSA" source={diag.rsa} />
+      <SourceRow label="Face" source={diag.face} />
+      <SourceRow label="Chest" source={diag.chest} note={diag.chestPresent ? 'in frame' : 'not in frame'} />
+      <div style={{
+        display: 'flex',
+        gap: 8,
+        marginTop: 3,
+        paddingTop: 3,
+        borderTop: '1px dotted rgba(255,255,255,0.05)',
+        fontVariantNumeric: 'tabular-nums',
+      }}>
+        <span style={{ width: 36, fontSize: 9, opacity: 0.7 }}>Fused</span>
+        <span style={{ width: 56 }}>{diag.fusedRaw != null ? `${diag.fusedRaw} br/m` : '—'}</span>
+        <span style={{ width: 70 }}>{diag.fusedConfidence != null ? `conf ${diag.fusedConfidence.toFixed(2)}` : ''}</span>
+        <span style={{ opacity: 0.6 }}>
+          {smoothed != null ? `smoothed ${smoothed} br/m` : ''}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function SourceRow({
+  label,
+  source,
+  note,
+}: {
+  label: string
+  source: { rr: number; confidence: number } | null
+  note?: string
+}) {
+  return (
+    <div style={{
+      display: 'flex',
+      gap: 8,
+      alignItems: 'baseline',
+      fontVariantNumeric: 'tabular-nums',
+    }}>
+      <span style={{ width: 36, fontSize: 9, opacity: 0.7 }}>{label}</span>
+      <span style={{ width: 56 }}>{source ? `${source.rr} br/m` : '—'}</span>
+      <span style={{ width: 70 }}>{source ? `conf ${source.confidence.toFixed(2)}` : ''}</span>
+      {note && <span style={{ opacity: 0.5, fontSize: 9 }}>{note}</span>}
+    </div>
   )
 }
