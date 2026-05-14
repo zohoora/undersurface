@@ -356,22 +356,21 @@ export function respiratoryBandpass(signal: number[], sampleRate: number): numbe
 // Respiratory rate from a single signal + multi-source fusion
 // ---------------------------------------------------------------------------
 
-/** Min buffer to attempt an RR estimate (signal length in samples). */
-export const RR_MIN_BUFFER_SECONDS = 20
-/** Skip-leading-window fraction to drop bandpass settling transient. */
+const RR_MIN_BUFFER_SECONDS = 20
 const RR_SKIP_FRACTION = 0.2
-/** Plausible respiratory rate range (BPM). Worker emits null outside this. */
+// Plausible RR range (BPM). The FFT band below is 0.15–0.45 Hz (9–27 BPM),
+// so these bounds also defend against the worker accidentally calling
+// findHeartRateFFT with a wider band in the future.
 const RR_PLAUSIBLE_MIN = 8
 const RR_PLAUSIBLE_MAX = 30
 
 /**
- * Apply the respiratory bandpass + windowed FFT to an arbitrary signal,
- * returning the dominant breath-band frequency (BPM) and a confidence score.
- * Returns null when the buffer is too short, the bandpass cannot stabilize,
- * or the peak falls outside the plausible RR range.
+ * Apply the respiratory bandpass + windowed FFT to a time-series signal.
+ * Returns the dominant breath-band frequency (BPM) and a confidence score,
+ * or null if the buffer is too short / the peak is implausible.
  *
- * Used by three signal sources: CHROM-derived RSA, face-centroid Y motion,
- * and chest-ROI intensity. Same pipeline, different inputs.
+ * Same pipeline for three sources: CHROM-derived RSA, face-centroid Y
+ * motion, and chest-ROI intensity.
  */
 export function computeRRFromSignal(
   signal: number[],
@@ -389,12 +388,8 @@ export function computeRRFromSignal(
 }
 
 /**
- * Confidence-weighted fusion of multiple RR estimates. Each source contributes
- * with weight = confidence² (sharp falloff so a weak source can't dominate).
- * Returns null if no source has a valid estimate.
- *
- * The squared-confidence shape matches the existing multi-ROI HR merge — see
- * the compute handler for the pattern.
+ * Confidence-weighted fusion of multiple RR estimates. Weight = confidence²
+ * (sharp falloff so a weak source can't dominate). Null if no source is valid.
  */
 export function fuseRespiratoryRate(
   sources: ReadonlyArray<{ rr: number; confidence: number } | null>,
@@ -413,7 +408,6 @@ export function fuseRespiratoryRate(
   return { rr: weighted / totalWeight, confidence: bestConfidence }
 }
 
-/** Mean-and-variance helper for the chest-present gate. */
 export function variance(signal: number[]): number {
   if (signal.length < 2) return 0
   let sum = 0
@@ -443,8 +437,7 @@ export function chestPresent(signal: number[]): boolean {
 export function detectPeaks(signal: number[], sampleRate: number): number[] {
   const minDist = Math.round(0.3 * sampleRate)
   const mean = signal.reduce((a, b) => a + b, 0) / signal.length
-  const variance = signal.reduce((a, b) => a + (b - mean) ** 2, 0) / signal.length
-  const std = Math.sqrt(variance)
+  const std = Math.sqrt(variance(signal))
   if (std < 0.0001) return []
   const threshold = mean + 0.4 * std
 
@@ -487,8 +480,7 @@ export function computeDerivedMetrics(ibis: number[]): HrvDerivedMetrics | null 
   if (ibis.length < 4) return null
 
   // SDNN: standard deviation of all IBIs
-  const mean = ibis.reduce((a, b) => a + b, 0) / ibis.length
-  const sdnn = Math.sqrt(ibis.reduce((a, b) => a + (b - mean) ** 2, 0) / ibis.length)
+  const sdnn = Math.sqrt(variance(ibis))
 
   // pNN50: percentage of successive IBI differences > 50ms
   let nn50Count = 0
@@ -965,13 +957,9 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
       const trend = computeTrend(state.recentRmssds)
       const confidence = Math.round(Math.min(1, mergedConf) * 100) / 100
 
-      // Respiratory rate via three-source confidence-weighted fusion.
-      // Source 1: CHROM-derived RSA (existing, weakest signal — RR encoded in
-      //   heart-rate variability at the respiratory frequency)
-      // Source 2: face-centroid Y motion (subtle head bob with breath, always
-      //   available because the face skin pixels are already being tracked)
-      // Source 3: chest ROI mean intensity (strongest signal when chest is in
-      //   frame; variance-gated out when framing puts chest off-screen)
+      // Respiratory rate: confidence-weighted fusion of CHROM-derived RSA,
+      // face-centroid Y motion, and chest ROI intensity. Chest is gated by
+      // chestPresent() because the framing may put it out of view.
       let respiratoryRate: number | null = null
       const rsaRR = computeRRFromSignal(bestPulse, fps)
       const faceRR = computeRRFromSignal(state.faceCentroidY, fps)
