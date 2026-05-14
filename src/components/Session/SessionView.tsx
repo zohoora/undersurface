@@ -363,18 +363,20 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     ink.disabled = !(vfx && getGlobalConfig()?.features?.inkWeight !== false)
   }, [inputEditor])
 
-  // Clear editor content when streaming starts
+  // Clear editor content when streaming starts. TipTap's editor proxy can
+  // resolve `commands` to null in transient destroyed/recreating states
+  // (Sentry 9b6f8301275743e88045df9cfe2b1965 and 0aac2772978a496086d213c22e58f398).
   useEffect(() => {
-    if (isStreaming && inputEditor) {
-      inputEditor.commands.clearContent()
-    }
+    if (isStreaming) inputEditor?.commands?.clearContent()
   }, [isStreaming, inputEditor])
 
-  // Focus editor after streaming completes
+  // Focus editor after streaming completes. The deferred setTimeout makes
+  // this even more vulnerable to the same null-commands race — clear on
+  // re-run so a stale callback can't fire after the editor is torn down.
   useEffect(() => {
-    if (!isStreaming && inputEditor && session?.status !== 'closed') {
-      setTimeout(() => inputEditor.commands.focus(), 50)
-    }
+    if (isStreaming || !inputEditor || session?.status === 'closed') return
+    const id = setTimeout(() => inputEditor?.commands?.focus(), 50)
+    return () => clearTimeout(id)
   }, [isStreaming, inputEditor, session?.status])
 
   // If voice ends while we're on the Speak surface, return to Talk so the user
