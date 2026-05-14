@@ -1,4 +1,4 @@
-import type { HrvMeasurement, HrvError, HrvSignalDump } from '../types/hrv'
+import type { HrvMeasurement, HrvError, HrvSignalDump, LandmarkerState } from '../types/hrv'
 import { engineLog } from '../services/diagnostics'
 import type { WorkerEngineLogMessage } from '../services/diagnostics'
 import type { FaceLandmarker as FaceLandmarkerType } from '@mediapipe/tasks-vision'
@@ -53,6 +53,7 @@ export class HrvEngine {
   private greenBuffer: number[] = []
   private faceLandmarker: FaceLandmarkerType | null = null
   private landmarkerInitStarted = false
+  private landmarkerInitFailed = false
 
   private signalDumps: HrvSignalDump[] = []
   private currentSessionId: string | null = null
@@ -237,6 +238,7 @@ export class HrvEngine {
       this.faceLandmarker = null
     }
     this.landmarkerInitStarted = false
+    this.landmarkerInitFailed = false
   }
 
   /**
@@ -262,13 +264,21 @@ export class HrvEngine {
         'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm',
       )
       if (!this.landmarkerInitStarted) return
+      // Confidence thresholds are tuned low (0.3 vs library default 0.5)
+      // because typical webcam sessions are indoor / off-axis / mixed
+      // lighting — defaults reject too many marginally-lit faces.
+      // GPU delegate falls back to CPU automatically when unavailable.
       const landmarker = await mp.FaceLandmarker.createFromOptions(filesetResolver, {
         baseOptions: {
           modelAssetPath:
             'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+          delegate: 'GPU',
         },
         runningMode: 'VIDEO',
         numFaces: 1,
+        minFaceDetectionConfidence: 0.3,
+        minFacePresenceConfidence: 0.3,
+        minTrackingConfidence: 0.3,
         outputFaceBlendshapes: false,
         outputFacialTransformationMatrixes: false,
       })
@@ -277,9 +287,11 @@ export class HrvEngine {
         return
       }
       this.faceLandmarker = landmarker
+      console.info('[HRV Engine] FaceLandmarker ready (GPU delegate, conf=0.3)')
     } catch (err) {
       console.warn('[HRV Engine] FaceLandmarker init failed; motion channel disabled:', err)
       this.faceLandmarker = null
+      this.landmarkerInitFailed = true
     }
   }
 
@@ -451,6 +463,14 @@ export class HrvEngine {
       }
     }
 
+    const landmarkerState: LandmarkerState = this.landmarkerInitFailed
+      ? 'failed'
+      : this.faceLandmarker === null
+        ? 'loading'
+        : landmarkMotionY !== null
+          ? 'detecting'
+          : 'no_face'
+
     if (this.worker && rgbRegions.length > 0) {
       this.worker.postMessage({
         type: 'rgb_multi',
@@ -459,6 +479,7 @@ export class HrvEngine {
           landmarkMotionY,
           chestIntensity,
           backgroundIntensity,
+          landmarkerState,
         },
       })
     }

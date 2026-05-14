@@ -16,6 +16,17 @@ export interface RespiratoryEstimate {
 }
 
 /**
+ * State of the facial-landmark tracker that feeds the motion RR channel.
+ * Distinct from "channel quality" — this is *why* the motion channel may
+ * be dark, so the user can act on it:
+ *   loading   — face detector is still initializing (first 1–3 seconds)
+ *   detecting — landmarks streaming, motion channel active
+ *   no_face   — detector loaded but can't see a face (lighting/framing)
+ *   failed    — detector failed to load (CDN/CSP/network); won't recover
+ */
+export type LandmarkerState = 'loading' | 'detecting' | 'no_face' | 'failed'
+
+/**
  * Per-source breakdown of every respiratory-rate estimate that feeds the
  * fused output. Five candidate sources spanning rPPG-derived modulations
  * (pulse-low-freq, per-beat amplitude RIAV, per-beat baseline RIIV) and
@@ -41,8 +52,8 @@ export interface HrvRespiratoryDiagnostics {
   /** Chest ROI intensity, adaptive ROI gated by chestPresent. */
   chest: RespiratoryEstimate | null
   chestPresent: boolean
-  /** Whether MediaPipe FaceLandmarker has produced landmarks recently. */
-  landmarksAvailable: boolean
+  /** User-facing state of the face landmarker (why motion may be dark). */
+  landmarkerState: LandmarkerState
   fused: RespiratoryEstimate | null
 }
 

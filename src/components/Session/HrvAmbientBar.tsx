@@ -1,5 +1,12 @@
 import { useState, type ReactNode } from 'react'
-import type { HrvMeasurement, HrvRespiratoryDiagnostics, RespiratoryEstimate } from '../../types'
+import type { HrvMeasurement, HrvRespiratoryDiagnostics, LandmarkerState, RespiratoryEstimate } from '../../types'
+
+const LANDMARKER_STATE_TEXT: Record<LandmarkerState, string> = {
+  loading: 'loading…',
+  detecting: 'face ok',
+  no_face: 'no face seen',
+  failed: 'detector failed',
+}
 
 interface Props {
   latest: HrvMeasurement | null
@@ -170,8 +177,12 @@ function RespiratoryDiagnostics({
         label="Face"
         source={diag.face}
         trailing={
-          <span style={{ opacity: 0.5, fontSize: 9 }}>
-            {diag.landmarksAvailable ? 'landmarks ok' : 'no landmarks'}
+          <span style={{
+            opacity: 0.5,
+            fontSize: 9,
+            color: diag.landmarkerState === 'failed' ? 'var(--accent-warning, #b07060)' : undefined,
+          }}>
+            {LANDMARKER_STATE_TEXT[diag.landmarkerState]}
           </span>
         }
       />

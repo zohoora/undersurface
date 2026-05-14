@@ -1,4 +1,4 @@
-import type { AutonomicState, HrvDerivedMetrics, HrvMeasurement, HrvTrend, RespiratoryEstimate } from '../types/hrv'
+import type { AutonomicState, HrvDerivedMetrics, HrvMeasurement, HrvTrend, LandmarkerState, RespiratoryEstimate } from '../types/hrv'
 import type { Severity, DiagnosticCode, WorkerEngineLogMessage } from '../services/diagnostics'
 
 const round1 = (x: number): number => Math.round(x * 10) / 10
@@ -901,6 +901,8 @@ interface WorkerState {
   chestValid: boolean[]
   /** Non-skin pixel mean intensity in face ROI (NLMS reference). */
   backgroundIntensity: number[]
+  /** Most recent face landmarker state reported by main thread. */
+  landmarkerState: LandmarkerState
 }
 
 // Diagnostic emission. Routed back to main thread via postMessage; main thread
@@ -959,6 +961,7 @@ const state: WorkerState = {
   chestIntensity: [],
   chestValid: [],
   backgroundIntensity: [],
+  landmarkerState: 'loading',
 }
 
 function resetState(): void {
@@ -979,6 +982,7 @@ function resetState(): void {
   state.chestIntensity = []
   state.chestValid = []
   state.backgroundIntensity = []
+  state.landmarkerState = 'loading'
 }
 
 function computeTrend(recent: number[]): HrvTrend {
@@ -1002,8 +1006,10 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
         landmarkMotionY?: number | null
         chestIntensity?: number | null
         backgroundIntensity?: number | null
+        landmarkerState?: LandmarkerState
       }
-      const { regions, landmarkMotionY, chestIntensity, backgroundIntensity } = payload
+      const { regions, landmarkMotionY, chestIntensity, backgroundIntensity, landmarkerState } = payload
+      if (landmarkerState) state.landmarkerState = landmarkerState
       const now = Date.now()
 
       // Gap detection: reset all parallel buffers atomically
@@ -1289,7 +1295,7 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
         face: roundEstimate(faceRR),
         chest: roundEstimate(chestRR),
         chestPresent: isChestUsable,
-        landmarksAvailable: landmarkRatio >= 0.5,
+        landmarkerState: state.landmarkerState,
         fused: fused ? { rr: round1(fused.rr), confidence: round2(fused.confidence) } : null,
       }
 
