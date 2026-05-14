@@ -363,4 +363,5 @@ export type {
   AutonomicState, HrvTrend, HrvDerivedMetrics, HrvMeasurement, HrvError,
   HrvConversationEventType, HrvTimelineEvent, HrvShift,
   HrvSignalDump, HrvSessionData, CameraHrvConsent,
+  HrvRespiratoryDiagnostics, RespiratoryEstimate,
 } from './hrv'

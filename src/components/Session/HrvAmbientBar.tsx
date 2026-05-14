@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import type { HrvMeasurement } from '../../types'
+import { useState, type ReactNode } from 'react'
+import type { HrvMeasurement, HrvRespiratoryDiagnostics, RespiratoryEstimate } from '../../types'
 
 interface Props {
   latest: HrvMeasurement | null
@@ -146,7 +146,7 @@ function RespiratoryDiagnostics({
   diag,
 }: {
   smoothed: number | null
-  diag: NonNullable<HrvMeasurement['respiratoryDiagnostics']>
+  diag: HrvRespiratoryDiagnostics
 }) {
   return (
     <div style={{
@@ -160,36 +160,39 @@ function RespiratoryDiagnostics({
       <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.7, marginBottom: 4 }}>
         Breath sources
       </div>
-      <SourceRow label="RSA" source={diag.rsa} />
-      <SourceRow label="Face" source={diag.face} />
-      <SourceRow label="Chest" source={diag.chest} note={diag.chestPresent ? 'in frame' : 'not in frame'} />
-      <div style={{
-        display: 'flex',
-        gap: 8,
-        marginTop: 3,
-        paddingTop: 3,
-        borderTop: '1px dotted rgba(255,255,255,0.05)',
-        fontVariantNumeric: 'tabular-nums',
-      }}>
-        <span style={{ width: 36, fontSize: 9, opacity: 0.7 }}>Fused</span>
-        <span style={{ width: 56 }}>{diag.fusedRaw != null ? `${diag.fusedRaw} br/m` : '—'}</span>
-        <span style={{ width: 70 }}>{diag.fusedConfidence != null ? `conf ${diag.fusedConfidence.toFixed(2)}` : ''}</span>
-        <span style={{ opacity: 0.6 }}>
-          {smoothed != null ? `smoothed ${smoothed} br/m` : ''}
-        </span>
-      </div>
+      <RrRow label="RSA" source={diag.rsa} />
+      <RrRow label="Face" source={diag.face} />
+      <RrRow
+        label="Chest"
+        source={diag.chest}
+        trailing={
+          <span style={{ opacity: 0.5, fontSize: 9 }}>
+            {diag.chestPresent ? 'in frame' : 'not in frame'}
+          </span>
+        }
+      />
+      <RrRow
+        label="Fused"
+        source={diag.fused}
+        topBorder
+        trailing={smoothed != null && (
+          <span style={{ opacity: 0.6 }}>smoothed {smoothed} br/m</span>
+        )}
+      />
     </div>
   )
 }
 
-function SourceRow({
+function RrRow({
   label,
   source,
-  note,
+  trailing,
+  topBorder,
 }: {
   label: string
-  source: { rr: number; confidence: number } | null
-  note?: string
+  source: RespiratoryEstimate | null
+  trailing?: ReactNode
+  topBorder?: boolean
 }) {
   return (
     <div style={{
@@ -197,11 +200,16 @@ function SourceRow({
       gap: 8,
       alignItems: 'baseline',
       fontVariantNumeric: 'tabular-nums',
+      ...(topBorder ? {
+        marginTop: 3,
+        paddingTop: 3,
+        borderTop: '1px dotted rgba(255,255,255,0.05)',
+      } : null),
     }}>
       <span style={{ width: 36, fontSize: 9, opacity: 0.7 }}>{label}</span>
       <span style={{ width: 56 }}>{source ? `${source.rr} br/m` : '—'}</span>
       <span style={{ width: 70 }}>{source ? `conf ${source.confidence.toFixed(2)}` : ''}</span>
-      {note && <span style={{ opacity: 0.5, fontSize: 9 }}>{note}</span>}
+      {trailing}
     </div>
   )
 }

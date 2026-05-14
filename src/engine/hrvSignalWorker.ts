@@ -1,5 +1,10 @@
-import type { AutonomicState, HrvDerivedMetrics, HrvMeasurement, HrvTrend } from '../types/hrv'
+import type { AutonomicState, HrvDerivedMetrics, HrvMeasurement, HrvTrend, RespiratoryEstimate } from '../types/hrv'
 import type { Severity, DiagnosticCode, WorkerEngineLogMessage } from '../services/diagnostics'
+
+const round1 = (x: number): number => Math.round(x * 10) / 10
+const round2 = (x: number): number => Math.round(x * 100) / 100
+const roundEstimate = (s: RespiratoryEstimate | null): RespiratoryEstimate | null =>
+  s ? { rr: round1(s.rr), confidence: round2(s.confidence) } : null
 
 // ---------------------------------------------------------------------------
 // Pure signal-processing functions (exported for testing)
@@ -375,7 +380,7 @@ const RR_PLAUSIBLE_MAX = 30
 export function computeRRFromSignal(
   signal: number[],
   sampleRate: number,
-): { rr: number; confidence: number } | null {
+): RespiratoryEstimate | null {
   if (signal.length < sampleRate * RR_MIN_BUFFER_SECONDS) return null
   const filtered = respiratoryBandpass(signal, sampleRate)
   const skip = Math.min(sampleRate * 5, Math.floor(filtered.length * RR_SKIP_FRACTION))
@@ -392,8 +397,8 @@ export function computeRRFromSignal(
  * (sharp falloff so a weak source can't dominate). Null if no source is valid.
  */
 export function fuseRespiratoryRate(
-  sources: ReadonlyArray<{ rr: number; confidence: number } | null>,
-): { rr: number; confidence: number } | null {
+  sources: ReadonlyArray<RespiratoryEstimate | null>,
+): RespiratoryEstimate | null {
   let weighted = 0
   let totalWeight = 0
   let bestConfidence = 0
@@ -503,11 +508,11 @@ export function computeDerivedMetrics(ibis: number[]): HrvDerivedMetrics | null 
   const coherence = computeCoherence(ibis)
 
   return {
-    sdnn: Math.round(sdnn * 10) / 10,
-    pnn50: Math.round(pnn50 * 10) / 10,
+    sdnn: round1(sdnn),
+    pnn50: round1(pnn50),
     lfHfRatio,
-    stressIndex: Math.round(stressIndex * 10) / 10,
-    coherence: Math.round(coherence * 100) / 100,
+    stressIndex: round1(stressIndex),
+    coherence: round2(coherence),
   }
 }
 
@@ -559,7 +564,7 @@ function computeLfHfRatio(ibis: number[]): number | null {
   }
 
   if (hfPower === 0) return null
-  return Math.round((lfPower / hfPower) * 100) / 100
+  return round2(lfPower / hfPower)
 }
 
 function computeStressIndex(ibis: number[]): number {
@@ -684,7 +689,7 @@ function noteLowConfidence(reason: 'no_regions' | 'low_snr', confidence?: number
     ? `no skin regions produced an FFT result for ${sustainedSec}s+`
     : `confidence below ${LOW_CONF_THRESHOLD} for ${sustainedSec}s+`
   const extra: Record<string, string | number> = { ticks: state.lowConfRun, reason }
-  if (confidence !== undefined) extra.confidence = Math.round(confidence * 100) / 100
+  if (confidence !== undefined) extra.confidence = round2(confidence)
   postEngineLog('info', 'hrv.skin_filter_low_confidence', msg, extra)
 }
 
@@ -955,7 +960,7 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
 
       const autonomicState = classifyAutonomicState(rmssd, state.baselineRmssd)
       const trend = computeTrend(state.recentRmssds)
-      const confidence = Math.round(Math.min(1, mergedConf) * 100) / 100
+      const confidence = round2(Math.min(1, mergedConf))
 
       // Respiratory rate: confidence-weighted fusion of CHROM-derived RSA,
       // face-centroid Y motion, and chest ROI intensity. Chest is gated by
@@ -969,17 +974,14 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
       if (fused && fused.confidence > 0.1) {
         if (state.smoothedRR === null) state.smoothedRR = fused.rr
         else state.smoothedRR = state.smoothedRR + 0.2 * (fused.rr - state.smoothedRR)
-        respiratoryRate = Math.round(state.smoothedRR * 10) / 10
+        respiratoryRate = round1(state.smoothedRR)
       }
-      const roundSource = (s: { rr: number; confidence: number } | null) =>
-        s ? { rr: Math.round(s.rr * 10) / 10, confidence: Math.round(s.confidence * 100) / 100 } : null
       const respiratoryDiagnostics = {
-        rsa: roundSource(rsaRR),
-        face: roundSource(faceRR),
-        chest: roundSource(chestRR),
+        rsa: roundEstimate(rsaRR),
+        face: roundEstimate(faceRR),
+        chest: roundEstimate(chestRR),
         chestPresent: isChestPresent,
-        fusedRaw: fused ? Math.round(fused.rr * 10) / 10 : null,
-        fusedConfidence: fused ? Math.round(fused.confidence * 100) / 100 : null,
+        fused: roundEstimate(fused),
       }
 
       // Compute derived HRV metrics from IBI series
@@ -987,8 +989,8 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
 
       const measurement: HrvMeasurement = {
         timestamp: Date.now(),
-        hr: Math.round(state.smoothedHr * 10) / 10,
-        rmssd: Math.round(rmssd * 10) / 10,
+        hr: round1(state.smoothedHr),
+        rmssd: round1(rmssd),
         autonomicState,
         trend,
         confidence,
