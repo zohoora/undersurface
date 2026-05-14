@@ -15,6 +15,24 @@ export function cycleMs(bpm: number): number {
   return Math.round(60_000 / bpm)
 }
 
+// Adaptive pacing — match the user's measured respiratory rate but run 5%
+// slower so each cycle the user can match and the animation can keep pulling
+// them toward the resonance target. Floored at the session target so the
+// lead never drives below the therapeutic range. Bounds reject readings
+// outside what the worker's respiratory bandpass (0.15–0.45 Hz) can resolve.
+const ADAPTIVE_LEAD_FACTOR = 0.95
+const RR_VALID_MIN = 4
+const RR_VALID_MAX = 30
+
+export function computeAdaptiveBpm(
+  userRespRate: number | null,
+  sessionTarget: number,
+): number | null {
+  if (userRespRate === null) return null
+  if (userRespRate < RR_VALID_MIN || userRespRate > RR_VALID_MAX) return null
+  return Math.max(sessionTarget, userRespRate * ADAPTIVE_LEAD_FACTOR)
+}
+
 // Phase wraps every cycle: 0 = start of inhale, 0.5 = peak (start of exhale),
 // 1 (== 0) = end of exhale.
 export function breathPhase(elapsedMs: number, bpm: number): number {

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   breathPhase,
   breathScale,
+  computeAdaptiveBpm,
   cycleMs,
   getNarrationCues,
   getTargetRespRate,
@@ -82,6 +83,56 @@ describe('relaxEngine', () => {
         const b = (i + 1) / 20
         expect(breathScale(b)).toBeLessThan(breathScale(a))
       }
+    })
+  })
+
+  describe('computeAdaptiveBpm', () => {
+    it('returns null when respiratoryRate is null', () => {
+      expect(computeAdaptiveBpm(null, 5.5)).toBeNull()
+    })
+    it('returns null for clearly noisy values (below 4 BPM)', () => {
+      expect(computeAdaptiveBpm(2, 5.5)).toBeNull()
+      expect(computeAdaptiveBpm(3.9, 5.5)).toBeNull()
+    })
+    it('returns null for clearly noisy values (above 30 BPM)', () => {
+      expect(computeAdaptiveBpm(35, 5.5)).toBeNull()
+      expect(computeAdaptiveBpm(60, 5.5)).toBeNull()
+    })
+    it('returns userRR × 0.95 when above the session-target floor', () => {
+      // 12 BPM × 0.95 = 11.4 > 5.5 floor
+      expect(computeAdaptiveBpm(12, 5.5)).toBeCloseTo(11.4, 5)
+    })
+    it('floors at the session target when the lead would drive below', () => {
+      // 5 BPM × 0.95 = 4.75 < 5.5 floor → 5.5
+      expect(computeAdaptiveBpm(5, 5.5)).toBe(5.5)
+    })
+    it('respects different session targets', () => {
+      // 5 BPM × 0.95 = 4.75, body_scan target 5.0 → 5.0
+      expect(computeAdaptiveBpm(5, 5.0)).toBe(5.0)
+    })
+    it('produces the leading-attractor pattern across iterations', () => {
+      // Simulate user following the lead — each step the user matches the
+      // previous animation BPM, the new BPM drops by 5%, asymptote at floor.
+      const floor = 5.5
+      let userRR = 18
+      const trail: number[] = []
+      for (let i = 0; i < 30; i++) {
+        const next = computeAdaptiveBpm(userRR, floor)
+        if (next === null) break
+        trail.push(next)
+        userRR = next
+      }
+      // Reaches the floor within ~25 iterations
+      expect(trail[trail.length - 1]).toBe(floor)
+      // Monotonically non-increasing
+      for (let i = 1; i < trail.length; i++) {
+        expect(trail[i]).toBeLessThanOrEqual(trail[i - 1])
+      }
+    })
+    it('treats the [4, 30] range as inclusive', () => {
+      // Floor at 1.0 so the lead value isn't masked by the session-target clamp.
+      expect(computeAdaptiveBpm(4, 1)).toBeCloseTo(3.8, 5)
+      expect(computeAdaptiveBpm(30, 1)).toBeCloseTo(28.5, 5)
     })
   })
 

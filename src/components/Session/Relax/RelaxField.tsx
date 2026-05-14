@@ -216,6 +216,7 @@ export function RelaxField({ parentSessionId, onClose, hrv }: Props) {
             visualMode={relax.settings.visualMode}
             ending={relax.state === 'ending'}
             coherence={relax.smoothedCoherence}
+            respiratoryRate={hrv?.latest?.respiratoryRate ?? null}
           />
           {relax.state === 'guiding' && (
             <RelaxControls

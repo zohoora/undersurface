@@ -1,27 +1,31 @@
 import { useEffect, useRef } from 'react'
-import { breathPhase, breathScale, getTargetRespRate } from '../../../engine/relaxEngine'
+import { breathScale, computeAdaptiveBpm, cycleMs, getTargetRespRate } from '../../../engine/relaxEngine'
+import { useLatestRef } from '../../../hooks/useLatestRef'
 import type { RelaxSessionType, RelaxVisualMode } from '../../../types'
 
 interface Props {
   sessionType: RelaxSessionType
   visualMode: RelaxVisualMode
   ending: boolean
-  // Smoothed cardiac coherence 0..1, or null when unavailable. Used to
-  // brighten the halo as the user finds rhythm — the visual *leads* the
-  // breath at a fixed target, but the halo *responds* to coherence.
+  // Smoothed cardiac coherence 0..1, or null when unavailable. Brightens
+  // the halo as the user finds rhythm — the visual *leads* the pacing target
+  // but the halo *responds* to coherence.
   coherence?: number | null
+  // Latest raw respiratory rate from the HRV worker. Smoothing, the 5% lead,
+  // and the session-target floor all happen inside this component's rAF
+  // loop so transient prop changes don't trigger re-renders.
+  respiratoryRate?: number | null
 }
 
-export function RelaxBreathCircle({ sessionType, visualMode, ending, coherence }: Props) {
+// Time-weighted EMA: roughly 90% convergence in ~12s of cumulative dt.
+const BPM_SMOOTHING_TIME_MS = 12_000
+
+export function RelaxBreathCircle({ sessionType, visualMode, ending, coherence, respiratoryRate }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  // Read coherence/visualMode/ending via refs so prop changes don't tear
-  // down the rAF loop and reset the breath phase mid-cycle.
-  const coherenceRef = useRef<number | null>(coherence ?? null)
-  const visualModeRef = useRef(visualMode)
-  const endingRef = useRef(ending)
-  useEffect(() => { coherenceRef.current = coherence ?? null }, [coherence])
-  useEffect(() => { visualModeRef.current = visualMode }, [visualMode])
-  useEffect(() => { endingRef.current = ending }, [ending])
+  const coherenceRef = useLatestRef<number | null>(coherence ?? null)
+  const visualModeRef = useLatestRef(visualMode)
+  const endingRef = useLatestRef(ending)
+  const respRateRef = useLatestRef<number | null>(respiratoryRate ?? null)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -29,9 +33,15 @@ export function RelaxBreathCircle({ sessionType, visualMode, ending, coherence }
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const targetBpm = getTargetRespRate(sessionType)
+    const defaultBpm = getTargetRespRate(sessionType)
     let rafId = 0
     let mounted = true
+
+    // Delta-accumulated phase. BPM changes only affect the rate of phase
+    // advancement going forward; the phase value itself stays continuous.
+    let phase = 0
+    let smoothedBpm: number | null = null
+    let lastTime = performance.now()
 
     const resize = () => {
       const dpr = window.devicePixelRatio || 1
@@ -42,14 +52,30 @@ export function RelaxBreathCircle({ sessionType, visualMode, ending, coherence }
     resize()
     window.addEventListener('resize', resize)
 
-    const draw = () => {
+    const draw = (now: number) => {
       if (!mounted) return
+      // Cap dt to absorb tab-hidden gaps — rAF pauses when backgrounded.
+      const dt = Math.min(now - lastTime, 50)
+      lastTime = now
+
+      const target = computeAdaptiveBpm(respRateRef.current, defaultBpm)
+      if (target !== null) {
+        if (smoothedBpm === null) {
+          smoothedBpm = target
+        } else {
+          const alpha = Math.min(1, dt / BPM_SMOOTHING_TIME_MS)
+          smoothedBpm += (target - smoothedBpm) * alpha
+        }
+      }
+      const bpm = smoothedBpm ?? defaultBpm
+      const cycle = cycleMs(bpm)
+      phase = (phase + dt / cycle) % 1
+
       const w = canvas.clientWidth
       const h = canvas.clientHeight
       const cx = w / 2
       const cy = h / 2
 
-      const phase = breathPhase(performance.now(), targetBpm)
       const scale = breathScale(phase)
       const fadeOut = endingRef.current ? 0.4 : 1.0
       const mode = visualModeRef.current
@@ -102,6 +128,9 @@ export function RelaxBreathCircle({ sessionType, visualMode, ending, coherence }
       cancelAnimationFrame(rafId)
       window.removeEventListener('resize', resize)
     }
+    // useLatestRef returns a stable MutableRefObject; ESLint's exhaustive-deps
+    // doesn't recognize the helper, so the inferred missing deps are spurious.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionType])
 
   return (
