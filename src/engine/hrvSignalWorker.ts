@@ -437,13 +437,17 @@ export function nlmsFilter(
 }
 
 /**
- * Extract RIAV (per-beat pulse amplitude) series from CHROM pulse + peak
- * indices. For each peak, amplitude = peak value − minimum value in the
- * trough region immediately before the peak. Returns sample time
- * (in seconds, fractional) and amplitude value, irregular spacing.
+ * Extract RIAV (per-beat pulse amplitude) series from a bandpassed CHROM
+ * pulse + peak indices. For each peak we record the peak value itself —
+ * this is the standard RIAV formulation in Lazaro et al. (PMC6058306)
+ * and Charlton's RRest framework.
  *
- * Empty if fewer than 2 peaks. The trough-search window is the inter-peak
- * gap (capped) to handle variable HR.
+ * The previous trough-to-peak difference was too noisy: each per-beat
+ * "trough" was a single sample picked as the local minimum, and at 30 fps
+ * the ±2-3 sample jitter on that single point dwarfed the actual
+ * respiratory amplitude modulation we're trying to extract. The peak
+ * value alone gives one robust sample per beat — fine because the input
+ * pulse is already DC-removed by the cardiac bandpass.
  */
 export function extractRIAV(
   pulse: number[],
@@ -452,19 +456,10 @@ export function extractRIAV(
 ): Array<{ time: number; value: number }> {
   if (peaks.length < 2) return []
   const samples: Array<{ time: number; value: number }> = []
-  for (let i = 1; i < peaks.length; i++) {
-    const p0 = peaks[i - 1]
-    const p1 = peaks[i]
-    if (p1 - p0 < 4) continue
-    let troughIdx = p0
-    let troughVal = pulse[p0]
-    for (let j = p0 + 1; j < p1; j++) {
-      if (pulse[j] < troughVal) { troughVal = pulse[j]; troughIdx = j }
-    }
-    const amplitude = pulse[p1] - troughVal
-    if (!isFinite(amplitude)) continue
-    // Time-stamp the sample at the trough (midway proxy is fine too).
-    samples.push({ time: troughIdx / sampleRate, value: amplitude })
+  for (const p of peaks) {
+    const v = pulse[p]
+    if (!isFinite(v)) continue
+    samples.push({ time: p / sampleRate, value: v })
   }
   return samples
 }
@@ -1283,8 +1278,16 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
       )
 
       if (fused && fused.confidence > 0.1) {
-        if (state.smoothedRR === null) state.smoothedRR = fused.rr
-        else state.smoothedRR = state.smoothedRR + 0.4 * (fused.rr - state.smoothedRR)
+        if (state.smoothedRR === null) {
+          state.smoothedRR = fused.rr
+        } else {
+          // Adaptive alpha — low confidence smooths more aggressively
+          // for stability, high confidence responds faster. Scale 0.1
+          // (slow) → 0.5 (fast) over conf range 0..1. Keeps the bar
+          // from jumping when only one or two weak channels contribute.
+          const alpha = 0.1 + 0.4 * Math.min(1, fused.confidence)
+          state.smoothedRR = state.smoothedRR + alpha * (fused.rr - state.smoothedRR)
+        }
         respiratoryRate = round1(state.smoothedRR)
       }
 

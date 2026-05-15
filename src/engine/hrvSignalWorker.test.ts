@@ -485,26 +485,27 @@ describe('extractRIAV', () => {
     expect(extractRIAV([1, 2, 3], [1], 30)).toEqual([])
   })
 
-  it('returns amplitude samples timestamped at trough indices', () => {
-    // Build a simple pulse: peaks at index 10, 30; troughs at 0, 20
-    // Pulse: rising from 0 to 1 by index 10, falling to 0 by 20, rising to 1 by 30
+  it('returns one peak-value sample per peak', () => {
     const pulse: number[] = []
     for (let i = 0; i < 40; i++) {
       pulse.push(Math.sin(2 * Math.PI * i / 20))
     }
-    const peaks = [5, 25] // sin peaks at i=5 and i=25 (sin(π/2) and sin(5π/2))
+    const peaks = [5, 25] // sin peaks (sin(π/2) ≈ 1.0)
     const samples = extractRIAV(pulse, peaks, 30)
-    expect(samples).toHaveLength(1) // peaks.length - 1
-    expect(samples[0].value).toBeGreaterThan(1.5) // amplitude ~2 for a sine
-    expect(samples[0].time).toBeGreaterThan(0)
+    expect(samples).toHaveLength(2)
+    expect(samples[0].value).toBeCloseTo(1, 1)
+    expect(samples[1].value).toBeCloseTo(1, 1)
+    expect(samples[0].time).toBeCloseTo(5 / 30, 5)
+    expect(samples[1].time).toBeCloseTo(25 / 30, 5)
   })
 
-  it('skips beats with too-close peaks', () => {
-    const pulse = Array.from({ length: 20 }, (_, i) => Math.sin(i))
-    const peaks = [5, 6, 10, 15] // 5 and 6 are too close (diff < 4)
+  it('tracks amplitude modulation of a clean carrier', () => {
+    // Carrier sampled at peak positions; carrier amplitude ramps up.
+    // Peak values reflect the modulating envelope.
+    const pulse = [0.3, 0.5, 0.7, 0.9, 1.1]
+    const peaks = [0, 1, 2, 3, 4]
     const samples = extractRIAV(pulse, peaks, 30)
-    // First pair (5,6) skipped; pairs (6,10) and (10,15) produce 2 samples
-    expect(samples.length).toBeLessThanOrEqual(2)
+    expect(samples.map(s => s.value)).toEqual([0.3, 0.5, 0.7, 0.9, 1.1])
   })
 })
 
