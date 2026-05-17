@@ -23,7 +23,7 @@ import type {
   EntrySummary, UserProfile, PersonalFacts, EntryFossil, PartLetter, SessionLog,
   InnerWeather, ConsentRecord, Session, SessionMessage, ApiKey, RelaxSession,
 } from '../types'
-import type { HrvSessionData, CameraHrvConsent } from '../types/hrv'
+import type { HrvSessionData, CameraHrvConsent, PolarH10Consent } from '../types/hrv'
 import type { DiagnosticEvent } from '../services/diagnostics'
 
 function getUid(): string {
@@ -145,7 +145,7 @@ export const db = {
   letters: createCollectionProxy<PartLetter>('letters'),
   sessionLog: createCollectionProxy<SessionLog>('sessionLog'),
   innerWeather: createCollectionProxy<InnerWeather>('innerWeather'),
-  consent: createCollectionProxy<ConsentRecord | CameraHrvConsent>('consent'),
+  consent: createCollectionProxy<ConsentRecord | CameraHrvConsent | PolarH10Consent>('consent'),
   sessions: createCollectionProxy<Session>('sessions'),
   apiKeys: createCollectionProxy<ApiKey>('apiKeys'),
   hrvSessions: createCollectionProxy<HrvSessionData>('hrvSessions'),

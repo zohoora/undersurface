@@ -32,6 +32,8 @@ export interface GlobalConfig {
     emergencyGrounding?: boolean
     // Biometric
     webcamHrv?: boolean
+    /** Polar H10 (or any standard Bluetooth HR monitor) — session-mode only. */
+    polarH10?: boolean
     // Voice (OpenAI Realtime)
     voiceEnabled?: boolean
     // Relax mode (4th session surface)

@@ -9,9 +9,25 @@ import { isGroundingActive, activateGrounding } from './useGroundingMode'
 import { getWeatherEngine } from '../store/weatherStore'
 import { useTranslation } from '../i18n'
 import type { useTypewriter } from './useTypewriter'
-import type { useHrvSession } from './useHrvSession'
 import type { SessionOrchestrator } from '../engine/sessionOrchestrator'
-import type { Session, SessionMessage, SessionPhase, EmotionalTone } from '../types'
+import type { Session, SessionMessage, SessionPhase, EmotionalTone, HrvConversationEventType } from '../types'
+
+/**
+ * Minimal interface the stream needs from a biometric session — either the
+ * webcam HRV hook or the Polar H10 hook satisfies it structurally. Keeps the
+ * stream agnostic to which device is active.
+ *
+ * `enabled` exists as a perf gate for the per-token `markResponseStarted`
+ * idempotent path; when no source is streaming it skips the work entirely.
+ */
+export interface BiometricSource {
+  readonly enabled: boolean
+  buildPromptContext(): string | undefined
+  addConversationEvent(type: HrvConversationEventType, messageIndex: number): void
+  resetResponseStarted(): void
+  /** First call after `resetResponseStarted` returns true; subsequent calls return false. */
+  markResponseStarted(): boolean
+}
 
 function isFirstTherapistTurn(messages: SessionMessage[]): boolean {
   return messages.every(m => m.speaker !== 'therapist')
@@ -26,7 +42,7 @@ export interface SessionStreamWiring {
   setMessages: Dispatch<SetStateAction<SessionMessage[]>>
   setIsStreaming: Dispatch<SetStateAction<boolean>>
   setOpenerError: Dispatch<SetStateAction<string | null>>
-  hrv: ReturnType<typeof useHrvSession>
+  hrv: BiometricSource
   typewriter: ReturnType<typeof useTypewriter>
 }
 

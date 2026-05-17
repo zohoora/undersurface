@@ -6,13 +6,15 @@ import { InkWeight } from '../../extensions/inkWeight'
 import { useAutocorrect } from '../../hooks/useAutocorrect'
 import { useTypewriter } from '../../hooks/useTypewriter'
 import { useHrvSession } from '../../hooks/useHrvSession'
+import { usePolarH10Session } from '../../hooks/usePolarH10Session'
+import { isWebBluetoothSupported } from '../../engine/polarH10Engine'
 import { useSettings, updateSettings } from '../../store/settings'
 import { getGlobalConfig, useGlobalConfig } from '../../store/globalConfig'
 import { SessionBottomBar, type SessionSurface } from './SessionBottomBar'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../../store/db'
 import { SessionOrchestrator } from '../../engine/sessionOrchestrator'
 import { useSessionVoice } from '../../hooks/useSessionVoice'
-import { useSessionStream } from '../../hooks/useSessionStream'
+import { useSessionStream, type BiometricSource } from '../../hooks/useSessionStream'
 import { VoiceField } from './VoiceField'
 import { loadTherapistContext } from '../../engine/sessionContextLoader'
 import type { TherapistContext } from '../../engine/sessionContextLoader'
@@ -24,6 +26,8 @@ import { SessionJournalSurface } from './SessionJournalSurface'
 import { RelaxField } from './Relax/RelaxField'
 import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
+import { PolarH10ConsentDialog } from './PolarH10ConsentDialog'
+import { PolarH10ConnectButton } from './PolarH10ConnectButton'
 import type { Session, SessionMessage, SessionMode } from '../../types'
 import { useTranslation } from '../../i18n'
 
@@ -46,6 +50,20 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const typewriter = useTypewriter()
   const sessionIdRef = useRef<string | null>(sessionId)
   const hrv = useHrvSession(sessionIdRef)
+  const polar = usePolarH10Session(sessionIdRef)
+
+  // Mutex: H10 takes priority. If the Polar engine begins streaming while
+  // the webcam path is running, stop the camera. The reverse can't arise —
+  // the webcam toggle is hidden when Polar is enabled.
+  const hrvStopAndFlush = hrv.stopAndFlush
+  useEffect(() => {
+    if (polar.enabled && hrv.enabled) {
+      hrvStopAndFlush().catch(console.error)
+    }
+  }, [polar.enabled, hrv.enabled, hrvStopAndFlush])
+
+  const activeBio = polar.enabled ? polar : hrv.enabled ? hrv : null
+  const biometricsEnabled = polar.enabled || hrv.enabled
 
   const orchestratorRef = useRef(new SessionOrchestrator())
   const contextRef = useRef<TherapistContext | null>(null)
@@ -111,6 +129,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       cancelled = true
       typewriter.cleanup()
       hrv.cleanupEngine()
+      polar.cleanupEngine()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
@@ -162,6 +181,16 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openingMethod, onSessionCreated, initialMode])
 
+  // Both hooks satisfy BiometricSource structurally; only one is feeding data
+  // at a time (mutex above). When neither is enabled the methods are inert.
+  const biometricSource: BiometricSource = {
+    enabled: !!activeBio,
+    buildPromptContext: () => activeBio?.buildPromptContext(),
+    addConversationEvent: (type, idx) => activeBio?.addConversationEvent(type, idx),
+    resetResponseStarted: () => { activeBio?.resetResponseStarted() },
+    markResponseStarted: () => activeBio?.markResponseStarted() ?? false,
+  }
+
   const { generateTherapistMessage, appendUserMessage } = useSessionStream({
     sessionRef,
     messagesRef,
@@ -171,7 +200,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     setMessages,
     setIsStreaming,
     setOpenerError,
-    hrv,
+    hrv: biometricSource,
     typewriter,
   })
 
@@ -183,7 +212,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     setSession,
     setMessages,
     appendUserMessage,
-    hrv,
+    hrv: biometricSource,
   })
 
   const handleSend = useCallback(async (editorInstance?: ReturnType<typeof useEditor>) => {
@@ -247,15 +276,16 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     // Persist weather
     weatherEngine.persist().catch(console.error)
 
-    // Save HRV data and stop engine
+    // Save HRV data and stop engines (whichever is active)
     await hrv.stopAndFlush()
+    await polar.stopAndFlush()
 
     trackEvent('session_closed', {
       session_id: currentSession.id,
       message_count: finalMessages.length,
       duration_ms: endedAt - currentSession.startedAt,
     })
-  }, [isStreaming, generateTherapistMessage, hrv, weatherEngine])
+  }, [isStreaming, generateTherapistMessage, hrv, polar, weatherEngine])
 
   const updateSession = useCallback(async (patch: Partial<Session>) => {
     if (!session?.id) return
@@ -393,7 +423,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
   const backButtonStyle = useMemo<React.CSSProperties>(() => ({
     position: 'fixed',
-    top: `calc(${hrv.enabled ? '48px' : '12px'} + env(safe-area-inset-top, 0px))`,
+    top: `calc(${biometricsEnabled ? '48px' : '12px'} + env(safe-area-inset-top, 0px))`,
     left: 12,
     zIndex: 40,
     width: 36,
@@ -408,14 +438,15 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     justifyContent: 'center',
     fontSize: 18,
     opacity: 0.6,
-  }), [hrv.enabled])
+  }), [biometricsEnabled])
 
   const journalPartsOn = session?.journalPartsEnabled !== false
 
   return (
     <>
-    {/* Biometrics bar — fixed at top */}
-    {hrv.enabled && (
+    {/* Biometrics bar — fixed at top. Driven by whichever source (Polar H10
+        or webcam) is currently streaming. */}
+    {activeBio && (
       <div style={{
         position: 'fixed',
         top: 0,
@@ -429,14 +460,14 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{ flex: 1 }}>
             <BiometricsBar
-              latest={hrv.latestMeasurement}
-              measurementCount={hrv.measurementCount}
-              isCalibrating={hrv.calibrating}
-              error={hrv.error}
+              latest={activeBio.latestMeasurement}
+              measurementCount={activeBio.measurementCount}
+              isCalibrating={activeBio.calibrating}
+              error={activeBio.error}
             />
           </div>
           <button
-            onClick={hrv.toggle}
+            onClick={activeBio.toggle}
             style={{
               padding: '3px 8px',
               borderRadius: 6,
@@ -484,8 +515,9 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         </div>
       )}
 
-      {/* HRV Toggle (inline, non-fixed) */}
-      {getGlobalConfig()?.features?.webcamHrv === true && !isClosed && !hrv.enabled && (
+      {/* HRV Toggle (inline, non-fixed). Webcam button is hidden when the
+          Polar H10 is the active source — H10 takes priority. */}
+      {getGlobalConfig()?.features?.webcamHrv === true && !isClosed && !hrv.enabled && !polar.enabled && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
           <button
             onClick={hrv.toggle}
@@ -512,6 +544,19 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
             Biometrics Off
           </button>
         </div>
+      )}
+
+      {/* Polar H10 connect — visible only when the flag is on, the browser
+          supports Web Bluetooth, and the session is still open. Webcam HRV
+          is not active here (mutex above) so this is a clean entry point. */}
+      {getGlobalConfig()?.features?.polarH10 === true && !isClosed && !hrv.enabled && (
+        <PolarH10ConnectButton
+          supported={isWebBluetoothSupported()}
+          enabled={polar.enabled}
+          status={polar.status}
+          deviceName={polar.deviceName}
+          onClick={polar.toggle}
+        />
       )}
 
       {/* Mode bar — sticky at top, regardless of which surface
@@ -688,7 +733,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         </div>
       )}
 
-      {/* HRV Consent Dialog */}
+      {/* HRV Consent Dialog (webcam path) */}
       {hrv.showConsent && (
         <HrvConsentDialog
           onAccept={() => {
@@ -696,6 +741,17 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
             hrv.start()
           }}
           onDecline={() => hrv.setShowConsent(false)}
+        />
+      )}
+
+      {/* Polar H10 Consent Dialog (Bluetooth path) */}
+      {polar.showConsent && (
+        <PolarH10ConsentDialog
+          onAccept={() => {
+            polar.setShowConsent(false)
+            polar.start()
+          }}
+          onDecline={() => polar.setShowConsent(false)}
         />
       )}
     </div>
@@ -715,19 +771,25 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       />
     )}
 
-    {/* Relax mode overlay — meditation/biofeedback/hypnotherapy surface */}
+    {/* Relax mode overlay — meditation/biofeedback/hypnotherapy surface.
+        HRV input reflects whichever device is active (Polar H10 takes
+        priority); the in-Relax toggle falls back to the webcam path when
+        nothing is streaming. Users who want Polar in Relax should pair it
+        from the Talk surface first. */}
     {relaxEnabled && surface === 'relax' && (
       <RelaxField
         parentSessionId={session?.id ?? null}
         onClose={() => handleSurfaceChange('talk')}
         hrv={{
-          enabled: hrv.enabled,
-          calibrating: hrv.calibrating,
-          latest: hrv.latestMeasurement,
-          error: hrv.error,
-          measurementCount: hrv.measurementCount,
-          toggle: hrv.toggle,
-          available: getGlobalConfig()?.features?.webcamHrv === true,
+          enabled: activeBio?.enabled ?? false,
+          calibrating: activeBio?.calibrating ?? false,
+          latest: activeBio?.latestMeasurement ?? null,
+          error: activeBio?.error ?? null,
+          measurementCount: activeBio?.measurementCount,
+          toggle: activeBio?.toggle ?? hrv.toggle,
+          available:
+            getGlobalConfig()?.features?.webcamHrv === true ||
+            getGlobalConfig()?.features?.polarH10 === true,
         }}
       />
     )}

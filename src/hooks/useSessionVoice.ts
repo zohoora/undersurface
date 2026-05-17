@@ -1,6 +1,5 @@
 import { useCallback, type RefObject } from 'react'
 import { useVoiceSession } from './useVoiceSession'
-import { useHrvSession } from './useHrvSession'
 import { isGroundingActive } from './useGroundingMode'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
@@ -10,6 +9,7 @@ import type { TherapistContext } from '../engine/sessionContextLoader'
 import type { SessionOrchestrator } from '../engine/sessionOrchestrator'
 import { trackEvent } from '../services/analytics'
 import type { Session, SessionMessage } from '../types'
+import type { BiometricSource } from './useSessionStream'
 
 export interface SessionVoiceWiring {
   sessionRef: RefObject<Session | null>
@@ -19,7 +19,7 @@ export interface SessionVoiceWiring {
   setSession: (updater: (prev: Session | null) => Session | null) => void
   setMessages: (next: SessionMessage[]) => void
   appendUserMessage: (content: string, inputMethod?: 'text' | 'voice') => Promise<unknown>
-  hrv: ReturnType<typeof useHrvSession>
+  hrv: BiometricSource
 }
 
 // Bundles all voice-session concerns: starting/stopping the realtime channel,

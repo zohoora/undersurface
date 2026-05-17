@@ -57,6 +57,14 @@ export interface HrvRespiratoryDiagnostics {
   fused: RespiratoryEstimate | null
 }
 
+/**
+ * Origin of an HRV measurement. Webcam CHROM rPPG is the default; Polar H10
+ * (or another standard-GATT Bluetooth heart-rate monitor) is the alternative.
+ * Optional + camera-default so existing measurements remain valid without a
+ * back-fill.
+ */
+export type HrvSource = 'camera' | 'polarH10'
+
 export interface HrvMeasurement {
   timestamp: number
   hr: number
@@ -68,6 +76,8 @@ export interface HrvMeasurement {
   /** Per-source RR breakdown for debug; null until first compute tick fires. */
   respiratoryDiagnostics?: HrvRespiratoryDiagnostics | null
   derived: HrvDerivedMetrics | null
+  /** Origin device. Omitted = camera (kept implicit for backward compatibility). */
+  source?: HrvSource
 }
 
 export type HrvError =
@@ -127,6 +137,8 @@ export interface HrvSessionData {
     shiftCount: number
     avgConfidence: number
   }
+  /** Origin device for this session. Omitted = camera (legacy default). */
+  source?: HrvSource
 }
 
 export interface CameraHrvConsent {
@@ -134,5 +146,19 @@ export interface CameraHrvConsent {
   acceptedAt: number
   acceptedVersion: string
   cameraAccepted: boolean
+  biometricDataAccepted: boolean
+}
+
+/**
+ * Consent record for Bluetooth-based HRV (Polar H10 or any standard GATT
+ * heart-rate monitor). Mirrors CameraHrvConsent — two separate accepts so
+ * the device-pairing concern is distinguishable from the data-processing
+ * concern in case the consent UX evolves.
+ */
+export interface PolarH10Consent {
+  id: 'polar-h10'
+  acceptedAt: number
+  acceptedVersion: string
+  bluetoothAccepted: boolean
   biometricDataAccepted: boolean
 }

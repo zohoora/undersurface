@@ -27,6 +27,7 @@ const DEFAULTS: GlobalConfig = {
     unfinishedThreads: false,
     emergencyGrounding: false,
     webcamHrv: false,
+    polarH10: false,
     voiceEnabled: false,
     relaxEnabled: false,
     customSoundscapesEnabled: false,
@@ -599,6 +600,16 @@ export function AdminSettings() {
           checked={!!config.features.webcamHrv}
           onChange={(v) => setFeature('webcamHrv', v)}
         />
+        <ToggleRow
+          label="Polar H10 BLE (Session Mode)"
+          checked={!!config.features.polarH10}
+          onChange={(v) => setFeature('polarH10', v)}
+        />
+        <div style={{ fontSize: 11, color: '#A09A94', marginTop: 8, lineHeight: 1.5 }}>
+          When a Polar H10 (or any standard Bluetooth heart-rate monitor) is paired,
+          it replaces the webcam HRV path. Web Bluetooth only — Chrome desktop &amp;
+          Android, Edge, Opera. Safari and iOS browsers hide the connect button.
+        </div>
       </CollapsibleSection>
 
       {/* Relax Mode (4th session surface) */}
