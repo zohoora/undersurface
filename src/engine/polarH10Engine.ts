@@ -117,12 +117,18 @@ export function parsePmdAccFrame(view: DataView): ParsedAccFrame | null {
   const endTimestampNs = view.getBigUint64(1, /* LE */ true)
   const frameType = view.getUint8(9)
 
-  if (frameType === 0x00) return parseAccRaw(view, endTimestampNs)
+  // Polar PMD frame_type encoding for ACC:
+  //   0x00 = 8-bit raw
+  //   0x01 = 16-bit raw signed (H10 default for ACC at ≤100 Hz)
+  //   0x02 = 24-bit raw
+  //   0x80+ = delta-compressed with bit-size in the low nibble
+  if (frameType === 0x01) return parseAccRaw16(view, endTimestampNs)
+  if (frameType === 0x00) return parseAccRaw16(view, endTimestampNs)  // legacy alias
   if ((frameType & 0x80) !== 0) return parseAccDelta(view, frameType, endTimestampNs)
   return null
 }
 
-function parseAccRaw(view: DataView, endTimestampNs: bigint): ParsedAccFrame {
+function parseAccRaw16(view: DataView, endTimestampNs: bigint): ParsedAccFrame {
   const samples: AccSample[] = []
   let offset = 10
   while (offset + 6 <= view.byteLength) {
