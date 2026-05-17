@@ -66,7 +66,7 @@ export function BiometricsBar({ latest, measurementCount, isCalibrating, error }
           fontVariantNumeric: 'tabular-nums',
           fontSize: 13,
         }}>
-          {latest ? `${latest.hr}` : '--'}
+          {latest ? Math.round(latest.hr) : '--'}
           <span style={{ fontWeight: 400, fontSize: 10, color: 'var(--text-tertiary, #888)' }}> bpm</span>
         </span>
 
