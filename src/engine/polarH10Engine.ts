@@ -201,11 +201,31 @@ function unpackSignedDeltas(view: DataView, startByte: number, bitSize: number, 
   return out
 }
 
-/** Log PMD control-point responses to console (success/error code per command). */
+const PMD_ERROR_LABELS: Record<number, string> = {
+  0x00: 'SUCCESS',
+  0x01: 'INVALID_OP_CODE',
+  0x02: 'INVALID_MEASUREMENT_TYPE',
+  0x03: 'NOT_SUPPORTED',
+  0x04: 'INVALID_LENGTH',
+  0x05: 'INVALID_PARAMETER',
+  0x06: 'INVALID_STATE',
+  0x07: 'DEVICE_IN_CHARGER',
+}
+
+/** Log PMD control-point responses with decoded error labels. */
 function logPmdControlResponse(event: Event): void {
   const view = (event.target as BluetoothRemoteGATTCharacteristic | null)?.value
   if (!view) return
-  console.log('[Polar PMD] control response:', toHex(view))
+  const hex = toHex(view)
+  if (view.byteLength >= 4 && view.getUint8(0) === 0xf0) {
+    const op = view.getUint8(1)
+    const type = view.getUint8(2)
+    const err = view.getUint8(3)
+    const label = PMD_ERROR_LABELS[err] ?? `unknown(${err})`
+    console.log(`[Polar PMD] control response: op=${op} type=${type} err=${err} ${label} | raw: ${hex}`)
+  } else {
+    console.log('[Polar PMD] control response:', hex)
+  }
 }
 
 /**
@@ -364,11 +384,13 @@ const PMD_SERVICE: BluetoothServiceUUID = 'fb005c80-02e7-f387-1cad-8acd2d8df0c8'
 const PMD_CONTROL_POINT: BluetoothServiceUUID = 'fb005c81-02e7-f387-1cad-8acd2d8df0c8'
 const PMD_DATA_MTU: BluetoothServiceUUID = 'fb005c82-02e7-f387-1cad-8acd2d8df0c8'
 
-// ACC start settings (TLV) — 50 Hz, 16-bit, ±8 G, 3 channels. 50 Hz is plenty
-// for respiration (≪ 1 Hz) and gives a manageable BLE bitrate vs 100/200 Hz.
+// ACC start settings (TLV) — 50 Hz, 16-bit, ±2 G, 3 channels. 2G is the
+// universally-supported range across H10 firmware; some revisions reject
+// 4/8 G with PMD error 5 (INVALID_PARAMETER). 2G is plenty of headroom for
+// chest motion during breathing (typical amplitude is <50 mG).
 const PMD_ACC_SAMPLE_RATE_HZ = 50
 const PMD_ACC_RESOLUTION_BITS = 16
-const PMD_ACC_RANGE_G = 8
+const PMD_ACC_RANGE_G = 2
 
 // Breathing-signal windowing. 30s of accel magnitudes (at 50 Hz = 1500
 // samples) gives the bandpass enough history to see 2-3 full breath cycles.
