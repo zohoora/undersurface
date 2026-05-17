@@ -252,9 +252,10 @@ function logPmdControlResponse(event: Event): void {
     const type = view.getUint8(2)
     const err = view.getUint8(3)
     const label = PMD_ERROR_LABELS[err] ?? `unknown(${err})`
-    if (op === 0x01 && err === 0x00 && view.byteLength > 4) {
-      // GET_MEASUREMENT_SETTINGS response with body — decode the supported set.
-      const supported = decodeSupportedSettings(view, 4)
+    if (op === 0x01 && err === 0x00 && view.byteLength > 5) {
+      // GET_MEASUREMENT_SETTINGS response: body starts at byte 5 (after a
+      // MORE_FRAME flag at byte 4 — single-frame responses set it to 0).
+      const supported = decodeSupportedSettings(view, 5)
       console.log(`[Polar PMD] supported settings (op=${op} type=${type}):`, supported, '| raw:', hex)
     } else {
       console.log(`[Polar PMD] control response: op=${op} type=${type} err=${err} ${label} | raw: ${hex}`)
@@ -265,43 +266,29 @@ function logPmdControlResponse(event: Event): void {
 }
 
 /**
- * Build the PMD START_MEASUREMENT command for the accelerometer with TLV
- * settings. Per Polar BLE SDK spec:
+ * Build the PMD START_MEASUREMENT command for the accelerometer.
+ *
  *   [op=0x02, type=0x02 ACC,
- *    0x00 SAMPLE_RATE  | 0x01 count | uint16 LE Hz,
- *    0x01 RESOLUTION   | 0x01 count | uint16 LE bits,
- *    0x02 RANGE        | 0x01 count | uint16 LE G,
- *    0x04 CHANNELS     | 0x01 count | uint16 LE n=3]
+ *    0x00 SAMPLE_RATE  | count=1 | uint16 LE Hz,
+ *    0x01 RESOLUTION   | count=1 | uint16 LE bits,
+ *    0x02 RANGE        | count=1 | uint16 LE G]
+ *
+ * No CHANNELS setting — the H10 doesn't expose it in its supported-settings
+ * response, and including it triggers PMD error 5 (INVALID_PARAMETER).
+ * (Other Polar sensors like Verity Sense's PPG do accept CHANNELS.)
  */
 function buildAccStartCommand({ sampleRate, resolution, rangeG }: {
   sampleRate: number
   resolution: number
   rangeG: number
 }): Uint8Array {
-  const cmd = new Uint8Array(18)
+  const cmd = new Uint8Array(14)
   let i = 0
   cmd[i++] = 0x02  // START
   cmd[i++] = 0x02  // ACC
-  // sample rate
-  cmd[i++] = 0x00
-  cmd[i++] = 0x01
-  cmd[i++] = sampleRate & 0xff
-  cmd[i++] = (sampleRate >> 8) & 0xff
-  // resolution
-  cmd[i++] = 0x01
-  cmd[i++] = 0x01
-  cmd[i++] = resolution & 0xff
-  cmd[i++] = (resolution >> 8) & 0xff
-  // range
-  cmd[i++] = 0x02
-  cmd[i++] = 0x01
-  cmd[i++] = rangeG & 0xff
-  cmd[i++] = (rangeG >> 8) & 0xff
-  // channels
-  cmd[i++] = 0x04
-  cmd[i++] = 0x01
-  cmd[i++] = 0x03
-  cmd[i++] = 0x00
+  cmd[i++] = 0x00; cmd[i++] = 0x01; cmd[i++] = sampleRate & 0xff; cmd[i++] = (sampleRate >> 8) & 0xff
+  cmd[i++] = 0x01; cmd[i++] = 0x01; cmd[i++] = resolution & 0xff; cmd[i++] = (resolution >> 8) & 0xff
+  cmd[i++] = 0x02; cmd[i++] = 0x01; cmd[i++] = rangeG & 0xff;     cmd[i++] = (rangeG >> 8) & 0xff
   return cmd
 }
 
