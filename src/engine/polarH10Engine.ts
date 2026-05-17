@@ -212,7 +212,37 @@ const PMD_ERROR_LABELS: Record<number, string> = {
   0x07: 'DEVICE_IN_CHARGER',
 }
 
-/** Log PMD control-point responses with decoded error labels. */
+const PMD_SETTING_LABELS: Record<number, string> = {
+  0x00: 'SAMPLE_RATE',
+  0x01: 'RESOLUTION',
+  0x02: 'RANGE',
+  0x03: 'RANGE_MILLI_UNIT',
+  0x04: 'CHANNELS',
+  0x05: 'FACTOR',
+}
+
+/**
+ * Decode the TLV settings list that follows a GET_MEASUREMENT_SETTINGS
+ * response. Each entry: [setting_id, count, (value uint16 LE) × count].
+ */
+function decodeSupportedSettings(view: DataView, offset: number): Record<string, number[]> {
+  const out: Record<string, number[]> = {}
+  let i = offset
+  while (i + 2 <= view.byteLength) {
+    const id = view.getUint8(i++)
+    const count = view.getUint8(i++)
+    if (i + count * 2 > view.byteLength) break
+    const values: number[] = []
+    for (let k = 0; k < count; k++) {
+      values.push(view.getUint16(i, /* LE */ true))
+      i += 2
+    }
+    out[PMD_SETTING_LABELS[id] ?? `setting_${id}`] = values
+  }
+  return out
+}
+
+/** Log PMD control-point responses with decoded error labels + settings. */
 function logPmdControlResponse(event: Event): void {
   const view = (event.target as BluetoothRemoteGATTCharacteristic | null)?.value
   if (!view) return
@@ -222,7 +252,13 @@ function logPmdControlResponse(event: Event): void {
     const type = view.getUint8(2)
     const err = view.getUint8(3)
     const label = PMD_ERROR_LABELS[err] ?? `unknown(${err})`
-    console.log(`[Polar PMD] control response: op=${op} type=${type} err=${err} ${label} | raw: ${hex}`)
+    if (op === 0x01 && err === 0x00 && view.byteLength > 4) {
+      // GET_MEASUREMENT_SETTINGS response with body — decode the supported set.
+      const supported = decodeSupportedSettings(view, 4)
+      console.log(`[Polar PMD] supported settings (op=${op} type=${type}):`, supported, '| raw:', hex)
+    } else {
+      console.log(`[Polar PMD] control response: op=${op} type=${type} err=${err} ${label} | raw: ${hex}`)
+    }
   } else {
     console.log('[Polar PMD] control response:', hex)
   }
@@ -612,6 +648,13 @@ export class PolarH10Engine {
 
       data.addEventListener('characteristicvaluechanged', this.boundPmdData)
       await data.startNotifications()
+
+      // Authoritative: ask the device what ACC settings it accepts. Response
+      // arrives async on the control-point notification listener; we kick
+      // this off before START so the supported-set log appears first.
+      const querySettings = new Uint8Array([0x01, 0x02])  // GET_MEASUREMENT_SETTINGS, ACC
+      console.log('[Polar PMD] querying supported ACC settings:', toHex(querySettings))
+      await control.writeValueWithResponse(querySettings)
 
       const startCmd = buildAccStartCommand({
         sampleRate: PMD_ACC_SAMPLE_RATE_HZ,
