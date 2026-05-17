@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { HrvMeasurement, HrvRespiratoryDiagnostics, LandmarkerState, RespiratoryEstimate } from '../../types'
 
 const LANDMARKER_STATE_TEXT: Record<LandmarkerState, string> = {
@@ -13,9 +13,11 @@ interface Props {
   measurementCount: number
   isCalibrating: boolean
   error: string | null
+  /** Live H10 chest-motion getter; renders a position bar when supplied. */
+  chestScaleGetter?: () => number | null
 }
 
-export function BiometricsBar({ latest, measurementCount, isCalibrating, error }: Props) {
+export function BiometricsBar({ latest, measurementCount, isCalibrating, error, chestScaleGetter }: Props) {
   const [expanded, setExpanded] = useState(false)
 
   const stateColor = !latest || isCalibrating ? 'rgba(120,120,120,0.08)'
@@ -127,6 +129,12 @@ export function BiometricsBar({ latest, measurementCount, isCalibrating, error }
               diag={latest.respiratoryDiagnostics}
             />
           )}
+          {latest.source === 'polarH10' && (
+            <PolarH10Respiration
+              rate={latest.respiratoryRate}
+              chestScaleGetter={chestScaleGetter}
+            />
+          )}
         </div>
       )}
     </div>
@@ -203,6 +211,78 @@ function RespiratoryDiagnostics({
           <span style={{ opacity: 0.6 }}>smoothed {smoothed} br/m</span>
         )}
       />
+    </div>
+  )
+}
+
+/**
+ * H10-specific respiration readout. Shows source label, rate, and a live
+ * chest-position bar driven by the engine's PMD accelerometer feed. The
+ * bar polls via rAF without re-rendering React.
+ */
+function PolarH10Respiration({
+  rate,
+  chestScaleGetter,
+}: {
+  rate: number | null
+  chestScaleGetter?: () => number | null
+}) {
+  const fillRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!chestScaleGetter) return
+    let rafId = 0
+    let mounted = true
+    const draw = () => {
+      if (!mounted) return
+      const el = fillRef.current
+      const v = chestScaleGetter()
+      if (el && v != null) {
+        el.style.width = `${Math.round(v * 100)}%`
+      }
+      rafId = requestAnimationFrame(draw)
+    }
+    rafId = requestAnimationFrame(draw)
+    return () => { mounted = false; cancelAnimationFrame(rafId) }
+  }, [chestScaleGetter])
+
+  return (
+    <div style={{
+      marginTop: 8,
+      paddingTop: 6,
+      borderTop: '1px dashed var(--border-subtle, rgba(255,255,255,0.06))',
+      fontSize: 10,
+      fontFamily: "'Inter', sans-serif",
+      color: 'var(--text-tertiary, #888)',
+    }}>
+      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.7, marginBottom: 4 }}>
+        Breath — H10 chest motion
+      </div>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', fontVariantNumeric: 'tabular-nums' }}>
+        <span>Rate: <span style={{ color: 'var(--text-secondary, #aaa)', fontWeight: 500 }}>
+          {rate != null ? `${rate} br/m` : '—'}
+        </span></span>
+        {chestScaleGetter && (
+          <div style={{
+            flex: 1,
+            height: 6,
+            borderRadius: 3,
+            background: 'rgba(255,255,255,0.06)',
+            overflow: 'hidden',
+            marginLeft: 4,
+          }}>
+            <div
+              ref={fillRef}
+              style={{
+                height: '100%',
+                width: '50%',
+                background: 'rgba(140,170,210,0.6)',
+                transition: 'width 80ms linear',
+              }}
+            />
+          </div>
+        )}
+      </div>
     </div>
   )
 }

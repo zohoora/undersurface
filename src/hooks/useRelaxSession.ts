@@ -39,6 +39,10 @@ export interface RelaxHrvInput {
   // has consented or started the engine yet). When false, the biometrics
   // bar / enable button is suppressed entirely.
   available?: boolean
+  // Live 0..1 chest-motion getter (Polar H10 accelerometer). When provided
+  // and returning non-null, the breath circle follows the real breath
+  // instead of the internal pacer.
+  chestScaleGetter?: () => number | null
 }
 
 export interface RelaxSettings {

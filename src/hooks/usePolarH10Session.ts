@@ -203,6 +203,19 @@ export function usePolarH10Session(sessionIdRef: React.RefObject<string | null>)
     }
   }, [])
 
+  /**
+   * Stable getter for the live chest-motion breathing scale (0..1) the
+   * H10's accelerometer is producing right now. Designed for rAF polling
+   * inside animations — avoids per-frame React re-renders. Returns null
+   * when PMD isn't streaming (older firmware, browser without
+   * permission, mid-pairing, etc.).
+   */
+  const getBreathingScale = useCallback((): number | null => {
+    const engine = engineRef.current
+    if (!engine || !engine.isPmdActive()) return null
+    return engine.getBreathingScale()
+  }, [])
+
   return {
     enabled,
     latestMeasurement,
@@ -221,5 +234,6 @@ export function usePolarH10Session(sessionIdRef: React.RefObject<string | null>)
     resetResponseStarted,
     markResponseStarted,
     cleanupEngine,
+    getBreathingScale,
   }
 }

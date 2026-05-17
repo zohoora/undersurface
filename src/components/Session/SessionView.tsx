@@ -464,6 +464,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
               measurementCount={activeBio.measurementCount}
               isCalibrating={activeBio.calibrating}
               error={activeBio.error}
+              chestScaleGetter={polar.enabled ? polar.getBreathingScale : undefined}
             />
           </div>
           <button
@@ -790,6 +791,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
           available:
             getGlobalConfig()?.features?.webcamHrv === true ||
             getGlobalConfig()?.features?.polarH10 === true,
+          // Live chest-motion getter (Polar H10 only). When the H10's PMD
+          // stream is up, the breath circle follows real breath instead
+          // of the internal pacer.
+          chestScaleGetter: polar.enabled ? polar.getBreathingScale : undefined,
         }}
       />
     )}

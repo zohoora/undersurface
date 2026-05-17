@@ -15,17 +15,22 @@ interface Props {
   // and the session-target floor all happen inside this component's rAF
   // loop so transient prop changes don't trigger re-renders.
   respiratoryRate?: number | null
+  // Live chest-motion getter (Polar H10 accelerometer). When supplied and
+  // returning non-null, the circle abandons its internal phase ticker and
+  // follows the user's *actual* breath. Polled per rAF; no React churn.
+  chestScaleGetter?: () => number | null
 }
 
 // Time-weighted EMA: roughly 90% convergence in ~12s of cumulative dt.
 const BPM_SMOOTHING_TIME_MS = 12_000
 
-export function RelaxBreathCircle({ sessionType, visualMode, ending, coherence, respiratoryRate }: Props) {
+export function RelaxBreathCircle({ sessionType, visualMode, ending, coherence, respiratoryRate, chestScaleGetter }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const coherenceRef = useLatestRef<number | null>(coherence ?? null)
   const visualModeRef = useLatestRef(visualMode)
   const endingRef = useLatestRef(ending)
   const respRateRef = useLatestRef<number | null>(respiratoryRate ?? null)
+  const chestScaleGetterRef = useLatestRef(chestScaleGetter ?? null)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -42,6 +47,11 @@ export function RelaxBreathCircle({ sessionType, visualMode, ending, coherence, 
     let phase = 0
     let smoothedBpm: number | null = null
     let lastTime = performance.now()
+    // Smoothed chest-motion scale — only used when a chestScaleGetter is
+    // supplied. The 50 ms time constant smooths the engine's 100 ms filter
+    // cadence into perceptually-continuous motion without visible lag.
+    let smoothedChestScale: number | null = null
+    const CHEST_SMOOTHING_TIME_MS = 50
 
     const resize = () => {
       const dpr = window.devicePixelRatio || 1
@@ -76,7 +86,18 @@ export function RelaxBreathCircle({ sessionType, visualMode, ending, coherence, 
       const cx = w / 2
       const cy = h / 2
 
-      const scale = breathScale(phase)
+      const liveChest = chestScaleGetterRef.current?.()
+      let scale: number
+      if (liveChest != null) {
+        const a = Math.min(1, dt / CHEST_SMOOTHING_TIME_MS)
+        smoothedChestScale = smoothedChestScale == null
+          ? liveChest
+          : smoothedChestScale + (liveChest - smoothedChestScale) * a
+        scale = smoothedChestScale
+      } else {
+        smoothedChestScale = null
+        scale = breathScale(phase)
+      }
       const fadeOut = endingRef.current ? 0.4 : 1.0
       const mode = visualModeRef.current
       const c = Math.max(0, Math.min(1, coherenceRef.current ?? 0))
