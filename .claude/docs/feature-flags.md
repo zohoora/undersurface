@@ -47,6 +47,9 @@
 | `features.emergencyGrounding` | Distress detection + grounding mode |
 | `features.intentionsEnabled` | Per-entry writing intentions |
 | `features.guidedExplorations` | AI writing prompts on new entries |
+| **Biometric** (Session Mode only) | |
+| `features.webcamHrv` | Webcam-based HRV via CHROM rPPG; populates `hrvContext` in therapist prompt |
+| `features.polarH10` | Polar H10 (or any standard BLE HR monitor) over Web Bluetooth; same downstream as webcam path. H10 takes priority when both flags are on and a device is paired. Hidden on browsers without Web Bluetooth (Safari, iOS) |
 
 ## Settings cascade
 

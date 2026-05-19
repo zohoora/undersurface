@@ -29,6 +29,12 @@
 | `src/engine/bodyMapEngine.ts` | Computes HomunculusState from somatic memories — emotion-to-color mapping, region sizing, dominant emotions |
 | `src/engine/quoteEngine.ts` | Highlights meaningful quotes. Feature-flagged |
 | `src/engine/quietTracker.ts` | Tracks periods of silence/no writing |
+| `src/engine/hrvEngine.ts` | Webcam HRV — `getUserMedia` + ROI extraction + Web Worker spawn. Session-mode only, feature-flagged (`webcamHrv`) |
+| `src/engine/hrvSignalWorker.ts` | Web Worker — CHROM rPPG, Butterworth bandpass, FFT, peak detection, derived metrics (SDNN/pNN50/LF-HF/Baevsky/coherence), respiratory bandpass. Exports `computeHrvMetrics` / `classifyAutonomicState` / `computeDerivedMetrics` / `respiratoryBandpass` — reused by H10 path |
+| `src/engine/hrvTimeline.ts` | Source-agnostic — accepts `HrvMeasurement` from any source. Autonomic-shift detection, behavioral correlations, prompt-context builder for `hrvContext` |
+| `src/engine/polarH10Engine.ts` | Polar H10 via Web Bluetooth — HR Measurement (0x2A37) parser, PMD ACC frame parser (raw + delta), streaming bandpass on accel magnitude → live `breathingScale`, zero-crossing → respiratory rate. Feature-flagged (`polarH10`) |
+| `src/hooks/useHrvSession.ts` | Webcam HRV session lifecycle — consent gate, engine wiring, 10s Firestore flush |
+| `src/hooks/usePolarH10Session.ts` | Polar H10 session lifecycle — mirrors `useHrvSession` surface, exposes `getBreathingScale` stable getter for animation rAF polling |
 
 ## TipTap Extensions
 

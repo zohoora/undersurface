@@ -153,3 +153,19 @@ Subtle visual bilateral stimulation via alternating left/right edge pulses. EMDR
 ## Data export
 
 `exportAllData()` in `db.ts` exports all user data as a human-readable Markdown document. Includes: user profile, parts with reflections, journal entries with thoughts/TOL/summaries/fossils, letters, writing sessions. Part IDs resolved to names.
+
+## HRV biofeedback (Session Mode)
+
+Two interchangeable signal sources both emit the same `HrvMeasurement` shape; the downstream timeline, prompt context, and Relax animation are source-agnostic.
+
+**Webcam (`features.webcamHrv`)** — CHROM rPPG on skin-colored pixels from forehead + cheeks, processed in a Web Worker with windowed CHROM + Butterworth bandpass (1.2–2.5 Hz) + FFT. Camera auto-exposure / white-balance locked to manual. Respiratory rate via 0.15–0.45 Hz bandpass on the same CHROM signal. Accuracy ±5–15 BPM of Apple Watch. Files: `hrvEngine.ts` (camera + ROI), `hrvSignalWorker.ts` (CHROM + FFT + derived metrics + respiratory bandpass), `HrvConsentDialog.tsx`.
+
+**Polar H10 (`features.polarH10`)** — Web Bluetooth. Standard Heart Rate service (0x180D) yields HR + RR intervals at 1/1024-s resolution; Polar's proprietary PMD service streams 50 Hz / 16-bit accelerometer for chest-motion respiration. Magnitude → `respiratoryBandpass` (0.1–0.5 Hz, reused from worker) → envelope-normalized `breathingScale ∈ [0,1]` → rising zero-crossings give breath onsets → median of inter-crossing intervals = respiratory rate. Only works on Chrome/Edge/Opera/Samsung Internet; hidden on Safari/iOS. Files: `polarH10Engine.ts` (BLE lifecycle + HRM parser + PMD ACC parser + streaming breathing extractor), `usePolarH10Session.ts` (consent + Firestore flush + `getBreathingScale` stable getter), `PolarH10ConnectButton.tsx`, `PolarH10ConsentDialog.tsx`.
+
+**Mutex.** H10 takes priority. When `polar.enabled` becomes true, SessionView's `useEffect` stops any running webcam stream; the webcam toggle is hidden while H10 is active. The reverse can't arise. Both paths feed `useSessionStream` / `useSessionVoice` through a `BiometricSource` bridge in SessionView so the stream is source-agnostic.
+
+**Shared math.** `hrvSignalWorker.ts` exports `computeHrvMetrics`, `classifyAutonomicState`, `computeDerivedMetrics`, `respiratoryBandpass` — both engine paths import them; H10 doesn't duplicate any HRV math. `HrvTimeline` consumes `HrvMeasurement` regardless of origin.
+
+**Animation sync.** When polar is paired, `RelaxBreathCircle` follows the live `getBreathingScale()` getter via rAF polling (50 ms smoothing) instead of running its internal breath pacer. `BiometricsBar` expanded view shows an H10 respiration panel with a live position bar driven by the same getter.
+
+**Persistence.** `HrvSessionData` written to `hrvSessions/{sessionId}` every 10s with optional `source: 'camera' | 'polarH10'`. Webcam path stores signal dumps (raw RGB/CHROM/FFT) for offline algo analysis; H10 path leaves `signalDumps: []` (transient).

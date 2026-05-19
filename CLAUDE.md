@@ -93,7 +93,7 @@ Account: Settings → accountApi Cloud Function → delete/contact
 
 Detailed file-by-file reference: `.claude/docs/key-files.md`
 
-Core entry points: `src/ai/openrouter.ts` (API calls), `src/ai/partPrompts.ts` (system prompts + `SHARED_INSTRUCTIONS`), `src/ai/sessionPrompts.ts` (session mode part prompts), `src/ai/therapistPrompts.ts` (therapist companion prompts — `THERAPIST_CORE` warm + `REAL_TALK_CORE` calling-out + `SAFETY_RULES`), `src/engine/partOrchestrator.ts` (part selection + scoring), `src/engine/sessionOrchestrator.ts` (session phase detection + crisis keywords + emotion check), `src/engine/pauseDetector.ts` (pause detection), `src/engine/sessionContextLoader.ts` (`loadTherapistContext`), `src/engine/hrvEngine.ts` (webcam HRV biofeedback), `src/engine/hrvSignalWorker.ts` (CHROM rPPG signal processing Web Worker), `src/engine/hrvTimeline.ts` (HRV timeline + shift detection + prompt context), `src/components/Editor/LivingEditor.tsx` (TipTap editor), `src/components/Session/SessionView.tsx` (therapist session UI), `src/components/EntryChoice.tsx` (3-way choice screen: Journal / Conversation / Real Talk), `src/store/db.ts` (Firestore wrapper). Cloud Functions: `functions/src/{chat,realtime,soundscapeApi,account,mcp}.ts` (per-handler modules) + `functions/src/admin/` (handler map + helpers + analytics) + `functions/src/shared/` (auth, cors, rate-limit, secrets).
+Core entry points: `src/ai/openrouter.ts` (API calls), `src/ai/partPrompts.ts` (system prompts + `SHARED_INSTRUCTIONS`), `src/ai/sessionPrompts.ts` (session mode part prompts), `src/ai/therapistPrompts.ts` (therapist companion prompts — `THERAPIST_CORE` warm + `REAL_TALK_CORE` calling-out + `SAFETY_RULES`), `src/engine/partOrchestrator.ts` (part selection + scoring), `src/engine/sessionOrchestrator.ts` (session phase detection + crisis keywords + emotion check), `src/engine/pauseDetector.ts` (pause detection), `src/engine/sessionContextLoader.ts` (`loadTherapistContext`), `src/engine/hrvEngine.ts` (webcam HRV biofeedback), `src/engine/hrvSignalWorker.ts` (CHROM rPPG signal processing Web Worker), `src/engine/hrvTimeline.ts` (HRV timeline + shift detection + prompt context), `src/engine/polarH10Engine.ts` (Polar H10 BLE — heart-rate service + PMD accelerometer for chest-motion respiration), `src/hooks/useHrvSession.ts` (webcam HRV session lifecycle), `src/hooks/usePolarH10Session.ts` (H10 session lifecycle; parallel surface), `src/components/Editor/LivingEditor.tsx` (TipTap editor), `src/components/Session/SessionView.tsx` (therapist session UI), `src/components/EntryChoice.tsx` (3-way choice screen: Journal / Conversation / Real Talk), `src/store/db.ts` (Firestore wrapper). Cloud Functions: `functions/src/{chat,realtime,soundscapeApi,account,mcp}.ts` (per-handler modules) + `functions/src/admin/` (handler map + helpers + analytics) + `functions/src/shared/` (auth, cors, rate-limit, secrets).
 
 ### Data storage
 
@@ -114,7 +114,7 @@ SPA in `App.tsx` using `pushState`-based client-side routing (no router library)
 ### Feature flags
 
 7 core flags (default enabled, `!== false`): `partsEnabled`, `visualEffectsEnabled`, `autocorrectEnabled`, `paragraphFade`, `inkWeight`, `colorBleed`, `breathingBackground`.
-25 experimental flags (default disabled, `=== true`) across 6 categories: Atmosphere, Part Intelligence, Memory/Engagement, Text Interaction, Safety & Guidance, Biometric (`webcamHrv`).
+26 experimental flags (default disabled, `=== true`) across 6 categories: Atmosphere, Part Intelligence, Memory/Engagement, Text Interaction, Safety & Guidance, Biometric (`webcamHrv`, `polarH10`).
 
 Full list + settings cascade + tuning params: `.claude/docs/feature-flags.md`
 
@@ -126,7 +126,7 @@ At `/admin` for admins only. Lazy-loaded. 6 tabs, 9 API actions. Overview shows 
 
 ### Subsystems
 
-Dark mode, adaptive parts, i18n (17 languages), emergency grounding, bundle splitting, intentions, explorations, session closing, autocorrect, body map, data export, webcam HRV biofeedback — all documented in `.claude/docs/subsystems.md`
+Dark mode, adaptive parts, i18n (17 languages), emergency grounding, bundle splitting, intentions, explorations, session closing, autocorrect, body map, data export, HRV biofeedback (webcam + Polar H10) — all documented in `.claude/docs/subsystems.md`
 
 ### Real Talk mode (Session)
 
@@ -146,19 +146,39 @@ A tone variant of the therapist persona that names coping moves the writer is ma
 
 ### HRV Biofeedback (Session Mode)
 
-Webcam-based heart rate variability monitoring using remote photoplethysmography (rPPG). Session mode only, gated behind `webcamHrv` feature flag + explicit camera consent.
+Heart rate variability monitoring with two interchangeable signal sources, both producing the same `HrvMeasurement` shape so downstream consumers (`HrvTimeline`, `BiometricsBar`, therapist prompt, Relax mode) are source-agnostic. Session mode only.
+
+#### Source A — Webcam rPPG (default)
+
+Remote photoplethysmography via the laptop webcam. Gated behind `webcamHrv` + explicit camera consent.
 
 **Pipeline:** Camera (max resolution, 60fps) → main thread extracts RGB from skin-colored pixels in center 60% of frame (3 sub-regions: forehead + left/right cheeks) → Web Worker runs windowed CHROM algorithm (1.6s windows, 50% overlap, Hann OLA) → 4th-order Butterworth bandpass (1.2-2.5 Hz) → FFT with parabolic interpolation → confidence-weighted EMA smoothing → `HrvMeasurement` emitted every 5s.
 
-**Derived metrics from IBI series:** SDNN (overall HRV), pNN50 (parasympathetic index), LF/HF ratio (autonomic balance via FFT on IBI series), Baevsky Stress Index (histogram-based), cardiac coherence (HRV regularity).
-
-**Behavioral correlations:** Post-response physiological reaction (HR change after therapist speaks), per-message activation level (HR when user writes), session trajectory (calming vs escalating over time). All injected into therapist system prompt.
-
-**Key components:** `hrvEngine.ts` (camera + frame capture + skin filtering), `hrvSignalWorker.ts` (CHROM + FFT + derived metrics in Web Worker), `hrvTimeline.ts` (shift detection + behavioral correlations + prompt context builder), `HrvAmbientBar.tsx` (fixed-position data bar with HRV trace + metrics), `HrvConsentDialog.tsx` (one-time consent).
-
-**Data flow:** HRV context injected into therapist system prompt via `hrvContext` field on `TherapistPromptOptions`. Full measurement log + signal dumps persisted to `hrvSessions/{sessionId}` in Firestore every 10s.
+**Components:** `hrvEngine.ts` (camera + frame capture + skin filtering), `hrvSignalWorker.ts` (CHROM + FFT + derived metrics in Web Worker), `HrvConsentDialog.tsx` (one-time camera consent).
 
 **Signal processing:** Skin color filtering (R>G>B heuristic) replaces face detection for ROI — wider coverage, no jitter. Camera auto-exposure/white-balance locked to manual. Multi-ROI (forehead + cheeks) with confidence-weighted merge. Respiratory rate via 0.15-0.45 Hz bandpass on same CHROM signal.
+
+#### Source B — Polar H10 over Web Bluetooth
+
+Chest-strap heart-rate monitor. Gated behind `polarH10` + explicit Bluetooth consent. Visible only in Chrome / Edge / Opera / Samsung Internet — Safari and iOS hide the connect button (no Web Bluetooth).
+
+**Pipeline:** `navigator.bluetooth.requestDevice` with `optionalServices: [PMD_SERVICE]` → standard Heart Rate service (0x180D) → HR Measurement characteristic (0x2A37) → parser yields HR + RR intervals at 1/1024-s resolution → rolling 30s IBI buffer → reuses `hrvSignalWorker`'s `computeHrvMetrics` / `classifyAutonomicState` / `computeDerivedMetrics` (already exported, no duplication) → `HrvMeasurement` emitted every 5s.
+
+**Polar PMD chest-motion respiration.** After the HR stream opens, the engine fires GET_MEASUREMENT_SETTINGS to learn supported values, then START_MEASUREMENT for the accelerometer at 50 Hz / 16-bit / ±2G. Accel magnitude → `respiratoryBandpass` (0.1–0.5 Hz, reused from worker) on a 30s sliding window → envelope-normalized 0..1 chest-motion `breathingScale` (15s adaptive horizon) → rising zero-crossings give breath onsets → median of inter-crossing intervals = respiratory rate. `breathingScale` is polled via a stable `useCallback` getter at rAF cadence so animations sync without React churn.
+
+**Components:** `polarH10Engine.ts` (BLE lifecycle + HRM parser + PMD ACC parser + streaming breathing extractor), `usePolarH10Session.ts` (consent + flush to Firestore + timeline + getBreathingScale), `PolarH10ConnectButton.tsx` (status-driven button), `PolarH10ConsentDialog.tsx` (Bluetooth-flavored consent).
+
+**Mutex.** H10 takes priority — when paired and streaming, webcam HRV is suppressed via a SessionView `useEffect` on `[polar.enabled, hrv.enabled, hrv.stopAndFlush]`. The webcam toggle is hidden while H10 is connected. The reverse can't arise. Both paths feed prompt context through a thin `BiometricSource` bridge in SessionView so `useSessionStream` and `useSessionVoice` see whichever source is active.
+
+#### Common: timeline, derived metrics, persistence
+
+**Derived metrics from IBI series:** SDNN (overall HRV), pNN50 (parasympathetic index), LF/HF ratio (autonomic balance via FFT on IBI series), Baevsky Stress Index (histogram-based), cardiac coherence (HRV regularity). Same math regardless of source.
+
+**Behavioral correlations:** Post-response physiological reaction (HR change after therapist speaks), per-message activation level (HR when user writes), session trajectory (calming vs escalating over time). All injected into therapist system prompt via `hrvContext` on `TherapistPromptOptions`.
+
+**Persistence:** `HrvSessionData` written to `hrvSessions/{sessionId}` every 10s, carrying an optional `source: 'camera' | 'polarH10'` field. Webcam path includes `signalDumps` (raw RGB/CHROM/FFT for offline algo analysis); H10 path leaves `signalDumps: []` for now.
+
+**Relax mode integration:** When polar is connected, `RelaxBreathCircle` follows the live chest motion (via the `chestScaleGetter` prop, smoothed with a 50ms time constant) instead of running its internal breath pacer.
 
 ### Analytics & tracking
 
@@ -170,7 +190,7 @@ Webcam-based heart rate variability monitoring using remote photoplethysmography
 
 ## Testing
 
-Vitest with jsdom. Tests cover: `llmCorrect` (sentence extraction, CJK/Hindi/Thai, trigger logic, correction validation), `annotationParser` (parsing, ghost capitalization, delimiter), `bodyMapEngine` (emotion-to-color mapping, homunculus state computation), `ritualEngine`, `pauseDetector`, `partOrchestrator`, `weatherEngine`, `settings`, `sessionOrchestrator` (phase detection, crisis keywords, emotion check, grounding activation), `sessionReflectionEngine`, `sessionPrompts`, `therapistPrompts` (incl. Real Talk persona swap and grounding override), `realTalkFlow` (end-to-end Real Talk orchestrator + prompt builder integration, crisis override), `translations` + i18n key parity (every locale has every English key), `SessionView`, `hrvSignalWorker` (CHROM extraction, FFT, bandpass filter, peak detection), `hrvEngine` (public surface, lifecycle), `hrvTimeline` (shift detection, prompt context builder), `promptSafety`, `sessionContextLoader`, `closingEngine`, `partGrowthEngine`, `threadEngine`, `letterEngine`, `echoEngine`, `quoteEngine`, `disagreementEngine`, `quietTracker`, `emergenceEngine`, `voiceFieldColors`. Hook tests via `renderHook`: `useSessionVoice`, `useSessionStream`, `useAdminConfig` (save round-trip + key allowlist).
+Vitest with jsdom. Tests cover: `llmCorrect` (sentence extraction, CJK/Hindi/Thai, trigger logic, correction validation), `annotationParser` (parsing, ghost capitalization, delimiter), `bodyMapEngine` (emotion-to-color mapping, homunculus state computation), `ritualEngine`, `pauseDetector`, `partOrchestrator`, `weatherEngine`, `settings`, `sessionOrchestrator` (phase detection, crisis keywords, emotion check, grounding activation), `sessionReflectionEngine`, `sessionPrompts`, `therapistPrompts` (incl. Real Talk persona swap and grounding override), `realTalkFlow` (end-to-end Real Talk orchestrator + prompt builder integration, crisis override), `translations` + i18n key parity (every locale has every English key), `SessionView`, `hrvSignalWorker` (CHROM extraction, FFT, bandpass filter, peak detection), `hrvEngine` (public surface, lifecycle), `hrvTimeline` (shift detection, prompt context builder), `polarH10Engine` (BT SIG HR Measurement parser — golden bytes, RR conversion, defensive truncation; pure HRV math — trim/confidence/trend/composeMeasurement; engine math + emission via test-only `feedSampleForTest`/`tickForTest`), `promptSafety`, `sessionContextLoader`, `closingEngine`, `partGrowthEngine`, `threadEngine`, `letterEngine`, `echoEngine`, `quoteEngine`, `disagreementEngine`, `quietTracker`, `emergenceEngine`, `voiceFieldColors`. Hook tests via `renderHook`: `useSessionVoice`, `useSessionStream`, `useAdminConfig` (save round-trip + key allowlist).
 
 ```bash
 npm run test             # Run all tests
@@ -266,7 +286,7 @@ Add to `SEEDED_PARTS` in `partPrompts.ts`. Scoring is role-based (`ifsRole`) —
 - **Feature flags** — core use `=== false`, experimental use `=== true`. `getGlobalConfig()` returns `null` before first admin save
 - **Grounding suppresses intention** in prompts — intentional during distress
 
-### HRV / Biometric
+### HRV / Biometric — Webcam path
 - **Skin color filtering replaces face detection** — R>G>B heuristic on center 60% of frame outperforms FaceDetector API. Face detection's tight bounding box + ROI jitter degraded signal quality. Skin filter provides wider stable coverage
 - **Camera resolution** — requests `ideal: 1920x1080` but main thread only reads skin pixels from 3 sub-regions (forehead, left cheek, right cheek), sending just RGB averages to worker
 - **Camera auto-exposure must be locked** — auto-exposure creates 0.5-1.1 Hz color drift that is 50-100x stronger than the cardiac signal. Engine locks `exposureMode` and `whiteBalanceMode` to manual via `applyConstraints`
@@ -279,6 +299,20 @@ Add to `SEEDED_PARTS` in `partPrompts.ts`. Scoring is role-based (`ifsRole`) —
 - **Signal dumps saved every 10s** — full RGB buffers, CHROM pulse, FFT spectrum, IBIs saved to Firestore for offline algorithm analysis. Trimmed to last 10 dumps + 5s RGB to stay under 1MB doc limit
 - **Derived metrics** — SDNN, pNN50, LF/HF ratio, Baevsky Stress Index, cardiac coherence computed from IBI series. LF/HF uses 4 Hz interpolated IBI series + FFT
 - **Behavioral correlations** — post-response HR change, per-message activation, session trajectory (calming vs escalating) computed from HRV timeline events and injected into therapist prompt
+- **HR display rounding** — `BiometricsBar` renders `Math.round(latest.hr)`. The underlying `HrvMeasurement.hr` keeps float precision for downstream consumers (timeline correlations, Firestore archival); only the display is rounded
+
+### HRV / Biometric — Polar H10 path
+- **Web Bluetooth permission is per-service** — pairing without `optionalServices: [PMD_SERVICE]` declared on `requestDevice` scopes consent to HR-only. Accessing PMD afterward throws "Origin is not allowed to access this service." Existing pairings from earlier flag-off builds need to be re-paired once
+- **PMD GET_MEASUREMENT_SETTINGS first, START second** — never hardcode TLV settings. The H10 ACC supports only `SAMPLE_RATE / RESOLUTION / RANGE` (no `CHANNELS`), and the set differs by sensor model + firmware. Sending an unsupported setting returns PMD error 5 (INVALID_PARAMETER). Always query → intersect → start
+- **PMD response framing has a MORE_FRAME byte** — at offset 4 (after `f0 op type err`), before the TLV body. Missed it once during the trial; parser now starts at offset 5. Documented in Polar's SDK source but not in the protocol PDF
+- **PMD ACC `frame_type=0x01` is 16-bit raw signed** — Polar's lower-nibble encodes resolution (`0x00`=8-bit, `0x01`=16-bit, `0x02`=24-bit) and the `0x80` bit flags delta-compression on top. Treating `0x01` as "delta" silently drops every frame
+- **Re-pair required when toggling `polarH10`** — turning the flag on/off doesn't itself re-prompt; users who had a stale HR-only pair must click Disconnect → Connect to expand the permission scope
+- **ACC magnitude (rotation-invariant) over single-axis** — `sqrt(x²+y²+z²)` of accel sample is used as the breathing signal source. Single-axis (e.g., Z for chest expansion) has ~6 dB better SNR but breaks if the strap shifts mid-session; magnitude is more robust
+- **Streaming bandpass reuses `respiratoryBandpass`** — same 0.1–0.5 Hz Butterworth that the webcam worker uses. Applied to a sliding 30s window of accel magnitudes every 5 samples (~100 ms) so animation lag is capped at one stride
+- **Adaptive envelope normalization** — 15s rolling min/max of the bandpassed signal maps to `breathingScale ∈ [0,1]`. Short enough to adapt to breathing-depth changes; long enough not to smear across posture changes
+- **Mutex with webcam HRV** — H10 takes priority. SessionView's `useEffect([polar.enabled, hrv.enabled, hrv.stopAndFlush])` stops the camera when polar starts streaming. Webcam toggle is hidden while H10 is active so the reverse can't arise
+- **`getBreathingScale` is a stable `useCallback`** — animations poll it inside their own rAF loops without re-rendering React. Returns `null` when PMD isn't active so the consumer can fall back to its internal pacer (Relax does this)
+- **Polar `respiratoryRate` may be null even when H10 is paired** — bandpass needs ~5s to settle, envelope needs ~15s to converge, and the rate requires ≥2 zero-crossings (~one full breath cycle). Expect a 30–60s warmup before the rate populates
 
 ### PWA & Build
 - **PWA API calls not cached** — go through Firebase rewrites
