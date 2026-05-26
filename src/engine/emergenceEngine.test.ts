@@ -22,6 +22,11 @@ vi.mock('../store/db', () => ({
   generateId: () => generateIdMock(),
 }))
 
+const engineLogMock = vi.fn()
+vi.mock('../services/diagnostics', () => ({
+  engineLog: (...a: unknown[]) => engineLogMock(...a),
+}))
+
 const { EmergenceEngine } = await import('./emergenceEngine')
 
 const NOW = Date.parse('2026-05-12T12:00:00Z')
@@ -65,6 +70,7 @@ beforeEach(() => {
   dbPartsAdd.mockReset()
   generateIdMock.mockReset()
   generateIdMock.mockReturnValue('emergent-id')
+  engineLogMock.mockReset()
 })
 
 afterEach(() => {
@@ -225,5 +231,122 @@ describe('EmergenceEngine.checkForEmergence — error paths', () => {
 
     const result = await engine.checkForEmergence(longText(), [])
     expect(result).toEqual({ detected: false })
+  })
+})
+
+// gpt-5.5 frequently wraps JSON in markdown code fences even when prompted
+// for raw JSON. Same defensive pattern as sessionReflectionEngine and
+// partGrowthEngine — previously a bare `JSON.parse` would throw on these.
+describe('EmergenceEngine.checkForEmergence — markdown fence tolerance', () => {
+  const validPayload = {
+    detected: true,
+    name: 'The Tide',
+    color: '#3366aa',
+    ifsRole: 'protector',
+    voice: 'patient and slow',
+    concern: 'overwhelm',
+    firstWords: 'I am here.',
+  }
+
+  it('parses a ```json fenced response and emerges the part', async () => {
+    const engine = new EmergenceEngine()
+    await primeToWarmedUp(engine)
+    chatCompletionMock.mockResolvedValue('```json\n' + JSON.stringify(validPayload) + '\n```')
+
+    const result = await engine.checkForEmergence(longText(), [])
+
+    expect(result.detected).toBe(true)
+    expect(result.part?.name).toBe('The Tide')
+    expect(dbPartsAdd).toHaveBeenCalledOnce()
+  })
+
+  it('parses an unlabeled ``` fenced response', async () => {
+    const engine = new EmergenceEngine()
+    await primeToWarmedUp(engine)
+    chatCompletionMock.mockResolvedValue('```\n' + JSON.stringify(validPayload) + '\n```')
+
+    const result = await engine.checkForEmergence(longText(), [])
+
+    expect(result.detected).toBe(true)
+    expect(result.part?.name).toBe('The Tide')
+  })
+})
+
+describe('EmergenceEngine.checkForEmergence — telemetry', () => {
+  it('logs `emergence.parse_failed` when the response cannot be parsed as JSON', async () => {
+    const engine = new EmergenceEngine()
+    await primeToWarmedUp(engine)
+    chatCompletionMock.mockResolvedValue('this is not json at all, just prose')
+
+    await engine.checkForEmergence(longText(), [])
+
+    const warnCalls = engineLogMock.mock.calls.filter((c) => c[0] === 'warn' && c[1] === 'emergence.parse_failed')
+    expect(warnCalls.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('logs `emergence.parse_failed` and returns false when detected=true but required fields are missing', async () => {
+    const engine = new EmergenceEngine()
+    await primeToWarmedUp(engine)
+    // LLM claims detection but omits name/color — previously would create a
+    // malformed Part with undefined fields. Now flagged and rejected.
+    chatCompletionMock.mockResolvedValue(JSON.stringify({ detected: true, ifsRole: 'protector' }))
+
+    const result = await engine.checkForEmergence(longText(), [])
+
+    expect(result).toEqual({ detected: false })
+    expect(dbPartsAdd).not.toHaveBeenCalled()
+    const warnCalls = engineLogMock.mock.calls.filter((c) => c[0] === 'warn' && c[1] === 'emergence.parse_failed')
+    expect(warnCalls.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('rejects emergence when ifsRole is outside the IFS taxonomy', async () => {
+    const engine = new EmergenceEngine()
+    await primeToWarmedUp(engine)
+    // LLM hallucinates an off-taxonomy role. Original bare-parse code would
+    // have persisted a Part with an invalid role; now flagged and rejected.
+    chatCompletionMock.mockResolvedValue(JSON.stringify({
+      detected: true,
+      name: 'X',
+      color: '#000',
+      ifsRole: 'overseer', // not in protector|exile|manager|firefighter|self
+      voice: 'v',
+      concern: 'c',
+      firstWords: 'hi',
+    }))
+
+    const result = await engine.checkForEmergence(longText(), [])
+
+    expect(result).toEqual({ detected: false })
+    expect(dbPartsAdd).not.toHaveBeenCalled()
+    const warnCalls = engineLogMock.mock.calls.filter((c) => c[0] === 'warn' && c[1] === 'emergence.parse_failed')
+    expect(warnCalls.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('does not log on the happy path', async () => {
+    const engine = new EmergenceEngine()
+    await primeToWarmedUp(engine)
+    chatCompletionMock.mockResolvedValue(JSON.stringify({
+      detected: true,
+      name: 'X',
+      color: '#000',
+      ifsRole: 'protector',
+      voice: 'v',
+      concern: 'c',
+      firstWords: 'hi',
+    }))
+
+    await engine.checkForEmergence(longText(), [])
+
+    expect(engineLogMock).not.toHaveBeenCalled()
+  })
+
+  it('does not log on the detected=false fast path', async () => {
+    const engine = new EmergenceEngine()
+    await primeToWarmedUp(engine)
+    chatCompletionMock.mockResolvedValue(JSON.stringify({ detected: false }))
+
+    await engine.checkForEmergence(longText(), [])
+
+    expect(engineLogMock).not.toHaveBeenCalled()
   })
 })

@@ -3,23 +3,34 @@ import { languageDirective, formatDateTime, formatTime, formatShortDate, GROUNDI
 import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from './promptSafety'
 import { REGISTER_TIERS, renderRegisterBlock, applyGroundingCap } from './registerTiers'
 
-// Risk-classification preamble. The therapist emits `<<RISK:N>>` (N in 0/1/2)
-// as the first line of every response; the stream parser in openrouter.ts
-// consumes it before forwarding tokens to the UI. This replaces the parallel
-// L2 classifier call — the therapist has full conversation context, so the
-// pronoun/referent disambiguation that the isolated classifier failed on
-// ("planning the process to finalize it" → "it" = taxes vs. "it" = life) is
-// structurally available here. L1 regex still runs as the deterministic floor.
+// Risk-classification preamble. The therapist emits exactly one of
+// `<<RISK:0>>`, `<<RISK:1>>`, or `<<RISK:2>>` as the first line of every
+// response; the stream parser in openrouter.ts consumes it before forwarding
+// tokens to the UI. This replaces the parallel L2 classifier call — the
+// therapist has full conversation context, so the pronoun/referent
+// disambiguation that the isolated classifier failed on ("planning the
+// process to finalize it" → "it" = taxes vs. "it" = life) is structurally
+// available here. L1 regex still runs as the deterministic floor.
+//
+// IMPORTANT: the prompt deliberately enumerates the three valid lines
+// rather than showing a placeholder template (e.g., `<<RISK:N>>`). Earlier
+// versions used a placeholder, and the model would occasionally echo the
+// literal letter `N` verbatim, leaking the marker to the chat window. The
+// parser is now tolerant of malformed contents (strips + fail-open=0 + log),
+// but eliminating the placeholder removes the most common trigger.
 //
 // Calibration is intentionally aligned with the prior crisisClassifierPrompt.ts
 // so the eval contract (`crisisClassifier.eval.ts`) remains the standard for
 // what NOT to flag. False alarms erode trust in the safety UI, which makes a
 // real crisis harder to catch later. When in doubt, return 0.
 export const RISK_PREAMBLE_INSTRUCTIONS = `OUTPUT FORMAT — STRICT, NO EXCEPTIONS:
-Every response begins with exactly this line, nothing before it:
-<<RISK:N>>
+Your very first line is exactly ONE of these three lines, character-for-character, with nothing before it:
 
-where N is 0, 1, or 2. Then a blank line. Then your therapist response. The line is parsed by the safety system and never shown to the writer; skipping it breaks the safety system.
+<<RISK:0>>
+<<RISK:1>>
+<<RISK:2>>
+
+Then a blank line. Then your therapist response. The risk line is parsed by the safety system and never shown to the writer; emitting anything else (a different number, the literal letter "N", omitting the line, wrapping it in markdown, or adding any prefix) breaks the safety system. Pick exactly one of the three lines above based on the classification below.
 
 CLASSIFICATION — precision over recall, default 0. False alarms train the writer to dismiss the safety UI:
 

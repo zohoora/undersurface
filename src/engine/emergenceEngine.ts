@@ -1,12 +1,32 @@
-import type { Part } from '../types'
+import type { IFSRole, Part } from '../types'
 import { buildEmergenceAnalysis, SHARED_INSTRUCTIONS } from '../ai/partPrompts'
 import { chatCompletion } from '../ai/openrouter'
 import { db, generateId } from '../store/db'
+import { engineLog } from '../services/diagnostics'
 
 interface EmergenceResult {
   detected: boolean
   part?: Part
   firstWords?: string
+}
+
+// All fields optional because the LLM is the source of truth for this shape
+// and we can't trust it to populate every field. Caller checks `detected`
+// first and only reads the rest when true.
+interface ParsedEmergence {
+  detected?: boolean
+  name?: string
+  color?: string
+  ifsRole?: string
+  voice?: string
+  concern?: string
+  firstWords?: string
+}
+
+const VALID_IFS_ROLES: ReadonlySet<IFSRole> = new Set(['protector', 'exile', 'manager', 'firefighter', 'self'])
+
+function isValidIfsRole(value: string | undefined): value is IFSRole {
+  return typeof value === 'string' && (VALID_IFS_ROLES as ReadonlySet<string>).has(value)
 }
 
 export class EmergenceEngine {
@@ -49,22 +69,45 @@ export class EmergenceEngine {
       // budget from default 150 (too tight for full part definition).
       const response = await chatCompletion(messages, 30000, 500, 'none')
 
-      const parsed = JSON.parse(response)
-
-      if (!parsed.detected) {
+      const parsed = parseEmergenceResponse(response)
+      if (!parsed || !parsed.detected) {
         return { detected: false }
       }
 
+      // The LLM said `detected: true` — require the minimum fields needed to
+      // build a Part. If any are missing or `ifsRole` is outside the IFS
+      // taxonomy, treat as no-emergence rather than creating a malformed
+      // Part. Logged so we can see how often the model claims detection
+      // without supplying a usable payload.
+      if (!parsed.name || !parsed.color || !parsed.voice || !parsed.concern || !isValidIfsRole(parsed.ifsRole)) {
+        engineLog('warn', 'emergence.parse_failed', 'emergence detected=true but payload is incomplete or invalid', {
+          extra: {
+            hasName: Boolean(parsed.name),
+            hasColor: Boolean(parsed.color),
+            hasVoice: Boolean(parsed.voice),
+            hasConcern: Boolean(parsed.concern),
+            validIfsRole: isValidIfsRole(parsed.ifsRole),
+          },
+        })
+        return { detected: false }
+      }
+
+      const ifsRole: IFSRole = parsed.ifsRole
       const newPartId = generateId()
       const newPart: Part = {
         id: newPartId,
         name: parsed.name,
         color: parsed.color,
         colorLight: parsed.color + '25',
-        ifsRole: parsed.ifsRole,
+        ifsRole,
         voiceDescription: parsed.voice,
         concern: parsed.concern,
-        systemPrompt: buildEmergentPartPrompt(parsed),
+        systemPrompt: buildEmergentPartPrompt({
+          name: parsed.name,
+          concern: parsed.concern,
+          voice: parsed.voice,
+          ifsRole,
+        }),
         isSeeded: false,
         createdAt: Date.now(),
         memories: [],
@@ -92,6 +135,23 @@ export class EmergenceEngine {
     } catch {
       return { detected: false }
     }
+  }
+}
+
+// Strip optional ```json ... ``` markdown fence (gpt-5.5 wraps JSON in code
+// blocks by default — same defensive pattern as sessionReflectionEngine and
+// partGrowthEngine). Returns null + logs telemetry on parse failure so we
+// can see how often the model misbehaves rather than silently dropping
+// emergence candidates as the previous bare `JSON.parse` did.
+function parseEmergenceResponse(response: string): ParsedEmergence | null {
+  try {
+    const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, response]
+    return JSON.parse(jsonMatch[1]!.trim()) as ParsedEmergence
+  } catch {
+    engineLog('warn', 'emergence.parse_failed', 'failed to parse emergence response as JSON', {
+      extra: { responseLength: response.length },
+    })
+    return null
   }
 }
 

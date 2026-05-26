@@ -372,5 +372,93 @@ describe('streamChatCompletion — risk preamble parsing', () => {
 
     expect(risks).toEqual([0])
   })
+
+  // ── malformed-preamble tolerance ───────────────────────────────────────
+  // The model occasionally echoes the literal `<<RISK:N>>` template, emits
+  // an out-of-range digit, or uses a single newline instead of two. Without
+  // tolerant stripping, the malformed bytes leak into the chat window.
+  // Policy: strip whatever appears in the brackets, fail open to risk=0.
+
+  it('strips a literal `<<RISK:N>>` placeholder echo without leaking it', async () => {
+    mockStream([sse('<<RISK:N>>\n\nHey there.'), 'data: [DONE]\n\n'])
+    const stream = await loadStream()
+
+    let risk: number | null = null
+    let complete = ''
+    const tokens: string[] = []
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: (t) => tokens.push(t),
+        onRisk: (r) => { risk = r },
+        onComplete: (full) => { complete = full },
+        onError: () => {},
+      },
+    )
+
+    expect(risk).toBe(0)
+    expect(tokens.join('')).toBe('Hey there.')
+    expect(complete).toBe('Hey there.')
+    expect(tokens.join('')).not.toContain('<<RISK')
+  })
+
+  it('strips an out-of-range `<<RISK:5>>` preamble and fails open to risk=0', async () => {
+    mockStream([sse('<<RISK:5>>\n\nThat sounds tough.'), 'data: [DONE]\n\n'])
+    const stream = await loadStream()
+
+    let risk: number | null = null
+    const tokens: string[] = []
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: (t) => tokens.push(t),
+        onRisk: (r) => { risk = r },
+        onComplete: () => {},
+        onError: () => {},
+      },
+    )
+
+    expect(risk).toBe(0)
+    expect(tokens.join('')).toBe('That sounds tough.')
+    expect(tokens.join('')).not.toContain('<<RISK')
+  })
+
+  it('accepts single-newline preamble variant (`<<RISK:0>>\\n`) as risk=0', async () => {
+    mockStream([sse('<<RISK:0>>\nHey.'), 'data: [DONE]\n\n'])
+    const stream = await loadStream()
+
+    let risk: number | null = null
+    const tokens: string[] = []
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: (t) => tokens.push(t),
+        onRisk: (r) => { risk = r },
+        onComplete: () => {},
+        onError: () => {},
+      },
+    )
+
+    expect(risk).toBe(0)
+    expect(tokens.join('')).toBe('Hey.')
+    expect(tokens.join('')).not.toContain('<<RISK')
+  })
+
+  it('logs a warning when stripping a malformed preamble', async () => {
+    const { engineLog } = await import('../services/diagnostics')
+    const engineLogMock = vi.mocked(engineLog)
+    engineLogMock.mockClear()
+
+    mockStream([sse('<<RISK:N>>\n\nHi.'), 'data: [DONE]\n\n'])
+    const stream = await loadStream()
+
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      { onToken: () => {}, onRisk: () => {}, onComplete: () => {}, onError: () => {} },
+    )
+
+    const warnCalls = engineLogMock.mock.calls.filter((c) => c[0] === 'warn' && c[1] === 'stream.preamble_malformed')
+    expect(warnCalls.length).toBeGreaterThanOrEqual(1)
+  })
 })
 

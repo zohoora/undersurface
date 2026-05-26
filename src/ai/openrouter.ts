@@ -24,8 +24,16 @@ interface StreamCallbacks {
 }
 
 // Anchored — a stray `<<RISK:2>>` quoted later in the response does not
-// retroactively trigger grounding.
-const RISK_PREAMBLE_PATTERN = /^<<RISK:([012])>>\n\n/
+// retroactively trigger grounding. Tolerant of contents and trailing
+// whitespace: matches any 1–8 char payload between the colons and `>>`,
+// then horizontal whitespace + at least one newline. If the captured
+// payload isn't '0' / '1' / '2' (e.g., the model echoed the literal
+// placeholder `N`, or emitted an out-of-range digit), we still strip the
+// preamble and fail open to risk=0 — the L1 regex in sessionOrchestrator
+// is the deterministic safety floor, so falling open here doesn't disable
+// safety. The malformed bytes go to engineLog so model misbehavior is
+// observable.
+const RISK_PREAMBLE_PATTERN = /^<<RISK:([^>]{1,8})>>[ \t]*\n+/
 const PREAMBLE_FAIL_OPEN_CHARS = 80
 
 export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh'
@@ -160,7 +168,25 @@ export async function streamChatCompletion(
       preambleBuffer += chunk
       const match = preambleBuffer.match(RISK_PREAMBLE_PATTERN)
       if (match) {
-        const risk = parseInt(match[1], 10) as CrisisRisk
+        const captured = match[1]
+        let risk: CrisisRisk = 0
+        if (captured === '0' || captured === '1' || captured === '2') {
+          risk = parseInt(captured, 10) as CrisisRisk
+        } else {
+          // Categorize rather than log raw bytes — EngineLogContext.extra
+          // contract forbids model output. Categories are enough to triage:
+          // a spike in `literal_placeholder` means the prompt needs another
+          // pass; `out_of_range_digit` means the model is hallucinating tiers.
+          const lower = captured.trim().toLowerCase()
+          const category = lower === 'n'
+            ? 'literal_placeholder'
+            : /^\d+$/.test(lower)
+              ? 'out_of_range_digit'
+              : 'other'
+          engineLog('warn', 'stream.preamble_malformed', 'risk preamble had unexpected contents; stripping and failing open', {
+            extra: { category, length: captured.length },
+          })
+        }
         fireRisk(risk)
         if (controller.signal.aborted) return
         const remainder = preambleBuffer.slice(match[0].length)

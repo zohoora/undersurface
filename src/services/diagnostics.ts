@@ -5,8 +5,10 @@ export type Severity = 'info' | 'warn' | 'error'
 export type DiagnosticCode =
   | 'parts.empty_active_set'
   | 'stream.loop_detected'
+  | 'stream.preamble_malformed'
   | 'reflect.transcript_truncated'
   | 'reflect.output_truncated'
+  | 'emergence.parse_failed'
   | 'hrv.skin_filter_low_confidence'
 
 export interface EngineLogContext {
@@ -48,8 +50,10 @@ interface DedupRule {
 const DEDUP_RULES: Record<DiagnosticCode, DedupRule> = {
   'parts.empty_active_set': { cooldownMs: 5_000 },
   'stream.loop_detected': { cooldownMs: 0 },
+  'stream.preamble_malformed': { cooldownMs: 30_000 },
   'reflect.transcript_truncated': { cooldownMs: 0 },
   'reflect.output_truncated': { cooldownMs: 0 },
+  'emergence.parse_failed': { cooldownMs: 30_000 },
   'hrv.skin_filter_low_confidence': { cooldownMs: 60_000 },
 }
 
