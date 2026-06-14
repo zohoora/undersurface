@@ -444,6 +444,158 @@ describe('streamChatCompletion — risk preamble parsing', () => {
     expect(tokens.join('')).not.toContain('<<RISK')
   })
 
+  // ── newline-less and wrapped markers (production leak, 2026-06-12) ──────
+  // Observed live: the model emitted `<<RISK:N>> That sentence...` — literal
+  // placeholder AND no newline, response on the same line. The pattern
+  // required `\n+`, never matched, and the fail-open flush delivered the
+  // marker verbatim to the chat window. The marker is unambiguously complete
+  // at `>>` (payload cannot contain `>`), so matching must not depend on
+  // what follows it.
+
+  it('strips a same-line `<<RISK:N>> ` marker with no trailing newline (production leak)', async () => {
+    const prose = 'That sentence, "I felt like I was dying at the time," matters, and so does the five years that came after it.'
+    mockStream([sse(`<<RISK:N>> ${prose}`), 'data: [DONE]\n\n'])
+    const stream = await loadStream()
+
+    let risk: number | null = null
+    let complete = ''
+    const tokens: string[] = []
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: (t) => tokens.push(t),
+        onRisk: (r) => { risk = r },
+        onComplete: (full) => { complete = full },
+        onError: () => {},
+      },
+    )
+
+    expect(risk).toBe(0)
+    expect(tokens.join('')).toBe(prose)
+    expect(complete).toBe(prose)
+    expect(tokens.join('')).not.toContain('<<RISK')
+  })
+
+  it('preserves the risk signal from a same-line `<<RISK:2>>` marker with no newline', async () => {
+    mockStream([sse('<<RISK:2>> Please reach out to someone you trust.'), 'data: [DONE]\n\n'])
+    const stream = await loadStream()
+
+    let risk: number | null = null
+    const tokens: string[] = []
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: (t) => tokens.push(t),
+        onRisk: (r) => { risk = r },
+        onComplete: () => {},
+        onError: () => {},
+      },
+    )
+
+    expect(risk).toBe(2)
+    expect(tokens.join('')).toBe('Please reach out to someone you trust.')
+  })
+
+  it('does not forward leading whitespace when the preamble newlines arrive in a later chunk', async () => {
+    mockStream([sse('<<RISK:0>>'), sse('\n\nHey.'), 'data: [DONE]\n\n'])
+    const stream = await loadStream()
+
+    const tokens: string[] = []
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: (t) => tokens.push(t),
+        onRisk: () => {},
+        onComplete: () => {},
+        onError: () => {},
+      },
+    )
+
+    expect(tokens.join('')).toBe('Hey.')
+  })
+
+  it('scrubs an unparseable marker prefix (oversized payload) at flush time instead of leaking it', async () => {
+    mockStream([sse('<<RISK:uncertain>>\n\nHey there.'), 'data: [DONE]\n\n'])
+    const stream = await loadStream()
+
+    let risk: number | null = null
+    const tokens: string[] = []
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: (t) => tokens.push(t),
+        onRisk: (r) => { risk = r },
+        onComplete: () => {},
+        onError: () => {},
+      },
+    )
+
+    expect(risk).toBe(0)
+    expect(tokens.join('')).toBe('Hey there.')
+    expect(tokens.join('')).not.toContain('<<RISK')
+  })
+
+  it('scrubs a markdown-wrapped marker and preserves its risk digit', async () => {
+    mockStream([sse('`<<RISK:2>>`\n\nPlease reach out for help.'), 'data: [DONE]\n\n'])
+    const stream = await loadStream()
+
+    let risk: number | null = null
+    const tokens: string[] = []
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: (t) => tokens.push(t),
+        onRisk: (r) => { risk = r },
+        onComplete: () => {},
+        onError: () => {},
+      },
+    )
+
+    expect(risk).toBe(2)
+    expect(tokens.join('')).toBe('Please reach out for help.')
+    expect(tokens.join('')).not.toContain('<<RISK')
+  })
+
+  it('scrubs a marker preceded by a stray leading newline and preserves its risk digit', async () => {
+    mockStream([sse('\n<<RISK:1>>\n\nThat sounds heavy.'), 'data: [DONE]\n\n'])
+    const stream = await loadStream()
+
+    let risk: number | null = null
+    const tokens: string[] = []
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: (t) => tokens.push(t),
+        onRisk: (r) => { risk = r },
+        onComplete: () => {},
+        onError: () => {},
+      },
+    )
+
+    expect(risk).toBe(1)
+    expect(tokens.join('')).toBe('That sounds heavy.')
+    expect(tokens.join('')).not.toContain('<<RISK')
+  })
+
+  // ── display-time scrub for persisted leaks ──────────────────────────────
+  // Markers that escaped older parsers were persisted to Firestore and would
+  // otherwise display forever. scrubLeakedRiskMarker cleans them at render.
+
+  it('scrubLeakedRiskMarker strips a leaked leading marker from persisted content', async () => {
+    const { scrubLeakedRiskMarker } = await loadOpenrouter()
+    expect(scrubLeakedRiskMarker('<<RISK:N>> That sentence matters.')).toBe('That sentence matters.')
+    expect(scrubLeakedRiskMarker('<<RISK:0>>\n\nHey there.')).toBe('Hey there.')
+    expect(scrubLeakedRiskMarker('`<<RISK:2>>`\nPlease reach out.')).toBe('Please reach out.')
+  })
+
+  it('scrubLeakedRiskMarker leaves marker-free content and mid-text quotes untouched', async () => {
+    const { scrubLeakedRiskMarker } = await loadOpenrouter()
+    expect(scrubLeakedRiskMarker('Hey there.')).toBe('Hey there.')
+    expect(scrubLeakedRiskMarker('  indented start')).toBe('  indented start')
+    const quoted = 'The system uses a <<RISK:2>> marker internally.'
+    expect(scrubLeakedRiskMarker(quoted)).toBe(quoted)
+  })
+
   it('logs a warning when stripping a malformed preamble', async () => {
     const { engineLog } = await import('../services/diagnostics')
     const engineLogMock = vi.mocked(engineLog)

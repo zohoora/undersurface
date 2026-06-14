@@ -24,17 +24,39 @@ interface StreamCallbacks {
 }
 
 // Anchored — a stray `<<RISK:2>>` quoted later in the response does not
-// retroactively trigger grounding. Tolerant of contents and trailing
-// whitespace: matches any 1–8 char payload between the colons and `>>`,
-// then horizontal whitespace + at least one newline. If the captured
-// payload isn't '0' / '1' / '2' (e.g., the model echoed the literal
-// placeholder `N`, or emitted an out-of-range digit), we still strip the
-// preamble and fail open to risk=0 — the L1 regex in sessionOrchestrator
-// is the deterministic safety floor, so falling open here doesn't disable
-// safety. The malformed bytes go to engineLog so model misbehavior is
-// observable.
-const RISK_PREAMBLE_PATTERN = /^<<RISK:([^>]{1,8})>>[ \t]*\n+/
+// retroactively trigger grounding. Tolerant of contents: matches any 1–8
+// char payload between the colon and `>>`, then optional trailing
+// whitespace. The marker is unambiguously complete at `>>` (the payload
+// cannot contain `>`), so the match deliberately does NOT require a
+// trailing newline — a leak shipped live on 2026-06-12 when the model
+// emitted `<<RISK:N>> <response>` on one line and the then-required `\n+`
+// could never match, sending the marker to the chat via fail-open. If the
+// captured payload isn't '0' / '1' / '2' (e.g., the model echoed the
+// literal placeholder `N`, or emitted an out-of-range digit), we still
+// strip the preamble and fail open to risk=0 — the L1 regex in
+// sessionOrchestrator is the deterministic safety floor, so falling open
+// here doesn't disable safety. Malformations go to engineLog so model
+// misbehavior is observable.
+const RISK_PREAMBLE_PATTERN = /^<<RISK:([^>]{1,8})>>[ \t]*\n*/
+// Last-resort scrub, applied only to the buffered stream prefix at
+// fail-open flush time (never to later content, so quoted markers
+// mid-response are untouched). Broader than the anchored pattern: tolerates
+// markdown wrapping and longer payloads so a recognizable-but-mangled
+// marker never reaches the chat window. A cleanly parseable digit still
+// fires as the real risk — discarding a crisis signal the model actually
+// produced would be worse than the formatting noise.
+const RISK_MARKER_SCRUB = /^[\s`*_]{0,8}<<RISK:([^>]{1,24})>>[`*_]{0,8}[ \t]*\n*/
 const PREAMBLE_FAIL_OPEN_CHARS = 80
+
+// Display-time scrub for markers that escaped older parsers and were
+// persisted to Firestore (e.g. the 2026-06-12 `<<RISK:N>>` leak), and for
+// transcript sources that have no streaming parser (voice). Anchored to the
+// start of the message — a marker quoted mid-text is untouched.
+export function scrubLeakedRiskMarker(text: string): string {
+  const match = text.match(RISK_MARKER_SCRUB)
+  if (!match) return text
+  return text.slice(match[0].length).replace(/^\s+/, '')
+}
 
 export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh'
 
@@ -145,10 +167,14 @@ export async function streamChatCompletion(
     let buffer = ''
     let loopDetected = false
 
-    // Parser for the `<<RISK:N>>\n\n` preamble emitted by the therapist (see
+    // Parser for the `<<RISK:N>>` preamble emitted by the therapist (see
     // RISK_PREAMBLE_INSTRUCTIONS). Buffer until match or fail-open threshold.
     let preambleConsumed = false
     let preambleBuffer = ''
+    // The match no longer consumes the preamble's trailing newlines when they
+    // arrive in a later chunk, so the response is left-trimmed until its
+    // first visible character.
+    let contentStarted = false
 
     const fireRisk = (risk: CrisisRisk): void => {
       if (preambleConsumed) return
@@ -156,53 +182,79 @@ export async function streamChatCompletion(
       callbacks.onRisk?.(risk)
     }
 
+    const parseRiskPayload = (captured: string): CrisisRisk | null =>
+      captured === '0' || captured === '1' || captured === '2'
+        ? parseInt(captured, 10) as CrisisRisk
+        : null
+
+    // Categorize rather than log raw bytes — EngineLogContext.extra
+    // contract forbids model output. Categories are enough to triage:
+    // a spike in `literal_placeholder` means the prompt needs another
+    // pass; `out_of_range_digit` means the model is hallucinating tiers.
+    const logMalformed = (captured: string): void => {
+      const lower = captured.trim().toLowerCase()
+      const category = lower === 'n'
+        ? 'literal_placeholder'
+        : /^\d+$/.test(lower)
+          ? 'out_of_range_digit'
+          : 'other'
+      engineLog('warn', 'stream.preamble_malformed', 'risk preamble had unexpected contents; stripping and failing open', {
+        extra: { category, length: captured.length },
+      })
+    }
+
+    const forward = (chunk: string): void => {
+      if (!contentStarted) {
+        chunk = chunk.replace(/^\s+/, '')
+        if (!chunk) return
+        contentStarted = true
+      }
+      fullText += chunk
+      callbacks.onToken(chunk)
+    }
+
+    // Fail-open flush. Before surfacing the buffer, scrub any
+    // recognizable-but-mangled marker prefix the anchored pattern could not
+    // parse (markdown-wrapped, oversized payload, leading junk) — this is
+    // the path the 2026-06-12 leak escaped through.
+    const flushPreamble = (): void => {
+      const scrub = preambleBuffer.match(RISK_MARKER_SCRUB)
+      if (scrub) {
+        logMalformed(scrub[1])
+        fireRisk(parseRiskPayload(scrub[1].trim()) ?? 0)
+        preambleBuffer = preambleBuffer.slice(scrub[0].length)
+      } else {
+        fireRisk(0)
+      }
+      if (controller.signal.aborted) return
+      if (preambleBuffer) {
+        forward(preambleBuffer)
+        preambleBuffer = ''
+      }
+    }
+
     const processContent = (chunk: string): void => {
       if (controller.signal.aborted) return
 
       if (preambleConsumed) {
-        fullText += chunk
-        callbacks.onToken(chunk)
+        forward(chunk)
         return
       }
 
       preambleBuffer += chunk
       const match = preambleBuffer.match(RISK_PREAMBLE_PATTERN)
       if (match) {
-        const captured = match[1]
-        let risk: CrisisRisk = 0
-        if (captured === '0' || captured === '1' || captured === '2') {
-          risk = parseInt(captured, 10) as CrisisRisk
-        } else {
-          // Categorize rather than log raw bytes — EngineLogContext.extra
-          // contract forbids model output. Categories are enough to triage:
-          // a spike in `literal_placeholder` means the prompt needs another
-          // pass; `out_of_range_digit` means the model is hallucinating tiers.
-          const lower = captured.trim().toLowerCase()
-          const category = lower === 'n'
-            ? 'literal_placeholder'
-            : /^\d+$/.test(lower)
-              ? 'out_of_range_digit'
-              : 'other'
-          engineLog('warn', 'stream.preamble_malformed', 'risk preamble had unexpected contents; stripping and failing open', {
-            extra: { category, length: captured.length },
-          })
-        }
-        fireRisk(risk)
+        const risk = parseRiskPayload(match[1])
+        if (risk === null) logMalformed(match[1])
+        fireRisk(risk ?? 0)
         if (controller.signal.aborted) return
         const remainder = preambleBuffer.slice(match[0].length)
         preambleBuffer = ''
-        if (remainder) {
-          fullText += remainder
-          callbacks.onToken(remainder)
-        }
+        if (remainder) forward(remainder)
         return
       }
       if (preambleBuffer.length > PREAMBLE_FAIL_OPEN_CHARS) {
-        fireRisk(0)
-        if (controller.signal.aborted) return
-        fullText += preambleBuffer
-        callbacks.onToken(preambleBuffer)
-        preambleBuffer = ''
+        flushPreamble()
       }
     }
 
@@ -255,12 +307,7 @@ export async function streamChatCompletion(
     }
 
     // Fail-open if preamble never matched and we ended below the threshold.
-    fireRisk(0)
-    if (preambleBuffer.length > 0 && !controller.signal.aborted) {
-      fullText += preambleBuffer
-      callbacks.onToken(preambleBuffer)
-      preambleBuffer = ''
-    }
+    flushPreamble()
 
     // If loop detected, trim the repeated content
     if (loopDetected && fullText.length > 100) {

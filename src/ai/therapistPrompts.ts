@@ -199,6 +199,12 @@ export interface TherapistPromptOptions {
   // Allow the therapist to suggest tonal shifts via inline [phrase](#switch:target)
   // recommendations. The session UI renders the tappable spans inside SessionMessage.
   allowRecommendations?: boolean
+  // Default true. The text path streams through openrouter.ts, whose parser
+  // strips the `<<RISK:N>>` preamble. The Realtime voice path has no such
+  // parser — it must pass false so the voice model is never instructed to
+  // emit a marker it would speak aloud or leak into transcripts. SAFETY_RULES
+  // are unaffected; only the output-format block is omitted.
+  includeRiskPreamble?: boolean
   // True only on the very first response in a session. Suppresses recommendations on
   // turn 1; do not pivot before establishing connection.
   isFirstTurn?: boolean
@@ -391,8 +397,11 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   parts.push(UNTRUSTED_CONTENT_PREAMBLE.trim())
 
   // Risk preamble goes last so it is freshest in context when generation
-  // starts — the very first tokens the model emits must be <<RISK:N>>.
-  parts.push(RISK_PREAMBLE_INSTRUCTIONS)
+  // starts — the very first tokens the model emits must be the risk marker.
+  // Omitted for transports with no preamble parser (voice).
+  if (options.includeRiskPreamble !== false) {
+    parts.push(RISK_PREAMBLE_INSTRUCTIONS)
+  }
 
   return parts.join('\n\n')
 }

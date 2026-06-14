@@ -35,6 +35,21 @@ describe('buildTherapistSystemPrompt', () => {
     expect(prompt).toContain('SESSION PHASE: deepening')
   })
 
+  it('includes the risk preamble instructions by default', () => {
+    const prompt = buildTherapistSystemPrompt({ phase: 'opening' })
+    expect(prompt).toContain('<<RISK:0>>')
+  })
+
+  it('omits the risk preamble instructions when includeRiskPreamble is false (voice path)', () => {
+    // The Realtime voice path has no streaming parser to strip the marker —
+    // instructing the voice model to emit it risks the marker being spoken
+    // aloud or leaking into persisted transcripts.
+    const prompt = buildTherapistSystemPrompt({ phase: 'opening', includeRiskPreamble: false })
+    expect(prompt).not.toContain('<<RISK')
+    // Safety rules must survive the omission — only the output-format block goes.
+    expect(prompt).toContain('SAFETY')
+  })
+
   it('includes user profile when provided', () => {
     const profile: UserProfile = {
       id: 'current',

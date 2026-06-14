@@ -98,6 +98,11 @@ export function useSessionVoice({
       isFirstTurn,
       inSessionRelaxBreaks,
       recentRelaxBreaks: context.recentRelaxBreaks,
+      // No streaming parser on the voice path — never instruct the realtime
+      // model to emit the <<RISK:N>> marker (it could be spoken aloud or
+      // persisted into transcripts). Crisis safety on voice rests on
+      // SAFETY_RULES plus the L1 regex over user transcripts.
+      includeRiskPreamble: false,
     })
 
     const preferredVoice = getGlobalConfig()?.voice?.defaultVoice ?? 'marin'

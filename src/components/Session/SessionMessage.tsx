@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import type { SessionMessage as SessionMessageType } from '../../types'
 import { RecommendationSegments } from './RecommendationSegments'
+import { scrubLeakedRiskMarker } from '../../ai/openrouter'
 
 interface Props {
   message: SessionMessageType
@@ -12,6 +13,9 @@ export const SessionMessageBubble = memo(function SessionMessageBubble({
   onRecommendationTap,
 }: Props) {
   const isUser = message.speaker === 'user'
+  // Therapist messages persisted while older parsers were live can carry a
+  // leaked `<<RISK:N>>` preamble — scrub at render so history stays clean.
+  const content = isUser ? message.content : scrubLeakedRiskMarker(message.content)
   const showRecommendations =
     !isUser && typeof message.content === 'string' && onRecommendationTap
 
@@ -45,8 +49,8 @@ export const SessionMessageBubble = memo(function SessionMessageBubble({
           }}
         >
           {showRecommendations
-            ? <RecommendationSegments text={message.content} onTap={onRecommendationTap} />
-            : message.content}
+            ? <RecommendationSegments text={content} onTap={onRecommendationTap} />
+            : content}
         </div>
       </div>
     </>
