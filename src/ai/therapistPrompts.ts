@@ -423,10 +423,21 @@ export function buildTherapistMessages(
     return messages
   }
 
+  // The chat function rejects requests with more than 50 messages
+  // (functions/src/chat.ts MAX_MESSAGES) — an unwindowed history permanently
+  // bricks long sessions. Keep the newest turns; long-term context reaches the
+  // model through the system prompt (summaries, memories, session notes), not
+  // raw history. 48 leaves room for the system message plus the synthetic
+  // closing user turn.
+  const MAX_HISTORY_MESSAGES = 48
+  const windowed = history.length > MAX_HISTORY_MESSAGES
+    ? history.slice(-MAX_HISTORY_MESSAGES)
+    : history
+
   // Build alternating user/assistant messages from history
   // Timestamps on user messages only — adding them to assistant messages
   // causes the LLM to mirror the pattern in its own responses
-  for (const msg of history) {
+  for (const msg of windowed) {
     if (msg.speaker === 'user') {
       const time = formatTime(msg.timestamp)
       messages.push({ role: 'user', content: `[${time}] ${msg.content}` })

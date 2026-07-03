@@ -302,6 +302,23 @@ describe('buildTherapistMessages', () => {
     expect(result[4].role).toBe('user')
   })
 
+  it('windows long history to stay under the server message cap', () => {
+    const history: SessionMessage[] = Array.from({ length: 121 }, (_, i) =>
+      makeMessage({
+        id: String(i),
+        speaker: i % 2 === 0 ? 'user' : 'therapist',
+        content: `message ${i}`,
+      }),
+    )
+    const result = buildTherapistMessages(history, { phase: 'deepening' })
+    // Server rejects requests with more than 50 messages (functions/src/chat.ts MAX_MESSAGES)
+    expect(result.length).toBeLessThanOrEqual(50)
+    expect(result[0].role).toBe('system')
+    // Newest turn survives; the oldest turns are the ones dropped
+    expect(result[result.length - 1].content).toContain('message 120')
+    expect(result.some(m => m.content.includes('message 0 '))).toBe(false)
+  })
+
   it('appends synthetic user message when history ends with therapist', () => {
     const history: SessionMessage[] = [
       makeMessage({ id: '1', speaker: 'user', content: 'Hello' }),
