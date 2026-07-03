@@ -215,20 +215,43 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     hrv: biometricSource,
   })
 
+  // Synchronous re-entry lock: `isStreaming` is stale render state and stays
+  // false through the whole awaited append (a full server round-trip), so a
+  // second Enter in that window duplicated the user message and launched two
+  // concurrent streams into the shared typewriter.
+  const sendInFlightRef = useRef(false)
+
   const handleSend = useCallback(async (editorInstance?: ReturnType<typeof useEditor>) => {
     const ed = editorInstance
     const trimmed = ed?.getText().trim() ?? ''
     if (!trimmed || isStreaming || !sessionRef.current || sessionRef.current.status === 'closed') return
+    if (sendInFlightRef.current) return
+    sendInFlightRef.current = true
 
-    const result = await appendUserMessage(trimmed, 'text')
-    if (!result) return
+    // Clear immediately so the same draft can't be re-read mid-append;
+    // restored below if the write fails so the words are never lost.
+    ed?.commands?.clearContent()
+    try {
+      let result: Awaited<ReturnType<typeof appendUserMessage>> | null = null
+      try {
+        result = await appendUserMessage(trimmed, 'text')
+      } catch (error) {
+        console.error('Failed to append user message:', error)
+      }
+      if (!result) {
+        ed?.commands?.setContent(trimmed)
+        return
+      }
 
-    const currentSession = sessionRef.current!
-    await generateTherapistMessage(result.updatedMessages, {
-      ...currentSession,
-      messageCount: result.updatedMessages.length,
-      firstLine: result.firstLine,
-    })
+      const currentSession = sessionRef.current!
+      await generateTherapistMessage(result.updatedMessages, {
+        ...currentSession,
+        messageCount: result.updatedMessages.length,
+        firstLine: result.firstLine,
+      })
+    } finally {
+      sendInFlightRef.current = false
+    }
   }, [isStreaming, generateTherapistMessage, appendUserMessage])
 
   const handleEndSession = useCallback(async () => {
