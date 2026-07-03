@@ -55,6 +55,33 @@ describe('settings', () => {
     expect(parsed.responseSpeed).toBe(1.7)
   })
 
+  it('persists ONLY overrides, not baked-in defaults like language (C-5)', () => {
+    storage.clear()
+    updateSettings({ responseSpeed: 1.9 })
+    const parsed = JSON.parse(storage.get('undersurface:settings')!)
+    // The changed key is stored…
+    expect(parsed.responseSpeed).toBe(1.9)
+    // …but unchanged browser-detected/default keys are NOT baked in, so later
+    // admin/language changes can still reach the device.
+    expect('language' in parsed).toBe(false)
+    expect('autocorrect' in parsed).toBe(false)
+  })
+
+  it('un-bakes an existing frozen full-object localStorage on the next save (C-5)', () => {
+    // Simulate an existing user whose localStorage has the whole merged object.
+    const detected = getSettings().language
+    storage.set('undersurface:settings', JSON.stringify({
+      responseSpeed: 1.0, autocorrect: true, language: detected, theme: 'dark',
+    }))
+    // Reset the in-memory cache so the store re-reads the seeded localStorage.
+    updateSettings({ theme: 'light' })
+    const parsed = JSON.parse(storage.get('undersurface:settings')!)
+    // Only the genuinely-diverging key survives; the default-valued keys drop.
+    expect(parsed.theme).toBe('light')
+    expect('language' in parsed).toBe(false)
+    expect('autocorrect' in parsed).toBe(false)
+  })
+
   it('defaults timezone to the device zone, not a hardcoded one', () => {
     // The timezone defines "today's session" boundaries — a hardcoded ET
     // default split non-US users' sessions mid-afternoon.

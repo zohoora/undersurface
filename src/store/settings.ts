@@ -113,9 +113,27 @@ export function invalidateSettingsCache() {
 }
 
 export function updateSettings(partial: Partial<AppSettings>) {
-  const next = { ...load(), ...partial }
-  cache = next
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+  // Persist ONLY keys that differ from the effective defaults (DEFAULTS +
+  // admin globalDefaults), NOT the full merged object. Persisting the merge
+  // baked admin config and the browser-detected language into localStorage as
+  // if the user had chosen them, so later admin changes and re-detected
+  // language could never reach the device (C-5). Diffing also un-bakes values
+  // already frozen in existing users' localStorage on their next save.
+  let storedLocal: Record<string, unknown> = {}
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (raw) storedLocal = JSON.parse(raw)
+  } catch { storedLocal = {} }
+
+  const merged = { ...storedLocal, ...partial } as Record<string, unknown>
+  const baseline = { ...DEFAULTS, ...getGlobalDefaults() } as Record<string, unknown>
+  const sparse: Record<string, unknown> = {}
+  for (const key of Object.keys(merged)) {
+    if (merged[key] !== baseline[key]) sparse[key] = merged[key]
+  }
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(sparse))
+  cache = null // force a re-merge (DEFAULTS + globalDefaults + sparse) on next load
   if ('language' in partial) {
     import('../i18n/index').then((m) => m.invalidateTranslationCache()).catch(() => {})
   }
