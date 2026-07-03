@@ -59,6 +59,11 @@
 - [ ] Run the offline test suite; run the live eval (`npm run test:crisis`) if credentials allow; record results in the plan file.
 - [ ] Commit `test(safety): multilingual crisis eval set + prompt-injection red team`
 
-### Verification gate + Deploy #2
+### Verification gate + Deploy #2 — status
 
-- [ ] Full gate (tsc ×2, tests ×2, lint, build) → commit → push → `firebase deploy --only hosting` (client-only stage) → smoke test → Chrome live-check of a normal session send.
+- Task 1 (voice grounding), Task 2 (L2 backstop), Task 3 (L1 calibration), Task 4 (eval + red team) all committed.
+- Eval set: 52 → 97 cases across 16 languages (was 5). Red-team injection test added covering every context block.
+- Preamble pure-absence diagnostic deferred to Stage 3 (needs the C5 opt-in flag to know a preamble was expected, else false positives on diary callers).
+- Live crisis eval (`RUN_CRISIS_EVAL=1 npm run test:crisis`) hits the real API + needs auth — run manually before relying on the new multilingual thresholds; not a headless CI gate.
+- [x] Full gate: tsc ×2 clean, 1123 frontend + 65 functions tests green, lint clean.
+- [ ] Deploy #2 (hosting) + smoke + Chrome check — batched with Stage 3 (both client-only) to reduce deploy churn, OR deploy now.
