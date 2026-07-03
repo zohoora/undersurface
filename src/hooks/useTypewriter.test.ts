@@ -161,6 +161,49 @@ describe('useTypewriter — reset', () => {
   })
 })
 
+describe('useTypewriter — cleanup flush', () => {
+  it('flushes a pending onComplete with the full buffer when cleanup(true) runs mid-reveal', async () => {
+    // A2: the stream already completed (onComplete set) but the reveal is still
+    // animating. Navigating away must persist the received message, not drop it.
+    lockRandom(0)
+    const { result } = renderHook(() => useTypewriter())
+    const onDone = vi.fn()
+
+    await act(async () => {
+      result.current.appendToken('the whole received response')
+      result.current.setOnComplete(onDone)
+      // Do NOT drain — reveal is mid-flight, onComplete is pending.
+      result.current.cleanup(true)
+    })
+
+    expect(onDone).toHaveBeenCalledOnce()
+    expect(onDone).toHaveBeenCalledWith('the whole received response')
+  })
+
+  it('does NOT flush when the stream has not completed (no onComplete pending)', async () => {
+    lockRandom(0)
+    const { result } = renderHook(() => useTypewriter())
+    await act(async () => {
+      result.current.appendToken('still streaming, no complete yet')
+      result.current.cleanup(true)
+    })
+    // Nothing to assert beyond no throw — there is no pending callback to fire.
+    expect(result.current.displayedContent.length).toBeGreaterThanOrEqual(0)
+  })
+
+  it('does NOT flush on a plain cleanup() (back-compat)', async () => {
+    lockRandom(0)
+    const { result } = renderHook(() => useTypewriter())
+    const onDone = vi.fn()
+    await act(async () => {
+      result.current.appendToken('xxxxxxxxxxxxxxxxxxxxxxxxxx')
+      result.current.setOnComplete(onDone)
+      result.current.cleanup()
+    })
+    expect(onDone).not.toHaveBeenCalled()
+  })
+})
+
 describe('useTypewriter — cleanup', () => {
   it('clears the pending timer without resetting displayed state', async () => {
     lockRandom(0)

@@ -171,6 +171,8 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             isEmergence: false,
           }
 
+          // Firestore writes always run — the message belongs to currentSession
+          // and must be persisted even if the user has since switched away.
           await sessionMessagesDb.add(currentSession.id, newMessage)
 
           const updatedMessages = [...currentMessages, newMessage]
@@ -183,15 +185,21 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             phase,
           })
 
-          setSession(prev => prev ? {
-            ...prev,
-            messageCount: newMessageCount,
-            firstLine,
-            phase,
-          } : prev)
-          setMessages(updatedMessages)
-          messagesRef.current = updatedMessages
-          setIsStreaming(false)
+          // Guard React-state writes against a mid-reveal session switch: if the
+          // active session is no longer the one this message belongs to, applying
+          // its messages/count/streaming state would corrupt the other session's
+          // view (the cross-session bleed). The message is already persisted above.
+          if (sessionRef.current?.id === currentSession.id) {
+            setSession(prev => prev ? {
+              ...prev,
+              messageCount: newMessageCount,
+              firstLine,
+              phase,
+            } : prev)
+            setMessages(updatedMessages)
+            messagesRef.current = updatedMessages
+            setIsStreaming(false)
+          }
           typewriter.reset()
           resolveMessages(updatedMessages)
         }
@@ -270,7 +278,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     setIsStreaming(false)
     return currentMessages
   }, [
-    contextRef, messagesRef, orchestratorRef,
+    sessionRef, contextRef, messagesRef, orchestratorRef,
     setSession, setMessages, setIsStreaming, setOpenerError,
     hrv, typewriter, settings.responseSpeed, tr,
   ])

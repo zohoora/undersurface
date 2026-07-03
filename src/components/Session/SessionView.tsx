@@ -134,7 +134,13 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     init()
     return () => {
       cancelled = true
-      typewriter.cleanup()
+      // Flush: if a therapist response finished streaming but is still
+      // revealing when the session switches, persist it (finalizeMessage guards
+      // its own state writes) rather than dropping the paid message.
+      typewriter.cleanup(true)
+      // Reset shared streaming state so the next session doesn't inherit a
+      // stuck "streaming" bubble (SessionView is one instance across sessions).
+      setIsStreaming(false)
       hrv.cleanupEngine()
       polar.cleanupEngine()
     }

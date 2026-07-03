@@ -64,10 +64,20 @@ export function useTypewriter() {
     setDisplayedContent('')
   }, [])
 
-  const cleanup = useCallback(() => {
+  // `flush`: when the stream has already completed (onComplete is pending) but
+  // the reveal is still animating, invoke the completion with the full received
+  // buffer before tearing down — otherwise a session switch / unmount during
+  // the reveal window drops a fully-received (paid) message and strands the
+  // streaming state. No-op flush when nothing completed (still mid-stream).
+  const cleanup = useCallback((flush = false) => {
     if (typingTimerRef.current) {
       clearTimeout(typingTimerRef.current)
       typingTimerRef.current = null
+    }
+    if (flush && onStreamCompleteRef.current) {
+      const cb = onStreamCompleteRef.current
+      onStreamCompleteRef.current = null
+      cb(streamBufferRef.current)
     }
   }, [])
 
