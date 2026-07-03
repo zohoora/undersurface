@@ -192,6 +192,8 @@ const th = {
 
   'echo.label': 'อดีต',
 
+
+  'common.dismiss': 'ปิด',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'จังหวะสองข้าง',
 

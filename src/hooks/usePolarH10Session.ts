@@ -217,6 +217,8 @@ export function usePolarH10Session(sessionIdRef: React.RefObject<string | null>)
     return engine.getBreathingScale()
   }, [])
 
+  const clearError = useCallback(() => setError(null), [])
+
   return {
     enabled,
     latestMeasurement,
@@ -225,6 +227,7 @@ export function usePolarH10Session(sessionIdRef: React.RefObject<string | null>)
     status,
     deviceName,
     error,
+    clearError,
     showConsent,
     setShowConsent,
     toggle,

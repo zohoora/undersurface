@@ -296,6 +296,7 @@ const en = {
 
   // Echo thoughts
   'echo.label': 'The Past',
+  'common.dismiss': 'Dismiss',
 } as const
 
 export type TranslationKey = keyof typeof en

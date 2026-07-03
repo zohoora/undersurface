@@ -192,6 +192,8 @@ const de = {
 
   'echo.label': 'Die Vergangenheit',
 
+
+  'common.dismiss': 'Schließen',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Bilateraler Rhythmus',
 

@@ -190,12 +190,15 @@ export function useHrvSession(sessionIdRef: React.RefObject<string | null>) {
     }
   }, [])
 
+  const clearError = useCallback(() => setError(null), [])
+
   return {
     enabled,
     latestMeasurement,
     measurementCount,
     calibrating,
     error,
+    clearError,
     showConsent,
     setShowConsent,
     toggle,

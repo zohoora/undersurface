@@ -192,6 +192,8 @@ const ko = {
 
   'echo.label': '과거',
 
+
+  'common.dismiss': '닫기',
   // Bilateral stimulation
   'settings.bilateralStimulation': '양측 리듬',
 

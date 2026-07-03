@@ -192,6 +192,8 @@ const id = {
 
   'echo.label': 'Masa Lalu',
 
+
+  'common.dismiss': 'Tutup',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Irama bilateral',
 

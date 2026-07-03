@@ -192,6 +192,8 @@ const hi = {
 
   'echo.label': 'अतीत',
 
+
+  'common.dismiss': 'खारिज करें',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'द्विपक्षीय लय',
 

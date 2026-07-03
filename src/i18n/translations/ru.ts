@@ -192,6 +192,8 @@ const ru = {
 
   'echo.label': 'Прошлое',
 
+
+  'common.dismiss': 'Закрыть',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Билатеральный ритм',
 

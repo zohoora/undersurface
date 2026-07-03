@@ -192,6 +192,8 @@ const nl = {
 
   'echo.label': 'Het Verleden',
 
+
+  'common.dismiss': 'Sluiten',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Bilateraal ritme',
 

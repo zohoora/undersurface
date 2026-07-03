@@ -192,6 +192,8 @@ const it = {
 
   'echo.label': 'Il Passato',
 
+
+  'common.dismiss': 'Ignora',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Ritmo bilaterale',
 

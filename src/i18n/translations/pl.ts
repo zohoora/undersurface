@@ -192,6 +192,8 @@ const pl = {
 
   'echo.label': 'Przeszłość',
 
+
+  'common.dismiss': 'Zamknij',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Rytm bilateralny',
 

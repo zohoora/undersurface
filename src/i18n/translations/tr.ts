@@ -192,6 +192,8 @@ const tr = {
 
   'echo.label': 'Geçmiş',
 
+
+  'common.dismiss': 'Kapat',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'İki taraflı ritim',
 

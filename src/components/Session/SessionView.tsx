@@ -65,6 +65,11 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
   const activeBio = polar.enabled ? polar : hrv.enabled ? hrv : null
   const biometricsEnabled = polar.enabled || hrv.enabled
+  // A source can fail while starting (camera denied, BT connect failed) so it
+  // never flips `enabled` — then activeBio is null and its error would never
+  // render. Surface that startup error on its own so the user isn't left
+  // wondering why nothing happened after they clicked connect.
+  const biometricStartupError = !activeBio ? (polar.error ?? hrv.error ?? null) : null
 
   const orchestratorRef = useRef(new SessionOrchestrator())
   const contextRef = useRef<TherapistContext | null>(null)
@@ -535,6 +540,52 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
             }}
           >
             Stop
+          </button>
+        </div>
+      </div>
+    )}
+    {biometricStartupError && (
+      <div
+        role="alert"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 50,
+          padding: 'calc(6px + env(safe-area-inset-top, 0px)) 12px 6px',
+          background: 'var(--bg-primary, #1a1a1a)',
+          borderBottom: '1px solid rgba(178,93,93,0.4)',
+        }}
+      >
+        <div style={{
+          maxWidth: 640,
+          margin: '0 auto',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 11,
+          color: 'var(--text-secondary)',
+        }}>
+          <span aria-hidden="true">⚠</span>
+          <span style={{ flex: 1 }}>{biometricStartupError}</span>
+          <button
+            onClick={() => { polar.clearError(); hrv.clearError() }}
+            aria-label={tr['common.dismiss']}
+            style={{
+              padding: '2px 8px',
+              borderRadius: 6,
+              border: '1px solid var(--border-subtle)',
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+              fontSize: 14,
+              lineHeight: 1,
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            ×
           </button>
         </div>
       </div>

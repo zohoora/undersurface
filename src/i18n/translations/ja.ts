@@ -192,6 +192,8 @@ const ja = {
 
   'echo.label': '過去',
 
+
+  'common.dismiss': '閉じる',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'バイラテラル・リズム',
 

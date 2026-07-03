@@ -192,6 +192,8 @@ const zh = {
 
   'echo.label': '过去',
 
+
+  'common.dismiss': '关闭',
   // Bilateral stimulation
   'settings.bilateralStimulation': '双侧节奏',
 

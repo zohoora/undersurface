@@ -192,6 +192,8 @@ const vi = {
 
   'echo.label': 'Quá Khứ',
 
+
+  'common.dismiss': 'Bỏ qua',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Nhịp hai bên',
 
