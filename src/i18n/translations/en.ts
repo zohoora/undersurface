@@ -95,9 +95,9 @@ const en = {
   'session.bottomBar.relax': 'Relax',
   'session.bottomBar.realTalk': 'Real Talk',
   'session.bottomBar.parts': 'Inner voices',
-  'session.journal.presence': 'Therapist is listening',
-  'session.journal.placeholder': 'Write privately. The therapist is here, quiet, while you find what wants to be said.',
-  'session.error.therapistUnreachable': 'The therapist couldn\'t be reached.',
+  'session.journal.presence': 'Your companion is listening',
+  'session.journal.placeholder': 'Write privately. Your companion is here, quiet, while you find what wants to be said.',
+  'session.error.therapistUnreachable': 'Your companion couldn\'t be reached.',
   'session.error.retry': 'Retry',
 
   // Relax mode (4th session surface)
