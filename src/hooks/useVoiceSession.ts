@@ -70,6 +70,11 @@ export function useVoiceSession() {
   const userRatesRef = useRef<number[]>([])
   const currentSpeedRef = useRef<number>(BASE_SPEED)
   const handleServerEventRef = useRef<(event: Record<string, unknown>) => void>(() => {})
+  // Monotonic epoch. start() claims one at entry and checks it after every
+  // await; teardown() bumps it so a stop()/unmount during the connect handshake
+  // aborts the in-flight start before it establishes a live mic + peer
+  // connection + billed realtime session with no owning UI.
+  const startEpochRef = useRef(0)
 
   function computeTargetSpeed(): number {
     const rates = userRatesRef.current
@@ -95,6 +100,8 @@ export function useVoiceSession() {
   }
 
   const teardown = useCallback(() => {
+    // Invalidate any in-flight start(): it will bail at its next await-check.
+    startEpochRef.current++
     try { dcRef.current?.close() } catch { /* noop */ }
     dcRef.current = null
 
@@ -138,6 +145,10 @@ export function useVoiceSession() {
 
   const start = useCallback(async (options: VoiceSessionOptions) => {
     if (state === 'connecting' || state === 'connected') return
+    // Claim this start. If teardown() bumps the epoch (stop/unmount) while we
+    // await below, `cancelled()` becomes true and we release and bail.
+    const myEpoch = ++startEpochRef.current
+    const cancelled = () => startEpochRef.current !== myEpoch
     optsRef.current = options
     setState('connecting')
     setError(null)
@@ -147,6 +158,7 @@ export function useVoiceSession() {
         instructions: options.instructions,
         voice: options.voice,
       })
+      if (cancelled()) { teardown(); return }
 
       const passive = options.passive === true
 
@@ -162,6 +174,8 @@ export function useVoiceSession() {
           },
         })
         localStreamRef.current = localStream
+        // The mic just went hot — if we were cancelled mid-prompt, stop it now.
+        if (cancelled()) { teardown(); return }
       }
 
       const pc = new RTCPeerConnection()
@@ -231,7 +245,9 @@ export function useVoiceSession() {
       }
 
       const offer = await pc.createOffer()
+      if (cancelled()) { teardown(); return }
       await pc.setLocalDescription(offer)
+      if (cancelled()) { teardown(); return }
 
       const sdpResponse = await fetch(
         `https://api.openai.com/v1/realtime/calls?model=${encodeURIComponent(token.model)}`,
@@ -251,7 +267,9 @@ export function useVoiceSession() {
       }
 
       const answerSdp = await sdpResponse.text()
+      if (cancelled()) { teardown(); return }
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
+      if (cancelled()) { teardown(); return }
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to start voice session'
       console.error('[useVoiceSession] start failed', e)
