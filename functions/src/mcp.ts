@@ -99,7 +99,9 @@ export const mcpApi = onRequest(
       'List diary entries with optional filtering',
       {
         limit: z.number().int().min(1).max(100).default(20),
-        offset: z.number().int().min(0).default(0),
+        // Capped: Firestore bills every skipped doc on .offset(), so an
+        // unbounded offset (e.g. 5_000_000) is a 5M-read invoice per call.
+        offset: z.number().int().min(0).max(1000).default(0),
         since: z.string().optional(),
       },
       async (args) => {
@@ -235,8 +237,11 @@ export const mcpApi = onRequest(
         }
 
         const data = sessionSnap.data()!
+        // Bounded: a runaway session shouldn't read an unbounded subcollection.
+        // 500 is far beyond any real conversation (chat caps at 50 in-context).
         const messagesSnap = await sessionRef.collection('messages')
           .orderBy('timestamp', 'asc')
+          .limit(500)
           .get()
 
         const messages = messagesSnap.docs.map((d) => {
