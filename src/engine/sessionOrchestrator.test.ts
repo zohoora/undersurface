@@ -152,10 +152,6 @@ describe('SessionOrchestrator', () => {
       expect(orch.checkCrisisKeywords('I want to kill myself')).toBe(true)
     })
 
-    it('detects "rest forever" and "be with Jesus"', () => {
-      expect(orch.checkCrisisKeywords('My body wants to rest forever. To be with Jesus.')).toBe(true)
-    })
-
     it('detects "end my life"', () => {
       expect(orch.checkCrisisKeywords('I should end my life')).toBe(true)
     })
@@ -176,6 +172,28 @@ describe('SessionOrchestrator', () => {
 
     it('does not flag normal rest', () => {
       expect(orch.checkCrisisKeywords('I need to rest')).toBe(false)
+    })
+
+    // Precision calibration: L1 is the high-precision EXPLICIT floor. Ambiguous
+    // euphemisms that over-call on grief/hyperbole are deferred to the
+    // context-aware L2 classifier (which now runs in session mode too). History
+    // of over-calling grief/metaphor/hyperbole — see project memory.
+    it('does NOT flag religious grief idiom (deferred to L2)', () => {
+      mockActivateGrounding.mockClear()
+      expect(orch.checkCrisisKeywords('She passed last year. She is with Jesus now, at peace.')).toBe(false)
+      expect(orch.checkCrisisKeywords('May she rest forever in the garden she loved.')).toBe(false)
+      expect(mockActivateGrounding).not.toHaveBeenCalled()
+    })
+
+    it('does NOT flag mundane "can\'t do this anymore" hyperbole (deferred to L2)', () => {
+      mockActivateGrounding.mockClear()
+      expect(orch.checkCrisisKeywords("I can't do this job anymore, I need to quit.")).toBe(false)
+      expect(orch.checkCrisisKeywords("Ugh, I can't do this diet anymore.")).toBe(false)
+      expect(mockActivateGrounding).not.toHaveBeenCalled()
+    })
+
+    it('still fires on explicit ideation embedded in longer text', () => {
+      expect(orch.checkCrisisKeywords("I keep thinking I want to die and I don't know what to do")).toBe(true)
     })
 
     it('has no cooldown — always runs', () => {

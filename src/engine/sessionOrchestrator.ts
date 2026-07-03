@@ -18,8 +18,11 @@ const CRISIS_PATTERNS = [
   /\bno\s+reason\s+to\s+(live|go\s+on|keep\s+going)\b/i,
   /\bshould\s+I?\s*(just\s+)?die\b/i,
   /\bI\s+should\s+die\b/i,
-  /\brest\s+forever\b/i,
-  /\bwith\s+jesus\b/i,
+  // NOTE: "rest forever" and "with jesus" were removed here. Context-free, they
+  // over-call on grief and religious idiom ("she is with jesus now", "may she
+  // rest forever"). Euphemistic ideation is exactly what the context-aware L2
+  // classifier judges — and L2 now runs in session mode, so L1 stays the
+  // high-precision EXPLICIT floor and defers ambiguous phrases to L2.
   /\bjump\s+off\b/i,
   /\bcut\s+(myself|my\s+wrists?)\b/i,
   /\btake\s+(all\s+)?(the\s+)?pills\b/i,
