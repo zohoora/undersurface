@@ -23,6 +23,32 @@ const GENERATION_COST_CENTS = 5
 // no-op writes per minute.
 const ACCESS_TOUCH_THROTTLE_MS = 60 * 1000
 
+// Generation-claim dedup: a 'generating' sidecar claim older than this is
+// treated as orphaned (the generating request died) and may be re-claimed.
+const GENERATION_CLAIM_STALE_MS = 30_000
+const POLL_INTERVAL_MS = 500
+const POLL_MAX_ATTEMPTS = 40 // ~20s ceiling; generation is normally a few seconds
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+// A sidecar represents a usable cache entry only when it exists and is not a
+// pending generation claim. Legacy docs (written before status existed) have no
+// status and are treated as ready.
+export function isSidecarReady(fields: { exists: boolean; status?: string }): boolean {
+  return fields.exists && fields.status !== 'generating'
+}
+
+// Decide, inside the claim transaction, whether THIS request should generate.
+// Generate when there's no doc, or when a 'generating' claim has gone stale.
+export function shouldClaimGeneration(
+  fields: { exists: boolean; status?: string; claimedAt?: number },
+  now: number,
+): boolean {
+  if (!fields.exists) return true
+  if (fields.status !== 'generating') return false // already ready
+  return now - (fields.claimedAt ?? 0) >= GENERATION_CLAIM_STALE_MS
+}
+
 function storagePath(hash: string): string {
   return `soundscapes/${hash}.mp3`
 }
@@ -42,6 +68,7 @@ interface SidecarDoc {
   hitCount: number
   generationCostCents: number
   sourceProvider: string
+  status?: 'generating' | 'ready'
 }
 
 export async function getOrCreateSoundscape(opts: {
@@ -63,9 +90,12 @@ export async function getOrCreateSoundscape(opts: {
     return { url, expiresAt }
   }
 
+  const db = getFirestore()
   const sidecarSnap = opts.sidecarSnap ?? await sidecarRef.get()
+  const readyFrom = (snap: DocumentSnapshot) =>
+    isSidecarReady({ exists: snap.exists, status: snap.get('status') as string | undefined })
 
-  if (sidecarSnap.exists) {
+  if (readyFrom(sidecarSnap)) {
     // Trust the sidecar — skip file.exists(). If the file is missing
     // (rare drift), the signed URL will 404 on fetch and the next
     // request can self-heal. The savings on every other hit are worth
@@ -87,7 +117,37 @@ export async function getOrCreateSoundscape(opts: {
     return { url, cached: true, hash, expiresAt }
   }
 
-  // Cache miss: generate, then upload + write sidecar concurrently.
+  // Cache miss. Atomically claim generation so two concurrent misses for the
+  // same prompt don't both bill ElevenLabs (D5). Whoever wins the claim
+  // generates; the loser waits for the winner's result instead.
+  const claimAt = Date.now()
+  const won = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(sidecarRef)
+    const claim = shouldClaimGeneration(
+      { exists: snap.exists, status: snap.get('status') as string | undefined, claimedAt: snap.get('claimedAt') as number | undefined },
+      claimAt,
+    )
+    if (!claim) return false
+    tx.set(sidecarRef, { hash, prompt, status: 'generating', claimedAt: claimAt }, { merge: true })
+    return true
+  })
+
+  if (!won) {
+    // Another request is generating. Poll for its result rather than paying for
+    // a duplicate clip. Fall through to generate only if the claim goes stale.
+    for (let i = 0; i < POLL_MAX_ATTEMPTS; i++) {
+      await sleep(POLL_INTERVAL_MS)
+      const snap = await sidecarRef.get()
+      if (readyFrom(snap)) {
+        const { url, expiresAt } = await mintUrl()
+        return { url, cached: true, hash, expiresAt }
+      }
+      const claimedAt = (snap.get('claimedAt') as number | undefined) ?? 0
+      if (snap.get('status') === 'generating' && Date.now() - claimedAt >= GENERATION_CLAIM_STALE_MS) break
+    }
+    // Timed out or the winning claim went stale — generate as a fallback.
+  }
+
   const audio = await provider.generate(prompt)
   const sidecar: SidecarDoc = {
     hash,
@@ -97,18 +157,19 @@ export async function getOrCreateSoundscape(opts: {
     hitCount: 1,
     generationCostCents: GENERATION_COST_CENTS,
     sourceProvider: 'elevenlabs_sfx_v2',
+    status: 'ready',
   }
-  await Promise.all([
-    file.save(audio.bytes, {
-      metadata: {
-        contentType: audio.mime,
-        cacheControl: CACHE_CONTROL,
-        customTime: new Date().toISOString(),
-      },
-      resumable: false,
-    }),
-    sidecarRef.set(sidecar),
-  ])
+  // Save the file BEFORE marking the sidecar ready, so a polling loser never
+  // mints a signed URL for a not-yet-uploaded file.
+  await file.save(audio.bytes, {
+    metadata: {
+      contentType: audio.mime,
+      cacheControl: CACHE_CONTROL,
+      customTime: new Date().toISOString(),
+    },
+    resumable: false,
+  })
+  await sidecarRef.set(sidecar)
   const { url, expiresAt } = await mintUrl()
   return { url, cached: false, hash, expiresAt }
 }
