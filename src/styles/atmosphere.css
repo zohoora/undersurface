@@ -1388,6 +1388,12 @@ body {
 
 /* ── Mobile Responsiveness ─────────────────────────────── */
 
+/* Session back button: `left` lives here (not inline) so the mobile media
+   query below can shift it clear of the hamburger. */
+.session-back-btn {
+  left: 12px;
+}
+
 /* Sidebar toggle button (mobile only) */
 .sidebar-toggle {
   display: none;
@@ -1458,6 +1464,18 @@ body {
   .sidebar-toggle:active {
     background: var(--overlay-light);
     color: var(--text-secondary);
+  }
+
+  /* The hamburger owns the top-left corner on mobile; the session back
+     button sits to its right instead of on top of it. */
+  .session-back-btn {
+    left: 60px;
+  }
+
+  /* When the biometrics bar is fixed across the top (z-index 50), drop the
+     hamburger below it so navigation stays reachable. */
+  body.biometrics-active .sidebar-toggle {
+    top: calc(48px + env(safe-area-inset-top, 0px));
   }
 
   /* Sidebar backdrop overlay */

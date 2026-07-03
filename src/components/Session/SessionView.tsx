@@ -418,13 +418,23 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     }
   }, [voice.state, surface])
 
+  // The biometrics bar is fixed full-width at the top (z-index 50) and would
+  // otherwise cover the mobile sidebar hamburger — the app's only navigation.
+  // A body class lets the hamburger's CSS drop below the bar.
+  useEffect(() => {
+    document.body.classList.toggle('biometrics-active', biometricsEnabled)
+    return () => document.body.classList.remove('biometrics-active')
+  }, [biometricsEnabled])
+
   const isClosed = session?.status === 'closed'
   const canEnd = !isStreaming && messages.length >= 2 && !isClosed
 
+  // `left` intentionally lives in CSS (.session-back-btn) so a media query can
+  // shift the button clear of the mobile sidebar hamburger, which occupies the
+  // same top-left corner.
   const backButtonStyle = useMemo<React.CSSProperties>(() => ({
     position: 'fixed',
     top: `calc(${biometricsEnabled ? '48px' : '12px'} + env(safe-area-inset-top, 0px))`,
-    left: 12,
     zIndex: 40,
     width: 36,
     height: 36,
@@ -488,7 +498,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     )}
     <div className="session-container">
       {onBack && (
-        <button onClick={onBack} style={backButtonStyle} aria-label="Back">
+        <button onClick={onBack} className="session-back-btn" style={backButtonStyle} aria-label="Back">
           ←
         </button>
       )}
