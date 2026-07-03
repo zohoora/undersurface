@@ -55,24 +55,21 @@ export class EchoEngine {
 
       if (!bestSummary || bestScore === 0) return null
 
-      // Load the full entry
-      const entry = await db.entries.get(bestSummary.entryId) as {
-        id: string
-        plainText: string
-        createdAt: number
-      } | undefined
-
-      if (!entry || !entry.plainText) return null
-
-      const fragment = this.extractFragment(entry.plainText)
+      // Source the fragment from the summary's own keyMoments. Summaries store
+      // the SESSION id in entryId, and the diary `entries` collection is no
+      // longer written to — the previous `db.entries.get(entryId)` was always
+      // undefined, which is why echoes were silently dead. keyMoments are the
+      // LLM-distilled emotional highlights of that past session, so they make a
+      // more resonant echo than raw text would, with no extra read.
+      const fragment = this.pickFragment(bestSummary.keyMoments)
       if (!fragment) return null
 
       this.echoesThisSession++
 
       return {
         text: fragment,
-        entryId: entry.id,
-        date: entry.createdAt,
+        entryId: bestSummary.entryId,
+        date: bestSummary.timestamp,
       }
     } catch (error) {
       console.error('EchoEngine error:', error)
@@ -80,19 +77,13 @@ export class EchoEngine {
     }
   }
 
-  private extractFragment(text: string): string | null {
-    const sentences = text.match(/[^.!?]+[.!?]+/g)
-    if (!sentences || sentences.length === 0) return null
-
-    // Pick 1-2 sentences from the text — prefer emotionally rich areas (middle-to-end)
-    const startIndex = Math.min(
-      Math.floor(sentences.length * 0.4),
-      sentences.length - 1,
-    )
-    const fragment = sentences.slice(startIndex, startIndex + 2).join(' ').trim()
-
-    if (fragment.length < 20 || fragment.length > 300) return null
-
-    return fragment
+  // Choose the richest keyMoment within display bounds: prefer the longest that
+  // fits, so a one-word moment doesn't win over a full resonant sentence.
+  private pickFragment(keyMoments: string[]): string | null {
+    const candidates = keyMoments
+      .map((m) => m.trim())
+      .filter((m) => m.length >= 20 && m.length <= 300)
+    if (candidates.length === 0) return null
+    return candidates.reduce((longest, m) => (m.length > longest.length ? m : longest))
   }
 }

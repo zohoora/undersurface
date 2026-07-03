@@ -7,7 +7,6 @@ vi.mock('../store/globalConfig', () => ({
 }))
 
 let fakeSummaries: EntrySummary[] = []
-let fakeEntries: Record<string, { id: string, plainText: string, createdAt: number }> = {}
 
 vi.mock('../store/db', () => ({
   db: {
@@ -18,9 +17,6 @@ vi.mock('../store/db', () => ({
         }),
       }),
     },
-    entries: {
-      get: async (id: string) => fakeEntries[id],
-    },
   },
 }))
 
@@ -29,27 +25,20 @@ const { EchoEngine } = await import('./echoEngine')
 const NOW = Date.parse('2026-05-12T12:00:00Z')
 const ONE_DAY = 24 * 60 * 60 * 1000
 
+// A keyMoment long enough to pass the 20–300 char fragment bounds and carrying
+// the overlap words the relevance scorer keys on.
+const GARDEN_MOMENT = 'I walked through the garden and the roses were blooming in the soft afternoon light.'
+
 function makeSummary(over: Partial<EntrySummary> = {}): EntrySummary {
   return {
     id: 's',
     entryId: 'e',
     themes: ['theme-a'],
     emotionalArc: 'arc',
-    keyMoments: ['moment'],
+    keyMoments: [GARDEN_MOMENT],
     timestamp: NOW - 30 * ONE_DAY,
     ...over,
   } as EntrySummary
-}
-
-/** Build a multi-sentence string that, when extractFragment runs, will yield a fragment between 20 and 300 chars. */
-function richEntryText(): string {
-  return [
-    'I walked through the garden today.',
-    'The roses were beginning to bloom in shades I had not seen before.',
-    'It reminded me of something I had almost forgotten.',
-    'A memory from years ago, sharp and slow at once.',
-    'I sat on the bench and let the time pass.',
-  ].join(' ')
 }
 
 beforeEach(() => {
@@ -60,7 +49,6 @@ beforeEach(() => {
     engagement: { echoChance: 1.0, echoMaxAge: 90, echoMaxPerSession: 3 },
   })
   fakeSummaries = []
-  fakeEntries = {}
 })
 
 afterEach(() => {
@@ -85,16 +73,11 @@ describe('EchoEngine.findEcho — gating', () => {
       features: { echoes: true },
       engagement: { echoChance: 1.0, echoMaxAge: 90, echoMaxPerSession: 1 },
     })
-    fakeSummaries = [
-      makeSummary({ entryId: 'e1', themes: ['garden'] }),
-    ]
-    fakeEntries['e1'] = { id: 'e1', plainText: richEntryText(), createdAt: NOW - 30 * ONE_DAY }
+    fakeSummaries = [makeSummary({ entryId: 'e1', themes: ['garden'] })]
 
     const engine = new EchoEngine()
-    // First call should succeed and increment counter
     const first = await engine.findEcho('the garden bloomed today')
     expect(first).not.toBeNull()
-    // Second call hits the cap
     const second = await engine.findEcho('the garden bloomed today')
     expect(second).toBeNull()
   })
@@ -106,7 +89,6 @@ describe('EchoEngine.findEcho — gating', () => {
     })
     const spy = vi.spyOn(Math, 'random').mockReturnValue(0.5)
     fakeSummaries = [makeSummary({ themes: ['garden'] })]
-    fakeEntries['e'] = { id: 'e', plainText: richEntryText(), createdAt: NOW - 30 * ONE_DAY }
 
     const result = await new EchoEngine().findEcho('garden today')
     expect(result).toBeNull()
@@ -119,8 +101,6 @@ describe('EchoEngine.findEcho — age window', () => {
     fakeSummaries = [
       makeSummary({ entryId: 'recent', themes: ['garden'], timestamp: NOW - 1 * ONE_DAY }),
     ]
-    fakeEntries['recent'] = { id: 'recent', plainText: richEntryText(), createdAt: NOW - 1 * ONE_DAY }
-
     const result = await new EchoEngine().findEcho('garden today')
     expect(result).toBeNull()
   })
@@ -133,8 +113,6 @@ describe('EchoEngine.findEcho — age window', () => {
     fakeSummaries = [
       makeSummary({ entryId: 'ancient', themes: ['garden'], timestamp: NOW - 30 * ONE_DAY }),
     ]
-    fakeEntries['ancient'] = { id: 'ancient', plainText: richEntryText(), createdAt: NOW - 30 * ONE_DAY }
-
     const result = await new EchoEngine().findEcho('garden today')
     expect(result).toBeNull()
   })
@@ -143,9 +121,8 @@ describe('EchoEngine.findEcho — age window', () => {
 describe('EchoEngine.findEcho — relevance + return shape', () => {
   it('returns null when no qualifying summary shares any words with current text', async () => {
     fakeSummaries = [
-      makeSummary({ entryId: 'e1', themes: ['mountain'], keyMoments: ['hiking'] }),
+      makeSummary({ entryId: 'e1', themes: ['mountain'], keyMoments: ['a long hike up the ridge in the cold morning air'] }),
     ]
-    fakeEntries['e1'] = { id: 'e1', plainText: richEntryText(), createdAt: NOW - 30 * ONE_DAY }
     const result = await new EchoEngine().findEcho('completely different topic')
     expect(result).toBeNull()
   })
@@ -154,30 +131,28 @@ describe('EchoEngine.findEcho — relevance + return shape', () => {
     fakeSummaries = [
       makeSummary({
         entryId: 'weak',
-        themes: ['garden'],
-        keyMoments: [],
+        themes: ['weather'],
+        keyMoments: ['it was a grey and ordinary sort of afternoon nothing special'],
         timestamp: NOW - 30 * ONE_DAY,
       }),
       makeSummary({
         id: 's2',
         entryId: 'strong',
         themes: ['garden roses blooming'],
-        keyMoments: ['flowers walking'],
+        keyMoments: [GARDEN_MOMENT],
         timestamp: NOW - 30 * ONE_DAY,
       }),
     ]
-    fakeEntries['weak'] = { id: 'weak', plainText: richEntryText(), createdAt: NOW - 30 * ONE_DAY }
-    fakeEntries['strong'] = { id: 'strong', plainText: richEntryText(), createdAt: NOW - 30 * ONE_DAY }
 
     const result = await new EchoEngine().findEcho('I walked through the garden and saw roses blooming on the flowers')
     expect(result?.entryId).toBe('strong')
+    expect(result?.text).toBe(GARDEN_MOMENT)
   })
 
   it('returns the expected shape: {text, entryId, date}', async () => {
     fakeSummaries = [
       makeSummary({ entryId: 'e1', themes: ['garden roses'], timestamp: NOW - 30 * ONE_DAY }),
     ]
-    fakeEntries['e1'] = { id: 'e1', plainText: richEntryText(), createdAt: NOW - 30 * ONE_DAY }
     const result = await new EchoEngine().findEcho('garden roses today')
     expect(result).toMatchObject({
       entryId: 'e1',
@@ -188,34 +163,23 @@ describe('EchoEngine.findEcho — relevance + return shape', () => {
     expect(result!.text.length).toBeLessThanOrEqual(300)
   })
 
-  it('returns null when the matched entry has no plainText', async () => {
-    fakeSummaries = [makeSummary({ entryId: 'e1', themes: ['garden'] })]
-    fakeEntries['e1'] = { id: 'e1', plainText: '', createdAt: NOW - 30 * ONE_DAY }
+  it('picks the longest keyMoment within bounds when several qualify', async () => {
+    const shortMoment = 'the garden was quiet and still' // 30 chars, in-bounds
+    fakeSummaries = [
+      makeSummary({ entryId: 'e1', themes: ['garden'], keyMoments: [shortMoment, GARDEN_MOMENT] }),
+    ]
+    const result = await new EchoEngine().findEcho('garden today')
+    expect(result?.text).toBe(GARDEN_MOMENT)
+  })
+
+  it('returns null when the matched summary has no in-bounds keyMoment (all too short)', async () => {
+    fakeSummaries = [makeSummary({ entryId: 'e1', themes: ['garden'], keyMoments: ['tiny', 'brief'] })]
     const result = await new EchoEngine().findEcho('garden today')
     expect(result).toBeNull()
   })
 
-  it('returns null when the matched entry is missing entirely from the db', async () => {
-    fakeSummaries = [makeSummary({ entryId: 'ghost', themes: ['garden'] })]
-    // No fakeEntries['ghost'] populated
-    const result = await new EchoEngine().findEcho('garden today')
-    expect(result).toBeNull()
-  })
-
-  it('returns null when the extracted fragment is too short (< 20 chars)', async () => {
-    fakeSummaries = [makeSummary({ entryId: 'short', themes: ['garden'] })]
-    fakeEntries['short'] = { id: 'short', plainText: 'Hi. Yo.', createdAt: NOW - 30 * ONE_DAY }
-    const result = await new EchoEngine().findEcho('garden today')
-    expect(result).toBeNull()
-  })
-
-  it('returns null when extractFragment cannot find sentence-ended sentences', async () => {
-    fakeSummaries = [makeSummary({ entryId: 'unpunct', themes: ['garden'] })]
-    fakeEntries['unpunct'] = {
-      id: 'unpunct',
-      plainText: 'no sentence-ending punctuation here at all',
-      createdAt: NOW - 30 * ONE_DAY,
-    }
+  it('returns null when the matched summary has an empty keyMoments array', async () => {
+    fakeSummaries = [makeSummary({ entryId: 'e1', themes: ['garden'], keyMoments: [] })]
     const result = await new EchoEngine().findEcho('garden today')
     expect(result).toBeNull()
   })
@@ -242,7 +206,6 @@ describe('EchoEngine.reset', () => {
       engagement: { echoChance: 1.0, echoMaxAge: 90, echoMaxPerSession: 1 },
     })
     fakeSummaries = [makeSummary({ entryId: 'e1', themes: ['garden'] })]
-    fakeEntries['e1'] = { id: 'e1', plainText: richEntryText(), createdAt: NOW - 30 * ONE_DAY }
 
     const engine = new EchoEngine()
     expect(await engine.findEcho('garden today')).not.toBeNull()

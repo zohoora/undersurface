@@ -7,7 +7,6 @@ vi.mock('../store/globalConfig', () => ({
 }))
 
 let fakeSummaries: EntrySummary[] = []
-let fakeEntries: Record<string, { id: string, plainText: string }> = {}
 
 vi.mock('../store/db', () => ({
   db: {
@@ -18,9 +17,6 @@ vi.mock('../store/db', () => ({
         }),
       }),
     },
-    entries: {
-      get: async (id: string) => fakeEntries[id],
-    },
   },
 }))
 
@@ -29,26 +25,20 @@ const { QuoteEngine } = await import('./quoteEngine')
 const NOW = Date.parse('2026-05-12T12:00:00Z')
 const ONE_DAY = 24 * 60 * 60 * 1000
 
+// A keyMoment long enough to clear the 20–300 char bounds and carrying the
+// overlap words the relevance scorer keys on.
+const GARDEN_MOMENT = 'I sat by the window and watched the garden roses open in the morning light.'
+
 function makeSummary(over: Partial<EntrySummary> = {}): EntrySummary {
   return {
     id: 's',
     entryId: 'e',
     themes: ['theme-a'],
     emotionalArc: 'arc',
-    keyMoments: ['moment'],
+    keyMoments: [GARDEN_MOMENT],
     timestamp: NOW - 10 * ONE_DAY,
     ...over,
   } as EntrySummary
-}
-
-function richEntryText(): string {
-  return [
-    'I sat by the window for a long time today.',
-    'The garden outside was beginning to wake from winter.',
-    'A small bird landed on the sill and watched me write.',
-    'It reminded me of something I had not thought about in years.',
-    'Then it flew away and I kept writing.',
-  ].join(' ')
 }
 
 beforeEach(() => {
@@ -59,7 +49,6 @@ beforeEach(() => {
     partIntelligence: { quoteChance: 1.0, quoteMinAge: 3 },
   })
   fakeSummaries = []
-  fakeEntries = {}
 })
 
 afterEach(() => {
@@ -85,7 +74,6 @@ describe('QuoteEngine.findQuote — gating', () => {
     })
     const spy = vi.spyOn(Math, 'random').mockReturnValue(0.5)
     fakeSummaries = [makeSummary({ themes: ['garden'] })]
-    fakeEntries['e'] = { id: 'e', plainText: richEntryText() }
 
     const result = await new QuoteEngine().findQuote('garden today')
     expect(result).toBeNull()
@@ -99,7 +87,6 @@ describe('QuoteEngine.findQuote — gating', () => {
     })
     const spy = vi.spyOn(Math, 'random').mockReturnValue(0.3)
     fakeSummaries = [makeSummary({ entryId: 'e1', themes: ['garden'] })]
-    fakeEntries['e1'] = { id: 'e1', plainText: richEntryText() }
 
     const result = await new QuoteEngine().findQuote('walking in the garden today')
     expect(result).not.toBeNull()
@@ -113,7 +100,6 @@ describe('QuoteEngine.findQuote — quoteMinAge', () => {
     fakeSummaries = [
       makeSummary({ entryId: 'recent', themes: ['garden'], timestamp: NOW - 1 * ONE_DAY }),
     ]
-    fakeEntries['recent'] = { id: 'recent', plainText: richEntryText() }
     const result = await new QuoteEngine().findQuote('garden today')
     expect(result).toBeNull()
   })
@@ -127,7 +113,6 @@ describe('QuoteEngine.findQuote — quoteMinAge', () => {
     fakeSummaries = [
       makeSummary({ entryId: 'recent', themes: ['garden'], timestamp: NOW - 10 * ONE_DAY }),
     ]
-    fakeEntries['recent'] = { id: 'recent', plainText: richEntryText() }
     expect(await new QuoteEngine().findQuote('garden today')).toBeNull()
   })
 
@@ -136,15 +121,18 @@ describe('QuoteEngine.findQuote — quoteMinAge', () => {
     // entirely because `.slice(0, 5)` truncates after the reverse-chronological sort.
     fakeSummaries = []
     for (let i = 0; i < 7; i++) {
+      const isTarget = i === 6
       fakeSummaries.push(
         makeSummary({
           id: `s${i}`,
           entryId: `e${i}`,
-          themes: i === 6 ? ['garden'] : ['unrelated'],
+          themes: isTarget ? ['garden'] : ['unrelated'],
+          // Only the target carries garden words; the rest must not match the
+          // query on themes OR keyMoments, or a top-5 summary would win.
+          keyMoments: isTarget ? [GARDEN_MOMENT] : ['a quiet grey afternoon with nothing much happening at all'],
           timestamp: NOW - (10 + i) * ONE_DAY, // index 6 is the OLDEST
         }),
       )
-      fakeEntries[`e${i}`] = { id: `e${i}`, plainText: richEntryText() }
     }
     // The only summary matching 'garden' is the oldest (index 6) — outside the
     // top-5 window, so no quote should fire.
@@ -155,52 +143,47 @@ describe('QuoteEngine.findQuote — quoteMinAge', () => {
 
 describe('QuoteEngine.findQuote — relevance + output shape', () => {
   it('returns null when no summary has any word overlap', async () => {
-    fakeSummaries = [makeSummary({ entryId: 'e1', themes: ['mountain'], keyMoments: ['hiking'] })]
-    fakeEntries['e1'] = { id: 'e1', plainText: richEntryText() }
+    fakeSummaries = [makeSummary({ entryId: 'e1', themes: ['mountain'], keyMoments: ['a long hike up the cold ridge at dawn'] })]
     expect(await new QuoteEngine().findQuote('completely different text')).toBeNull()
   })
 
   it('selects the summary with the highest word overlap', async () => {
     fakeSummaries = [
-      makeSummary({ entryId: 'weak', themes: ['mountain'], timestamp: NOW - 10 * ONE_DAY }),
+      makeSummary({
+        entryId: 'weak',
+        themes: ['mountain'],
+        keyMoments: ['a quiet grey afternoon with nothing much happening at all'],
+        timestamp: NOW - 10 * ONE_DAY,
+      }),
       makeSummary({
         id: 's2',
         entryId: 'strong',
         themes: ['garden roses'],
-        keyMoments: ['flowers blooming'],
+        keyMoments: [GARDEN_MOMENT],
         timestamp: NOW - 10 * ONE_DAY,
       }),
     ]
-    fakeEntries['weak'] = { id: 'weak', plainText: richEntryText() }
-    fakeEntries['strong'] = { id: 'strong', plainText: richEntryText() }
 
-    const result = await new QuoteEngine().findQuote('walking through the garden among roses and flowers blooming')
+    const result = await new QuoteEngine().findQuote('walking through the garden among roses in the morning light')
     expect(result?.entryId).toBe('strong')
+    expect(result?.text).toBe(GARDEN_MOMENT)
   })
 
   it('returns the {text, entryId} shape with a passage between 20 and 300 chars', async () => {
     fakeSummaries = [makeSummary({ entryId: 'e1', themes: ['garden roses'] })]
-    fakeEntries['e1'] = { id: 'e1', plainText: richEntryText() }
     const result = await new QuoteEngine().findQuote('garden roses today')
     expect(result?.entryId).toBe('e1')
     expect(result!.text.length).toBeGreaterThanOrEqual(20)
     expect(result!.text.length).toBeLessThanOrEqual(300)
   })
 
-  it('returns null when the matched entry is missing from the db', async () => {
-    fakeSummaries = [makeSummary({ entryId: 'ghost', themes: ['garden'] })]
+  it('returns null when the matched summary has no in-bounds keyMoment', async () => {
+    fakeSummaries = [makeSummary({ entryId: 'tiny', themes: ['garden'], keyMoments: ['hi', 'yo'] })]
     expect(await new QuoteEngine().findQuote('garden today')).toBeNull()
   })
 
-  it('returns null when the matched entry has empty plainText', async () => {
-    fakeSummaries = [makeSummary({ entryId: 'empty', themes: ['garden'] })]
-    fakeEntries['empty'] = { id: 'empty', plainText: '' }
-    expect(await new QuoteEngine().findQuote('garden today')).toBeNull()
-  })
-
-  it('returns null when extractPassage cannot form a 20–300 char passage', async () => {
-    fakeSummaries = [makeSummary({ entryId: 'tiny', themes: ['garden'] })]
-    fakeEntries['tiny'] = { id: 'tiny', plainText: 'Hi. Yo.' }
+  it('returns null when the matched summary has an empty keyMoments array', async () => {
+    fakeSummaries = [makeSummary({ entryId: 'empty', themes: ['garden'], keyMoments: [] })]
     expect(await new QuoteEngine().findQuote('garden today')).toBeNull()
   })
 })

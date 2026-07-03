@@ -44,32 +44,25 @@ export class QuoteEngine {
 
       if (!bestSummary || bestScore === 0) return null
 
-      // Load the full entry text
-      const entry = await db.entries.get(bestSummary.entryId) as { id: string, plainText: string } | undefined
-      if (!entry || !entry.plainText) return null
-
-      const passage = this.extractPassage(entry.plainText)
+      // Quote from the summary's keyMoments. entryId holds a SESSION id and the
+      // diary `entries` collection is no longer written, so the old
+      // `db.entries.get(entryId)` was always undefined — part-quoting was dead.
+      const passage = this.pickPassage(bestSummary.keyMoments)
       if (!passage) return null
 
-      return { text: passage, entryId: entry.id }
+      return { text: passage, entryId: bestSummary.entryId }
     } catch (error) {
       console.error('QuoteEngine error:', error)
       return null
     }
   }
 
-  private extractPassage(text: string): string | null {
-    // Split into sentences and pick a 1-2 sentence passage
-    const sentences = text.match(/[^.!?]+[.!?]+/g)
-    if (!sentences || sentences.length === 0) return null
-
-    // Pick sentences from the middle where the writing tends to be richest
-    const midIndex = Math.floor(sentences.length / 2)
-    const start = Math.max(0, midIndex - 1)
-    const passage = sentences.slice(start, start + 2).join(' ').trim()
-
-    if (passage.length < 20 || passage.length > 300) return null
-
-    return passage
+  // Prefer the longest keyMoment within display bounds.
+  private pickPassage(keyMoments: string[]): string | null {
+    const candidates = keyMoments
+      .map((m) => m.trim())
+      .filter((m) => m.length >= 20 && m.length <= 300)
+    if (candidates.length === 0) return null
+    return candidates.reduce((longest, m) => (m.length > longest.length ? m : longest))
   }
 }
