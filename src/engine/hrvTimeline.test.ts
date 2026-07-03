@@ -117,6 +117,46 @@ describe('HrvTimeline', () => {
       expect(context).toContain('Notable shifts')
       expect(context).toContain('activated')
     })
+
+    describe('source gating (webcam vs polar)', () => {
+      const richMeasurement = () => makeMeasurement({
+        hr: 78,
+        autonomicState: 'activated',
+        trend: 'rising',
+        confidence: 0.9,
+        respiratoryRate: 14,
+        derived: {
+          sdnn: 45, pnn50: 12, lfHfRatio: 2.4, stressIndex: 180, coherence: 0.6,
+        } as HrvMeasurement['derived'],
+      })
+
+      it('camera source hedges HR and OMITS all HRV-derived metrics + autonomic state', () => {
+        timeline.setBaseline(55)
+        timeline.addMeasurement(richMeasurement())
+        const ctx = timeline.buildPromptContext('camera')
+
+        expect(ctx).toContain('webcam')
+        expect(ctx).toContain('~78')
+        expect(ctx).toContain('rising')
+        // None of the IBI-derived metrics or the RMSSD-classified state leak.
+        expect(ctx).not.toContain('LF/HF')
+        expect(ctx).not.toContain('Stress index')
+        expect(ctx).not.toContain('Cardiac coherence')
+        expect(ctx).not.toContain('autonomic state')
+        expect(ctx).not.toContain('Session baseline')
+      })
+
+      it('polar source surfaces the full HRV-derived block', () => {
+        timeline.setBaseline(55)
+        timeline.addMeasurement(richMeasurement())
+        const ctx = timeline.buildPromptContext('polarH10')
+
+        expect(ctx).toContain('autonomic state')
+        expect(ctx).toContain('LF/HF')
+        expect(ctx).toContain('Stress index')
+        expect(ctx).toContain('Cardiac coherence')
+      })
+    })
   })
 
   describe('getMeasurements', () => {

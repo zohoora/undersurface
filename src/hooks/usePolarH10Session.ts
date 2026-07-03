@@ -182,7 +182,8 @@ export function usePolarH10Session(sessionIdRef: React.RefObject<string | null>)
 
   const buildPromptContext = useCallback((): string | undefined => {
     if (!enabled) return undefined
-    return timelineRef.current.buildPromptContext() || undefined
+    // Chest-strap IBIs are accurate — surface the full HRV-derived block.
+    return timelineRef.current.buildPromptContext('polarH10') || undefined
   }, [enabled])
 
   const resetResponseStarted = useCallback(() => {

@@ -167,7 +167,8 @@ export function useHrvSession(sessionIdRef: React.RefObject<string | null>) {
 
   const buildPromptContext = useCallback((): string | undefined => {
     if (!enabled) return undefined
-    return hrvTimelineRef.current.buildPromptContext() || undefined
+    // Webcam source: only hedged HR + trend reach the prompt (see HrvTimeline).
+    return hrvTimelineRef.current.buildPromptContext('camera') || undefined
   }, [enabled])
 
   /** Reset the response-started flag (call before each AI generation) */

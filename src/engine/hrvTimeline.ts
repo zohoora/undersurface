@@ -32,10 +32,28 @@ export class HrvTimeline {
       .map(e => e.measurement!)
   }
 
-  buildPromptContext(): string {
+  // `source` gates how much is trusted into the prompt. Polar H10 chest-strap
+  // IBIs are accurate, so its full HRV-derived block is surfaced. Webcam rPPG
+  // IBIs are too noisy for the HRV maths (SDNN/pNN50/LF-HF/Baevsky/coherence,
+  // and the RMSSD-classified autonomic state) to be fed as fact — for the
+  // camera we surface only an explicitly-hedged HR + trend (+ respiratory) and
+  // instruct the model to treat them as soft cues. The metrics are still
+  // computed and archived for offline analysis; they just don't reach the LLM.
+  buildPromptContext(source: 'camera' | 'polarH10' = 'polarH10'): string {
     const measurements = this.getMeasurements()
     const latest = measurements.filter(m => m.confidence >= 0.3).at(-1)
     if (!latest) return ''
+
+    if (source === 'camera') {
+      const trendDur = this.getTrendDuration(latest.trend)
+      const cam: string[] = ['[Biometric context — webcam estimate, approximate]']
+      cam.push(`Approximate heart rate: ~${latest.hr} bpm (webcam reading, can be off by 10+ bpm), trend ${latest.trend}${trendDur ? ` over ${trendDur}` : ''}`)
+      if (latest.respiratoryRate) {
+        cam.push(`Approximate breathing rate: ~${latest.respiratoryRate} breaths/min`)
+      }
+      cam.push('Treat these as rough, possibly-noisy cues about arousal — not precise readings. Do not quote exact numbers back, and do not infer specific HRV/stress values from them.')
+      return cam.join('\n')
+    }
 
     const lines: string[] = ['[Biometric context]']
 
