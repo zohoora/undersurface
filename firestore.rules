@@ -10,6 +10,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Durable token quota. The owner may READ their own usage (for a future
+    // "remaining budget" UI) but NEVER write it — only the chat Cloud Function
+    // (Admin SDK) mutates it, so a user can't reset their own cap.
+    match /quotas/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
     match /contactMessages/{msgId} {
       allow read, write: if false;
     }

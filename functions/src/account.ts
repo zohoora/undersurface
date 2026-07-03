@@ -38,7 +38,7 @@ type AccountHandler = (
 //   1. tombstone the user doc first (marks intent; client rules deny access)
 //   2. delete the sessions/messages subcollections before their parent docs
 //   3. delete every user subcollection (registry-driven, includes apiKeys)
-//   4. delete the user's top-level contactMessages
+//   4. delete the user's top-level contactMessages + quota doc
 //   5. delete the user doc (parent last)
 //   6. delete the Auth user last, tolerating already-deleted
 // Every step is idempotent, so a retry re-runs cleanly against partial state.
@@ -60,8 +60,9 @@ export async function handleDeleteAccount(uid: string, _params: Record<string, u
     await deleteCollection(uid, coll)
   }
 
-  // 4. Top-level contactMessages authored by this user.
+  // 4. Top-level contactMessages authored by this user + the quota doc.
   await deleteQuery(db.collection('contactMessages').where('uid', '==', uid))
+  await db.collection('quotas').doc(uid).delete()
 
   // 5. Parent user doc.
   await userRef.delete()

@@ -21,13 +21,14 @@ function newDoc(fields: Record<string, unknown> = {}): DocNode {
 
 let users: Map<string, DocNode>
 let contactMessages: Map<string, DocNode>
+let quotas: Map<string, DocNode>
 let deletedAuthUsers: string[]
 let authThrowsNotFound: boolean
 let setCalls: { id: string; fields: Record<string, unknown> }[]
 
 function makeDocRef(node: DocNode | null, container: Map<string, DocNode>, id: string) {
   return {
-    set: async (fields: Record<string, unknown>, _opts?: unknown) => {
+    set: async (fields: Record<string, unknown>) => {
       setCalls.push({ id, fields })
       const existing = container.get(id)
       if (existing) Object.assign(existing.fields, fields)
@@ -73,6 +74,9 @@ function snapshotOf(map: Map<string, DocNode>, entries: [string, DocNode][]) {
 const firestore = {
   collection: (name: string) => {
     if (name === 'contactMessages') return makeQuery(contactMessages)
+    if (name === 'quotas') {
+      return { doc: (id: string) => makeDocRef(quotas.get(id) ?? null, quotas, id) }
+    }
     if (name === 'users') {
       return { doc: (id: string) => makeDocRef(users.get(id) ?? null, users, id) }
     }
@@ -114,6 +118,7 @@ function seedFullAccount(uid: string) {
   s1.subs['messages'] = new Map([['m1', newDoc({ t: 'hi' })], ['m2', newDoc({ t: 'yo' })]])
   contactMessages.set('c1', newDoc({ uid }))
   contactMessages.set('c2', newDoc({ uid: 'someone-else' }))
+  quotas.set(uid, newDoc({ period: '2026-07', tokensUsed: 500 }))
 }
 
 function makeRes() {
@@ -123,6 +128,7 @@ function makeRes() {
 beforeEach(() => {
   users = new Map()
   contactMessages = new Map()
+  quotas = new Map()
   deletedAuthUsers = []
   authThrowsNotFound = false
   setCalls = []
@@ -140,6 +146,8 @@ describe('handleDeleteAccount', () => {
     // The other user's contact message is untouched; ours is gone.
     expect(contactMessages.has('c1')).toBe(false)
     expect(contactMessages.has('c2')).toBe(true)
+    // The top-level quota doc is deleted too (it lives outside users/{uid}).
+    expect(quotas.has('u1')).toBe(false)
     expect(res.json).toHaveBeenCalledWith({ success: true })
   })
 

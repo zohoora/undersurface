@@ -1,9 +1,11 @@
 import { onRequest } from 'firebase-functions/v2/https'
+import { getFirestore } from 'firebase-admin/firestore'
 import { ALLOWED_ORIGINS } from './shared/cors.js'
 import { makeRateLimiter } from './shared/rateLimit.js'
 import { OPENAI_CHAT_MODEL } from './shared/models.js'
 import { openAiKey } from './shared/secrets.js'
-import { verifyAuth } from './shared/auth.js'
+import { verifyAuthWithRole } from './shared/auth.js'
+import { checkAndReserve, reconcile, type QuotaConfig } from './shared/quota.js'
 
 // Smaller/faster model for the crisis classifier (task: 'crisis_check'). Sized
 // for a near-binary judgment with minimal latency — the safety path runs in
@@ -53,6 +55,33 @@ const MAX_MESSAGE_CHARS = 8000
 const MAX_MESSAGES = 50
 
 const checkRateLimit = makeRateLimiter({ windowMs: 60_000, max: 30 })
+
+// Quota config is read from appConfig/global and cached in-instance so we don't
+// add a Firestore read to every chat request. 60s TTL: admin changes propagate
+// within a minute, which is fine for a monthly cost cap.
+const QUOTA_CONFIG_TTL_MS = 60_000
+let quotaConfigCache: { value: QuotaConfig; fetchedAt: number } | null = null
+async function loadQuotaConfig(nowMs: number): Promise<QuotaConfig> {
+  if (quotaConfigCache && nowMs - quotaConfigCache.fetchedAt < QUOTA_CONFIG_TTL_MS) {
+    return quotaConfigCache.value
+  }
+  let value: QuotaConfig = { enabled: false, monthlyTokenCap: 0 }
+  try {
+    const snap = await getFirestore().collection('appConfig').doc('global').get()
+    const q = snap.get('quota') as Partial<QuotaConfig> | undefined
+    if (q && typeof q.enabled === 'boolean') {
+      value = {
+        enabled: q.enabled,
+        monthlyTokenCap: typeof q.monthlyTokenCap === 'number' ? q.monthlyTokenCap : 0,
+        perRoleCaps: q.perRoleCaps,
+      }
+    }
+  } catch {
+    // Fail open: a config read error must never block chat. Default disabled.
+  }
+  quotaConfigCache = { value, fetchedAt: nowMs }
+  return value
+}
 
 interface StreamCounters {
   contentTokens: number
@@ -115,11 +144,12 @@ export const chat = onRequest(
       return
     }
 
-    const uid = await verifyAuth(req.headers.authorization)
-    if (!uid) {
+    const authed = await verifyAuthWithRole(req.headers.authorization)
+    if (!authed) {
       res.status(401).json({ error: 'Authentication required' })
       return
     }
+    const { uid, role } = authed
 
     // Rate limit
     if (!checkRateLimit(uid)) {
@@ -175,6 +205,39 @@ export const chat = onRequest(
     const tag = `uid=${uid.slice(0, 8)} model=${modelForRequest} task=${task ?? 'chat'} stream=${streamForRequest} max_tokens=${resolvedMaxTokens} reasoning=${resolvedReasoning ?? 'default'}`
     console.log(`[chat] start ${tag}`)
 
+    // Durable monthly token quota. Crisis checks are ALWAYS exempt — a safety
+    // classification must never be blocked by a spend cap. Reserve this
+    // request's maximum completion-token spend up front; reconcile the unused
+    // portion after the response so the cap is a hard ceiling under concurrency.
+    const now = new Date()
+    let quotaReservation: Awaited<ReturnType<typeof checkAndReserve>> | null = null
+    if (!isCrisisCheck) {
+      const quotaConfig = await loadQuotaConfig(now.getTime())
+      if (quotaConfig.enabled) {
+        quotaReservation = await checkAndReserve({
+          uid, role, config: quotaConfig, reserveTokens: resolvedMaxTokens, now,
+        })
+        if (!quotaReservation.allowed) {
+          console.warn(`[chat] quota-block ${tag} used=${quotaReservation.used} cap=${quotaReservation.cap}`)
+          res.status(429).json({
+            error: 'You have reached your monthly usage limit. It resets at the start of next month.',
+            code: 'quota_exceeded',
+          })
+          return
+        }
+      }
+    }
+    // Refund the unused part of the reservation once we know actual usage.
+    const settleQuota = (actualCompletionTokens: number | null) => {
+      if (!quotaReservation?.reserved) return
+      void reconcile({
+        uid,
+        reservedTokens: quotaReservation.reserved,
+        actualTokens: actualCompletionTokens ?? quotaReservation.reserved,
+        now,
+      })
+    }
+
     // Abort the upstream OpenAI request if the client goes away. Without this,
     // an abandoned tab (or a client-side crisis abort) still billed the model to
     // completion. `res.on('close')` fires when the HTTP connection ends before
@@ -221,6 +284,7 @@ export const chat = onRequest(
     if (!openAiResponse.ok) {
       const errorBody = await openAiResponse.text().catch(() => '')
       console.error(`[chat] error ${tag} status=${openAiResponse.status} headersMs=${headersMs}`, errorBody)
+      settleQuota(0) // upstream refused — refund the whole reservation
       res.status(openAiResponse.status).json({
         error: 'AI service temporarily unavailable',
       })
@@ -284,6 +348,7 @@ export const chat = onRequest(
         }
         if (!res.writableEnded) res.end()
       }
+      settleQuota(counters.completionTokens)
       const empty = counters.contentTokens === 0
       const logFn = empty ? console.warn : console.log
       logFn(
@@ -297,6 +362,7 @@ export const chat = onRequest(
       const finishReason = data?.choices?.[0]?.finish_reason
       const contentLen = (data?.choices?.[0]?.message?.content || '').length
       const usage = data?.usage
+      settleQuota(typeof usage?.completion_tokens === 'number' ? usage.completion_tokens : null)
       console.log(`[chat] done ${tag} headersMs=${headersMs} totalMs=${Date.now() - reqStart} finish=${finishReason} contentLen=${contentLen} promptTok=${usage?.prompt_tokens} compTok=${usage?.completion_tokens} reasonTok=${usage?.completion_tokens_details?.reasoning_tokens}`)
       res.json(data)
     }

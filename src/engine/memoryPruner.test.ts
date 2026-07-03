@@ -16,7 +16,7 @@ function makeProxy(get: () => Doc[]) {
       if (state.countThrows) throw new Error('offline')
       return get().length
     },
-    orderBy: (_field: string) => ({
+    orderBy: () => ({
       limit: (n: number) => ({
         // ascending → oldest first; arrays are seeded oldest→newest
         toArray: async () => get().slice(0, n),

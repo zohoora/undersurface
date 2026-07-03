@@ -400,6 +400,21 @@ describe('streamChatCompletion — risk preamble parsing', () => {
     expect(complete).toBe('Short reply.')
   })
 
+  // ── friendly API errors (quota) ────────────────────────────────────────
+
+  it('surfaces the proxy JSON error message verbatim (quota notice)', async () => {
+    const { friendlyApiError } = await import('./openrouter')
+    expect(friendlyApiError(429, JSON.stringify({
+      error: 'You have reached your monthly usage limit. It resets at the start of next month.',
+      code: 'quota_exceeded',
+    }))).toBe('You have reached your monthly usage limit. It resets at the start of next month.')
+  })
+
+  it('falls back to a generic message for a non-JSON body', async () => {
+    const { friendlyApiError } = await import('./openrouter')
+    expect(friendlyApiError(500, 'Internal Server Error')).toContain('API error: 500')
+  })
+
   // ── server truncation frame (D1) ───────────────────────────────────────
 
   it('routes a server truncation frame to onError instead of completing', async () => {

@@ -15,6 +15,22 @@ interface Message {
   content: string
 }
 
+// Turn a non-2xx chat response into a user-facing message. The proxy sends a
+// JSON body with a human-readable `error` (e.g. the monthly-quota notice); use
+// it verbatim when present so the UI shows the real reason instead of a raw
+// "API error: 429". Falls back to a generic status string.
+export function friendlyApiError(status: number, body: string): string {
+  try {
+    const parsed = JSON.parse(body)
+    if (parsed && typeof parsed.error === 'string' && parsed.error.length > 0) {
+      return parsed.error
+    }
+  } catch {
+    // non-JSON body — fall through to the generic form
+  }
+  return `API error: ${status}${body ? ` — ${body}` : ''}`
+}
+
 interface StreamCallbacks {
   onToken: (token: string) => void
   onComplete: (fullText: string) => void
@@ -101,7 +117,7 @@ export async function chatCompletion(
 
     if (!response.ok) {
       const body = await response.text().catch(() => '')
-      throw new Error(`API error: ${response.status}${body ? ` — ${body}` : ''}`)
+      throw new Error(friendlyApiError(response.status, body))
     }
 
     const data = await response.json()
@@ -165,7 +181,7 @@ export async function streamChatCompletion(
     if (!response.ok) {
       clearTimeout(timeout)
       const body = await response.text().catch(() => '')
-      throw new Error(`API error: ${response.status}${body ? ` — ${body}` : ''}`)
+      throw new Error(friendlyApiError(response.status, body))
     }
 
     const reader = response.body?.getReader()

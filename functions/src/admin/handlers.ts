@@ -314,7 +314,7 @@ export async function handleGetConfig() {
 }
 
 const ALLOWED_CONFIG_KEYS = new Set([
-  'features', 'tuning', 'grounding', 'announcement',
+  'features', 'tuning', 'grounding', 'announcement', 'quota',
 ])
 
 export async function handleUpdateConfig(
