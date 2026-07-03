@@ -191,9 +191,12 @@ function toStorablePart(p: typeof SEEDED_PARTS[number]): Part {
 }
 
 export async function initializeDB() {
-  const existingParts = await db.parts.count()
+  // Use a normal doc read, NOT count(): getCountFromServer never serves from
+  // the offline cache, so a count() here killed cold boot with no network at
+  // "Failed to initialize" despite full offline persistence. parts is ~10 docs.
+  const existingParts = await db.parts.toArray()
 
-  if (existingParts === 0) {
+  if (existingParts.length === 0) {
     await db.parts.bulkPut(SEEDED_PARTS.map(toStorablePart))
     return
   }
