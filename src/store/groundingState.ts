@@ -1,5 +1,5 @@
 import { getGlobalConfig } from './globalConfig'
-import { trackEvent } from '../services/analytics'
+import { engineLog } from '../services/diagnostics'
 
 // Module-level state
 let groundingActive = false
@@ -33,7 +33,11 @@ export function activateGrounding(trigger: 'auto' | 'manual' = 'auto'): void {
   }
   groundingActive = true
   document.documentElement.setAttribute('data-grounding', 'true')
-  trackEvent('grounding_activated', { trigger })
+  // First-party diagnostics only. Crisis-state signals must never reach
+  // Google Analytics: GA is keyed to the user id and shares a property with
+  // Ads conversions, so a grounding event there attaches sensitive-category
+  // health data to an advertising identifier.
+  engineLog('info', 'grounding.activated', 'grounding mode activated', { extra: { trigger } })
   notify()
   resetAutoExit()
 }

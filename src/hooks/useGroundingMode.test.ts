@@ -3,9 +3,9 @@ import { renderHook, act } from '@testing-library/react'
 
 // ─── Mocks (hoisted by Vitest) ────────────────────────────────
 
-const trackEventMock = vi.fn()
-vi.mock('../services/analytics', () => ({
-  trackEvent: (...a: unknown[]) => trackEventMock(...a),
+const engineLogMock = vi.fn()
+vi.mock('../services/diagnostics', () => ({
+  engineLog: (...a: unknown[]) => engineLogMock(...a),
 }))
 
 vi.mock('../store/globalConfig', () => ({
@@ -24,7 +24,7 @@ beforeEach(() => {
   // singleton (subscribed via useSyncExternalStore) so a previous test's
   // active flag would leak into the next.
   deactivateGrounding()
-  trackEventMock.mockReset()
+  engineLogMock.mockReset()
 })
 
 afterEach(() => {
@@ -62,15 +62,17 @@ describe('useGroundingMode — useSyncExternalStore subscription', () => {
 })
 
 describe('useGroundingMode — pure re-exports (back-compat surface)', () => {
-  it('activateGrounding fires a grounding_activated analytics event with trigger', () => {
+  it('activateGrounding logs grounding.activated to first-party diagnostics (never GA)', () => {
     act(() => { activateGrounding('auto') })
-    expect(trackEventMock).toHaveBeenCalledWith('grounding_activated', { trigger: 'auto' })
+    expect(engineLogMock).toHaveBeenCalledWith(
+      'info', 'grounding.activated', expect.any(String), { extra: { trigger: 'auto' } },
+    )
   })
 
-  it('activateGrounding is idempotent — second call does NOT re-fire analytics', () => {
+  it('activateGrounding is idempotent — second call does NOT re-log', () => {
     act(() => { activateGrounding('manual') })
     act(() => { activateGrounding('manual') })
-    expect(trackEventMock).toHaveBeenCalledTimes(1)
+    expect(engineLogMock).toHaveBeenCalledTimes(1)
   })
 
   it('deactivateGrounding is a no-op when grounding is already inactive', () => {

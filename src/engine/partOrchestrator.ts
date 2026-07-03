@@ -458,7 +458,9 @@ export class PartOrchestrator {
           }
 
           this.callbacks.onThoughtComplete(thought)
-          trackEvent('part_thought', { part_name: part.name, emotion: this.currentEmotion, pause_type: event.type })
+          // No `emotion` param: detected emotional state is sensitive-category
+          // data and GA is linked to the user id + Ads conversions.
+          trackEvent('part_thought', { part_name: part.name, pause_type: event.type })
 
           // Track activity for quiet return system
           this.quietTracker.updateLastActive(part.id)

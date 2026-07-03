@@ -6,9 +6,9 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-const trackEventMock = vi.fn()
-vi.mock('../services/analytics', () => ({
-  trackEvent: (...a: unknown[]) => trackEventMock(...a),
+const engineLogMock = vi.fn()
+vi.mock('../services/diagnostics', () => ({
+  engineLog: (...a: unknown[]) => engineLogMock(...a),
 }))
 
 const globalConfigMock = vi.fn(() => null as Record<string, unknown> | null)
@@ -28,7 +28,7 @@ const {
 // Module-level state persists across tests; reset between each.
 beforeEach(() => {
   vi.useFakeTimers().setSystemTime(0)
-  trackEventMock.mockReset()
+  engineLogMock.mockReset()
   globalConfigMock.mockReset()
   globalConfigMock.mockReturnValue(null)
   if (isGroundingActive()) deactivateGrounding()
@@ -70,24 +70,31 @@ describe('groundingState — activate/deactivate', () => {
     expect(listener).not.toHaveBeenCalled()
   })
 
-  it('activating when ALREADY active does NOT re-fire grounding_activated event (just resets the timer)', () => {
+  it('activating when ALREADY active does NOT re-fire the diagnostics event (just resets the timer)', () => {
     activateGrounding()
-    expect(trackEventMock).toHaveBeenCalledTimes(1)
-    trackEventMock.mockClear()
+    expect(engineLogMock).toHaveBeenCalledTimes(1)
+    engineLogMock.mockClear()
     activateGrounding()
-    expect(trackEventMock).not.toHaveBeenCalled()
+    expect(engineLogMock).not.toHaveBeenCalled()
   })
 })
 
-describe('groundingState — analytics', () => {
-  it('emits grounding_activated with trigger=auto by default', () => {
+describe('groundingState — observability', () => {
+  // Crisis-state signals go to first-party diagnostics only. GA is keyed to
+  // the user id and linked to Ads conversions; grounding events there would
+  // attach sensitive health data to an advertising identifier.
+  it('logs grounding.activated to diagnostics with trigger=auto by default', () => {
     activateGrounding()
-    expect(trackEventMock).toHaveBeenCalledWith('grounding_activated', { trigger: 'auto' })
+    expect(engineLogMock).toHaveBeenCalledWith(
+      'info', 'grounding.activated', expect.any(String), { extra: { trigger: 'auto' } },
+    )
   })
 
-  it('emits grounding_activated with trigger=manual when explicitly requested', () => {
+  it('logs trigger=manual when explicitly requested', () => {
     activateGrounding('manual')
-    expect(trackEventMock).toHaveBeenCalledWith('grounding_activated', { trigger: 'manual' })
+    expect(engineLogMock).toHaveBeenCalledWith(
+      'info', 'grounding.activated', expect.any(String), { extra: { trigger: 'manual' } },
+    )
   })
 })
 

@@ -10,6 +10,7 @@ export type DiagnosticCode =
   | 'reflect.output_truncated'
   | 'emergence.parse_failed'
   | 'hrv.skin_filter_low_confidence'
+  | 'grounding.activated'
 
 export interface EngineLogContext {
   sessionId?: string
@@ -55,6 +56,9 @@ const DEDUP_RULES: Record<DiagnosticCode, DedupRule> = {
   'reflect.output_truncated': { cooldownMs: 0 },
   'emergence.parse_failed': { cooldownMs: 30_000 },
   'hrv.skin_filter_low_confidence': { cooldownMs: 60_000 },
+  // activateGrounding is already idempotent while active; every distinct
+  // activation is significant, so no dedup.
+  'grounding.activated': { cooldownMs: 0 },
 }
 
 const MAX_MSG_CHARS = 200
