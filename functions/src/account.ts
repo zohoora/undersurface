@@ -3,19 +3,27 @@ import type { Request } from 'firebase-functions/v2/https'
 import { onRequest } from 'firebase-functions/v2/https'
 import { getAuth } from 'firebase-admin/auth'
 import { getFirestore } from 'firebase-admin/firestore'
+import type { CollectionReference, Query } from 'firebase-admin/firestore'
 import { ALLOWED_ORIGINS } from './shared/cors.js'
 import { verifyAuth } from './shared/auth.js'
+import { USER_SUBCOLLECTIONS } from './shared/collections.js'
 
-async function deleteCollection(uid: string, collName: string) {
+// Delete every doc matched by a collection ref or query, in batches, until the
+// query returns empty. Idempotent: re-running on an already-empty collection is
+// a no-op, so the whole deletion flow is safely retryable.
+async function deleteQuery(source: CollectionReference | Query) {
   const db = getFirestore()
-  const collRef = db.collection('users').doc(uid).collection(collName)
-  let snap = await collRef.limit(500).get()
+  let snap = await source.limit(500).get()
   while (snap.docs.length > 0) {
     const batch = db.batch()
     snap.docs.forEach((d) => batch.delete(d.ref))
     await batch.commit()
-    snap = await collRef.limit(500).get()
+    snap = await source.limit(500).get()
   }
+}
+
+async function deleteCollection(uid: string, collName: string) {
+  await deleteQuery(getFirestore().collection('users').doc(uid).collection(collName))
 }
 
 type AccountAction = 'deleteAccount' | 'submitContact'
@@ -26,39 +34,45 @@ type AccountHandler = (
   res: Response,
 ) => Promise<void>
 
-async function handleDeleteAccount(uid: string, _params: Record<string, unknown>, res: Response): Promise<void> {
-  const collections = [
-    'entries', 'parts', 'memories', 'thoughts', 'interactions',
-    'entrySummaries', 'userProfile', 'personalFacts', 'fossils', 'letters',
-    'sessionLog', 'innerWeather', 'consent', 'sessions',
-    'hrvSessions', 'relaxSessions', 'diagnostics',
-  ]
-  for (const coll of collections) {
+// Full account deletion. Ordered for safe retry after a mid-way failure:
+//   1. tombstone the user doc first (marks intent; client rules deny access)
+//   2. delete the sessions/messages subcollections before their parent docs
+//   3. delete every user subcollection (registry-driven, includes apiKeys)
+//   4. delete the user's top-level contactMessages
+//   5. delete the user doc (parent last)
+//   6. delete the Auth user last, tolerating already-deleted
+// Every step is idempotent, so a retry re-runs cleanly against partial state.
+export async function handleDeleteAccount(uid: string, _params: Record<string, unknown>, res: Response): Promise<void> {
+  const db = getFirestore()
+  const userRef = db.collection('users').doc(uid)
+
+  // 1. Tombstone-first.
+  await userRef.set({ status: 'deleting', deletedAt: Date.now() }, { merge: true })
+
+  // 2. sessions/{id}/messages before the sessions docs themselves.
+  const sessionsSnap = await userRef.collection('sessions').get()
+  for (const sessionDoc of sessionsSnap.docs) {
+    await deleteQuery(sessionDoc.ref.collection('messages'))
+  }
+
+  // 3. All user subcollections (single registry, includes apiKeys).
+  for (const coll of USER_SUBCOLLECTIONS) {
     await deleteCollection(uid, coll)
   }
-  // Delete session message subcollections
-  const sessionsSnap = await getFirestore()
-    .collection('users').doc(uid).collection('sessions').get()
-  for (const sessionDoc of sessionsSnap.docs) {
-    const messagesSnap = await sessionDoc.ref.collection('messages').get()
-    if (messagesSnap.docs.length > 0) {
-      const batch = getFirestore().batch()
-      messagesSnap.docs.forEach(d => batch.delete(d.ref))
-      await batch.commit()
-    }
+
+  // 4. Top-level contactMessages authored by this user.
+  await deleteQuery(db.collection('contactMessages').where('uid', '==', uid))
+
+  // 5. Parent user doc.
+  await userRef.delete()
+
+  // 6. Auth user — idempotent: a retry after this step already ran must not 500.
+  try {
+    await getAuth().deleteUser(uid)
+  } catch (error) {
+    if ((error as { code?: string }).code !== 'auth/user-not-found') throw error
   }
-  // Delete top-level contactMessages by this user
-  const contactSnap = await getFirestore()
-    .collection('contactMessages')
-    .where('uid', '==', uid)
-    .get()
-  if (contactSnap.docs.length > 0) {
-    const batch = getFirestore().batch()
-    contactSnap.docs.forEach((d) => batch.delete(d.ref))
-    await batch.commit()
-  }
-  await getFirestore().collection('users').doc(uid).delete()
-  await getAuth().deleteUser(uid)
+
   res.json({ success: true })
 }
 
