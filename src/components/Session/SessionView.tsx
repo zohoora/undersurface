@@ -110,7 +110,14 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
       if (sessionId) {
         const existingSession = await db.sessions.get(sessionId)
-        if (cancelled || !existingSession) return
+        if (cancelled) return
+        if (!existingSession) {
+          // Stale bookmark / deleted session / another account's id: without
+          // this, the view renders a composer wired to a null session — typing
+          // does nothing. Recover to a fresh session.
+          onBack?.()
+          return
+        }
 
         setSession(existingSession)
         sessionRef.current = existingSession
