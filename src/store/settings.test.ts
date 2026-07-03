@@ -54,4 +54,14 @@ describe('settings', () => {
     const parsed = JSON.parse(raw!)
     expect(parsed.responseSpeed).toBe(1.7)
   })
+
+  it('defaults timezone to the device zone, not a hardcoded one', () => {
+    // The timezone defines "today's session" boundaries — a hardcoded ET
+    // default split non-US users' sessions mid-afternoon.
+    const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    const s = getSettings()
+    expect(s.timezone).toBe(deviceZone)
+    // Sanity: the value must be a valid IANA zone
+    expect(() => new Intl.DateTimeFormat('en', { timeZone: s.timezone })).not.toThrow()
+  })
 })

@@ -40,6 +40,17 @@ export interface AppSettings {
   lastRelaxCustomPrompt?: string
 }
 
+// The device's zone, not a hardcoded one: the timezone defines "today's
+// session" boundaries (App.tsx), so a Sydney user on an ET default got
+// sessions split mid-afternoon and yesterday's resumed as today's.
+function detectTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
+  } catch {
+    return 'America/New_York'
+  }
+}
+
 const DEFAULTS: AppSettings = {
   responseSpeed: 1.0,
   autoCapitalize: true,
@@ -47,7 +58,7 @@ const DEFAULTS: AppSettings = {
   bilateralStimulation: true,
   theme: 'system',
   language: detectBrowserLanguage(),
-  timezone: 'America/New_York',
+  timezone: detectTimezone(),
   lastSessionMode: 'standard',
   lastRelaxDuration: 10,
   lastRelaxType: 'breathwork',
