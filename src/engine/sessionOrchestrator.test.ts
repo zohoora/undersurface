@@ -130,15 +130,20 @@ describe('SessionOrchestrator', () => {
       expect(mockActivateGrounding).not.toHaveBeenCalled()
     })
 
-    it('does NOT throttle — every call analyzes (cooldown removed)', async () => {
+    it('throttles: a second call within the interval returns null without a new LLM call', async () => {
+      // The no-throttle behavior existed only while L3 emotion drove grounding
+      // (every message had to be analyzed for safety). L3 is now purely
+      // informational — L2 owns grounding — so the wasteful per-turn LLM call
+      // is throttled to match the diary path. The weather UI polls every 30s
+      // anyway, so no visible degradation.
       mockAnalyze.mockResolvedValue({ emotion: 'neutral', distressLevel: 0 })
 
       const first = await orch.checkEmotionAfterMessage('first message')
       expect(first).not.toBeNull()
 
       const second = await orch.checkEmotionAfterMessage('second message')
-      expect(second).not.toBeNull()
-      expect(mockAnalyze).toHaveBeenCalledTimes(2)
+      expect(second).toBeNull()
+      expect(mockAnalyze).toHaveBeenCalledTimes(1)
     })
   })
 

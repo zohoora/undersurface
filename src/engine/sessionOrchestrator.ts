@@ -66,6 +66,12 @@ export function detectCrisisKeywords(text: string): boolean {
 }
 
 export class SessionOrchestrator {
+  // Throttle the informational emotion tag to at most once per interval — the
+  // diary path (partOrchestrator) already does this; session mode was firing an
+  // extra LLM call on every user turn. Returns null when throttled.
+  private lastEmotionCheck = 0
+  private readonly EMOTION_CHECK_INTERVAL_MS = 30_000
+
   detectPhase(messages: SessionMessage[]): SessionPhase {
     const userMessageCount = messages.filter(m => m.speaker === 'user').length
     if (userMessageCount < 3) return 'opening'
@@ -103,6 +109,9 @@ export class SessionOrchestrator {
   // L3 — emotion tagging for innerWeather and part scoring. The
   // distressLevel field this returns is informational only.
   async checkEmotionAfterMessage(text: string): Promise<{ emotion: string; distressLevel: number } | null> {
+    const now = Date.now()
+    if (now - this.lastEmotionCheck < this.EMOTION_CHECK_INTERVAL_MS) return null
+    this.lastEmotionCheck = now
     return analyzeEmotionAndDistress(text)
   }
 
