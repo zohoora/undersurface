@@ -3,6 +3,7 @@ import { buildSessionReflectionPrompt, buildBoundedTranscript } from '../ai/ther
 import { chatCompletion } from '../ai/openrouter'
 import { db, generateId } from '../store/db'
 import { LetterEngine } from './letterEngine'
+import { pruneGrowthCollections } from './memoryPruner'
 import { engineLog } from '../services/diagnostics'
 
 const MEMORY_CAPS: Record<string, number> = {
@@ -245,6 +246,10 @@ export async function reflectOnSession(
     } catch (error) {
       console.error('Letter check error:', error)
     }
+
+    // Trim unbounded growth collections while we're already online. Best-effort
+    // and self-contained — never lets a prune failure affect the reflection.
+    void pruneGrowthCollections()
 
     console.log('[reflect] complete', { sessionId, totalMs: Date.now() - reflStart })
   } catch (error) {
