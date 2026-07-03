@@ -175,10 +175,27 @@ export const chat = onRequest(
     const tag = `uid=${uid.slice(0, 8)} model=${modelForRequest} task=${task ?? 'chat'} stream=${streamForRequest} max_tokens=${resolvedMaxTokens} reasoning=${resolvedReasoning ?? 'default'}`
     console.log(`[chat] start ${tag}`)
 
+    // Abort the upstream OpenAI request if the client goes away. Without this,
+    // an abandoned tab (or a client-side crisis abort) still billed the model to
+    // completion. `res.on('close')` fires when the HTTP connection ends before
+    // we finish writing.
+    const upstreamAbort = new AbortController()
+    let clientGone = false
+    // `res` is a Node stream in production; guard for lightweight test doubles.
+    if (typeof res.on === 'function') {
+      res.on('close', () => {
+        if (!res.writableEnded) {
+          clientGone = true
+          upstreamAbort.abort()
+        }
+      })
+    }
+
     const openAiResponse = await fetch(
       'https://api.openai.com/v1/chat/completions',
       {
         method: 'POST',
+        signal: upstreamAbort.signal,
         headers: {
           'Authorization': `Bearer ${openAiKey.value()}`,
           'Content-Type': 'application/json',
@@ -226,13 +243,20 @@ export const chat = onRequest(
       }
       const decoder = new TextDecoder()
       const reader = openAiResponse.body.getReader()
+      // Emit a machine-readable truncation frame so the client can tell a
+      // cut-off stream apart from a clean finish (a mid-stream break otherwise
+      // looks identical to normal completion). The client treats any SSE data
+      // object carrying an `error` field as a failed generation.
+      let truncated: string | null = null
       try {
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
+          if (clientGone) { truncated = null; break }
           totalBytes += value.byteLength
           if (totalBytes > MAX_STREAM_BYTES) {
             console.warn(`[chat] stream-cap ${tag} bytes=${totalBytes}, aborting`)
+            truncated = 'length_cap'
             break
           }
 
@@ -247,8 +271,18 @@ export const chat = onRequest(
 
           res.write(value)
         }
+      } catch (streamErr) {
+        // Upstream read failed mid-stream (network drop, upstream 5xx after
+        // headers). If the client is still connected, tell it explicitly.
+        if (!clientGone) {
+          truncated = 'upstream_error'
+          console.error(`[chat] stream-error ${tag}`, streamErr)
+        }
       } finally {
-        res.end()
+        if (truncated && !clientGone && !res.writableEnded) {
+          res.write(`data: ${JSON.stringify({ error: { type: truncated } })}\n\n`)
+        }
+        if (!res.writableEnded) res.end()
       }
       const empty = counters.contentTokens === 0
       const logFn = empty ? console.warn : console.log

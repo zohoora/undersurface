@@ -400,6 +400,32 @@ describe('streamChatCompletion — risk preamble parsing', () => {
     expect(complete).toBe('Short reply.')
   })
 
+  // ── server truncation frame (D1) ───────────────────────────────────────
+
+  it('routes a server truncation frame to onError instead of completing', async () => {
+    mockStream([
+      sse('Partial answer that gets cut'),
+      `data: ${JSON.stringify({ error: { type: 'length_cap' } })}\n\n`,
+      'data: [DONE]\n\n',
+    ])
+    const stream = await loadStream()
+
+    let completed = false
+    let errored: Error | null = null
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: () => {},
+        onComplete: () => { completed = true },
+        onError: (e) => { errored = e },
+      },
+    )
+
+    expect(completed).toBe(false)
+    expect(errored).not.toBeNull()
+    expect((errored as unknown as Error).message).toContain('length_cap')
+  })
+
   // ── malformed-preamble tolerance ───────────────────────────────────────
   // The model occasionally echoes the literal `<<RISK:N>>` template, emits
   // an out-of-range digit, or uses a single newline instead of two. Without

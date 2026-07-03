@@ -178,6 +178,7 @@ export async function streamChatCompletion(
     let fullText = ''
     let buffer = ''
     let loopDetected = false
+    let truncationError: string | null = null
 
     // Parser for the `<<RISK:N>>` preamble emitted by the therapist (see
     // RISK_PREAMBLE_INSTRUCTIONS). Buffer until match or fail-open threshold.
@@ -294,6 +295,14 @@ export async function streamChatCompletion(
 
           try {
             const parsed = JSON.parse(data)
+            // The chat proxy emits `{ error: { type } }` when it truncates the
+            // stream (length cap, upstream error) — surface it as a real failure
+            // instead of letting a cut-off response look like a clean finish.
+            // Flag it (the inner catch would swallow a throw here) and break.
+            if (parsed.error) {
+              truncationError = typeof parsed.error?.type === 'string' ? parsed.error.type : 'unknown'
+              break
+            }
             const token = parsed.choices?.[0]?.delta?.content
             if (token) {
               processContent(token)
@@ -319,10 +328,16 @@ export async function streamChatCompletion(
           }
         }
 
-        if (loopDetected) break
+        if (loopDetected || truncationError) break
       }
     } finally {
       clearTimeout(timeout)
+    }
+
+    // A truncation frame from the proxy is a hard failure — route it to onError
+    // (via the outer catch) rather than delivering the partial text as complete.
+    if (truncationError) {
+      throw new Error(`stream truncated by server: ${truncationError}`)
     }
 
     // Fail-open if preamble never matched and we ended below the threshold.
