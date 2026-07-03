@@ -595,6 +595,10 @@ export class PolarH10Engine {
       this.recentRmssds = []
       this.baselineRmssd = null
       this.streamingStartedAt = Date.now()
+      // Clear any prior tick before re-arming: a reconnect re-enters this path
+      // without a teardown (teardown only runs on intentional disconnect), so
+      // without this each auto-reconnect stacked another setInterval.
+      if (this.tickHandle != null) clearInterval(this.tickHandle)
       this.tickHandle = setInterval(() => this.tick(Date.now()), TICK_INTERVAL_MS)
       this.setStatus('streaming')
       // Fire-and-forget: PMD streaming is best-effort. HR/RR still works

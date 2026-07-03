@@ -6,6 +6,7 @@ import {
   butterworthBandpass,
   detectPeaks,
   computeHrvMetrics,
+  computeDerivedMetrics,
   classifyAutonomicState,
   computeRRFromSignal,
   computeRRFromIrregular,
@@ -218,6 +219,50 @@ describe('computeHrvMetrics', () => {
     expect(result).toHaveProperty('rmssd')
     expect(typeof result!.hr).toBe('number')
     expect(typeof result!.rmssd).toBe('number')
+  })
+})
+
+// --- computeDerivedMetrics (SDNN / pNN50 / LF-HF / Baevsky / coherence) ---
+
+describe('computeDerivedMetrics', () => {
+  it('returns null for fewer than 4 IBIs', () => {
+    expect(computeDerivedMetrics([])).toBeNull()
+    expect(computeDerivedMetrics([800, 810, 790])).toBeNull()
+  })
+
+  it('reports SDNN ≈ 0 and pNN50 = 0 for perfectly regular IBIs', () => {
+    const result = computeDerivedMetrics([800, 800, 800, 800, 800, 800])
+    expect(result).not.toBeNull()
+    expect(result!.sdnn).toBeCloseTo(0, 1)
+    expect(result!.pnn50).toBe(0)
+  })
+
+  it('reports pNN50 = 100 when every successive difference exceeds 50ms', () => {
+    // Alternating 700/800 → each |diff| = 100 > 50.
+    const result = computeDerivedMetrics([700, 800, 700, 800, 700, 800])
+    expect(result).not.toBeNull()
+    expect(result!.pnn50).toBe(100)
+    expect(result!.sdnn).toBeGreaterThan(0)
+  })
+
+  it('returns the full metric shape with numeric fields', () => {
+    const result = computeDerivedMetrics([750, 820, 790, 810, 770, 800, 760, 830])
+    expect(result).not.toBeNull()
+    expect(result).toHaveProperty('sdnn')
+    expect(result).toHaveProperty('pnn50')
+    expect(result).toHaveProperty('lfHfRatio')
+    expect(result).toHaveProperty('stressIndex')
+    expect(result).toHaveProperty('coherence')
+    expect(typeof result!.sdnn).toBe('number')
+    expect(typeof result!.stressIndex).toBe('number')
+    expect(result!.coherence).toBeGreaterThanOrEqual(0)
+    expect(result!.coherence).toBeLessThanOrEqual(1)
+  })
+
+  it('leaves lfHfRatio null for a short IBI series (needs ≥10)', () => {
+    const result = computeDerivedMetrics([750, 820, 790, 810])
+    expect(result).not.toBeNull()
+    expect(result!.lfHfRatio).toBeNull()
   })
 })
 
