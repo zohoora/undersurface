@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { authedPost } from '../api/authedFetch'
+import { friendlyVoiceError } from './voiceErrors'
 
 export type VoiceSessionState = 'idle' | 'connecting' | 'connected' | 'error'
 
@@ -271,9 +272,10 @@ export function useVoiceSession() {
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
       if (cancelled()) { teardown(); return }
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to start voice session'
+      // Keep the raw error in the console for debugging, but show the user a
+      // friendly, actionable message (mic blocked / no mic / service down).
       console.error('[useVoiceSession] start failed', e)
-      setError(message)
+      setError(friendlyVoiceError(e))
       setState('error')
       teardown()
     }
@@ -375,7 +377,8 @@ export function useVoiceSession() {
       case 'error': {
         const err = event.error as { message?: string; code?: string; type?: string } | undefined
         console.error('[useVoiceSession] server error:', err?.message ?? '(no message)', err?.code ?? '', err?.type ?? '', event)
-        setError(err?.message ?? 'Voice session error')
+        // A mid-session server error is a service failure from the user's view.
+        setError(friendlyVoiceError({ message: err?.message ?? 'service failure' }))
         break
       }
     }
