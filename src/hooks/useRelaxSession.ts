@@ -186,7 +186,12 @@ export function useRelaxSession(
 
     const id = recordIdRef.current
     if (id) {
-      const reachedPlanned = elapsedMs >= durationMs
+      // Compute elapsed live from the refs, NOT the `elapsedMs` state: on a
+      // timer-driven natural completion, the tick that fires end() captured the
+      // PREVIOUS committed elapsedMs (necessarily < durationMs), so reading state
+      // here recorded every completed session as completed:false.
+      const liveElapsed = Date.now() - startedAtRef.current - pausedTotalRef.current
+      const reachedPlanned = liveElapsed >= durationMs
       const start = startSnapshotRef.current
       const endLatest = hrv.latest
       const hrvSummary = (start && hrv.enabled) ? {
@@ -209,7 +214,7 @@ export function useRelaxSession(
         setSettings(null)
       }
     }, ENDING_DISPLAY_MS)
-  }, [elapsedMs, durationMs, stopAudio, voice, hrv.enabled, hrv.latest])
+  }, [durationMs, stopAudio, voice, hrv.enabled, hrv.latest])
 
   const enterGuiding = useCallback(() => {
     startedAtRef.current = Date.now()
