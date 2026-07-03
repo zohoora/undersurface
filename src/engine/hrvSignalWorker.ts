@@ -874,6 +874,10 @@ interface WorkerState {
   regions: Record<string, RegionBuffer>
   timestamps: number[]
   ibis: number[]
+  /** Absolute time (ms) of the newest peak already converted to an IBI. Each
+   *  compute tick reprocesses the whole sliding buffer, so without this the
+   *  same peaks are re-detected and their intervals double-counted. */
+  lastPeakTime: number
   calibrated: boolean
   calibrationStart: number | null
   baselineRmssd: number
@@ -942,6 +946,7 @@ const state: WorkerState = {
   regions: makeEmptyRegions(),
   timestamps: [],
   ibis: [],
+  lastPeakTime: 0,
   calibrated: false,
   calibrationStart: null,
   baselineRmssd: 50,
@@ -963,6 +968,7 @@ function resetState(): void {
   state.regions = makeEmptyRegions()
   state.timestamps = []
   state.ibis = []
+  state.lastPeakTime = 0
   state.calibrated = false
   state.calibrationStart = null
   state.baselineRmssd = 50
@@ -1012,6 +1018,7 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
         state.regions = makeEmptyRegions()
         state.timestamps = []
         state.ibis = []
+        state.lastPeakTime = 0
         state.landmarkMotionY = []
         state.landmarkValid = []
         state.chestIntensity = []
@@ -1188,13 +1195,27 @@ if (typeof document === 'undefined' && typeof self !== 'undefined' && 'postMessa
       const skipBest = Math.min(fps * 2, Math.floor(filteredBest.length * 0.15))
       const stableBest = filteredBest.slice(skipBest)
       const peaks = detectPeaks(stableBest, fps)
+      // Map a peak's index in stableBest back to its absolute frame time.
+      // stableBest = filteredBest.slice(skipBest), and CHROM + bandpass preserve
+      // sample count, so buffer index = peak index + skipBest, which parallels
+      // state.timestamps. Only intervals whose ENDING beat is newer than the
+      // last recorded beat are added — otherwise each overlapping compute window
+      // re-detects the same peaks and double-counts every IBI, deflating SDNN /
+      // RMSSD / pNN50 and every metric derived from them.
       const newIbis: number[] = []
+      let maxPeakTime = state.lastPeakTime
       for (let i = 1; i < peaks.length; i++) {
         const dt = (peaks[i] - peaks[i - 1]) / fps * 1000
-        if (dt > 400 && dt < 1500) newIbis.push(dt)
+        if (dt <= 400 || dt >= 1500) continue
+        const peakTime = state.timestamps[peaks[i] + skipBest] ?? 0
+        if (peakTime > state.lastPeakTime) {
+          newIbis.push(dt)
+          if (peakTime > maxPeakTime) maxPeakTime = peakTime
+        }
       }
       if (newIbis.length > 0) {
         state.ibis = [...state.ibis, ...newIbis].slice(-50)
+        state.lastPeakTime = maxPeakTime
       }
 
       const ibiMetrics = computeHrvMetrics(state.ibis)
