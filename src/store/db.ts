@@ -95,6 +95,13 @@ function createCollectionProxy<T extends DocumentData = DocumentData>(name: stri
                   const snap = await getDocs(q)
                   return snap.docs.map((d) => d.data() as T)
                 },
+                // Live subscription for this ordered+limited query. Firestore
+                // bills the initial N reads once, then only changed docs — far
+                // cheaper than re-`toArray()`ing on a poll timer.
+                subscribe(callback: (items: T[]) => void): () => void {
+                  const q = query(userCollection(name), orderBy(field, 'desc'), limit(n))
+                  return onSnapshot(q, (snap) => callback(snap.docs.map((d) => d.data() as T)))
+                },
               }
             },
           }

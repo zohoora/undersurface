@@ -51,23 +51,14 @@ export function EntriesList({ navigateTo, currentPath }: Props) {
   const showBodyMap = globalConfig?.features?.bodyMap === true
 
   // 60s poll. Sessions don't have a Firestore subscription wired here, so
-  // the sidebar can lag a session-creation/close by up to one tick. Fix the
-  // staleness by adding `db.sessions.subscribe(...)` if it becomes a problem.
+  // Live subscription over the 100 newest sessions: Firestore charges the
+  // initial 100 reads once, then only changed docs — instead of re-reading 100
+  // docs every 60s poll tick (~6k reads/hour/tab). Also removes the up-to-60s
+  // lag the old poll had on session creation/close.
   useEffect(() => {
-    let cancelled = false
-    const load = async () => {
-      // Bounded: an unbounded scan re-reads every session doc the user has
-      // ever created on every poll tick (~10k reads/hour for a long-tenured
-      // user). 100 newest covers the visible list.
-      const data = await db.sessions.orderBy('startedAt').reverse().limit(100).toArray()
-      if (!cancelled) setSessions(data)
-    }
-    load()
-    const interval = setInterval(load, 60_000)
-    return () => {
-      cancelled = true
-      clearInterval(interval)
-    }
+    const unsubscribe = db.sessions.orderBy('startedAt').reverse().limit(100)
+      .subscribe(setSessions)
+    return unsubscribe
   }, [])
 
   const formatDate = (timestamp: number) => {
