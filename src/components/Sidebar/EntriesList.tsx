@@ -56,7 +56,10 @@ export function EntriesList({ navigateTo, currentPath }: Props) {
   useEffect(() => {
     let cancelled = false
     const load = async () => {
-      const data = await db.sessions.orderBy('startedAt').reverse().toArray()
+      // Bounded: an unbounded scan re-reads every session doc the user has
+      // ever created on every poll tick (~10k reads/hour for a long-tenured
+      // user). 100 newest covers the visible list.
+      const data = await db.sessions.orderBy('startedAt').reverse().limit(100).toArray()
       if (!cancelled) setSessions(data)
     }
     load()

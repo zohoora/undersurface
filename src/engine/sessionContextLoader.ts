@@ -16,7 +16,10 @@ const RECENT_RELAX_LIMIT = 5
 
 export async function loadTherapistContext(): Promise<TherapistContext> {
   const [sessions, memories, profiles, facts, relaxBreaks] = await Promise.all([
-    db.sessions.orderBy('startedAt').reverse().toArray(),
+    // Bounded: only the 5 newest noted sessions are kept, so scanning the
+    // full collection is pure read amplification. 50 newest gives ample
+    // margin for closed-without-note gaps.
+    db.sessions.orderBy('startedAt').reverse().limit(50).toArray(),
     Promise.all(
       MEMORY_SOURCE_PARTS.map(partId =>
         db.memories.where('partId').equals(partId).toArray(),

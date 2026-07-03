@@ -9,6 +9,9 @@ type State = {
   personalFacts: PersonalFacts | undefined
   relaxSessions: RelaxSession[]
   relaxSessionsByParent: Record<string, RelaxSession[]>
+  // Records the limit the loader applied to the sessions query, so tests can
+  // assert the scan is bounded.
+  sessionsQueryLimit: number | null
 }
 
 let state: State
@@ -21,6 +24,7 @@ function freshState(): State {
     personalFacts: undefined,
     relaxSessions: [],
     relaxSessionsByParent: {},
+    sessionsQueryLimit: null,
   }
 }
 
@@ -29,8 +33,15 @@ vi.mock('../store/db', () => ({
     sessions: {
       orderBy: () => ({
         reverse: () => ({
-          toArray: async () =>
-            [...state.sessions].sort((a, b) => b.startedAt - a.startedAt),
+          limit: (n: number) => {
+            state.sessionsQueryLimit = n
+            return {
+              toArray: async () =>
+                [...state.sessions]
+                  .sort((a, b) => b.startedAt - a.startedAt)
+                  .slice(0, n),
+            }
+          },
         }),
       }),
     },
@@ -111,6 +122,12 @@ describe('loadTherapistContext', () => {
     expect(ctx.userProfile).toBeNull()
     expect(ctx.personalFacts).toBeNull()
     expect(ctx.recentRelaxBreaks).toEqual([])
+  })
+
+  it('bounds the sessions query instead of scanning the full collection', async () => {
+    await loadTherapistContext()
+    expect(state.sessionsQueryLimit).not.toBeNull()
+    expect(state.sessionsQueryLimit as number).toBeLessThanOrEqual(50)
   })
 
   it('takes only the 5 most recent CLOSED sessions with notes (active or note-less ones excluded)', async () => {
