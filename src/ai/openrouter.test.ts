@@ -373,6 +373,33 @@ describe('streamChatCompletion — risk preamble parsing', () => {
     expect(risks).toEqual([0])
   })
 
+  // ── no-preamble paths stream immediately (C5) ──────────────────────────
+  // Diary/parts callers pass no onRisk and their prompts never emit a marker.
+  // The parser must NOT buffer those up to the fail-open budget — a short nudge
+  // should reach onToken chunk-by-chunk, not appear all at once at stream end.
+
+  it('forwards each chunk immediately when no onRisk is provided (no buffering)', async () => {
+    mockStream([sse('Short '), sse('reply.'), 'data: [DONE]\n\n'])
+    const stream = await loadStream()
+
+    const tokens: string[] = []
+    let complete = ''
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: (t) => tokens.push(t),
+        onComplete: (full) => { complete = full },
+        onError: () => {},
+        // no onRisk
+      },
+    )
+
+    // Two chunks in ⇒ two forwards out. Buffered behavior would coalesce into
+    // a single flush at end (length 1).
+    expect(tokens).toEqual(['Short ', 'reply.'])
+    expect(complete).toBe('Short reply.')
+  })
+
   // ── malformed-preamble tolerance ───────────────────────────────────────
   // The model occasionally echoes the literal `<<RISK:N>>` template, emits
   // an out-of-range digit, or uses a single newline instead of two. Without

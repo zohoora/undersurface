@@ -181,7 +181,12 @@ export async function streamChatCompletion(
 
     // Parser for the `<<RISK:N>>` preamble emitted by the therapist (see
     // RISK_PREAMBLE_INSTRUCTIONS). Buffer until match or fail-open threshold.
-    let preambleConsumed = false
+    // Only the session/therapist path passes onRisk AND instructs the model to
+    // emit the marker; diary/parts prompts do neither. On those paths, start
+    // "consumed" so short responses stream immediately instead of buffering up
+    // to PREAMBLE_FAIL_OPEN_CHARS (an <80-char nudge otherwise appeared only at
+    // stream end). Safe because those prompts never produce a marker to strip.
+    let preambleConsumed = !callbacks.onRisk
     let preambleBuffer = ''
     // The match no longer consumes the preamble's trailing newlines when they
     // arrive in a later chunk, so the response is left-trimmed until its
