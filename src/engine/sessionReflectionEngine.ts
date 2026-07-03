@@ -120,15 +120,21 @@ export async function reflectOnSession(
       }
     }
 
-    // 6c. Create pattern memories for manager/self-role parts
+    // 6c. Create pattern memories under ONE canonical manager/self part.
+    // Writing a copy per manager/self part stored every cross-entry pattern in
+    // triplicate (the seeded self/manager parts are exactly the three the
+    // context loader reads), so one string could fill 3 of the 4 pattern slots
+    // in every prompt. Prefer a Self-role owner; fall back to the first
+    // manager/self part.
     if (parsed.crossEntryPatterns && Array.isArray(parsed.crossEntryPatterns)) {
       const patternParts = parts.filter(p => p.ifsRole === 'manager' || p.ifsRole === 'self')
-      for (const pattern of parsed.crossEntryPatterns) {
-        if (typeof pattern !== 'string' || !pattern.trim()) continue
-        for (const pp of patternParts) {
+      const patternOwner = patternParts.find(p => p.ifsRole === 'self') ?? patternParts[0]
+      if (patternOwner) {
+        for (const pattern of parsed.crossEntryPatterns) {
+          if (typeof pattern !== 'string' || !pattern.trim()) continue
           await db.memories.add({
             id: generateId(),
-            partId: pp.id,
+            partId: patternOwner.id,
             entryId: sessionId,
             content: pattern.trim(),
             type: 'pattern',

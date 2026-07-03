@@ -36,10 +36,20 @@ export async function loadTherapistContext(): Promise<TherapistContext> {
     .slice(0, 5)
     .map(s => ({ note: s.sessionNote!, date: s.endedAt ?? s.startedAt }))
 
-  // Combine and sort memories, take most recent 12
+  // Combine, dedup by content, sort newest-first, take 12. Dedup defends
+  // against historical triplicated pattern memories (same string written once
+  // per manager/self part before the source fix) so one pattern can't crowd out
+  // the others in the prompt.
+  const seenContent = new Set<string>()
   const allMemories = memories
     .flat()
     .sort((a, b) => b.timestamp - a.timestamp)
+    .filter(m => {
+      const key = m.content.trim().toLowerCase()
+      if (seenContent.has(key)) return false
+      seenContent.add(key)
+      return true
+    })
     .slice(0, 12)
 
   const userProfile = profiles.length > 0 ? profiles[0] : null

@@ -191,6 +191,30 @@ describe('loadTherapistContext', () => {
     expect(ctx.relevantMemories.some(m => m.partId === 'watcher')).toBe(false)
   })
 
+  it('dedups identical memory content across parts (legacy triplicated patterns)', async () => {
+    const mk = (partId: string, content: string, t: number): PartMemory => ({
+      id: `${partId}-${t}`,
+      partId,
+      entryId: 'e',
+      content,
+      type: 'pattern',
+      timestamp: t,
+    } as PartMemory)
+
+    // Same pattern string stored once per manager/self part, as the old
+    // reflection engine did. It must collapse to a single entry.
+    state.memoriesByPart = {
+      open: [mk('open', 'You retreat when things get close.', 300)],
+      weaver: [mk('weaver', 'You retreat when things get close.', 300)],
+      still: [mk('still', 'You retreat when things get close.', 300), mk('still', 'A distinct observation.', 200)],
+    }
+
+    const ctx = await loadTherapistContext()
+    const patternCount = ctx.relevantMemories.filter(m => m.content === 'You retreat when things get close.').length
+    expect(patternCount).toBe(1)
+    expect(ctx.relevantMemories).toHaveLength(2)
+  })
+
   it('filters relax breaks to completed sessions only and limits to 5', async () => {
     state.relaxSessions = [
       makeRelax({ id: 'r1', startedAt: 100, endedAt: 200 }),
