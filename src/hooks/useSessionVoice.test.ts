@@ -9,6 +9,7 @@ import type { TherapistContext } from '../engine/sessionContextLoader'
 
 const voiceStartMock = vi.fn(async () => {})
 const voiceStopMock = vi.fn()
+const sendSessionUpdateMock = vi.fn()
 let voiceState: 'idle' | 'connecting' | 'connected' | 'error' = 'idle'
 
 vi.mock('./useVoiceSession', () => ({
@@ -23,12 +24,15 @@ vi.mock('./useVoiceSession', () => ({
     stop: voiceStopMock,
     speak: vi.fn(),
     toggleMute: vi.fn(),
+    sendSessionUpdate: sendSessionUpdateMock,
   }),
 }))
 
 const isGroundingMock = vi.fn(() => false)
+let groundingValue = false
 vi.mock('./useGroundingMode', () => ({
   isGroundingActive: () => isGroundingMock(),
+  useGroundingMode: () => groundingValue,
 }))
 
 const sessionMessageAddMock = vi.fn()
@@ -133,7 +137,9 @@ beforeEach(() => {
   sessionUpdateMock.mockClear()
   loadRelaxMock.mockClear()
   trackEventMock.mockClear()
+  sendSessionUpdateMock.mockClear()
   isGroundingMock.mockReturnValue(false)
+  groundingValue = false
 })
 
 // ─── Tests ────────────────────────────────────────────────────
@@ -186,6 +192,52 @@ describe('useSessionVoice — handleStart', () => {
     const { result } = renderHook(() => useSessionVoice(wiring))
     await act(async () => { await result.current.handleStart() })
     expect(trackEventMock).toHaveBeenCalledWith('voice_session_started', { session_id: 'sess-1' })
+  })
+})
+
+describe('useSessionVoice — grounding reaches the live voice channel', () => {
+  it('pushes grounded instructions via session.update when grounding activates mid-session', async () => {
+    voiceState = 'connected'
+    const wiring = makeWiring()
+    ;(wiring.sessionRef as { current: Session | null }).current = makeSession({ mode: 'real_talk' })
+    const { result, rerender } = renderHook(() => useSessionVoice(wiring))
+    await act(async () => { await result.current.handleStart() })
+    sendSessionUpdateMock.mockClear()
+
+    // Crisis keywords activate grounding while the voice session is live.
+    await act(async () => {
+      groundingValue = true
+      rerender()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(sendSessionUpdateMock).toHaveBeenCalled()
+    const arg = sendSessionUpdateMock.mock.calls[0][0] as { instructions: string }
+    // Real Talk must be gone; the prompt is rebuilt with grounding on.
+    expect(arg.instructions).toContain('grounding=true')
+  })
+
+  it('does not push when grounding is inactive', async () => {
+    voiceState = 'connected'
+    const wiring = makeWiring()
+    const { result } = renderHook(() => useSessionVoice(wiring))
+    await act(async () => { await result.current.handleStart() })
+    sendSessionUpdateMock.mockClear()
+    await act(async () => { await Promise.resolve() })
+    expect(sendSessionUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('does not push when no voice session is connected', async () => {
+    voiceState = 'idle'
+    const wiring = makeWiring()
+    const { rerender } = renderHook(() => useSessionVoice(wiring))
+    await act(async () => {
+      groundingValue = true
+      rerender()
+      await Promise.resolve()
+    })
+    expect(sendSessionUpdateMock).not.toHaveBeenCalled()
   })
 })
 

@@ -1,6 +1,6 @@
-import { useCallback, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, type RefObject } from 'react'
 import { useVoiceSession } from './useVoiceSession'
-import { isGroundingActive } from './useGroundingMode'
+import { isGroundingActive, useGroundingMode } from './useGroundingMode'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { buildTherapistSystemPrompt } from '../ai/therapistPrompts'
@@ -77,21 +77,22 @@ export function useSessionVoice({
     messagesRef.current = updatedMessages
   }, [sessionRef, messagesRef, orchestratorRef, setSession, setMessages])
 
-  const handleStart = useCallback(async () => {
+  // Single source of truth for the voice system prompt, reused by handleStart
+  // and the mid-session grounding push so the two can never drift.
+  const buildInstructions = useCallback(async (grounded: boolean): Promise<string | null> => {
     const context = contextRef.current
-    if (!context) return
+    if (!context) return null
 
     const isFirstTurn = (messagesRef.current ?? []).every(m => m.speaker !== 'therapist')
-
     const sessionId = sessionRef.current?.id
     const inSessionRelaxBreaks = sessionId ? await loadInSessionRelaxBreaks(sessionId) : []
-    const instructions = buildTherapistSystemPrompt({
+    return buildTherapistSystemPrompt({
       phase: sessionRef.current?.phase ?? 'opening',
       recentSessionNotes: context.recentSessionNotes,
       relevantMemories: context.relevantMemories,
       profile: context.userProfile,
       personalFacts: context.personalFacts,
-      isGrounding: isGroundingActive(),
+      isGrounding: grounded,
       hrvContext: hrv.buildPromptContext(),
       mode: sessionRef.current?.mode ?? 'standard',
       allowRecommendations: true,
@@ -104,6 +105,33 @@ export function useSessionVoice({
       // SAFETY_RULES plus the L1 regex over user transcripts.
       includeRiskPreamble: false,
     })
+  }, [contextRef, sessionRef, messagesRef, hrv])
+
+  // The load-bearing invariant "distress disables Real Talk, no exceptions"
+  // was previously enforced only per-prompt on the text path. Voice built its
+  // instructions once at start with isGrounding frozen, so a Real Talk voice
+  // session kept its confrontational persona through a detected crisis. When
+  // grounding activates while a session is live, rebuild grounded instructions
+  // (which flip Real Talk → THERAPIST_CORE) and push them into the running
+  // realtime session. One push per grounding episode.
+  const isGrounding = useGroundingMode()
+  const groundedPushedRef = useRef(false)
+  useEffect(() => {
+    if (!isGrounding) {
+      groundedPushedRef.current = false
+      return
+    }
+    if (voice.state !== 'connected' || groundedPushedRef.current) return
+    groundedPushedRef.current = true
+    void buildInstructions(true).then(instructions => {
+      if (instructions) voice.sendSessionUpdate({ instructions })
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGrounding, voice.state])
+
+  const handleStart = useCallback(async () => {
+    const instructions = await buildInstructions(isGroundingActive())
+    if (!instructions) return
 
     const preferredVoice = getGlobalConfig()?.voice?.defaultVoice ?? 'marin'
 
@@ -127,7 +155,7 @@ export function useSessionVoice({
         }
       },
     })
-  }, [voice, hrv, appendUserMessage, persistVoiceTherapistMessage, contextRef, sessionRef, messagesRef])
+  }, [voice, hrv, appendUserMessage, persistVoiceTherapistMessage, buildInstructions, sessionRef, messagesRef])
 
   const handleEnd = useCallback(() => {
     voice.stop()

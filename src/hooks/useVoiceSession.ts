@@ -413,5 +413,6 @@ export function useVoiceSession() {
     stop,
     speak,
     toggleMute,
+    sendSessionUpdate,
   }
 }
