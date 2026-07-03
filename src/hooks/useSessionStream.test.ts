@@ -238,6 +238,37 @@ describe('useSessionStream — generateTherapistMessage (happy path)', () => {
   })
 })
 
+// ─── Tests: cross-session guard (P0) ──────────────────────────
+
+describe('useSessionStream — cross-session finalize guard', () => {
+  it('persists to the original session but skips React-state writes after a session switch', async () => {
+    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
+      callbacks.onToken('A reply.')
+      callbacks.onComplete()
+    })
+
+    const wiring = makeWiring() // session sess-1
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    await act(async () => {
+      const p = result.current.generateTherapistMessage([], wiring.sessionRef.current!)
+      await Promise.resolve()
+      // User navigates to a different session before the reveal finalizes.
+      ;(wiring.sessionRef as { current: Session | null }).current = makeSession({ id: 'sess-2' })
+      const tw = wiring.typewriter as unknown as TypewriterMock
+      await tw.pendingComplete?.('A reply.')
+      await p
+    })
+
+    // The paid message is still persisted — to its OWN session, sess-1.
+    expect(sessionMessageAddMock).toHaveBeenCalledOnce()
+    expect(sessionMessageAddMock.mock.calls[0][0]).toBe('sess-1')
+    // But it must NOT overwrite the now-active session's live view.
+    expect(wiring.setMessages).not.toHaveBeenCalled()
+    expect(wiring.setIsStreaming).not.toHaveBeenCalledWith(false)
+  })
+})
+
 // ─── Tests: serialized appends (no lost messages) ─────────────
 
 describe('useSessionStream — appendUserMessage serialization', () => {
