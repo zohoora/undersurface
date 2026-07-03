@@ -100,9 +100,12 @@ Therapist turns (Talk surface):
     → Cloud Function (chat) → verifies token → Secret Manager key → OpenAI gpt-5.5
     → streams SSE back; <<RISK:N>> preamble stripped client-side
   Crisis: L1 regex (sessionOrchestrator.checkCrisisKeywords, sync, before generation)
-          L2 = in-band <<RISK:N>> preamble at the start of the SAME stream (fail-open);
-          risk=2 before first token aborts + retries with grounding on.
-          (The standalone classifyCrisisRisk → gpt-5-nano route is journal/parts only.)
+          L2a = in-band <<RISK:N>> preamble at the start of the SAME stream (fail-open);
+                risk=2 before first token aborts + retries with grounding on.
+          L2b = standalone classifyCrisisRisk (gpt-5-nano) races the stream, once per
+                user turn — the independent backstop for when the preamble fails open;
+                risk=2 activates grounding (crisis UI + grounds subsequent turns).
+                Also runs in journal/parts mode.
 
 Journal surface parts:
   pause in TipTap → useJournalParts → PauseDetector + PartOrchestrator

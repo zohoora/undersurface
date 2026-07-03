@@ -9,9 +9,11 @@ import type { TherapistContext } from '../engine/sessionContextLoader'
 // streamChatCompletion: tests reach in via streamMock.mockImplementation to
 // control onToken/onComplete/onError per case.
 const streamMock = vi.fn()
+const classifyCrisisRiskMock = vi.fn(async () => 0)
 vi.mock('../ai/openrouter', () => ({
   streamChatCompletion: (...args: unknown[]) => streamMock(...args),
   reasoningForSpeed: () => 'medium',
+  classifyCrisisRisk: (...a: unknown[]) => classifyCrisisRiskMock(...a),
 }))
 
 vi.mock('../ai/therapistPrompts', () => ({
@@ -179,9 +181,15 @@ beforeEach(() => {
   weatherShouldPersistMock.mockClear()
   weatherPersistMock.mockClear()
   activateGroundingMock.mockClear()
+  classifyCrisisRiskMock.mockReset()
+  classifyCrisisRiskMock.mockResolvedValue(0)
   isGroundingMock.mockReturnValue(false)
   idCounter = 0
 })
+
+function makeUserMsg(content: string): SessionMessage {
+  return { id: 'u1', speaker: 'user', partId: null, partName: null, content, timestamp: 1, phase: 'opening', isEmergence: false }
+}
 
 // ─── Tests: generateTherapistMessage happy path ───────────────
 
@@ -354,6 +362,87 @@ describe('useSessionStream — onRisk preamble wiring', () => {
 
     expect(callCount).toBe(1) // No retry — stream was not aborted
     expect(activateGroundingMock).toHaveBeenCalledWith('auto')
+  })
+
+  it('backstop: the standalone classifier activates grounding when the preamble is absent', async () => {
+    // Simulate a missing/malformed preamble that fails open to 0 — the stream
+    // never calls onRisk — while the independent L2 classifier catches it.
+    classifyCrisisRiskMock.mockResolvedValue(2)
+    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
+      callbacks.onToken('I hear you.')
+      callbacks.onComplete()
+    })
+
+    const tw = makeTypewriter()
+    const userMsg = makeUserMsg('i cannot keep going like this')
+    const wiring = makeWiring({ typewriter: tw, messages: [userMsg] })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    await act(async () => {
+      const p = result.current.generateTherapistMessage([userMsg], wiring.sessionRef.current!)
+      await Promise.resolve()
+      await tw.pendingComplete?.('I hear you.')
+      await p
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(classifyCrisisRiskMock).toHaveBeenCalledWith('i cannot keep going like this', 'en')
+    expect(activateGroundingMock).toHaveBeenCalledWith('auto')
+  })
+
+  it('backstop: classifier returning 0 does not activate grounding', async () => {
+    classifyCrisisRiskMock.mockResolvedValue(0)
+    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
+      callbacks.onToken('Tell me more.')
+      callbacks.onComplete()
+    })
+    const tw = makeTypewriter()
+    const wiring = makeWiring({ typewriter: tw, messages: [makeUserMsg('just a normal day')] })
+    const { result } = renderHook(() => useSessionStream(wiring))
+    await act(async () => {
+      const p = result.current.generateTherapistMessage([makeUserMsg('just a normal day')], wiring.sessionRef.current!)
+      await Promise.resolve()
+      await tw.pendingComplete?.('Tell me more.')
+      await p
+      await Promise.resolve()
+    })
+    expect(activateGroundingMock).not.toHaveBeenCalled()
+  })
+
+  it('backstop: classifier is NOT called when grounding is already active', async () => {
+    isGroundingMock.mockReturnValue(true)
+    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
+      callbacks.onToken('gentle presence')
+      callbacks.onComplete()
+    })
+    const tw = makeTypewriter()
+    const wiring = makeWiring({ typewriter: tw, messages: [makeUserMsg('anything')] })
+    const { result } = renderHook(() => useSessionStream(wiring))
+    await act(async () => {
+      const p = result.current.generateTherapistMessage([makeUserMsg('anything')], wiring.sessionRef.current!)
+      await Promise.resolve()
+      await tw.pendingComplete?.('gentle presence')
+      await p
+    })
+    expect(classifyCrisisRiskMock).not.toHaveBeenCalled()
+  })
+
+  it('backstop: classifier is not called on an opener turn (no user message)', async () => {
+    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
+      callbacks.onToken('Welcome.')
+      callbacks.onComplete()
+    })
+    const tw = makeTypewriter()
+    const wiring = makeWiring({ typewriter: tw })
+    const { result } = renderHook(() => useSessionStream(wiring))
+    await act(async () => {
+      const p = result.current.generateTherapistMessage([], wiring.sessionRef.current!)
+      await Promise.resolve()
+      await tw.pendingComplete?.('Welcome.')
+      await p
+    })
+    expect(classifyCrisisRiskMock).not.toHaveBeenCalled()
   })
 
   it('forwards an AbortSignal to streamChatCompletion (the abort plumbing exists)', async () => {

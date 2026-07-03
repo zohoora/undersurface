@@ -2,12 +2,12 @@ import { useCallback, type Dispatch, type RefObject, type SetStateAction } from 
 import { useSettings } from '../store/settings'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../store/db'
 import { buildTherapistMessages } from '../ai/therapistPrompts'
-import { streamChatCompletion, reasoningForSpeed } from '../ai/openrouter'
+import { streamChatCompletion, reasoningForSpeed, classifyCrisisRisk } from '../ai/openrouter'
 import { loadInSessionRelaxBreaks } from '../engine/sessionContextLoader'
 import type { TherapistContext } from '../engine/sessionContextLoader'
 import { isGroundingActive, activateGrounding } from './useGroundingMode'
 import { getWeatherEngine } from '../store/weatherStore'
-import { useTranslation } from '../i18n'
+import { useTranslation, getLanguageCode } from '../i18n'
 import type { useTypewriter } from './useTypewriter'
 import type { SessionOrchestrator } from '../engine/sessionOrchestrator'
 import type { Session, SessionMessage, SessionPhase, EmotionalTone, HrvConversationEventType } from '../types'
@@ -85,6 +85,25 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     setOpenerError(null)
 
     const orchestrator = orchestratorRef.current
+
+    // Standalone L2 crisis backstop. The in-band <<RISK:N>> preamble is the
+    // primary session-mode signal, but it fails open to 0 on any malformation
+    // or absence — with no independent check, a missed crisis went unnoticed.
+    // Fire an independent classifier ONCE per user turn (not per retry),
+    // parallel to streaming. On risk=2 it activates grounding, which shows the
+    // crisis-resources UI immediately and grounds every subsequent turn (Real
+    // Talk → THERAPIST_CORE). It deliberately does NOT abort the in-flight
+    // stream: that clean pre-first-token abort/retry belongs to the in-band
+    // preamble (synchronous with generation); an out-of-band classifier
+    // aborting mid-stream would make responses vanish and regenerate at
+    // unpredictable moments. Fail-open (returns 0 on error) so it never bricks
+    // a send.
+    const latestUserMessage = [...currentMessages].reverse().find(m => m.speaker === 'user')
+    if (latestUserMessage && !isGroundingActive()) {
+      void classifyCrisisRisk(latestUserMessage.content, getLanguageCode())
+        .then(risk => { if (risk === 2) activateGrounding('auto') })
+        .catch(() => { /* classifyCrisisRisk already fails open to 0 */ })
+    }
 
     // Up to 3 total attempts to get non-empty content. The therapist sometimes
     // emits zero content tokens — model exhausts its budget on internal reasoning,
