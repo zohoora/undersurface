@@ -1,5 +1,6 @@
 import type { DocumentData } from 'firebase/firestore'
-import { db } from './db'
+import { db, sessionMessages } from './db'
+import type { SessionMessage } from '../types'
 import { t, getLanguageCode, getPartDisplayName } from '../i18n'
 
 // ── Markdown export helpers ──
@@ -35,7 +36,10 @@ function groupBy<T>(items: T[], keyFn: (item: T) => string): Map<string, T[]> {
   return map
 }
 
-function buildMarkdownExport(collections: Record<string, DocumentData[]>): string {
+export function buildMarkdownExport(
+  collections: Record<string, DocumentData[]>,
+  sessionMessagesById: Record<string, SessionMessage[]> = {},
+): string {
   const entries = (collections.entries ?? []).sort((a, b) => (a.createdAt as number) - (b.createdAt as number))
   const parts = collections.parts ?? []
   const memories = collections.memories ?? []
@@ -228,6 +232,75 @@ function buildMarkdownExport(collections: Record<string, DocumentData[]>): strin
     ln()
   }
 
+  // ── Personal facts ──
+  const facts = (collections.personalFacts ?? [])[0] as DocumentData | undefined
+  if (facts) {
+    const factLists: [string, string][] = [
+      [t('export.people'), 'people'],
+      [t('export.importantDates'), 'dates'],
+      [t('export.context'), 'context'],
+      [t('export.currentThreads'), 'currentThreads'],
+    ]
+    const rendered = factLists.filter(([, key]) => (facts[key] as unknown[] | undefined)?.length)
+    if (rendered.length) {
+      ln('---')
+      ln()
+      ln(`## ${t('export.personalFacts')}`)
+      ln()
+      for (const [label, key] of rendered) {
+        const items = facts[key] as DocumentData[]
+        ln(`**${label}:**`)
+        for (const item of items) {
+          // Fact entries are small objects; render their human-readable fields.
+          const text = typeof item === 'string' ? item
+            : [item.name, item.date, item.value, item.description, item.thread, item.event, item.context]
+                .filter((v): v is string => typeof v === 'string' && v.length > 0)
+                .join(' — ')
+          if (text) ln(`- ${text}`)
+        }
+        ln()
+      }
+    }
+  }
+
+  // ── Conversations (full transcripts) ──
+  const sessionDocs = (collections.sessions ?? []).sort((a, b) => (a.startedAt as number) - (b.startedAt as number))
+  const transcribed = sessionDocs.filter(s => (sessionMessagesById[s.id as string]?.length ?? 0) > 0 || s.sessionNote)
+  if (transcribed.length) {
+    ln('---')
+    ln()
+    ln(`## ${t('export.conversations')}`)
+    ln()
+    for (const s of transcribed) {
+      const id = s.id as string
+      ln(`### ${fmtDate(s.startedAt as number)} · ${fmtTime(s.startedAt as number)}`)
+      ln()
+      if (s.sessionNote) {
+        ln(`> ${t('export.sessionNote')}: ${(s.sessionNote as string).replace(/\n/g, '\n> ')}`)
+        ln()
+      }
+      for (const m of sessionMessagesById[id] ?? []) {
+        const who = m.speaker === 'user' ? t('export.you') : t('export.companion')
+        ln(`**${who}:** ${m.content}`)
+        ln()
+      }
+    }
+  }
+
+  // ── Consent records ──
+  const consent = collections.consent ?? []
+  if (consent.length) {
+    ln('---')
+    ln()
+    ln(`## ${t('export.consent')}`)
+    ln()
+    for (const c of consent) {
+      const when = c.grantedAt ? fmtDate(c.grantedAt as number) : c.timestamp ? fmtDate(c.timestamp as number) : '—'
+      ln(`- ${c.id ?? c.type ?? 'consent'}: ${when}`)
+    }
+    ln()
+  }
+
   return lines.join('\n')
 }
 
@@ -246,7 +319,16 @@ export async function exportAllData() {
   const data: Record<string, DocumentData[]> = {}
   collectionNames.forEach((name, i) => { data[name] = results[i] })
 
-  const md = buildMarkdownExport(data)
+  // Fetch the actual conversation transcripts (sessions/{id}/messages) — the
+  // summary table alone omitted every word the user and their companion said.
+  const sessionDocs = data.sessions ?? []
+  const messagesById: Record<string, SessionMessage[]> = {}
+  await Promise.all(sessionDocs.map(async (s) => {
+    const id = s.id as string
+    messagesById[id] = await sessionMessages.getAll(id)
+  }))
+
+  const md = buildMarkdownExport(data, messagesById)
 
   const blob = new Blob([md], { type: 'text/markdown' })
   const url = URL.createObjectURL(blob)
