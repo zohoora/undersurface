@@ -2,23 +2,37 @@
 
 ## What is this project?
 
-A diary app where AI inner voices encourage and guide the user's writing. The user types in a rich text editor; when they pause, slow down, or trail off, an AI "part" speaks on the page — nudging them to go deeper, keep going, or find what they haven't said yet. Live at [undersurface.me](https://undersurface.me).
+A session-first reflective companion app. Opening the app drops the user into a therapist session — an AI companion that talks with them across four surfaces: **Talk** (streamed text conversation), **Journal** (quiet TipTap page where inner-voice "parts" can respond on pause), **Speak** (live voice via OpenAI Realtime), and **Relax** (guided breathwork + soundscapes). The app pivoted from a diary-first product; the diary-entry flow no longer exists, but the journal/parts machinery lives on inside sessions. Live at [undersurface.me](https://undersurface.me).
+
+## Current work
+
+A full remediation effort is underway. The master plan is `docs/superpowers/plans/2026-07-03-full-remediation-master.md` (stage plans live alongside it, e.g. `2026-07-03-stage1-quick-wins.md`). Check it before starting significant work — your task may already be scoped there.
+
+## Review docs
+
+Canonical findings list, in order of authority:
+
+- `APP_REVIEW_TREE_AND_FOREST_2026-05-21.md`
+- `APP_REVIEW_2026-07-03.md`
+- `APP_REVIEW_FABLE5_2026-07-03.md`
 
 ## Quick Reference
 
 ```bash
 npm run dev              # Dev server → localhost:5173
-npm run build            # Production build → dist/
+npm run build            # Production build → dist/ (tsc -b + vite build)
 npm run lint             # ESLint (flat config)
-npm run test             # Vitest
+npm run test             # Vitest (npm run test:watch for watch mode)
 npm run preview          # Preview production build locally
 npm run test:indexes     # Run Firestore index tests (requires emulator)
+npm run test:crisis      # Live crisis-classifier eval (RUN_CRISIS_EVAL=1, hits real API)
 npm run smoke-test       # Post-deploy smoke test against live site
+npm run cap:ios          # Build + sync + open iOS (Capacitor; cap:android likewise)
 ```
 
 ## CI/CD
 
-`.github/workflows/ci.yml` runs on push/PR to main: type-check (frontend + functions), lint, test, build. Uses Node 22 and dummy `VITE_FIREBASE_*` env vars (Firebase config is public, only needed at runtime).
+`.github/workflows/ci.yml` runs on push/PR to main: type-check (frontend + functions), lint, test, Firestore index tests (emulator + Java 21), build. Uses Node 22 and dummy `VITE_FIREBASE_*` env vars (Firebase config is public, only needed at runtime — never use the dummy values for production deploys).
 
 ## Deploying Changes
 
@@ -33,14 +47,14 @@ npm run build && firebase deploy --only hosting
 ### 2. Cloud Functions (Firebase Functions, Node.js 22)
 
 Six functions split across `functions/src/`:
-- **`chat`** (`functions/src/chat.ts`) — proxies AI requests to OpenAI (512MiB, minInstances: 1)
-- **`realtimeTokenApi`** (`functions/src/realtime.ts`) — mints OpenAI Realtime client secrets (256MiB, minInstances: 1)
-- **`soundscapeApi`** (`functions/src/soundscapeApi.ts`) — ElevenLabs-backed custom soundscape generator + cache (256MiB, 60s)
+- **`chat`** (`functions/src/chat.ts`) — proxies AI requests to OpenAI; `gpt-5.5` for therapist/journal turns, `gpt-5-nano` for the `task: 'crisis_check'` route (512MiB, minInstances: 1, 300s)
+- **`realtimeTokenApi`** (`functions/src/realtime.ts`) — mints OpenAI Realtime client secrets for `gpt-realtime-2` voice sessions (256MiB, minInstances: 1, 30s)
+- **`soundscapeApi`** (`functions/src/soundscapeApi.ts`) — ElevenLabs-backed custom soundscape generator + Firestore cache (`functions/src/soundscape/`) (256MiB, 60s)
 - **`accountApi`** (`functions/src/account.ts`) — account deletion + contact form, table-driven action dispatch (256MiB, 60s)
-- **`adminApi`** (`functions/src/admin/`) — admin dashboard backend, table-driven action dispatch; handlers in `admin/handlers.ts`, analytics in `admin/analytics.ts` (512MiB, 120s)
-- **`mcpApi`** (`functions/src/mcp.ts`) — MCP server with 4 read-only tools (256MiB, 30s)
+- **`adminApi`** (`functions/src/admin/`) — admin dashboard backend, table-driven action dispatch; handler map in `admin/index.ts`, handlers in `admin/handlers.ts`, analytics in `admin/analytics.ts` (512MiB, 120s)
+- **`mcpApi`** (`functions/src/mcp.ts`) — MCP server with 4 read-only tools: `list-entries`, `get-entry`, `list-conversations`, `get-conversation` (256MiB, 30s)
 
-Shared cross-handler code in `functions/src/shared/`: `init.ts` (initializeApp), `auth.ts` (verifyAuth/Admin + `ADMIN_EMAILS`), `cors.ts` (`ALLOWED_ORIGINS`), `rateLimit.ts` (`makeRateLimiter`), `secrets.ts` (defineSecret instances). `functions/src/index.ts` is a slim re-export so deploy targets are unchanged.
+Shared cross-handler code in `functions/src/shared/`: `init.ts` (initializeApp), `auth.ts` (verifyAuth/Admin + `ADMIN_EMAILS`), `cors.ts` (`ALLOWED_ORIGINS`), `rateLimit.ts` (`makeRateLimiter`), `secrets.ts` (`OPENAI_API_KEY`, `ELEVENLABS_API_KEY`), `models.ts` (`OPENAI_CHAT_MODEL`, pinned). `functions/src/index.ts` is a slim re-export so deploy targets are unchanged.
 
 ```bash
 cd functions && npx tsc && cd .. && firebase deploy --only functions
@@ -80,12 +94,30 @@ npm run smoke-test
 ### Request flows
 
 ```
-AI responses:
-  User types → PauseDetector → PartOrchestrator → openrouter.ts
-    → fetch('/api/chat', { auth token }) → Cloud Function (chat)
-    → verifies token → Secret Manager API key → OpenAI → streams SSE back
+Therapist turns (Talk surface):
+  user sends → useSessionStream → buildTherapistMessages (therapistPrompts.ts)
+    → streamChatCompletion (src/ai/openrouter.ts — legacy filename, calls /api/chat)
+    → Cloud Function (chat) → verifies token → Secret Manager key → OpenAI gpt-5.5
+    → streams SSE back; <<RISK:N>> preamble stripped client-side
+  Crisis: L1 regex (sessionOrchestrator.checkCrisisKeywords, sync, before generation)
+          L2 = in-band <<RISK:N>> preamble at the start of the SAME stream (fail-open);
+          risk=2 before first token aborts + retries with grounding on.
+          (The standalone classifyCrisisRisk → gpt-5-nano route is journal/parts only.)
 
-Admin:  /admin → ADMIN_EMAILS check → adminApi Cloud Function → Admin SDK
+Journal surface parts:
+  pause in TipTap → useJournalParts → PauseDetector + PartOrchestrator
+    → openrouter.ts → /api/chat → OpenAI → part thought streams onto the page
+
+Voice (Speak surface):
+  useSessionVoice → POST /api/realtime-token (realtimeTokenApi mints client secret)
+    → useVoiceSession WebRTC direct to OpenAI Realtime (gpt-realtime-2)
+
+Relax surface:
+  preset soundscapes from static assets; custom prompts → /api/soundscape
+    → soundscapeApi → ElevenLabs (+ Firestore cache); optional voice guidance
+    runs a passive (recvonly) realtime session
+
+Admin:  /admin → isAdmin check → adminApi Cloud Function → Admin SDK
 Account: Settings → accountApi Cloud Function → delete/contact
 ```
 
@@ -93,70 +125,94 @@ Account: Settings → accountApi Cloud Function → delete/contact
 
 Detailed file-by-file reference: `.claude/docs/key-files.md`
 
-Core entry points: `src/ai/openrouter.ts` (API calls), `src/ai/partPrompts.ts` (system prompts + `SHARED_INSTRUCTIONS`), `src/ai/sessionPrompts.ts` (session mode part prompts), `src/ai/therapistPrompts.ts` (therapist companion prompts — `THERAPIST_CORE` warm + `REAL_TALK_CORE` calling-out + `SAFETY_RULES`), `src/engine/partOrchestrator.ts` (part selection + scoring), `src/engine/sessionOrchestrator.ts` (session phase detection + crisis keywords + emotion check), `src/engine/pauseDetector.ts` (pause detection), `src/engine/sessionContextLoader.ts` (`loadTherapistContext`), `src/engine/hrvEngine.ts` (webcam HRV biofeedback), `src/engine/hrvSignalWorker.ts` (CHROM rPPG signal processing Web Worker), `src/engine/hrvTimeline.ts` (HRV timeline + shift detection + prompt context), `src/engine/polarH10Engine.ts` (Polar H10 BLE — heart-rate service + PMD accelerometer for chest-motion respiration), `src/hooks/useHrvSession.ts` (webcam HRV session lifecycle), `src/hooks/usePolarH10Session.ts` (H10 session lifecycle; parallel surface), `src/components/Editor/LivingEditor.tsx` (TipTap editor), `src/components/Session/SessionView.tsx` (therapist session UI), `src/components/EntryChoice.tsx` (3-way choice screen: Journal / Conversation / Real Talk), `src/store/db.ts` (Firestore wrapper). Cloud Functions: `functions/src/{chat,realtime,soundscapeApi,account,mcp}.ts` (per-handler modules) + `functions/src/admin/` (handler map + helpers + analytics) + `functions/src/shared/` (auth, cors, rate-limit, secrets).
+Core entry points: `src/ai/openrouter.ts` (all /api/chat calls — legacy filename kept, there is no OpenRouter; includes `classifyCrisisRisk` + `<<RISK:N>>` preamble handling), `src/ai/therapistPrompts.ts` (therapist companion prompts — `THERAPIST_CORE` warm + `REAL_TALK_CORE` calling-out + `SAFETY_RULES` + `buildTherapistSystemPrompt`), `src/ai/partPrompts.ts` (7 seeded parts + `SHARED_INSTRUCTIONS` + emergence/reflection/growth prompts), `src/ai/crisisClassifierPrompt.ts` (L2 risk-tier prompt), `src/ai/relaxPrompts.ts` (Relax voice guidance), `src/ai/therapistRecommendationParser.ts` (tappable recommendation segments in therapist messages), `src/engine/sessionOrchestrator.ts` (phase detection + L1 crisis regex + emotion check), `src/engine/partOrchestrator.ts` (part selection + scoring), `src/engine/pauseDetector.ts`, `src/engine/sessionContextLoader.ts` (`loadTherapistContext`), `src/engine/relaxEngine.ts` (breath pacing math), `src/engine/hrvEngine.ts` (webcam HRV), `src/engine/hrvSignalWorker.ts` (CHROM rPPG Web Worker), `src/engine/hrvTimeline.ts`, `src/engine/polarH10Engine.ts` (Polar H10 BLE), `src/hooks/useSessionStream.ts` (therapist message lifecycle + crisis race + `BiometricSource`), `src/hooks/useSessionVoice.ts` + `src/hooks/useVoiceSession.ts` (Realtime voice), `src/components/Editor/useJournalParts.ts` (in-session parts pipeline), `src/hooks/useHrvSession.ts`, `src/hooks/usePolarH10Session.ts`, `src/hooks/useRelaxSession.ts`, `src/components/Session/SessionView.tsx` (session shell: surfaces, mode, biometrics), `src/components/Session/SessionBottomBar.tsx` (surface switcher + Real Talk toggle), `src/components/Session/SessionJournalSurface.tsx` (in-session TipTap journal), `src/components/Session/Relax/` (Relax UI), `src/store/db.ts` (Firestore wrapper + `sessionMessages`). Cloud Functions: `functions/src/{chat,realtime,soundscapeApi,account,mcp}.ts` + `functions/src/admin/` + `functions/src/soundscape/` + `functions/src/shared/`.
+
+Note: `src/ai/sessionPrompts.ts` exists but has no non-test consumers — candidate for removal, see review docs.
 
 ### Data storage
 
-- **Firestore** `users/{uid}/` — 15 subcollections: entries, parts, memories, thoughts, interactions, entrySummaries, userProfile, personalFacts, fossils, letters, sessionLog (sessions docs carry an optional `mode: 'standard' | 'real_talk'` field), innerWeather, consent, apiKeys, hrvSessions
+- **Firestore** `users/{uid}/` — 18 subcollections in `db.ts`: entries (legacy — **no writers anymore**, read only by echo/quote/reflection engines and MCP), parts, memories, thoughts, interactions, entrySummaries, userProfile, personalFacts, fossils, letters, sessionLog, innerWeather, consent, sessions (docs carry `mode: 'standard' | 'real_talk'`, `status`, `favorited`, `journalPartsEnabled`), apiKeys, hrvSessions, relaxSessions, diagnostics. Plus `sessions/{id}/messages` subcollection (via the `sessionMessages` helper in `db.ts`, not the `db` proxy).
 - **Firestore** `appConfig/global` — readable by all authenticated, writable only via adminApi
 - **Firestore** `contactMessages` — top-level, deny-all in client rules, written/read via Cloud Functions
-- **localStorage** — device settings (theme, model, visual effects, speed, language)
-- **Google Secret Manager** — `OPENAI_API_KEY` (used by both `chat` and `realtimeTokenApi`)
+- **localStorage** — device settings (`src/store/settings.ts` DEFAULTS: responseSpeed, autoCapitalize, autocorrect, bilateralStimulation, theme, language, timezone, lastSessionMode, lastRelax*)
+- **Google Secret Manager** — `OPENAI_API_KEY` (chat + realtimeTokenApi + adminApi insights), `ELEVENLABS_API_KEY` (soundscapeApi)
 
 ### Auth
 
-Firebase Authentication: Google Sign-In + Email/Password. `App.tsx` gates app behind auth. Cloud Functions verify ID tokens. `adminApi` checks `ADMIN_EMAILS` allowlist (in `functions/src/shared/auth.ts` and `src/App.tsx`).
+Firebase Authentication: Google Sign-In + Email/Password. `App.tsx` gates app behind auth. Cloud Functions verify ID tokens. Admin allowlist lives in `functions/src/shared/auth.ts` (backend) and `src/admin/isAdmin.ts` (frontend gate used by `App.tsx`).
 
 ### URL routing
 
-SPA in `App.tsx` using `pushState`-based client-side routing (no router library): `/` → diary, `/new` → 3-way choice screen (Journal / Conversation / Real Talk), `/session/new` → new session (mode picked up from `pendingSessionMode` state set by the choice handler — never URL-encoded), `/session/:id` → existing session (mode loaded from Firestore), `/admin` → admin dashboard (lazy-loaded), anything else → `/`. `navigateTo()` callback uses `history.pushState` + React state; `popstate` listener handles back/forward.
+SPA in `App.tsx` using `pushState`-based client-side routing (no router library). There is no diary route and no choice screen:
+
+- `/` and `/new` — treated as a root visit: after init, redirect to today's **active** session if one exists (searched in the 20 most recent sessions, "today" per the user's configured timezone) else `/session/new`
+- `/session/new` — new session; `SessionView` creates the doc with `mode: initialMode ?? settings.lastSessionMode`, then `replaceState`s the real id into the URL
+- `/session/:id` — existing session (mode loaded from Firestore)
+- `/admin` — admin dashboard (lazy-loaded, `isAdmin` gated)
+- anything else → `/`
+
+`navigateTo()` uses `history.pushState` + React state; `popstate` listener handles back/forward. First-run consent (Onboarding) is checked before routing; completing it navigates to `/session/new`.
+
+### Session surfaces
+
+`SessionSurface = 'talk' | 'journal' | 'speak' | 'relax'` (`SessionBottomBar.tsx`). Talk is always available; Speak shows only when `voiceEnabled === true`, Relax only when `relaxEnabled === true`. The Journal surface shows an "Inner voices" parts toggle when `partsEnabled !== false`; the per-session choice persists as `session.journalPartsEnabled`. The bottom bar also hosts the `◇ Real Talk` toggle.
+
+- **Talk** — streamed therapist conversation (`useSessionStream`, TipTap input composer in `SessionView`). Therapist replies can carry tappable recommendation segments (`RecommendationSegments`).
+- **Journal** — `SessionJournalSurface`: quiet TipTap page; when the parts toggle is on, the same `PauseDetector`/`PartOrchestrator` pipeline from the old diary responds on pause (`useJournalParts`, `PartThoughtBubble`, `ThinkingSpace` for multi-turn). Parts are hard-silenced during grounding.
+- **Speak** — live voice. `useSessionVoice` builds the therapist system prompt as Realtime instructions; `realtimeTokenApi` pins `gpt-realtime-2`, default voice `marin`, speed 0.88, semantic VAD eagerness `low`, transcription `gpt-realtime-whisper`. WebRTC goes browser → OpenAI directly (hence `api.openai.com` in CSP `connect-src`).
+- **Relax** — breathwork/body-scan/safe-place/open-awareness (`RelaxSessionType`), breath circle paced by `relaxEngine` (adaptive to measured respiratory rate, 5% lead, floored at the session target), preset soundscapes + custom ElevenLabs soundscapes (`customSoundscapesEnabled`), optional passive-mode voice guidance. Writes `relaxSessions`.
 
 ### Feature flags
 
-7 core flags (default enabled, `!== false`): `partsEnabled`, `visualEffectsEnabled`, `autocorrectEnabled`, `paragraphFade`, `inkWeight`, `colorBleed`, `breathingBackground`.
-26 experimental flags (default disabled, `=== true`) across 6 categories: Atmosphere, Part Intelligence, Memory/Engagement, Text Interaction, Safety & Guidance, Biometric (`webcamHrv`, `polarH10`).
+6 core flags (default enabled, `!== false`): `partsEnabled`, `visualEffectsEnabled`, `autocorrectEnabled`, `paragraphFade`, `inkWeight`, `breathingBackground`.
+23 experimental flags (default disabled, `=== true`) across: Atmosphere, Part Intelligence, Memory/Engagement, Safety, Biometric (`webcamHrv`, `polarH10`), Voice (`voiceEnabled`), Relax (`relaxEnabled`, `customSoundscapesEnabled`). `colorBleed` no longer exists.
 
 Full list + settings cascade + tuning params: `.claude/docs/feature-flags.md`
 
 ### Admin dashboard
 
-At `/admin` for admins only. Lazy-loaded. 6 tabs, 9 API actions. Overview shows live user count + cached rich metrics (writing habits, emotional landscape, feature adoption). Users table is sortable (9 columns). UserDetail has 8 tabs covering all 12 Firestore subcollections. Details: `.claude/docs/admin.md`
+At `/admin` for admins only. Lazy-loaded. 6 tabs (Overview, Users, Analytics, Messages, Insights, Settings), 11 API actions (`getOverview`, `getUserList`, `getUserDetail`, `getConfig`, `updateConfig`, `getAnalytics`, `refreshAnalytics`, `generateInsights`, `getSessionMessages`, `getContactMessages`, `getDiagnostics`). UserDetail has 11 tabs (entries, parts, conversations, thoughts, memories, profile, sessions, weather, letters, fossils, diagnostics). Details: `.claude/docs/admin.md`
 
-**Data loading pattern.** All one-shot admin views fetch through `useAdminQuery<T>(action, params?)` in `src/admin/useAdminQuery.ts` — a generic race-protected hook that wraps `adminFetch`. Stable `paramsKey` (JSON-stringified) prevents fresh-object-literal churn from triggering refetches. Returns `{ data, error, loading, setData, setError }`. Specialized wrappers: `useAdminUser` (typed `getUserDetail`), `useAdminConfig` (the `appConfig/global` round-trip with save + signalUpdate + resetDefaults). Lazy/event-driven fetches (AdminInsights "generate", AdminAnalytics "refresh", per-row session-message loads, the save round-trip itself) call `adminFetch` directly.
+**Data loading pattern.** All one-shot admin views fetch through `useAdminQuery<T>(action, params?)` in `src/admin/useAdminQuery.ts` — a generic race-protected hook that wraps `adminFetch`. Stable `paramsKey` (JSON-stringified) prevents fresh-object-literal churn from triggering refetches. Returns `{ data, error, loading, setData, setError }`. Specialized wrappers: `useAdminUser` (typed `getUserDetail`), `useAdminConfig` (the `appConfig/global` round-trip with save + signalUpdate + resetDefaults), `useAdminMutation` (event-driven writes). Lazy/event-driven fetches call `adminFetch` directly.
+
+### Crisis safety
+
+Two layers, both feeding `activateGrounding` → `isGrounding` in the next prompt build:
+
+- **L1 — deterministic floor.** `sessionOrchestrator.checkCrisisKeywords`: synchronous regex over NFKC-normalized text. No LLM, no cooldown, no feature flag. Runs in `useSessionStream` **before** therapist generation so `isGrounding: true` can flow into the prompt.
+- **L2 — LLM classifier.** Two shapes: in session mode it is folded into the therapist stream as a `<<RISK:N>>` preamble (parsed by `streamChatCompletion`'s `onRisk`; risk=2 arriving before the first token aborts the stream and retries grounded). In journal/parts mode, `classifyCrisisRisk` calls `/api/chat` with `task: 'crisis_check'`, routed server-side to `gpt-5-nano` with a strict JSON schema. Both fail open to risk 0 — L1 is the safety floor.
+
+Calibration history matters: a previous classifier over-called (grief, metaphor, hyperbole, gallows humor all flagged). Current prompts/thresholds are tuned for precision, not recall — do not "improve" recall without reading the eval set (`crisisClassifier.eval.ts`, `npm run test:crisis`).
 
 ### Subsystems
 
-Dark mode, adaptive parts, i18n (17 languages), emergency grounding, bundle splitting, intentions, explorations, session closing, autocorrect, body map, data export, HRV biofeedback (webcam + Polar H10) — all documented in `.claude/docs/subsystems.md`
+Dark mode, adaptive parts, i18n (17 languages), emergency grounding, bundle splitting, session closing, autocorrect, body map, data export, HRV biofeedback (webcam + Polar H10), Relax — documented in `.claude/docs/subsystems.md`
 
 ### Real Talk mode (Session)
 
 A tone variant of the therapist persona that names coping moves the writer is making — avoidance, externalization, intellectualization, rationalization, minimization, self-blame as shield, all-or-nothing thinking. Mantra: **not nice, but kind and constructive**.
 
-**Architecture.** Real Talk is a *tone variant of the existing therapist prompt*, not a parallel pipeline. `buildTherapistSystemPrompt` accepts `mode?: 'standard' | 'real_talk'` and swaps only the persona core (`THERAPIST_CORE` ↔ `REAL_TALK_CORE`) and phase hint. All other context blocks (personalFacts, profile, memories, register tier, HRV, datetime, language directive, untrusted-content preamble, `SAFETY_RULES`) are reused unchanged. `REAL_TALK_CORE` includes a 7-item pattern taxonomy and explicit "label the move, never the writer" rules.
+**Architecture.** Real Talk is a *tone variant of the existing therapist prompt*, not a parallel pipeline. `buildTherapistSystemPrompt` accepts `mode?: 'standard' | 'real_talk'` and swaps only the persona core (`THERAPIST_CORE` ↔ `REAL_TALK_CORE`) and phase hint. All other context blocks (personalFacts, profile, memories, register tier, HRV, datetime, language directive, untrusted-content preamble, `SAFETY_RULES`) are reused unchanged. `REAL_TALK_CORE` includes a 7-item pattern taxonomy and explicit "label the move, never the writer" rules. Recommendation segments are suppressed in Real Talk (the calling-out persona does not soften by recommending).
 
-**Crisis override (load-bearing invariant).** When `isGrounding === true`, `buildTherapistSystemPrompt` reverts to `THERAPIST_CORE` regardless of saved mode. Naming coping patterns is the wrong response to distress. The check is `useRealTalk = mode === 'real_talk' && !isGrounding`. The crisis keyword path (`sessionOrchestrator.checkCrisisKeywords` → `activateGrounding('auto')`) and the async emotion-check path both flip `isGrounding` before the next prompt is built. Verified by `realTalkFlow.test.ts` and `therapistPrompts.test.ts`.
+**Crisis override (load-bearing invariant).** When `isGrounding === true`, `buildTherapistSystemPrompt` reverts to `THERAPIST_CORE` regardless of saved mode. Naming coping patterns is the wrong response to distress. The check is `useRealTalk = mode === 'real_talk' && !isGrounding`. Both the L1 keyword path and the async L2 paths flip `isGrounding` before the next prompt is built. Verified by `realTalkFlow.test.ts` and `therapistPrompts.test.ts`.
 
-**Flow.** EntryChoice (`/new`) shows 3 cards. User clicks Real Talk → App.tsx sets `pendingSessionMode='real_talk'` → navigates to `/session/new` → SessionView creates the Session doc with `mode: 'real_talk'` → mode is read on every prompt build for the session's lifetime. Mode is *not* in the URL — pendingSessionMode is cleared after the session id is replaced into the URL.
+**Flow.** The old EntryChoice screen is gone. Real Talk is toggled *in-session* via the `◇ Real Talk` switch in `SessionBottomBar`. Toggling writes `session.mode` to Firestore and remembers the choice in `settings.lastSessionMode`, so future new sessions open in the last-used tone. Mode is never URL-encoded.
 
-**UI markers.** `◆ Real Talk` badge in SessionView header (CSS class `.session-mode-badge`, warm-amber via CSS variables) + `◆` glyph (instead of the chat-bubble SVG) in the sidebar entry. Both are theme-aware.
-
-**Animation.** Third card uses `flint-spark` (warm amber, sharper rhythm than `breath-glow`) to signal "honest light." `entered-delay-2` adds a 220ms staggered entrance behind the existing `entered-delay` (120ms).
-
-**Patterns leverage.** `UserProfile.avoidancePatterns` is already populated by `sessionReflectionEngine` post-session; Real Talk benefits passively because those patterns surface in the existing "Patterns you have noticed" block of every prompt. No reflection-engine changes were needed in v1.
+**Patterns leverage.** `UserProfile.avoidancePatterns` is populated by `sessionReflectionEngine` post-session; Real Talk benefits passively because those patterns surface in the existing "Patterns you have noticed" block of every prompt.
 
 ### HRV Biofeedback (Session Mode)
 
-Heart rate variability monitoring with two interchangeable signal sources, both producing the same `HrvMeasurement` shape so downstream consumers (`HrvTimeline`, `BiometricsBar`, therapist prompt, Relax mode) are source-agnostic. Session mode only.
+Heart rate variability monitoring with two interchangeable signal sources, both producing the same `HrvMeasurement` shape so downstream consumers (`HrvTimeline`, `BiometricsBar` in `HrvAmbientBar.tsx`, therapist prompt, Relax mode) are source-agnostic. Session mode only.
 
 #### Source A — Webcam rPPG (default)
 
 Remote photoplethysmography via the laptop webcam. Gated behind `webcamHrv` + explicit camera consent.
 
-**Pipeline:** Camera (max resolution, 60fps) → main thread extracts RGB from skin-colored pixels in center 60% of frame (3 sub-regions: forehead + left/right cheeks) → Web Worker runs windowed CHROM algorithm (1.6s windows, 50% overlap, Hann OLA) → 4th-order Butterworth bandpass (1.2-2.5 Hz) → FFT with parabolic interpolation → confidence-weighted EMA smoothing → `HrvMeasurement` emitted every 5s.
+**Cardiac pipeline:** Camera (ideal 1920×1080, rAF cadence) → main thread extracts RGB from skin-colored pixels (R>G>B heuristic) in 3 sub-regions (forehead + left/right cheeks); non-skin pixels feed an NLMS noise-reference channel → Web Worker runs windowed CHROM (1.6s windows, 50% overlap, Hann OLA) → 4th-order Butterworth bandpass (1.2–2.5 Hz) → FFT with parabolic interpolation → confidence-weighted EMA smoothing → `HrvMeasurement` emitted every 5s.
 
-**Components:** `hrvEngine.ts` (camera + frame capture + skin filtering), `hrvSignalWorker.ts` (CHROM + FFT + derived metrics in Web Worker), `HrvConsentDialog.tsx` (one-time camera consent).
+**Respiration pipeline:** MediaPipe FaceLandmarker (`@mediapipe/tasks-vision`, lazily loaded, GPU delegate; WASM from cdn.jsdelivr.net, model from storage.googleapis.com — both in CSP) tracks 5 lower-face landmarks; median Y is the breath-motion signal, plus an adaptive chest ROI band below the chin when the chin sits high enough in frame. Landmarker init failure degrades gracefully (motion channel disabled, cardiac path unaffected).
 
-**Signal processing:** Skin color filtering (R>G>B heuristic) replaces face detection for ROI — wider coverage, no jitter. Camera auto-exposure/white-balance locked to manual. Multi-ROI (forehead + cheeks) with confidence-weighted merge. Respiratory rate via 0.15-0.45 Hz bandpass on same CHROM signal.
+**Components:** `hrvEngine.ts` (camera + frame capture + skin filtering + landmarker), `hrvSignalWorker.ts` (CHROM + FFT + derived metrics in Web Worker), `HrvConsentDialog.tsx` (one-time camera consent).
 
 #### Source B — Polar H10 over Web Bluetooth
 
@@ -168,7 +224,7 @@ Chest-strap heart-rate monitor. Gated behind `polarH10` + explicit Bluetooth con
 
 **Components:** `polarH10Engine.ts` (BLE lifecycle + HRM parser + PMD ACC parser + streaming breathing extractor), `usePolarH10Session.ts` (consent + flush to Firestore + timeline + getBreathingScale), `PolarH10ConnectButton.tsx` (status-driven button), `PolarH10ConsentDialog.tsx` (Bluetooth-flavored consent).
 
-**Mutex.** H10 takes priority — when paired and streaming, webcam HRV is suppressed via a SessionView `useEffect` on `[polar.enabled, hrv.enabled, hrv.stopAndFlush]`. The webcam toggle is hidden while H10 is connected. The reverse can't arise. Both paths feed prompt context through a thin `BiometricSource` bridge in SessionView so `useSessionStream` and `useSessionVoice` see whichever source is active.
+**Mutex.** H10 takes priority — when paired and streaming, webcam HRV is suppressed via a SessionView `useEffect` on `[polar.enabled, hrv.enabled, hrvStopAndFlush]`. The webcam toggle is hidden while H10 is connected. The reverse can't arise. Both paths feed prompt context through the `BiometricSource` bridge (`useSessionStream.ts`) so `useSessionStream` and `useSessionVoice` see whichever source is active.
 
 #### Common: timeline, derived metrics, persistence
 
@@ -182,7 +238,7 @@ Chest-strap heart-rate monitor. Gated behind `polarH10` + explicit Bluetooth con
 
 ### Analytics & tracking
 
-21 Firebase Analytics events, Google Ads conversion tracking, Sentry error monitoring — all documented in `.claude/docs/analytics.md`
+Firebase Analytics events, Google Ads conversion tracking, Sentry error monitoring — documented in `.claude/docs/analytics.md`
 
 ### Environment variables
 
@@ -190,11 +246,11 @@ Chest-strap heart-rate monitor. Gated behind `polarH10` + explicit Bluetooth con
 
 ## Testing
 
-Vitest with jsdom. Tests cover: `llmCorrect` (sentence extraction, CJK/Hindi/Thai, trigger logic, correction validation), `annotationParser` (parsing, ghost capitalization, delimiter), `bodyMapEngine` (emotion-to-color mapping, homunculus state computation), `ritualEngine`, `pauseDetector`, `partOrchestrator`, `weatherEngine`, `settings`, `sessionOrchestrator` (phase detection, crisis keywords, emotion check, grounding activation), `sessionReflectionEngine`, `sessionPrompts`, `therapistPrompts` (incl. Real Talk persona swap and grounding override), `realTalkFlow` (end-to-end Real Talk orchestrator + prompt builder integration, crisis override), `translations` + i18n key parity (every locale has every English key), `SessionView`, `hrvSignalWorker` (CHROM extraction, FFT, bandpass filter, peak detection), `hrvEngine` (public surface, lifecycle), `hrvTimeline` (shift detection, prompt context builder), `polarH10Engine` (BT SIG HR Measurement parser — golden bytes, RR conversion, defensive truncation; pure HRV math — trim/confidence/trend/composeMeasurement; engine math + emission via test-only `feedSampleForTest`/`tickForTest`), `promptSafety`, `sessionContextLoader`, `closingEngine`, `partGrowthEngine`, `threadEngine`, `letterEngine`, `echoEngine`, `quoteEngine`, `disagreementEngine`, `quietTracker`, `emergenceEngine`, `voiceFieldColors`. Hook tests via `renderHook`: `useSessionVoice`, `useSessionStream`, `useAdminConfig` (save round-trip + key allowlist).
+Vitest with jsdom. Tests cover: prompts (`therapistPrompts` incl. Real Talk persona swap + grounding override, `partPrompts`, `relaxPrompts`, `registerTiers`, `promptSafety`, `llmCorrect`, `annotationParser`, `therapistRecommendationParser`, `openrouter` incl. `<<RISK:N>>` handling), engines (`sessionOrchestrator` — phase detection, crisis keywords, emotion check; `realTalkFlow` end-to-end crisis override; `partOrchestrator`, `pauseDetector`, `sessionReflectionEngine`, `sessionContextLoader`, `closingEngine`, `relaxEngine`, `ritualEngine`, `bodyMapEngine`, `weatherEngine`, `partGrowthEngine`, `threadEngine`, `letterEngine`, `echoEngine`, `quoteEngine`, `disagreementEngine`, `quietTracker`, `emergenceEngine`, `voiceFieldColors`), HRV (`hrvSignalWorker`, `hrvEngine`, `hrvTimeline`, `polarH10Engine` — golden bytes, RR conversion, pure math, `feedSampleForTest`/`tickForTest`), components (`SessionView`, `SessionBottomBar`, `SessionJournalSurface`, `useJournalParts`, `useLoginFlow`), hooks via `renderHook` (`useSessionVoice`, `useSessionStream`, `useChatResponse`, `useAutocorrect`, `useGroundingMode`, `useTheme`, `useTypewriter`), stores (`settings`, `globalConfig`, `groundingState`), i18n (`translations` + key parity — every locale has every English key), admin (`isAdmin`, `useAdminQuery`, `useAdminConfig` save round-trip + key allowlist, `useAdminMutation`, `useAdminUser`), services (`diagnostics`), types (`session`). Functions-side: `index.test.ts`, `admin/handlers.test.ts`, `admin/analytics.test.ts`, `soundscape/normalize.test.ts`, `soundscape/provider.test.ts`. The live crisis eval (`crisisClassifier.live.test.ts`) only runs under `npm run test:crisis`.
 
 ```bash
 npm run test             # Run all tests
-npm run test -- --watch  # Watch mode
+npm run test:watch       # Watch mode
 npm run test:indexes     # Integration tests against Firestore emulator
 npm run smoke-test       # Post-deploy smoke test against live site
 ```
@@ -215,25 +271,26 @@ npm run smoke-test       # Post-deploy smoke test against live site
 
 ### Changing the chat model
 
-The model is pinned server-side. Update `OPENAI_CHAT_MODEL` at the top of `functions/src/chat.ts`, then `cd functions && npx tsc && cd .. && firebase deploy --only functions`. The client no longer sends a model field.
+The model is pinned server-side. Update `OPENAI_CHAT_MODEL` in `functions/src/shared/models.ts` (crisis model: `OPENAI_CRISIS_MODEL` in `functions/src/chat.ts`; realtime model: `REALTIME_MODEL` in `functions/src/realtime.ts`), then `cd functions && npx tsc && cd .. && firebase deploy --only functions`. The client never sends a model field.
 
-### Updating the OpenAI API key
+### Updating API keys
 
 ```bash
 echo "sk-..." | firebase functions:secrets:set OPENAI_API_KEY
+echo "..."    | firebase functions:secrets:set ELEVENLABS_API_KEY
 cd functions && npx tsc && cd .. && firebase deploy --only functions
 ```
 
 ### Adding a new seeded part
 
-Add to `SEEDED_PARTS` in `partPrompts.ts`. Scoring is role-based (`ifsRole`) — no orchestrator changes needed.
+Add to `SEEDED_PARTS` in `partPrompts.ts` (currently 7: Watcher, Tender, Still, Spark, Weaver, Open, Quiet One). Scoring is role-based (`ifsRole`) — no orchestrator changes needed.
 
 ### Adding a new Firestore collection
 
 1. Add proxy in `db.ts` (add to the `db` object literal)
 2. Add interface in `src/types/index.ts`
-3. Add `'collectionName'` to `collectionNames` array in `exportAllData()` in `db.ts`
-4. Add to `deleteAccount` collections array in `functions/src/account.ts` (`handleDeleteAccount`)
+3. Add `'collectionName'` to `collectionNames` in `exportAllData()` in `src/store/dataExport.ts`
+4. Add to the `collections` array in `handleDeleteAccount` in `functions/src/account.ts`
 
 ### Toggling features without deploying
 
@@ -258,45 +315,45 @@ Add to `SEEDED_PARTS` in `partPrompts.ts`. Scoring is role-based (`ifsRole`) —
 - **Cloud Function streaming** requires `X-Accel-Buffering: no` and `Cache-Control: no-cache, no-transform`
 - **Firebase offline persistence** — `persistentLocalCache` + `persistentMultipleTabManager` must init before any Firestore calls
 - **`chat` function `minInstances: 1`** requires `firebase deploy --force`
-- **Analytics `refreshAnalytics`** iterates all users + their subcollections (sessions, weather, parts, profiles, letters, fossils) — needs optimization at scale
-- **CSP headers in `firebase.json`** — when adding new external scripts/connections/images, must update the Content-Security-Policy header. Google Ads and Firebase Auth both require specific CSP entries (`apis.google.com` for auth, `googleads.g.doubleclick.net` / `googleadservices.com` for ads). CSP violations show in browser console as "violates Content Security Policy directive"
+- **Analytics `refreshAnalytics`** iterates all users + their subcollections — needs optimization at scale
+- **CSP headers in `firebase.json`** — when adding new external scripts/connections/images, must update the Content-Security-Policy header. Firebase Auth needs `apis.google.com`; Google Ads needs `googleads.g.doubleclick.net` / `googleadservices.com`; Realtime voice needs `api.openai.com` in `connect-src`; ElevenLabs needs `api.elevenlabs.io`; MediaPipe needs `cdn.jsdelivr.net` (script/connect) + `storage.googleapis.com` (media). CSP violations show in browser console as "violates Content Security Policy directive"
 - **`authDomain` must be `undersurfaceme.firebaseapp.com`** — do NOT change to custom domain without also adding `https://undersurface.me/__/auth/handler` as an authorized redirect URI in Google Cloud Console OAuth settings. Third-party cookie blocking can break `signInWithPopup` on some browsers
-- **Permissions-Policy** — `camera=(self)` is enabled for HRV biofeedback. `microphone=()` and `geolocation=()` remain blocked
+- **Permissions-Policy** — `camera=(self)` (webcam HRV) and `microphone=(self)` (Speak surface) are enabled; `geolocation=()` remains blocked
 
 ### React & Editor
 - **Refs in setState callbacks** — capture ref values before calling setState (React batches updates)
-- **Color bleed + dark mode** — must return `DecorationSet.empty` when disabled, not map existing decorations
-- **Part colorLight alpha** — `'25'` in light, `'30'` in dark (via `boostAlpha`). Without boost, invisible on dark
+- **Part colorLight alpha** — `'25'` in light, `'30'` in dark (via `boostAlpha` in `src/utils/color.ts`). Without boost, invisible on dark
 
 ### Engines & Logic
 - **Orchestrator pre-warms caches** — `loadParts()` fetches profile + summaries + memories upfront
-- **Exploration engine single-shot** — `hasSuggested` guard; must call `reset()` on entry switch
-- **Session closing** — hardcoded The Weaver prompt, not part ID lookup
-- **Crisis keyword check must run before LLM generation** — `checkCrisisKeywords()` is synchronous and activates grounding before `generateTherapistMessage()` so `isGrounding: true` flows into the prompt. Async emotion check alone is too late
+- **Session closing** — hardcoded The Weaver prompt in `closingEngine.ts`, not part ID lookup
+- **L1 crisis check must run before LLM generation** — `checkCrisisKeywords()` is synchronous and activates grounding before therapist generation so `isGrounding: true` flows into the prompt (`useSessionStream`). Async L2 alone is too late
+- **`<<RISK:N>>` preamble must be stripped at every egress** — the session-mode L2 signal rides the therapist stream. `openrouter.ts` anchors the pattern to the stream start and scrubs mangled markers at fail-open flush; a leak shipped 2026-06-12 when the pattern required a trailing newline the model didn't emit. Fail-open is deliberate: L1 is the deterministic floor
+- **Crisis classifier is tuned for precision, not recall** — a prior classifier over-called on grief/metaphor/hyperbole/gallows humor. Don't widen thresholds without running `npm run test:crisis` against the eval set
 - **Real Talk grounding override is non-negotiable** — `buildTherapistSystemPrompt` checks `useRealTalk = mode === 'real_talk' && !isGrounding`. Distress disables Real Talk, no exceptions. Anyone editing the prompt builder must preserve this single guard line. Both branches still embed `SAFETY_RULES` verbatim. Verified by tests in `therapistPrompts.test.ts` and `realTalkFlow.test.ts` — do not delete those tests when refactoring
-- **Session sidebar is unified** — entries and sessions in one chronological list via `SidebarItem` discriminated union in `EntriesList.tsx`. No separate sections
+- **Journal parts are triple-gated** — `SessionJournalSurface` requires the per-session toggle AND `!isGrounding` AND global `partsEnabled`. Parts silence during distress, mirroring the Real Talk override
+- **Sidebar lists sessions only** — `EntriesList.tsx` maps `db.sessions` into `SidebarItem`s (preview from `sessionNote`/`firstLine`, favorites, search). Diary entries no longer appear anywhere in the UI
+- **`entries` is a legacy collection** — nothing writes it. `echoEngine`/`quoteEngine`/`sessionReflectionEngine` and the MCP `list-entries`/`get-entry` tools still read old data. Keep it in export/delete paths
 
 ### i18n
-- **`t()` shadows loop variables** — in `db.ts`, use different names (e.g., `th` not `t`)
-- **Emotion analysis returns English** — `isValidEmotion()` is English-based; UI translates
+- **`t()` shadows loop variables** — in `dataExport.ts` (which imports `t`), use different names (e.g., `th` not `t`)
+- **Emotion analysis returns English** — validation is against an English emotion list; UI translates
 - **`languageDirective()` not in reflection/growth** — internal prompts stay English
 
 ### Settings & Config
-- **`typewriterScroll` is admin-controlled** — in `ADMIN_CONTROLLED_KEYS`, localStorage stripped
 - **Feature flags** — core use `=== false`, experimental use `=== true`. `getGlobalConfig()` returns `null` before first admin save
-- **Grounding suppresses intention** in prompts — intentional during distress
+- **Settings cache invalidation** — `invalidateSettingsCache()` is wired into the `globalConfig.ts` `onSnapshot` callback; new admin defaults propagate without reload, localStorage overrides win
 
 ### HRV / Biometric — Webcam path
-- **Skin color filtering replaces face detection** — R>G>B heuristic on center 60% of frame outperforms FaceDetector API. Face detection's tight bounding box + ROI jitter degraded signal quality. Skin filter provides wider stable coverage
+- **Skin color filtering for the cardiac ROI** — R>G>B heuristic outperformed FaceDetector-style tight bounding boxes for rPPG (jitter degraded signal). MediaPipe FaceLandmarker was later reinstated, but only for the **respiration motion channel** (5 lower-face landmarks + adaptive chest band); the cardiac signal still comes from skin-filtered sub-regions, with non-skin pixels as an NLMS noise reference. Landmarker init failure only disables the motion channel
 - **Camera resolution** — requests `ideal: 1920x1080` but main thread only reads skin pixels from 3 sub-regions (forehead, left cheek, right cheek), sending just RGB averages to worker
 - **Camera auto-exposure must be locked** — auto-exposure creates 0.5-1.1 Hz color drift that is 50-100x stronger than the cardiac signal. Engine locks `exposureMode` and `whiteBalanceMode` to manual via `applyConstraints`
-- **60fps required** — 30fps causes fluorescent light flicker (at harmonics of 60 Hz grid) to alias into the cardiac frequency range. 60fps prevents this aliasing
 - **CHROM windowed processing** — 1.6s windows with 50% overlap and Hann overlap-add (per rPPG-Toolbox reference). Per-window alpha adapts to lighting changes. Single-window CHROM over the full buffer produces worse results
 - **4th-order highpass at 1.2 Hz** — 2 cascaded Butterworth stages. Environmental noise dominates 0.5-1.1 Hz; the cardiac signal at 1.5+ Hz is 50-100x weaker without aggressive filtering. Restricts detection to 72-150 BPM (safe for seated users)
 - **RMSSD > 200ms is noise** — real RMSSD is 20-80 ms. Values above 200ms indicate noisy IBI detection; reported as 0
-- **HR temporal smoothing** — confidence-weighted EMA (alpha scales 0.05-0.50 with FFT confidence) + outlier rejection (>30% from median replaced). Takes ~30s to converge from initial reading
+- **HR temporal smoothing** — confidence-weighted EMA (alpha scales with FFT confidence) + outlier rejection. Takes ~30s to converge from initial reading
 - **HR accuracy** — within ±5-15 BPM of Apple Watch in ambient lighting. Accuracy depends on lighting stability, stillness, and skin visibility. Direct/diffuse light best; fluorescent worst
-- **Signal dumps saved every 10s** — full RGB buffers, CHROM pulse, FFT spectrum, IBIs saved to Firestore for offline algorithm analysis. Trimmed to last 10 dumps + 5s RGB to stay under 1MB doc limit
+- **Signal dumps saved every 10s** — trimmed to the last 10 dumps at flush time to stay under the 1MB Firestore doc limit (engine keeps ~60 in memory)
 - **Derived metrics** — SDNN, pNN50, LF/HF ratio, Baevsky Stress Index, cardiac coherence computed from IBI series. LF/HF uses 4 Hz interpolated IBI series + FFT
 - **Behavioral correlations** — post-response HR change, per-message activation, session trajectory (calming vs escalating) computed from HRV timeline events and injected into therapist prompt
 - **HR display rounding** — `BiometricsBar` renders `Math.round(latest.hr)`. The underlying `HrvMeasurement.hr` keeps float precision for downstream consumers (timeline correlations, Firestore archival); only the display is rounded
@@ -310,13 +367,19 @@ Add to `SEEDED_PARTS` in `partPrompts.ts`. Scoring is role-based (`ifsRole`) —
 - **ACC magnitude (rotation-invariant) over single-axis** — `sqrt(x²+y²+z²)` of accel sample is used as the breathing signal source. Single-axis (e.g., Z for chest expansion) has ~6 dB better SNR but breaks if the strap shifts mid-session; magnitude is more robust
 - **Streaming bandpass reuses `respiratoryBandpass`** — same 0.1–0.5 Hz Butterworth that the webcam worker uses. Applied to a sliding 30s window of accel magnitudes every 5 samples (~100 ms) so animation lag is capped at one stride
 - **Adaptive envelope normalization** — 15s rolling min/max of the bandpassed signal maps to `breathingScale ∈ [0,1]`. Short enough to adapt to breathing-depth changes; long enough not to smear across posture changes
-- **Mutex with webcam HRV** — H10 takes priority. SessionView's `useEffect([polar.enabled, hrv.enabled, hrv.stopAndFlush])` stops the camera when polar starts streaming. Webcam toggle is hidden while H10 is active so the reverse can't arise
+- **Mutex with webcam HRV** — H10 takes priority. SessionView's `useEffect([polar.enabled, hrv.enabled, hrvStopAndFlush])` stops the camera when polar starts streaming. Webcam toggle is hidden while H10 is active so the reverse can't arise
 - **`getBreathingScale` is a stable `useCallback`** — animations poll it inside their own rAF loops without re-rendering React. Returns `null` when PMD isn't active so the consumer can fall back to its internal pacer (Relax does this)
 - **Polar `respiratoryRate` may be null even when H10 is paired** — bandpass needs ~5s to settle, envelope needs ~15s to converge, and the rate requires ≥2 zero-crossings (~one full breath cycle). Expect a 30–60s warmup before the rate populates
+
+### Realtime voice
+- **Reasoning models budget hidden reasoning + visible output together** — on gpt-5.x, `max_completion_tokens` covers BOTH. gpt-5.5 burns 1k–3k reasoning tokens before emitting output; too-tight caps return empty content with `finish_reason='length'`. The chat function caps at 4000; the crisis route uses `reasoning_effort='minimal'` + 500
+- **Realtime tempo is deliberately slow** — `speed: 0.88`, semantic VAD eagerness `low` (8s max timeout). `medium`/`high` feel rushed for the therapy register
+- **Relax voice guidance is `passive: true`** — recvonly transceiver, no `getUserMedia`, no mic prompt
 
 ### PWA & Build
 - **PWA API calls not cached** — go through Firebase rewrites
 - **Sentry source maps** read `process.env` (not `import.meta.env`), disabled without `SENTRY_AUTH_TOKEN`
-- **Autocorrect** uses LLM-based sentence correction (`src/ai/llmCorrect.ts`) — works in all languages with sentence-ending punctuation (CJK fullwidth, Hindi danda); Thai silently skipped (no standard sentence punctuation)
+- **Autocorrect** uses LLM-based sentence correction (`src/ai/llmCorrect.ts`, wired via `useAutocorrect` into the session composer/journal) — works in all languages with sentence-ending punctuation (CJK fullwidth, Hindi danda); Thai silently skipped (no standard sentence punctuation)
+- **Capacitor native builds call the prod origin** — `src/api/apiBase.ts` prefixes `/api/*` with `https://undersurface.me` on native platforms. Mobile shipping is on the roadmap; do not remove `@capacitor/*` deps even when audits flag them
 - **`npm run build` uses `tsc -b` (incremental)** — its `.tsbuildinfo` cache can mask type errors that a clean `tsc --noEmit` would catch. Before committing/deploying anything non-trivial, run `npx tsc --noEmit -p tsconfig.json` explicitly. Vite/esbuild emits the JS bundle regardless of TS errors, so a "successful" build is NOT proof of type-safety.
 - **Major dep upgrades** (TS 6, ESLint 10, Vite 8, @vitejs/plugin-react 6, @sentry/vite-plugin 5) are all blocked by `typescript-eslint@8`'s peer dep `typescript@<6.0.0`. Re-attempt once `typescript-eslint@9` ships.

@@ -1,38 +1,47 @@
 # UnderSurface
 
-A diary app where inner voices encourage and guide your writing. Built with IFS (Internal Family Systems) principles — as you pause, slow down, or trail off, different parts of your inner world emerge on the page, nudging you to go deeper, keep going, or find what you haven't said yet.
+A session-first reflective companion app. Opening the app starts (or resumes) a daily session with an AI therapist companion. Within a session the user can move between four surfaces — talking, journaling, speaking aloud, or relaxing — while the companion carries context across all of them.
 
 **Live at [undersurface.me](https://undersurface.me)**
 
 ## How It Works
 
-You write in a rich text editor. As you pause, the app detects writing patterns (pauses, trailing off, questions, paragraph breaks) and selects an inner "part" to encourage your writing. Each part has a distinct voice, concern, and personality:
+Visiting the app routes straight into a session: today's active session if one exists, otherwise a new one. Each session offers four surfaces, switched from the bottom bar:
 
-- **The Watcher** — notices what you dropped and guides you back to it
-- **The Tender** — encourages you to put feelings into words
-- **The Still** — asks questions that open up the next sentence
-- **The Spark** — pushes you to keep writing, bolder and more honestly
-- **The Weaver** — connects patterns and encourages you to explore them
-- **The Open** — celebrates what's good and encourages you to stay with it
+- **Talk** — streamed text conversation with the therapist companion (OpenAI `gpt-5.5`). Replies can include tappable recommendations (e.g. a breathing break).
+- **Journal** — a quiet TipTap writing page inside the session. An optional "Inner voices" toggle activates the parts pipeline: when the writer pauses, slows down, or trails off, an IFS-inspired inner "part" responds on the page.
+- **Speak** — live voice conversation over WebRTC via OpenAI Realtime (`gpt-realtime-2`), tuned for an unhurried therapy register.
+- **Relax** — breathwork, body scan, safe place, or open awareness, with an adaptive breath circle, ambient soundscapes (preset or custom-generated via ElevenLabs), and optional voice guidance.
 
-New parts can also emerge organically from your writing.
+A **◇ Real Talk** toggle switches the companion's tone to one that names coping moves (avoidance, intellectualization, minimization, …) — not nice, but kind and constructive. It is automatically disabled whenever grounding (crisis) mode is active.
 
-Parts learn over time through observation memories, reflection, and periodic growth cycles. They adapt their language, keywords, and emotional vocabulary based on what the user writes. All parts — seeded and emerged — share the same `SHARED_INSTRUCTIONS` that define their writing-companion purpose.
+Crisis safety is layered: a synchronous keyword floor plus an LLM risk classifier, both feeding a grounding mode that softens the companion, silences parts, and surfaces crisis resources.
+
+Optional biometrics (webcam rPPG or a Polar H10 chest strap over Web Bluetooth) feed live heart-rate variability into the companion's context and drive the Relax breath pacing.
+
+### Inner parts
+
+Seven seeded parts — The Watcher, The Tender, The Still, The Spark, The Weaver, The Open, The Quiet One — plus parts that emerge organically from writing. Parts learn over time through observation memories, post-session reflection, and periodic growth cycles. All parts share `SHARED_INSTRUCTIONS` defining their writing-companion purpose. The former standalone diary flow is gone; parts now live exclusively inside the session's Journal surface.
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 19 + TypeScript + Vite 7 |
+| Frontend | React 19 + TypeScript (strict) + Vite 7 |
 | Editor | TipTap 3 (ProseMirror) |
 | Styling | Tailwind CSS v4 |
 | Animation | Framer Motion |
-| Auth | Firebase Authentication (Google Sign-In) |
+| Auth | Firebase Authentication (Google Sign-In + Email/Password) |
 | Database | Cloud Firestore (with offline persistence) |
-| AI | OpenRouter API (default: Gemini 3 Flash) via Cloud Function proxy |
-| Hosting | Firebase Hosting |
+| AI — chat | OpenAI `gpt-5.5` via Cloud Function proxy (`/api/chat`) |
+| AI — crisis | OpenAI `gpt-5-nano` (structured output, `task: 'crisis_check'`) |
+| AI — voice | OpenAI Realtime `gpt-realtime-2` over WebRTC |
+| Soundscapes | ElevenLabs via `soundscapeApi` (+ Firestore cache) |
+| Biometrics | Webcam rPPG (CHROM, Web Worker, MediaPipe FaceLandmarker) + Polar H10 (Web Bluetooth) |
+| Hosting | Firebase Hosting (rewrites → Cloud Functions, Node 22) |
 | PWA | vite-plugin-pwa + Workbox |
-| Spellcheck | Typo.js + dictionary-en |
+| Mobile | Capacitor 8 shells (iOS/Android, in progress — `npm run cap:*`) |
+| Monitoring | Sentry |
 | CI | GitHub Actions |
 
 ## Project Structure
@@ -40,116 +49,143 @@ Parts learn over time through observation memories, reflection, and periodic gro
 ```
 undersurface/
 ├── src/
-│   ├── ai/                        # AI integration
-│   │   ├── openrouter.ts          # API client — calls /api/chat with Firebase auth token
-│   │   └── partPrompts.ts         # System prompts for all 6 seeded parts + exported SHARED_INSTRUCTIONS + emergence/reflection/growth
-│   ├── admin/                     # Admin dashboard (only loaded for admin users)
-│   │   ├── adminTypes.ts          # TypeScript types for admin API responses + GlobalConfig
-│   │   ├── adminApi.ts            # Client-side admin API caller (adminFetch)
-│   │   ├── AdminDashboard.tsx     # Shell with tab navigation (Overview, Users, Insights, Settings)
-│   │   ├── AdminOverview.tsx      # Metric cards + recent activity feed
-│   │   ├── AdminUsers.tsx         # User table with drill-down
-│   │   ├── AdminUserDetail.tsx    # Full user data view (entries, parts, thoughts, profile)
-│   │   ├── AdminInsights.tsx      # LLM-generated narrative analysis of app usage
-│   │   └── AdminSettings.tsx      # Form for GlobalConfig (model, speed, flags, announcements)
-│   ├── auth/                      # Firebase authentication
-│   │   ├── AuthContext.tsx         # Auth provider component
-│   │   ├── authContext.ts          # Context definition
-│   │   └── useAuth.ts             # Auth hook
+│   ├── ai/                        # Prompts + API client
+│   │   ├── openrouter.ts          # /api/chat client (legacy filename — calls OpenAI proxy, not OpenRouter)
+│   │   ├── therapistPrompts.ts    # THERAPIST_CORE + REAL_TALK_CORE + SAFETY_RULES
+│   │   ├── partPrompts.ts         # 7 seeded parts + SHARED_INSTRUCTIONS + emergence/reflection/growth
+│   │   ├── crisisClassifierPrompt.ts
+│   │   ├── relaxPrompts.ts        # Relax voice-guidance prompts
+│   │   └── llmCorrect.ts          # LLM autocorrect
+│   ├── engine/                    # Core logic (sessionOrchestrator, partOrchestrator,
+│   │                              #   pauseDetector, hrvEngine, polarH10Engine, relaxEngine, …)
+│   ├── hooks/                     # useSessionStream, useSessionVoice, useVoiceSession,
+│   │                              #   useHrvSession, usePolarH10Session, useRelaxSession, …
 │   ├── components/
-│   │   ├── Atmosphere/            # Visual effects (breathing bg, cursor glow, pause ripple)
-│   │   ├── Editor/                # TipTap editor + part thought bubbles
-│   │   ├── Sidebar/               # Entry list, settings panel, model selector
+│   │   ├── Session/               # SessionView (shell), SessionBottomBar, SessionJournalSurface,
+│   │   │                          #   VoiceField, Relax/, HRV consent + biometrics bar
+│   │   ├── Editor/                # useJournalParts + part thought bubbles (in-session journal)
+│   │   ├── Sidebar/               # Session list + settings panel
 │   │   ├── ThinkingOutLoud/       # Multi-turn dialogue with parts
-│   │   ├── AnnouncementBanner.tsx # Global announcement banner (from admin config)
-│   │   ├── ErrorBoundary.tsx
-│   │   ├── LoginScreen.tsx
-│   │   └── Onboarding.tsx
-│   ├── engine/                    # Core logic
-│   │   ├── pauseDetector.ts       # Detects writing pauses from keystroke timing
-│   │   ├── partOrchestrator.ts    # Selects which part responds (role-based scoring)
-│   │   ├── emergenceEngine.ts     # Detects and creates new emergent parts
-│   │   ├── reflectionEngine.ts    # Entry reflection — memories, summaries, profile updates
-│   │   ├── partGrowthEngine.ts    # Part evolution every 5 entries — prompt/keyword/emotion updates
-│   │   └── spellEngine.ts         # Autocorrect engine (Damerau-Levenshtein + Typo.js)
-│   ├── extensions/                # TipTap extensions (ink weight, color bleed, etc.)
-│   ├── store/
-│   │   ├── db.ts                  # Firestore wrapper (mimics Dexie API surface)
-│   │   ├── settings.ts            # localStorage settings with 3-tier cascade
-│   │   └── globalConfig.ts        # Real-time listener on appConfig/global Firestore doc
-│   ├── styles/                    # Atmosphere CSS animations
-│   ├── types/                     # TypeScript interfaces
-│   ├── App.tsx                    # Root component (auth gate, admin routing, entry management)
-│   ├── firebase.ts                # Firebase/Firestore initialization with offline persistence
-│   └── main.tsx                   # React entry point
-├── functions/                     # Firebase Cloud Functions
-│   ├── src/index.ts               # Two functions: chat (AI proxy) + adminApi (admin backend)
-│   ├── package.json
-│   └── tsconfig.json
-├── public/                        # Static assets (PWA manifest, icons, dictionaries)
-├── firebase.json                  # Hosting rewrites + functions + firestore config
+│   │   └── Atmosphere/            # Breathing background, cursor glow, pause ripple
+│   ├── admin/                     # Admin dashboard (lazy-loaded, admin users only)
+│   ├── api/                       # apiBase (native origin handling), authedFetch, soundscape client
+│   ├── auth/                      # Firebase authentication
+│   ├── engine/                    # (see above)
+│   ├── i18n/                      # 17 languages + key-parity tests
+│   ├── native/                    # Capacitor glue (back button, keep-awake, share)
+│   ├── store/                     # db.ts (Firestore wrapper), settings, globalConfig, dataExport
+│   ├── extensions/                # TipTap extensions (inkWeight, paragraphSettle)
+│   └── App.tsx                    # Auth gate + session-first routing
+├── functions/                     # Firebase Cloud Functions (Node 22)
+│   └── src/                       # chat, realtime, soundscapeApi (+soundscape/), account,
+│                                  #   admin/, mcp, shared/ (auth, cors, rateLimit, secrets, models)
+├── public/                        # Static assets (PWA manifest, icons, soundscape audio)
+├── firebase.json                  # Hosting rewrites + CSP/Permissions-Policy headers
 ├── firestore.rules                # Firestore security rules
-├── vite.config.ts                 # Vite + Tailwind + PWA config
 └── .github/workflows/ci.yml      # CI pipeline
 ```
 
 ## Architecture
 
-### AI Response Flow
+### Therapist response flow (Talk)
 
 ```
-User types → PauseDetector → PartOrchestrator → openrouter.ts
+User sends → useSessionStream → buildTherapistMessages
+  → streamChatCompletion (src/ai/openrouter.ts)
   → fetch('/api/chat', { auth: Firebase ID token })
   → Firebase Hosting rewrite → Cloud Function (chat)
-  → Cloud Function verifies auth token
-  → Cloud Function reads API key from Google Secret Manager
-  → Proxies to OpenRouter API
-  → Streams SSE response back to browser
+  → verifies token → OpenAI gpt-5.5 → streams SSE back
 ```
 
-The **pause detector** watches keystroke timing and text patterns to identify 8 pause types: `short_pause`, `sentence_complete`, `cadence_slowdown`, `paragraph_break`, `long_pause`, `ellipsis`, `question`, `trailing_off`.
+Crisis detection runs in two layers around this flow:
 
-The **part orchestrator** scores all parts for each pause event using:
-- **Pause type affinity** — each IFS role has different affinities for each pause type (lookup tables in `ROLE_PAUSE_AFFINITIES`)
-- **Content keywords** — role keywords (`ROLE_KEYWORDS`) + the part's `concern` field words + `learnedKeywords`
-- **Emotional match** — role emotions (`ROLE_EMOTIONS`) + `learnedEmotions` vs. detected emotional tone
-- **Recency penalty** — avoids repeating the same voice back-to-back
-- **Randomness** — small random factor for organic feel
+1. **L1 (deterministic floor)** — `sessionOrchestrator.checkCrisisKeywords`: synchronous regex over NFKC-normalized text, runs *before* generation so grounding flows into the prompt.
+2. **L2 (LLM)** — in session mode, the therapist stream opens with a `<<RISK:N>>` preamble that is parsed and stripped client-side; risk 2 arriving before the first token aborts the stream and retries with grounding on. In journal mode, `classifyCrisisRisk` calls `/api/chat` with `task: 'crisis_check'` (gpt-5-nano, strict JSON schema). Both fail open — L1 is the floor.
 
-Scoring is **role-based** (uses `ifsRole` lookup tables), so emerged parts score correctly without any per-part configuration.
+When grounding activates: Real Talk reverts to the standard persona, journal parts are silenced, and crisis resources are shown.
 
-### Adaptive Parts System
+### Journal parts flow
 
-Parts learn and evolve through five layers:
+The pause detector watches keystroke timing and text patterns (8 pause types). The part orchestrator scores all parts per pause event — role-based affinities, content keywords, learned keywords/emotions, recency penalty, small randomness — so emerged parts score correctly with zero per-part configuration. Parts evolve via observation memories, the session reflection engine, and periodic growth cycles.
 
-1. **Dynamic scoring** — Role-based lookup tables, not hardcoded per part ID
-2. **Observation memories** — Every inline thought creates a `type: 'observation'` memory
-3. **Reflection engine** — On entry switch, one API call produces entry summaries, reflection/pattern memories, and user profile updates (`reflectionEngine.ts`)
-4. **Enhanced prompts** — `buildPartMessages()` injects categorized memories, user profile, and entry summaries into the system prompt
-5. **Part growth** — Every 5 entries, one API call evolves parts: updates `systemPromptAddition`, `learnedKeywords`, `learnedEmotions` (`partGrowthEngine.ts`)
-
-### Admin Dashboard Flow
+### Voice flow (Speak)
 
 ```
-Admin visits /admin → App.tsx checks ADMIN_EMAILS → renders AdminDashboard
-  → adminApi.ts: fetch('/api/admin', { action, auth token })
-  → Firebase Hosting rewrite → Cloud Function (adminApi)
-  → Cloud Function verifies token + checks email against ADMIN_EMAILS
-  → Uses Firebase Admin SDK to query across all users (bypasses Firestore rules)
-  → Returns aggregated data / LLM insights / config updates
+useSessionVoice → POST /api/realtime-token → realtimeTokenApi
+  → mints OpenAI Realtime client secret (model gpt-realtime-2, voice marin,
+     speed 0.88, semantic VAD 'low', transcription gpt-realtime-whisper)
+  → useVoiceSession opens WebRTC directly to api.openai.com
 ```
 
-Admin access is gated in two layers:
-1. **Frontend** — `App.tsx` checks email against `ADMIN_EMAILS` before rendering the dashboard
-2. **Backend** — `adminApi` Cloud Function verifies the email from the Firebase ID token; returns 403 for non-admins
+Relax voice guidance reuses the same stack in `passive` mode (recvonly, no mic prompt).
 
-The admin route is checked **before** DB initialization, so the admin page doesn't load TipTap, spell engine, or other diary components.
+### Admin flow
+
+```
+/admin → isAdmin check (src/admin/isAdmin.ts) → AdminDashboard
+  → fetch('/api/admin', { action, auth token }) → adminApi Cloud Function
+  → verifies token + ADMIN_EMAILS (functions/src/shared/auth.ts)
+  → Firebase Admin SDK queries across all users (bypasses Firestore rules)
+```
+
+6 tabs (Overview, Users, Analytics, Messages, Insights, Settings), 11 actions. Gated in two layers: frontend allowlist for routing, backend allowlist returning 403 for non-admins.
+
+### Hosting rewrites (`firebase.json`)
+
+| Path | Function |
+|------|----------|
+| `/api/chat` | `chat` |
+| `/api/admin` | `adminApi` |
+| `/api/account` | `accountApi` |
+| `/api/mcp` | `mcpApi` |
+| `/api/realtime-token` | `realtimeTokenApi` |
+| `/api/soundscape` | `soundscapeApi` |
+| `**` | `/index.html` (SPA fallback) |
+
+## Data Model
+
+### User data — Firestore under `users/{uid}/`
+
+| Collection | Description |
+|-----------|-------------|
+| `sessions` | Session docs (`mode: 'standard' \| 'real_talk'`, status, favorited, firstLine, sessionNote, journalPartsEnabled) |
+| `sessions/{id}/messages` | Per-session message subcollection (therapist + user turns) |
+| `parts` | Inner voice definitions (name, color, IFS role, system prompt, learned keywords/emotions) |
+| `memories` | Persistent memories — `observation`, `interaction`, `reflection`, `pattern` |
+| `thoughts` | Individual part responses anchored to journal text |
+| `interactions` | Multi-turn "Thinking Out Loud" conversations |
+| `entrySummaries` | AI-generated summaries (reflection engine) |
+| `userProfile` | AI-maintained profile — inner landscape, recurring themes, avoidance patterns |
+| `personalFacts` | Stable facts injected into therapist context |
+| `fossils`, `letters`, `sessionLog`, `innerWeather` | Ritual/engagement subsystems |
+| `consent` | Terms + camera + Bluetooth consent records |
+| `hrvSessions` | HRV archives (`source: 'camera' \| 'polarH10'`, signal dumps) |
+| `relaxSessions` | Relax surface session records |
+| `diagnostics` | Client diagnostic events |
+| `apiKeys` | Hashed keys for the MCP server |
+| `entries` | **Legacy** diary entries — no writers anymore; read by echo/quote/reflection engines and MCP tools |
+
+Security rule: users can only read/write their own data (`request.auth.uid == userId`).
+
+### Global config — `appConfig/global`
+
+A single Firestore document with app-wide defaults and feature flags (typed as `GlobalConfig` in `src/admin/adminTypes.ts`): 6 core flags (default enabled, checked `!== false`) and 23 experimental flags (default disabled, checked `=== true`) covering atmosphere, part intelligence, memory/engagement, safety, biometrics (`webcamHrv`, `polarH10`), voice (`voiceEnabled`), and Relax (`relaxEnabled`, `customSoundscapesEnabled`), plus tuning sections and an announcement banner. Readable by all authenticated users; writable only through `adminApi`; listened to in real-time via `onSnapshot` in `src/store/globalConfig.ts`.
+
+## Settings System
+
+User preferences follow a 3-tier priority cascade:
+
+```
+user localStorage  >  appConfig/global defaults  >  hardcoded DEFAULTS
+```
+
+Defaults live in `src/store/settings.ts` (response speed, autocorrect, theme, language, timezone, last session mode, Relax preferences). When `appConfig/global` updates, `invalidateSettingsCache()` propagates new defaults; explicit localStorage overrides win. Reactive via `useSettings()` / `useGlobalConfig()` (`useSyncExternalStore`); `getSettings()` / `getGlobalConfig()` for non-React code.
 
 ## Development
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 22
 - Firebase CLI (`npm install -g firebase-tools`)
 - Access to the `undersurfaceme` Firebase project
 
@@ -171,9 +207,10 @@ VITE_FIREBASE_PROJECT_ID=undersurfaceme
 VITE_FIREBASE_STORAGE_BUCKET=undersurfaceme.firebasestorage.app
 VITE_FIREBASE_MESSAGING_SENDER_ID=...
 VITE_FIREBASE_APP_ID=...
+VITE_SENTRY_DSN=...            # optional
 ```
 
-These are public Firebase client config values — security comes from Firestore rules + auth, not config secrecy.
+These are public Firebase client config values — security comes from Firestore rules + auth, not config secrecy. Never build for production deploy with dummy values.
 
 ### Run locally
 
@@ -183,116 +220,24 @@ npm run build        # Production build to dist/
 npm run preview      # Preview production build
 npm run lint         # ESLint
 npm run test         # Vitest
+npm run test:indexes # Firestore index tests (emulator)
+npm run smoke-test   # Post-deploy smoke test against the live site
 ```
 
 ## Cloud Functions
 
-Two Cloud Functions live in `functions/src/index.ts`:
+Six functions in `functions/src/` (shared helpers in `shared/`):
 
-### `chat` — AI proxy (256MiB, 30s timeout)
+| Function | File | Purpose | Config |
+|----------|------|---------|--------|
+| `chat` | `chat.ts` | OpenAI proxy — `gpt-5.5` therapist/journal turns, `gpt-5-nano` crisis route, SSE streaming | 512MiB, minInstances 1, 300s |
+| `realtimeTokenApi` | `realtime.ts` | Mints OpenAI Realtime client secrets | 256MiB, minInstances 1, 30s |
+| `soundscapeApi` | `soundscapeApi.ts` + `soundscape/` | ElevenLabs soundscape generation + Firestore cache | 256MiB, 60s |
+| `accountApi` | `account.ts` | Account deletion + contact form | 256MiB, 60s |
+| `adminApi` | `admin/` | Admin dashboard backend (11 actions) | 512MiB, 120s |
+| `mcpApi` | `mcp.ts` | MCP server, 4 read-only tools, API-key auth | 256MiB, 30s |
 
-Proxies requests from the browser to OpenRouter. Verifies Firebase auth token on every request. The OpenRouter API key is stored in Google Secret Manager (`OPENROUTER_API_KEY`). Supports both streaming (SSE) and non-streaming responses.
-
-SSE streaming requires these headers to prevent CDN buffering:
-- `X-Accel-Buffering: no`
-- `Cache-Control: no-cache, no-transform`
-
-### `adminApi` — Admin backend (512MiB, 120s timeout)
-
-Single function that routes by `req.body.action`:
-
-| Action | Input | Returns |
-|--------|-------|---------|
-| `getOverview` | — | `userCount`, `totalEntries`, `totalThoughts`, `totalInteractions`, `recentActivity[]` |
-| `getUserList` | — | `users[]` with entry/thought/interaction counts, total words, last active |
-| `getUserDetail` | `{ uid }` | Full user data: entries, parts, thoughts, interactions, memories, profile, summaries |
-| `getConfig` | — | Current `GlobalConfig` from `appConfig/global` |
-| `updateConfig` | `{ config }` | Merged config (sets `updatedAt` + `updatedBy`) |
-| `generateInsights` | — | LLM narrative + highlights from entry summaries and user profiles |
-
-Uses Firebase Admin SDK to query across all users (bypasses Firestore security rules). Admin email is verified from the decoded Firebase ID token against the `ADMIN_EMAILS` allowlist.
-
-### Firebase Hosting Rewrites
-
-Defined in `firebase.json`:
-
-| Path | Function |
-|------|----------|
-| `/api/chat` | `chat` |
-| `/api/admin` | `adminApi` |
-| `**` | `/index.html` (SPA fallback) |
-
-## Data Model
-
-### User data — Firestore under `users/{uid}/`
-
-| Collection | Description |
-|-----------|-------------|
-| `entries` | Diary entries (content as HTML, plainText, timestamps) |
-| `parts` | Inner voice definitions (name, color, IFS role, system prompt, learnedKeywords, learnedEmotions, systemPromptAddition) |
-| `memories` | Persistent memories — types: `observation`, `interaction`, `reflection`, `pattern` |
-| `thoughts` | Individual part responses anchored to entry text |
-| `interactions` | Multi-turn "Thinking Out Loud" conversations |
-| `entrySummaries` | AI-generated summaries of entries (produced by reflection engine) |
-| `userProfile` | AI-maintained profile — `innerLandscape`, `recurringThemes`, `notablePatterns` |
-
-Security rule: users can only read/write their own data (`request.auth.uid == userId`).
-
-### Global config — `appConfig/global`
-
-A single Firestore document providing app-wide defaults and feature flags:
-
-```typescript
-interface GlobalConfig {
-  defaultModel: string                     // e.g. 'google/gemini-3-flash-preview'
-  defaultResponseSpeed: number             // 0.5–2.0
-  defaultTypewriterScroll: 'off' | 'comfortable' | 'typewriter'
-  features: {
-    partsEnabled: boolean       // Toggles AI thought generation
-    visualEffectsEnabled: boolean  // Toggles breathing background
-    autocorrectEnabled: boolean    // Toggles spell correction
-  }
-  announcement: {               // null = no announcement
-    message: string
-    type: 'info' | 'warning'
-    dismissible: boolean
-  } | null
-  updatedAt: number
-  updatedBy: string
-}
-```
-
-- Readable by all authenticated users (via Firestore rules)
-- Writable only through the `adminApi` Cloud Function (Admin SDK bypasses rules)
-- Listened to in real-time via `onSnapshot` in `src/store/globalConfig.ts`
-
-### Feature flags
-
-| Flag | Where checked | Effect when `false` |
-|------|---------------|---------------------|
-| `partsEnabled` | `partOrchestrator.ts` | No AI thoughts generated |
-| `visualEffectsEnabled` | `App.tsx` | Static background |
-| `autocorrectEnabled` | `LivingEditor.tsx` | Spell correction skipped |
-
-All flags default to **enabled** when config is `null` (not yet loaded or document doesn't exist). The checks use `=== false` so `undefined`/`null` are treated as enabled.
-
-## Settings System
-
-User preferences follow a 3-tier priority cascade:
-
-```
-user localStorage  >  appConfig/global defaults  >  hardcoded DEFAULTS
-```
-
-- **Hardcoded defaults** — in `src/store/settings.ts` `DEFAULTS` object
-- **Global config defaults** — from `appConfig/global` (set by admin), applied as a middle tier
-- **User localStorage** — per-device overrides set by the user
-
-When `appConfig/global` updates (via admin), `invalidateSettingsCache()` is called so new defaults propagate. Users who have explicitly set a value in localStorage keep their override.
-
-Settings are reactive via `useSettings()` hook (uses `useSyncExternalStore`). For non-React code, use `getSettings()`.
-
-Global config is reactive via `useGlobalConfig()` hook. For non-React code, use `getGlobalConfig()` (synchronous, reads in-memory cache).
+The chat model is pinned server-side in `functions/src/shared/models.ts` (`OPENAI_CHAT_MODEL`); the client never sends a model field. SSE streaming requires `X-Accel-Buffering: no` and `Cache-Control: no-cache, no-transform`.
 
 ## Deployment
 
@@ -302,88 +247,44 @@ Global config is reactive via `useGlobalConfig()` hook. For non-React code, use 
 npm run build && cd functions && npx tsc && cd .. && firebase deploy
 ```
 
-### Deploy only the frontend
-
-```bash
-npm run build
-firebase deploy --only hosting
-```
-
-### Deploy only Cloud Functions
-
-```bash
-cd functions && npx tsc && cd ..
-firebase deploy --only functions
-```
-
-### Deploy only Firestore rules
-
-```bash
-firebase deploy --only firestore:rules
-```
-
-### What to deploy
+### Partial deploys
 
 | What changed | Build step | Deploy command |
 |---|---|---|
 | Anything in `src/` | `npm run build` | `firebase deploy --only hosting` |
 | Anything in `functions/src/` | `cd functions && npx tsc` | `firebase deploy --only functions` |
 | `firestore.rules` | — | `firebase deploy --only firestore:rules` |
-| Both `src/` and `functions/` | Both build steps | `firebase deploy` |
+| Both | Both build steps | `firebase deploy` |
 
-### Before deploying
+After deploying, run `npm run smoke-test`. Note `chat`'s `minInstances: 1` requires `firebase deploy --force`.
 
-1. `npm run build` — must succeed with zero errors
-2. If you changed the Cloud Function: `cd functions && npx tsc` — must succeed
-3. `firebase login` — must be logged in
-4. Must have access to the `undersurfaceme` Firebase project
+### Managing API keys
 
-### Managing the OpenRouter API key
-
-The API key is stored as a Firebase secret, not in any config file:
+Both keys are Firebase secrets (Google Secret Manager), not config files:
 
 ```bash
-# View current secret
-firebase functions:secrets:access OPENROUTER_API_KEY
-
-# Update the secret
-echo "sk-or-v1-..." | firebase functions:secrets:set OPENROUTER_API_KEY
-
-# After updating, redeploy the function
-cd functions && npx tsc && cd ..
-firebase deploy --only functions
+echo "sk-..." | firebase functions:secrets:set OPENAI_API_KEY
+echo "..."    | firebase functions:secrets:set ELEVENLABS_API_KEY
+cd functions && npx tsc && cd .. && firebase deploy --only functions
 ```
 
-### Changing the default AI model
+### Changing the AI models
 
-**Option A — via admin dashboard (no redeploy):**
-1. Visit `undersurface.me/admin` → Settings tab
-2. Change "Default Model" and save
-3. Takes effect for new users / users who haven't overridden the model in localStorage
+- Chat: `OPENAI_CHAT_MODEL` in `functions/src/shared/models.ts`
+- Crisis classifier: `OPENAI_CRISIS_MODEL` in `functions/src/chat.ts`
+- Voice: `REALTIME_MODEL` in `functions/src/realtime.ts`
 
-**Option B — via code (changes hardcoded fallback):**
-1. `src/store/settings.ts` → `DEFAULTS.openRouterModel`
-2. `src/ai/openrouter.ts` → `getModel()` fallback
-3. `functions/src/index.ts` → the `model ||` fallback in `chat` function
-4. Build and deploy both frontend and function
+Then rebuild + deploy functions.
 
 ### Adding a new admin user
 
-Update `ADMIN_EMAILS` in two places:
-1. `src/App.tsx` — frontend routing gate
-2. `functions/src/index.ts` — backend auth check
-
-Then build and deploy both frontend and function.
+Update the allowlist in two places, then deploy both frontend and functions:
+1. `src/admin/isAdmin.ts` — frontend routing gate
+2. `functions/src/shared/auth.ts` — backend `ADMIN_EMAILS` check
 
 ### Toggling features without deploying
 
-Visit `undersurface.me/admin` → Settings tab:
-- Toggle `partsEnabled` to disable/enable AI thoughts
-- Toggle `visualEffectsEnabled` to disable/enable breathing background
-- Toggle `autocorrectEnabled` to disable/enable spell correction
-- Set an announcement message to show a banner to all users
-
-Changes propagate in real-time via Firestore `onSnapshot`.
+`undersurface.me/admin` → Settings. Feature flags, announcement banner, and tuning params propagate in real-time via Firestore `onSnapshot`.
 
 ## Domains
 
@@ -391,39 +292,25 @@ Changes propagate in real-time via Firestore `onSnapshot`.
 |-----|---------|
 | [undersurface.me](https://undersurface.me) | Custom domain (primary) |
 | [undersurfaceme.web.app](https://undersurfaceme.web.app) | Firebase default |
-| [undersurfaceme.firebaseapp.com](https://undersurfaceme.firebaseapp.com) | Firebase legacy |
+| [undersurfaceme.firebaseapp.com](https://undersurfaceme.firebaseapp.com) | Firebase legacy (must stay the `authDomain`) |
 
 DNS is managed in Cloudflare (DNS-only mode, proxy OFF for A records). Firebase Auth has all three domains authorized for Google Sign-In.
 
 ## Code Conventions
 
-- **TypeScript strict mode** — no `any`, use `import type {}` for type-only imports
-- **No semicolons** — project uses no-semicolon style
-- **Single quotes** — for strings
-- **Tailwind CSS v4** — uses `@tailwindcss/vite` plugin, import with `@import "tailwindcss"` in CSS
-- **TipTap v3** — editor storage types extended via `interface Storage {}` in `@tiptap/core` (see `src/types/tiptap.d.ts`)
+- **TypeScript strict mode** — no `any`, `import type {}` for type-only imports
+- **No semicolons**, **single quotes**
+- **Tailwind CSS v4** — `@tailwindcss/vite` plugin, `@import "tailwindcss"` in CSS
+- **TipTap v3** — editor storage types via `@tiptap/core` module augmentation (`src/types/tiptap.d.ts`)
 - **Functional components** — class components only for `ErrorBoundary`
-- **`useMemo` over `useEffect+setState`** — for derived state, to avoid cascading renders
-- **Settings are reactive** — `useSettings()` via `useSyncExternalStore`, `getSettings()` for non-React code
-- **Global config is reactive** — `useGlobalConfig()` via `useSyncExternalStore`, `getGlobalConfig()` for non-React code
-- **Admin components use inline styles** — consistent warm muted palette (Inter font, #FAF8F5 bg, #A09A94 subtle, #2D2B29 text)
-- **Feature flags use `=== false`** — so `null`/`undefined` defaults to enabled
+- **`useMemo` over `useEffect+setState`** for derived state
+- **Reactive stores** — `useSettings()` / `useGlobalConfig()` via `useSyncExternalStore`
+- **Colors via CSS variables** — never hardcode hex for themed colors
+- **Admin components use inline styles** — warm muted palette, light-only
 
-## Known Gotchas
+## Known Gotchas & Further Docs
 
-- **Refs in React setState callbacks** — Always capture ref values in a local variable before calling setState. React batches updates and the ref can change mid-callback.
-- **TipTap editor.storage types** — Extended via `@tiptap/core` module augmentation in `src/types/tiptap.d.ts`, not via `EditorStorageMap`.
-- **Damerau-Levenshtein distance** — "recieve" → "receive" is distance 1 (transposition), not 2.
-- **Firebase offline persistence** — Uses `persistentLocalCache` + `persistentMultipleTabManager`. Initialized in `firebase.ts` before any Firestore calls.
-- **Cloud Function streaming** — Requires `X-Accel-Buffering: no` and `Cache-Control: no-cache, no-transform` headers to prevent CDN buffering of SSE.
-- **Cloudflare DNS proxy** — Must be OFF (DNS only / gray cloud) for A records pointing to Firebase Hosting. Proxied mode breaks SSL provisioning.
-- **CI build** — Uses dummy `VITE_FIREBASE_*` env vars since Firebase config is public and only needed at runtime.
-- **Feature flags default to enabled** — `getGlobalConfig()` returns `null` before `appConfig/global` exists. All flag checks use `=== false` so `null`/`undefined` = enabled. The doc is created on first admin Settings save.
-- **Admin API timeout** — `generateInsights` calls OpenRouter and can take 10-30s. The `adminApi` function has a 120s timeout to accommodate this.
-- **`firebase.json` firestore section** — Required for `firebase deploy --only firestore:rules` to work. Contains `"rules": "firestore.rules"`.
-- **PWA service worker caches aggressively** — After deploys, unregister the SW + hard refresh to test new changes.
-- **`chatCompletion()` default `max_tokens: 150`** — Only for short inline thoughts. Structured JSON responses (reflection engine, part growth) need 600–800 tokens — pass `maxTokens` explicitly.
-- **Settings cache invalidation** — `invalidateSettingsCache()` must be called when global config changes. This is wired up in the `onSnapshot` callback in `globalConfig.ts`.
+The authoritative, regularly-updated gotcha list (Firebase/CSP, crisis-safety invariants, HRV signal processing, Polar PMD protocol, build caveats) lives in **`CLAUDE.md`**. Deeper references live in `.claude/docs/` (`key-files.md`, `feature-flags.md`, `admin.md`, `subsystems.md`, `analytics.md`). Current review findings: `APP_REVIEW_TREE_AND_FOREST_2026-05-21.md`, `APP_REVIEW_2026-07-03.md`, `APP_REVIEW_FABLE5_2026-07-03.md`. Active remediation plan: `docs/superpowers/plans/2026-07-03-full-remediation-master.md`.
 
 ## Infrastructure
 
