@@ -357,6 +357,16 @@ describe('adminApi — allowlist', () => {
     expect(res._statusCode).toBe(403)
   })
 
+  it('returns 403 when the admin email is unverified', async () => {
+    // A takeover of the admin address must not grant admin without the
+    // provider having verified the email claim.
+    mockVerifyIdToken.mockResolvedValue({ uid: 'admin-uid', email: 'zohoora@gmail.com', email_verified: false })
+    const req = makeReq({ body: { action: 'getOverview' } })
+    const res = makeRes()
+    await adminApi(req, res)
+    expect(res._statusCode).toBe(403)
+  })
+
   it('email comparison is case-sensitive', async () => {
     mockVerifyIdToken.mockResolvedValue({ uid: 'mixed-case', email: 'ZOHOORA@gmail.com' })
     const req = makeReq({ body: { action: 'getOverview' } })
@@ -367,7 +377,7 @@ describe('adminApi — allowlist', () => {
 
   it('passes the allowlist gate for the canonical admin email', async () => {
     // Body shape fails AFTER the auth gate; 400 means we got past the 403.
-    mockVerifyIdToken.mockResolvedValue({ uid: 'admin-uid', email: 'zohoora@gmail.com' })
+    mockVerifyIdToken.mockResolvedValue({ uid: 'admin-uid', email: 'zohoora@gmail.com', email_verified: true })
     const req = makeReq({ body: {} })
     const res = makeRes()
     await adminApi(req, res)
@@ -376,7 +386,7 @@ describe('adminApi — allowlist', () => {
   })
 
   it('returns 400 for unknown admin action when email IS allowlisted', async () => {
-    mockVerifyIdToken.mockResolvedValue({ uid: 'admin-uid', email: 'zohoora@gmail.com' })
+    mockVerifyIdToken.mockResolvedValue({ uid: 'admin-uid', email: 'zohoora@gmail.com', email_verified: true })
     const req = makeReq({ body: { action: 'doSomethingSketchy' } })
     const res = makeRes()
     await adminApi(req, res)
@@ -385,7 +395,7 @@ describe('adminApi — allowlist', () => {
   })
 
   it('returns 400 for getUserDetail without uid (admin still must pass params)', async () => {
-    mockVerifyIdToken.mockResolvedValue({ uid: 'admin-uid', email: 'zohoora@gmail.com' })
+    mockVerifyIdToken.mockResolvedValue({ uid: 'admin-uid', email: 'zohoora@gmail.com', email_verified: true })
     const req = makeReq({ body: { action: 'getUserDetail' } })
     const res = makeRes()
     await adminApi(req, res)

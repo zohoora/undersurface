@@ -16,7 +16,11 @@ export async function verifyAdmin(authHeader: string | undefined): Promise<strin
   if (!authHeader?.startsWith('Bearer ')) return null
   try {
     const decoded = await getAuth().verifyIdToken(authHeader.split('Bearer ')[1])
-    if (decoded.email && ADMIN_EMAILS.includes(decoded.email)) return decoded.email
+    // email_verified is required: an unverified email claim must never grant
+    // admin — it is the single credential guarding every user's raw data.
+    if (decoded.email && decoded.email_verified === true && ADMIN_EMAILS.includes(decoded.email)) {
+      return decoded.email
+    }
     return null
   } catch {
     return null
