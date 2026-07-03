@@ -67,6 +67,7 @@ const pl = {
   'session.bottomBar.journal': 'Dziennik',
   'session.bottomBar.speak': 'Powiedz na głos',
   'session.bottomBar.realTalk': 'Real Talk',
+  'session.bottomBar.realTalkExplainer': 'Nazywa mechanizmy obronne w twoim pisaniu — unikanie, umniejszanie, myślenie zero-jedynkowe. Bezpośrednio, ale życzliwie.',
   'session.bottomBar.parts': 'Wewnętrzne głosy',
   'session.journal.presence': 'Twój towarzysz słucha',
   'session.journal.placeholder': 'Pisz prywatnie. Twój towarzysz jest tutaj, w ciszy, podczas gdy znajdujesz to, co chce być powiedziane.',

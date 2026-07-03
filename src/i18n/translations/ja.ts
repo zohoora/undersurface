@@ -67,6 +67,7 @@ const ja = {
   'session.bottomBar.journal': '日記',
   'session.bottomBar.speak': '声に出す',
   'session.bottomBar.realTalk': 'Real Talk',
+  'session.bottomBar.realTalkExplainer': 'あなたの書いたものの中の対処パターンに名前をつけます — 回避、過小評価、白黒思考。率直だが、優しく。',
   'session.bottomBar.parts': '内なる声',
   'session.journal.presence': '伴走者が聴いています',
   'session.journal.placeholder': 'プライベートに書いてください。伴走者はここにいて、静かに、あなたが言いたいことを見つけるまで待っています。',

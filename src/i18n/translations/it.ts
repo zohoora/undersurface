@@ -67,6 +67,7 @@ const it = {
   'session.bottomBar.journal': 'Diario',
   'session.bottomBar.speak': 'Dire ad alta voce',
   'session.bottomBar.realTalk': 'Real Talk',
+  'session.bottomBar.realTalkExplainer': 'Dà un nome ai meccanismi di difesa nella tua scrittura — evitamento, minimizzazione, pensiero tutto-o-niente. Diretto, ma gentile.',
   'session.bottomBar.parts': 'Voci interiori',
   'session.journal.presence': 'Il tuo compagno ascolta',
   'session.journal.placeholder': 'Scrivi in privato. Il tuo compagno è qui, in silenzio, mentre trovi quello che vuole essere detto.',

@@ -67,6 +67,7 @@ const id = {
   'session.bottomBar.journal': 'Jurnal',
   'session.bottomBar.speak': 'Ucapkan dengan suara',
   'session.bottomBar.realTalk': 'Real Talk',
+  'session.bottomBar.realTalkExplainer': 'Menamai pola menghindar dalam tulisanmu — penghindaran, meremehkan, berpikir hitam-putih. Langsung, tapi baik.',
   'session.bottomBar.parts': 'Suara batin',
   'session.journal.presence': 'Pendamping sedang mendengarkan',
   'session.journal.placeholder': 'Tulislah secara pribadi. Pendamping ada di sini, dalam diam, saat Anda menemukan apa yang ingin diucapkan.',

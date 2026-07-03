@@ -67,6 +67,7 @@ const vi = {
   'session.bottomBar.journal': 'Nhật ký',
   'session.bottomBar.speak': 'Nói thành tiếng',
   'session.bottomBar.realTalk': 'Real Talk',
+  'session.bottomBar.realTalkExplainer': 'Gọi tên những cách né tránh trong bài viết của bạn — lảng tránh, xem nhẹ, suy nghĩ được ăn cả ngã về không. Thẳng thắn nhưng tử tế.',
   'session.bottomBar.parts': 'Tiếng nói nội tâm',
   'session.journal.presence': 'Người đồng hành đang lắng nghe',
   'session.journal.placeholder': 'Viết riêng tư. Người đồng hành ở đây, trong im lặng, trong khi bạn tìm thấy những gì muốn được nói.',

@@ -67,6 +67,7 @@ const es = {
   'session.bottomBar.journal': 'Diario',
   'session.bottomBar.speak': 'Decir en voz alta',
   'session.bottomBar.realTalk': 'Real Talk',
+  'session.bottomBar.realTalkExplainer': 'Nombra los mecanismos de defensa en tu escritura — evitación, minimización, pensamiento de todo o nada. Directo, pero amable.',
   'session.bottomBar.parts': 'Voces internas',
   'session.journal.presence': 'Tu acompañante escucha',
   'session.journal.placeholder': 'Escribe privadamente. Tu acompañante está aquí, en silencio, mientras encuentras lo que quiere ser dicho.',

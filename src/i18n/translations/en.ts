@@ -94,6 +94,7 @@ const en = {
   'session.bottomBar.speak': 'Speak',
   'session.bottomBar.relax': 'Relax',
   'session.bottomBar.realTalk': 'Real Talk',
+  'session.bottomBar.realTalkExplainer': 'Names the coping moves in your writing — avoidance, minimizing, all-or-nothing thinking. Direct, but kind.',
   'session.bottomBar.parts': 'Inner voices',
   'session.journal.presence': 'Your companion is listening',
   'session.journal.placeholder': 'Write privately. Your companion is here, quiet, while you find what wants to be said.',

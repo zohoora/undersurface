@@ -67,6 +67,7 @@ const de = {
   'session.bottomBar.journal': 'Tagebuch',
   'session.bottomBar.speak': 'Aussprechen',
   'session.bottomBar.realTalk': 'Real Talk',
+  'session.bottomBar.realTalkExplainer': 'Benennt die Bewältigungsmuster in deinem Schreiben — Vermeidung, Verharmlosung, Schwarz-Weiß-Denken. Direkt, aber freundlich.',
   'session.bottomBar.parts': 'Innere Stimmen',
   'session.journal.presence': 'Dein Begleiter hört zu',
   'session.journal.placeholder': 'Schreib privat. Dein Begleiter ist hier, ruhig, während du findest, was ausgesprochen werden will.',

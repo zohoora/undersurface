@@ -67,6 +67,7 @@ const zh = {
   'session.bottomBar.journal': '日记',
   'session.bottomBar.speak': '说出来',
   'session.bottomBar.realTalk': 'Real Talk',
+  'session.bottomBar.realTalkExplainer': '指出你文字中的应对模式——回避、淡化、非黑即白的思维。直接，但善意。',
   'session.bottomBar.parts': '内在声音',
   'session.journal.presence': '陪伴者在倾听',
   'session.journal.placeholder': '私下书写。陪伴者在这里，安静地等待，直到你找到想要说的话。',

@@ -90,7 +90,8 @@ export function SessionBottomBar({
           role="switch"
           className="session-bottom-bar__realtalk"
           aria-checked={realTalkOn}
-          aria-label={t('session.bottomBar.realTalk')}
+          aria-label={`${t('session.bottomBar.realTalk')} — ${t('session.bottomBar.realTalkExplainer')}`}
+          title={t('session.bottomBar.realTalkExplainer')}
           onClick={() => onRealTalkToggle(!realTalkOn)}
         >
           ◇ {t('session.bottomBar.realTalk')}

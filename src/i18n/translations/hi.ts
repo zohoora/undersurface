@@ -67,6 +67,7 @@ const hi = {
   'session.bottomBar.journal': 'डायरी',
   'session.bottomBar.speak': 'बोलकर कहें',
   'session.bottomBar.realTalk': 'Real Talk',
+  'session.bottomBar.realTalkExplainer': 'आपके लेखन में बचाव के तरीकों को नाम देता है — टालमटोल, कम आँकना, सब-या-कुछ नहीं सोच। सीधा, पर दयालु।',
   'session.bottomBar.parts': 'भीतर की आवाज़ें',
   'session.journal.presence': 'आपके साथी सुन रहे हैं',
   'session.journal.placeholder': 'निजी रूप से लिखें। आपके साथी यहां हैं, शांति में, जब तक आप वह नहीं पाते जो कहा जाना चाहता है।',

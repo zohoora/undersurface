@@ -67,6 +67,7 @@ const ko = {
   'session.bottomBar.journal': '일기',
   'session.bottomBar.speak': '소리 내어 말하기',
   'session.bottomBar.realTalk': 'Real Talk',
+  'session.bottomBar.realTalkExplainer': '당신의 글 속 대처 방식에 이름을 붙입니다 — 회피, 축소, 흑백 사고. 직설적이지만 다정하게.',
   'session.bottomBar.parts': '내면의 목소리',
   'session.journal.presence': '동반자가 듣고 있습니다',
   'session.journal.placeholder': '비공개로 작성하세요. 동반자가 여기 있고, 당신이 말하고 싶은 것을 찾을 때까지 조용히 기다리고 있습니다.',

@@ -67,6 +67,7 @@ const fr = {
   'session.bottomBar.journal': 'Journal',
   'session.bottomBar.speak': 'Dire à voix haute',
   'session.bottomBar.realTalk': 'Real Talk',
+  'session.bottomBar.realTalkExplainer': 'Nomme les mécanismes d’adaptation dans ton écriture — évitement, minimisation, pensée tout-ou-rien. Direct, mais bienveillant.',
   'session.bottomBar.parts': 'Voix intérieures',
   'session.journal.presence': 'Ton compagnon écoute',
   'session.journal.placeholder': 'Écris en privé. Ton compagnon est là, en silence, tandis que tu trouves ce qui veut être dit.',

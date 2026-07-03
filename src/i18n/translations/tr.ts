@@ -67,6 +67,7 @@ const tr = {
   'session.bottomBar.journal': 'Günlük',
   'session.bottomBar.speak': 'Yüksek sesle söyle',
   'session.bottomBar.realTalk': 'Real Talk',
+  'session.bottomBar.realTalkExplainer': 'Yazındaki başa çıkma kalıplarını adlandırır — kaçınma, küçümseme, ya hep ya hiç düşüncesi. Doğrudan ama nazikçe.',
   'session.bottomBar.parts': 'İç sesler',
   'session.journal.presence': 'Yol arkadaşın dinliyor',
   'session.journal.placeholder': 'Gizli bir şekilde yaz. Yol arkadaşın burada, sessizce, söylenmek isteyeni bulmanı bekliyor.',

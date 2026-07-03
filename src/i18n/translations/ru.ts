@@ -67,6 +67,7 @@ const ru = {
   'session.bottomBar.journal': 'Дневник',
   'session.bottomBar.speak': 'Сказать вслух',
   'session.bottomBar.realTalk': 'Real Talk',
+  'session.bottomBar.realTalkExplainer': 'Называет защитные механизмы в вашем письме — избегание, преуменьшение, мышление «всё или ничего». Прямо, но по-доброму.',
   'session.bottomBar.parts': 'Внутренние голоса',
   'session.journal.presence': 'Твой собеседник слушает',
   'session.journal.placeholder': 'Пиши приватно. Твой собеседник здесь, в молчании, пока ты находишь то, что хочет быть сказано.',

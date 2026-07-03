@@ -67,6 +67,7 @@ const th = {
   'session.bottomBar.journal': 'บันทึก',
   'session.bottomBar.speak': 'พูดออกมา',
   'session.bottomBar.realTalk': 'Real Talk',
+  'session.bottomBar.realTalkExplainer': 'ระบุรูปแบบการรับมือในงานเขียนของคุณ — การหลีกเลี่ยง การมองข้าม การคิดแบบสุดขั้ว ตรงไปตรงมา แต่ด้วยความหวังดี',
   'session.bottomBar.parts': 'เสียงภายใน',
   'session.journal.presence': 'เพื่อนร่วมทางกำลังฟังอยู่',
   'session.journal.placeholder': 'เขียนเป็นการส่วนตัว เพื่อนร่วมทางอยู่ที่นี่ ในความเงียบ ขณะที่คุณค้นหาสิ่งที่ต้องการพูด',

@@ -67,6 +67,7 @@ const nl = {
   'session.bottomBar.journal': 'Dagboek',
   'session.bottomBar.speak': 'Hardop zeggen',
   'session.bottomBar.realTalk': 'Real Talk',
+  'session.bottomBar.realTalkExplainer': 'Benoemt de coping-patronen in je schrijven — vermijding, bagatelliseren, alles-of-niets-denken. Direct, maar vriendelijk.',
   'session.bottomBar.parts': 'Innerlijke stemmen',
   'session.journal.presence': 'Je metgezel luistert',
   'session.journal.placeholder': 'Schrijf privé. Je metgezel is hier, stil, terwijl je vindt wat gezegd wil worden.',
