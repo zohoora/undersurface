@@ -82,12 +82,15 @@ describe('buildTherapistSystemPrompt', () => {
     expect(prompt).toContain('struggles with vulnerability')
   })
 
-  it('keeps the NEWEST memories when more exist than the window (input is newest-first)', () => {
+  it('keeps the NEWEST memories when the token budget cannot fit them all (input is newest-first)', () => {
+    // Each memory is long enough (~45 tokens) that the ~160-token memory budget
+    // fits only the first few. Packing must keep the newest and drop the oldest.
+    const filler = 'a fairly detailed reflection about the writer that takes up a good amount of space here'
     const memories: PartMemory[] = Array.from({ length: 8 }, (_, i) => ({
       id: String(i),
       partId: 'open',
       entryId: `e${i}`,
-      content: `reflection number ${i}`,
+      content: `reflection number ${i} — ${filler}`,
       type: 'reflection' as const,
       timestamp: 1000 - i, // newest-first, matching sessionContextLoader's sort
     }))

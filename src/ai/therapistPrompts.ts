@@ -2,6 +2,12 @@ import type { PartMemory, UserProfile, PersonalFacts, EntrySummary, SessionMessa
 import { languageDirective, formatDateTime, formatTime, formatShortDate, GROUNDING_DIRECTIVE } from './partPrompts'
 import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from './promptSafety'
 import { REGISTER_TIERS, renderRegisterBlock, applyGroundingCap } from './registerTiers'
+import { packByBudget } from './contextPacker'
+
+// Estimated-token budget for the "what you've learned / patterns / observations"
+// memory block. ~120 words; enough for a rich recall without dominating the
+// system prompt. Replaces the old fixed 6/4/2 item slices.
+const MEMORY_TOKEN_BUDGET = 160
 
 // Risk-classification preamble. The therapist emits exactly one of
 // `<<RISK:0>>`, `<<RISK:1>>`, or `<<RISK:2>>` as the first line of every
@@ -334,24 +340,35 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   }
 
   if (options.relevantMemories && options.relevantMemories.length > 0) {
-    // relevantMemories arrives newest-first (sessionContextLoader sorts
-    // descending), so take from the FRONT. slice(-n) here silently dropped
-    // the latest session's insights whenever the window was full.
-    const categorized = {
-      reflections: options.relevantMemories.filter(m => m.type === 'reflection').slice(0, 6),
-      patterns: options.relevantMemories.filter(m => m.type === 'pattern').slice(0, 4),
-      other: options.relevantMemories.filter(m => m.type !== 'reflection' && m.type !== 'pattern').slice(0, 2),
-    }
+    // Token-budgeted rather than fixed 6/4/2 slices: pack the memory block up
+    // to MEMORY_TOKEN_BUDGET, prioritizing reflections > patterns > other and
+    // newer within each tier. Adapts to content length — a few verbose memories
+    // no longer crowd out everything, and many terse ones aren't left on the
+    // table. relevantMemories arrives newest-first from sessionContextLoader.
+    const priorityFor = (type: PartMemory['type']): number =>
+      type === 'reflection' ? 0 : type === 'pattern' ? 1 : 2
+    const packItems = options.relevantMemories.map(m => ({
+      priority: priorityFor(m.type),
+      recency: m.timestamp,
+      text: `- ${formatShortDate(m.timestamp)}: ${sanitizeForPrompt(m.content)}`,
+      memory: m,
+    }))
+    const packed = packByBudget(packItems, MEMORY_TOKEN_BUDGET)
+
+    const line = (m: PartMemory): string => `- ${formatShortDate(m.timestamp)}: ${sanitizeForPrompt(m.content)}`
+    const reflections = packed.filter(p => p.memory.type === 'reflection').map(p => line(p.memory))
+    const patterns = packed.filter(p => p.memory.type === 'pattern').map(p => line(p.memory))
+    const other = packed.filter(p => p.memory.type !== 'reflection' && p.memory.type !== 'pattern').map(p => line(p.memory))
 
     const memoryBlocks: string[] = []
-    if (categorized.reflections.length > 0) {
-      memoryBlocks.push(`What you have learned about this writer:\n${categorized.reflections.map(m => `- ${formatShortDate(m.timestamp)}: ${sanitizeForPrompt(m.content)}`).join('\n')}`)
+    if (reflections.length > 0) {
+      memoryBlocks.push(`What you have learned about this writer:\n${reflections.join('\n')}`)
     }
-    if (categorized.patterns.length > 0) {
-      memoryBlocks.push(`Patterns you have noticed:\n${categorized.patterns.map(m => `- ${formatShortDate(m.timestamp)}: ${sanitizeForPrompt(m.content)}`).join('\n')}`)
+    if (patterns.length > 0) {
+      memoryBlocks.push(`Patterns you have noticed:\n${patterns.join('\n')}`)
     }
-    if (categorized.other.length > 0) {
-      memoryBlocks.push(`Observations:\n${categorized.other.map(m => `- ${formatShortDate(m.timestamp)}: ${sanitizeForPrompt(m.content)}`).join('\n')}`)
+    if (other.length > 0) {
+      memoryBlocks.push(`Observations:\n${other.join('\n')}`)
     }
     if (memoryBlocks.length > 0) {
       parts.push(memoryBlocks.join('\n\n'))
