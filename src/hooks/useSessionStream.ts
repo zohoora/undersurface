@@ -9,6 +9,7 @@ import { isGroundingActive, activateGrounding } from './useGroundingMode'
 import { getWeatherEngine } from '../store/weatherStore'
 import { useTranslation, getLanguageCode } from '../i18n'
 import type { useTypewriter } from './useTypewriter'
+import type { EnqueueAppend } from './useAppendQueue'
 import type { SessionOrchestrator } from '../engine/sessionOrchestrator'
 import type { Session, SessionMessage, SessionPhase, EmotionalTone, HrvConversationEventType } from '../types'
 
@@ -44,6 +45,7 @@ export interface SessionStreamWiring {
   setOpenerError: Dispatch<SetStateAction<string | null>>
   hrv: BiometricSource
   typewriter: ReturnType<typeof useTypewriter>
+  enqueueAppend: EnqueueAppend
 }
 
 export interface AppendUserMessageResult {
@@ -60,7 +62,7 @@ export interface AppendUserMessageResult {
 export function useSessionStream(wiring: SessionStreamWiring) {
   const {
     sessionRef, messagesRef, contextRef, orchestratorRef,
-    setSession, setMessages, setIsStreaming, setOpenerError,
+    setSession, setMessages, setIsStreaming, setOpenerError, enqueueAppend,
     hrv, typewriter,
   } = wiring
   const settings = useSettings()
@@ -101,7 +103,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     const latestUserMessage = [...currentMessages].reverse().find(m => m.speaker === 'user')
     if (latestUserMessage && !isGroundingActive()) {
       void classifyCrisisRisk(latestUserMessage.content, getLanguageCode())
-        .then(risk => { if (risk === 2) activateGrounding('auto') })
+        .then(result => { if (result.risk === 2) activateGrounding('auto') })
         .catch(() => { /* classifyCrisisRisk already fails open to 0 */ })
     }
 
@@ -171,37 +173,42 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             isEmergence: false,
           }
 
-          // Firestore writes always run — the message belongs to currentSession
-          // and must be persisted even if the user has since switched away.
-          await sessionMessagesDb.add(currentSession.id, newMessage)
+          // Serialized append: read the base list fresh INSIDE the queue so a
+          // concurrent user/voice append can't be clobbered. Firestore writes
+          // always run — the message belongs to currentSession and must persist
+          // even if the user has since switched away.
+          await enqueueAppend(async () => {
+            await sessionMessagesDb.add(currentSession.id, newMessage)
 
-          const updatedMessages = [...currentMessages, newMessage]
-          const newMessageCount = updatedMessages.length
-          const firstLine = currentSession.firstLine || fullText.trim().slice(0, 100)
+            const base = messagesRef.current
+            const updatedMessages = [...base, newMessage]
+            const newMessageCount = updatedMessages.length
+            const firstLine = currentSession.firstLine || fullText.trim().slice(0, 100)
 
-          await db.sessions.update(currentSession.id, {
-            messageCount: newMessageCount,
-            firstLine,
-            phase,
-          })
-
-          // Guard React-state writes against a mid-reveal session switch: if the
-          // active session is no longer the one this message belongs to, applying
-          // its messages/count/streaming state would corrupt the other session's
-          // view (the cross-session bleed). The message is already persisted above.
-          if (sessionRef.current?.id === currentSession.id) {
-            setSession(prev => prev ? {
-              ...prev,
+            await db.sessions.update(currentSession.id, {
               messageCount: newMessageCount,
               firstLine,
               phase,
-            } : prev)
-            setMessages(updatedMessages)
-            messagesRef.current = updatedMessages
-            setIsStreaming(false)
-          }
-          typewriter.reset()
-          resolveMessages(updatedMessages)
+            })
+
+            // Guard React-state writes against a mid-reveal session switch: if the
+            // active session is no longer the one this message belongs to, applying
+            // its messages/count/streaming state would corrupt the other session's
+            // view (the cross-session bleed). The message is already persisted above.
+            if (sessionRef.current?.id === currentSession.id) {
+              setSession(prev => prev ? {
+                ...prev,
+                messageCount: newMessageCount,
+                firstLine,
+                phase,
+              } : prev)
+              setMessages(updatedMessages)
+              messagesRef.current = updatedMessages
+              setIsStreaming(false)
+            }
+            typewriter.reset()
+            resolveMessages(updatedMessages)
+          })
         }
 
         hrv.resetResponseStarted()
@@ -279,7 +286,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     return currentMessages
   }, [
     sessionRef, contextRef, messagesRef, orchestratorRef,
-    setSession, setMessages, setIsStreaming, setOpenerError,
+    setSession, setMessages, setIsStreaming, setOpenerError, enqueueAppend,
     hrv, typewriter, settings.responseSpeed, tr,
   ])
 
@@ -296,37 +303,43 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     const trimmed = content.trim()
     if (!trimmed) return null
 
-    const currentMessages = messagesRef.current
-    const phase = orchestratorRef.current.detectPhase(currentMessages)
-    const userMessage: SessionMessage = {
-      id: generateId(),
-      speaker: 'user',
-      partId: null,
-      partName: null,
-      content: trimmed,
-      timestamp: Date.now(),
-      phase,
-      isEmergence: false,
-      ...(inputMethod === 'voice' && { inputMethod }),
-    }
+    // Serialized so a concurrent append (e.g. a voice transcript arriving while
+    // this persists) can't read the same base array and clobber this message /
+    // understate messageCount. The base list is read fresh INSIDE the queue.
+    const result = await enqueueAppend(async (): Promise<AppendUserMessageResult> => {
+      const currentMessages = messagesRef.current
+      const phase = orchestratorRef.current.detectPhase(currentMessages)
+      const userMessage: SessionMessage = {
+        id: generateId(),
+        speaker: 'user',
+        partId: null,
+        partName: null,
+        content: trimmed,
+        timestamp: Date.now(),
+        phase,
+        isEmergence: false,
+        ...(inputMethod === 'voice' && { inputMethod }),
+      }
 
-    await sessionMessagesDb.add(currentSession.id, userMessage)
+      await sessionMessagesDb.add(currentSession.id, userMessage)
 
-    if (hrv.enabled) {
-      hrv.addConversationEvent('user_message', currentMessages.length)
-    }
+      if (hrv.enabled) {
+        hrv.addConversationEvent('user_message', currentMessages.length)
+      }
 
-    const updatedMessages = [...currentMessages, userMessage]
-    const firstLine = currentSession.firstLine || trimmed.slice(0, 100)
+      const updatedMessages = [...currentMessages, userMessage]
+      const firstLine = currentSession.firstLine || trimmed.slice(0, 100)
 
-    await db.sessions.update(currentSession.id, {
-      messageCount: updatedMessages.length,
-      firstLine,
+      await db.sessions.update(currentSession.id, {
+        messageCount: updatedMessages.length,
+        firstLine,
+      })
+
+      setSession(prev => prev ? { ...prev, messageCount: updatedMessages.length, firstLine } : prev)
+      setMessages(updatedMessages)
+      messagesRef.current = updatedMessages
+      return { updatedMessages, firstLine, phase }
     })
-
-    setSession(prev => prev ? { ...prev, messageCount: updatedMessages.length, firstLine } : prev)
-    setMessages(updatedMessages)
-    messagesRef.current = updatedMessages
 
     // Synchronous crisis keyword check — runs BEFORE any AI response.
     // Activates grounding mode so isGrounding=true flows into the prompt.
@@ -344,10 +357,10 @@ export function useSessionStream(wiring: SessionStreamWiring) {
       })
       .catch(console.error)
 
-    return { updatedMessages, firstLine, phase }
+    return result
   }, [
     sessionRef, messagesRef, orchestratorRef,
-    setSession, setMessages,
+    setSession, setMessages, enqueueAppend,
     hrv, weatherEngine,
   ])
 

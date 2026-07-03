@@ -9,7 +9,7 @@ import type { TherapistContext } from '../engine/sessionContextLoader'
 // streamChatCompletion: tests reach in via streamMock.mockImplementation to
 // control onToken/onComplete/onError per case.
 const streamMock = vi.fn()
-const classifyCrisisRiskMock = vi.fn(async () => 0)
+const classifyCrisisRiskMock = vi.fn(async () => ({ risk: 0 }))
 vi.mock('../ai/openrouter', () => ({
   streamChatCompletion: (...args: unknown[]) => streamMock(...args),
   reasoningForSpeed: () => 'medium',
@@ -169,7 +169,20 @@ function makeWiring(over: {
       addConversationEvent: vi.fn(),
     } as unknown as Parameters<typeof useSessionStream>[0]['hrv'],
     typewriter: typewriter as unknown as Parameters<typeof useSessionStream>[0]['typewriter'],
+    // Real serialization primitive: a promise-chain queue. Using the actual
+    // behavior (not a passthrough) keeps the append-ordering tests honest.
+    enqueueAppend: makeEnqueue(),
     orchestrator, // exposed for assertions
+  }
+}
+
+// Mirror of useAppendQueue's chaining without the React wrapper.
+function makeEnqueue() {
+  let tail: Promise<unknown> = Promise.resolve()
+  return <T>(fn: () => Promise<T>): Promise<T> => {
+    const run = tail.then(fn, fn)
+    tail = run.then(() => {}, () => {})
+    return run
   }
 }
 
@@ -182,7 +195,7 @@ beforeEach(() => {
   weatherPersistMock.mockClear()
   activateGroundingMock.mockClear()
   classifyCrisisRiskMock.mockReset()
-  classifyCrisisRiskMock.mockResolvedValue(0)
+  classifyCrisisRiskMock.mockResolvedValue({ risk: 0 })
   isGroundingMock.mockReturnValue(false)
   idCounter = 0
 })
@@ -222,6 +235,36 @@ describe('useSessionStream — generateTherapistMessage (happy path)', () => {
     expect((msg as SessionMessage).content).toBe('Hello writer.')
     expect(returnedMessages).toHaveLength(1)
     expect(wiring.setIsStreaming).toHaveBeenCalledWith(false)
+  })
+})
+
+// ─── Tests: serialized appends (no lost messages) ─────────────
+
+describe('useSessionStream — appendUserMessage serialization', () => {
+  it('two concurrent appends both land — neither clobbers the other (N → N+2)', async () => {
+    // Add latency so both appends overlap: without the queue they would both
+    // read the same base array and the last write would win (N+1, one lost).
+    // Restore the default impl after — mockClear (beforeEach) keeps the impl,
+    // so leaking it would hang later fake-timer tests on this real setTimeout.
+    sessionMessageAddMock.mockImplementation(async () => { await new Promise(r => setTimeout(r, 5)) })
+    try {
+      const wiring = makeWiring()
+      const { result } = renderHook(() => useSessionStream(wiring))
+
+      await act(async () => {
+        const a = result.current.appendUserMessage('first', 'text')
+        const b = result.current.appendUserMessage('second', 'text')
+        await Promise.all([a, b])
+      })
+
+      expect(wiring.messagesRef.current).toHaveLength(2)
+      expect(wiring.messagesRef.current.map(m => m.content)).toEqual(['first', 'second'])
+      // messageCount persisted must reach 2, not stay at 1.
+      const lastUpdate = sessionUpdateMock.mock.calls.at(-1)?.[1] as { messageCount: number }
+      expect(lastUpdate.messageCount).toBe(2)
+    } finally {
+      sessionMessageAddMock.mockImplementation(async () => {})
+    }
   })
 })
 
@@ -367,7 +410,7 @@ describe('useSessionStream — onRisk preamble wiring', () => {
   it('backstop: the standalone classifier activates grounding when the preamble is absent', async () => {
     // Simulate a missing/malformed preamble that fails open to 0 — the stream
     // never calls onRisk — while the independent L2 classifier catches it.
-    classifyCrisisRiskMock.mockResolvedValue(2)
+    classifyCrisisRiskMock.mockResolvedValue({ risk: 2 })
     streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
       callbacks.onToken('I hear you.')
       callbacks.onComplete()
@@ -392,7 +435,7 @@ describe('useSessionStream — onRisk preamble wiring', () => {
   })
 
   it('backstop: classifier returning 0 does not activate grounding', async () => {
-    classifyCrisisRiskMock.mockResolvedValue(0)
+    classifyCrisisRiskMock.mockResolvedValue({ risk: 0 })
     streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
       callbacks.onToken('Tell me more.')
       callbacks.onComplete()
