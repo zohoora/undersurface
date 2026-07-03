@@ -14,6 +14,17 @@ export class WeatherEngine {
   }
 
   /**
+   * Drop all accumulated emotion history in place. Called on auth identity
+   * change so one signed-in user's rolling emotion window can't bleed into the
+   * next user's ambient weather / prompt context (this is a process-lifetime
+   * singleton). Mutates in place so refs captured elsewhere see the reset.
+   */
+  clear(): void {
+    this.recentEmotions = []
+    this.lastUpdate = 0
+  }
+
+  /**
    * Returns the most-frequently-recorded emotion from the rolling window, or
    * 'neutral' if nothing has been seen yet. Independent of the innerWeather
    * feature flag — callers (like VoiceField) read this regardless.

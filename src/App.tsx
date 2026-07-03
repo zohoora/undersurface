@@ -124,6 +124,19 @@ function App() {
   const weatherEngine = getWeatherEngine()
   const [weather, setWeather] = useState<InnerWeatherType | null>(null)
 
+  // Reset per-user derived state on any auth identity change (sign-out, or
+  // signing in as a different user in the same tab). Without this, user B
+  // transiently inherited A's isReady/hasConsent/route and the singleton
+  // WeatherEngine's emotion history — B could reach a session or fire an opener
+  // before accepting terms, and A's emotions coloured B's context (C-2).
+  useEffect(() => {
+    setIsReady(false)
+    setHasConsent(null)
+    setInitError(null)
+    setWeather(null)
+    weatherEngine.clear()
+  }, [user?.uid, weatherEngine])
+
   // Initialize DB and route to a session (resume active or start new)
   useEffect(() => {
     if (!user) return

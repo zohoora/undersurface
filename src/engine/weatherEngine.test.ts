@@ -37,6 +37,20 @@ describe('WeatherEngine', () => {
 
   // --- recordEmotion ---
 
+  describe('clear', () => {
+    it('drops accumulated emotion history so a new user starts neutral (C-2)', () => {
+      enableWeatherFeature()
+      for (let i = 0; i < 10; i++) engine.recordEmotion('sad')
+      expect(engine.getCurrentDominantEmotion()).toBe('sad')
+
+      engine.clear()
+
+      // No history → dominant falls back to neutral; no bleed into the next user.
+      expect(engine.getCurrentDominantEmotion()).toBe('neutral')
+      expect(engine.getWeather()).toBeNull()
+    })
+  })
+
   describe('recordEmotion', () => {
     it('records emotions up to 20', () => {
       enableWeatherFeature()
