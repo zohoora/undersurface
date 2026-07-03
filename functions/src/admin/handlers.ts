@@ -101,13 +101,18 @@ export async function handleGetUserList() {
   for (const user of allAuthUsers) {
     const userRef = db.collection('users').doc(user.uid)
 
-    const [thoughtCount, interactionCount, partCount, writingSessionCount, entriesSnap, conversationsSnap] = await Promise.all([
+    // Sessions feed both a count and lastActive. lastActive is just a max over
+    // startedAt, so we only need the single most-recent session — fetch that +
+    // a count() aggregation instead of reading every session doc per user.
+    // (Entries still read in full because totalWords needs each plainText.)
+    const [thoughtCount, interactionCount, partCount, writingSessionCount, conversationCount, entriesSnap, recentSessionSnap] = await Promise.all([
       getCollectionCount(user.uid, 'thoughts'),
       getCollectionCount(user.uid, 'interactions'),
       getCollectionCount(user.uid, 'parts'),
       getCollectionCount(user.uid, 'sessionLog'),
+      getCollectionCount(user.uid, 'sessions'),
       userRef.collection('entries').select('plainText', 'updatedAt').get(),
-      userRef.collection('sessions').select('startedAt').get(),
+      userRef.collection('sessions').orderBy('startedAt', 'desc').limit(1).select('startedAt').get(),
     ])
 
     let totalWords = 0
@@ -116,7 +121,7 @@ export async function handleGetUserList() {
       totalWords += countWords(data.plainText || '')
       return { updatedAt: data.updatedAt || 0 }
     })
-    const sessionData = conversationsSnap.docs.map((doc) => ({ startedAt: doc.data().startedAt || 0 }))
+    const sessionData = recentSessionSnap.docs.map((doc) => ({ startedAt: doc.data().startedAt || 0 }))
     const lastActive = computeLastActive(entryData, sessionData)
 
     users.push({
@@ -128,7 +133,7 @@ export async function handleGetUserList() {
       thoughtCount,
       interactionCount,
       partCount,
-      sessionCount: conversationsSnap.size + writingSessionCount,
+      sessionCount: conversationCount + writingSessionCount,
       totalWords,
       lastActive,
       createdAt: new Date(user.metadata.creationTime).getTime(),
