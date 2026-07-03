@@ -47,6 +47,9 @@ const RISK_PREAMBLE_PATTERN = /^<<RISK:([^>]{1,8})>>[ \t]*\n*/
 // produced would be worse than the formatting noise.
 const RISK_MARKER_SCRUB = /^[\s`*_]{0,8}<<RISK:([^>]{1,24})>>[`*_]{0,8}[ \t]*\n*/
 const PREAMBLE_FAIL_OPEN_CHARS = 80
+// Abort a stream only after this long with no incoming data. Re-armed on every
+// chunk, so it caps idle time (a stalled connection), not total duration.
+const STREAM_IDLE_MS = 30000
 
 // Display-time scrub for markers that escaped older parsers and were
 // persisted to Firestore (e.g. the 2026-06-12 `<<RISK:N>>` leak), and for
@@ -120,7 +123,16 @@ export async function streamChatCompletion(
   try {
     const token = await getAuthToken()
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 30000)
+    // Inactivity timeout, not a fixed wall-clock cap: a healthy long response
+    // (or a reasoning model that pauses before its first token) must not be
+    // aborted just for taking a while. The timer is re-armed on every chunk
+    // that arrives, so it only fires after STREAM_IDLE_MS of genuine silence.
+    let timeout!: ReturnType<typeof setTimeout>
+    const armIdleTimeout = () => {
+      clearTimeout(timeout)
+      timeout = setTimeout(() => controller.abort(), STREAM_IDLE_MS)
+    }
+    armIdleTimeout()
     // External abort (e.g. crisis detected mid-stream) chains into the
     // internal controller so the in-flight fetch is cancelled cleanly.
     if (externalSignal) {
@@ -262,6 +274,8 @@ export async function streamChatCompletion(
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
+        // Data (or at least a live chunk) arrived — the stream isn't stalled.
+        armIdleTimeout()
 
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
