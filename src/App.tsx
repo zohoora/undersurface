@@ -111,8 +111,12 @@ function App() {
     return () => window.removeEventListener('popstate', handler)
   }, [])
 
-  const navigateTo = useCallback((path: string) => {
-    window.history.pushState(null, '', path)
+  const navigateTo = useCallback((path: string, opts?: { replace?: boolean }) => {
+    if (opts?.replace) {
+      window.history.replaceState(null, '', path)
+    } else {
+      window.history.pushState(null, '', path)
+    }
     setRoutePath(path)
   }, [])
 
@@ -150,7 +154,10 @@ function App() {
           const todaySession = sessions.find(
             s => isFromToday(s.startedAt) && s.status === 'active',
           )
-          navigateTo(todaySession ? `/session/${todaySession.id}` : '/session/new')
+          // replace, not push: `/` renders nothing on its own (all content is
+          // gated on isSessionRoute), so leaving it in history made Back land
+          // on a blank shell.
+          navigateTo(todaySession ? `/session/${todaySession.id}` : '/session/new', { replace: true })
         }
 
         setIsReady(true)
