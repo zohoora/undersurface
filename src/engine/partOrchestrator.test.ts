@@ -46,10 +46,11 @@ vi.mock('./disagreementEngine', () => ({
 }))
 vi.mock('./quietTracker', () => ({
   QuietTracker: class {
-    getQuietParts = vi.fn(() => [])
+    getQuietParts = vi.fn(() => [] as unknown[])
     isReturning = vi.fn(() => false)
     getReturnBonus = vi.fn(() => 1)
     updateLastActive = vi.fn()
+    markQuiet = vi.fn()
   },
 }))
 vi.mock('./echoEngine', () => ({
@@ -124,6 +125,12 @@ type OrchestratorPrivate = {
   scorePart(part: Part, event: PauseEvent): number
   selectPart(event: PauseEvent): Part | null
   checkCrisisInJournalMode(text: string): void
+  markNewlyQuietParts(): Promise<void>
+  quietTracker: {
+    getQuietParts: ReturnType<typeof vi.fn>
+    isReturning: ReturnType<typeof vi.fn>
+    markQuiet: ReturnType<typeof vi.fn>
+  }
   parts: Part[]
   recentSpeakers: string[]
   currentEmotion: EmotionalTone
@@ -485,6 +492,37 @@ describe('PartOrchestrator — scoring logic', () => {
 
       // Grounding penalty (-30) dominates regardless of HRV state
       expect(baseScore - score).toBeGreaterThanOrEqual(15)
+    })
+  })
+
+  // --- quiet-return marking (B5) ---
+
+  describe('quiet-return marking', () => {
+    it('marks a newly-dormant, unmarked part quiet and mirrors quietSince in memory', async () => {
+      const dormant = makePart({ id: 'weaver', ifsRole: 'manager' })
+      const { orch } = makeOrchestrator()
+      const priv = orch as unknown as OrchestratorPrivate
+      priv.parts = [dormant]
+      priv.quietTracker.getQuietParts.mockReturnValue([dormant])
+      priv.quietTracker.isReturning.mockReturnValue(false)
+
+      await priv.markNewlyQuietParts()
+
+      expect(priv.quietTracker.markQuiet).toHaveBeenCalledWith(dormant)
+      expect(dormant.quietSince).toBeTypeOf('number')
+    })
+
+    it('does not re-mark a part that is already returning', async () => {
+      const dormant = makePart({ id: 'weaver', ifsRole: 'manager' })
+      const { orch } = makeOrchestrator()
+      const priv = orch as unknown as OrchestratorPrivate
+      priv.parts = [dormant]
+      priv.quietTracker.getQuietParts.mockReturnValue([dormant])
+      priv.quietTracker.isReturning.mockReturnValue(true) // already marked
+
+      await priv.markNewlyQuietParts()
+
+      expect(priv.quietTracker.markQuiet).not.toHaveBeenCalled()
     })
   })
 

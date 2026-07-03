@@ -240,12 +240,31 @@ export class PartOrchestrator {
       }
     }
 
+    // Stamp quietSince on newly-dormant parts so the quiet-return path is
+    // reachable at all: without it, markQuiet was never called, isReturning
+    // stayed false forever, and dormant parts only ever got the −40 penalty —
+    // never the return bonus, "welcome back" prompt, or animation.
+    await this.markNewlyQuietParts()
+
     const selectedPart = this.selectPart(event)
     if (!selectedPart) return
 
     this.isGenerating = true
     await this.generateThought(selectedPart, event)
     this.isGenerating = false
+  }
+
+  // Persist quietSince for parts that have crossed the dormancy threshold and
+  // aren't already marked, and mirror it into the in-memory part so this turn's
+  // scoring already sees them as returning. Cleared by updateLastActive when a
+  // part next speaks.
+  private async markNewlyQuietParts(): Promise<void> {
+    const quietParts = this.quietTracker.getQuietParts(this.parts)
+    for (const qp of quietParts) {
+      if (this.quietTracker.isReturning(qp)) continue
+      await this.quietTracker.markQuiet(qp)
+      qp.quietSince = Date.now()
+    }
   }
 
   private selectPart(event: PauseEvent): Part | null {
