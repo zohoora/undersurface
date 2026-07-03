@@ -82,6 +82,20 @@ describe('buildTherapistSystemPrompt', () => {
     expect(prompt).toContain('struggles with vulnerability')
   })
 
+  it('keeps the NEWEST memories when more exist than the window (input is newest-first)', () => {
+    const memories: PartMemory[] = Array.from({ length: 8 }, (_, i) => ({
+      id: String(i),
+      partId: 'open',
+      entryId: `e${i}`,
+      content: `reflection number ${i}`,
+      type: 'reflection' as const,
+      timestamp: 1000 - i, // newest-first, matching sessionContextLoader's sort
+    }))
+    const prompt = buildTherapistSystemPrompt({ phase: 'deepening', relevantMemories: memories })
+    expect(prompt).toContain('reflection number 0')
+    expect(prompt).not.toContain('reflection number 7')
+  })
+
   it('includes grounding directive when active', () => {
     const prompt = buildTherapistSystemPrompt({ phase: 'deepening', isGrounding: true })
     expect(prompt).toContain('distress')

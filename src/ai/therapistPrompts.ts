@@ -334,10 +334,13 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   }
 
   if (options.relevantMemories && options.relevantMemories.length > 0) {
+    // relevantMemories arrives newest-first (sessionContextLoader sorts
+    // descending), so take from the FRONT. slice(-n) here silently dropped
+    // the latest session's insights whenever the window was full.
     const categorized = {
-      reflections: options.relevantMemories.filter(m => m.type === 'reflection').slice(-6),
-      patterns: options.relevantMemories.filter(m => m.type === 'pattern').slice(-4),
-      other: options.relevantMemories.filter(m => m.type !== 'reflection' && m.type !== 'pattern').slice(-2),
+      reflections: options.relevantMemories.filter(m => m.type === 'reflection').slice(0, 6),
+      patterns: options.relevantMemories.filter(m => m.type === 'pattern').slice(0, 4),
+      other: options.relevantMemories.filter(m => m.type !== 'reflection' && m.type !== 'pattern').slice(0, 2),
     }
 
     const memoryBlocks: string[] = []

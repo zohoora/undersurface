@@ -157,6 +157,10 @@ export class PartOrchestrator {
           .where('partId')
           .equals(p.id)
           .toArray()
+        // No orderBy on the query, so Firestore returns doc-ID order — random
+        // relative to time (ids are UUIDs). Prompt builders slice(-n) expecting
+        // chronological order; sort ascending so the tail is genuinely newest.
+        memories.sort((a, b) => a.timestamp - b.timestamp)
         return { ...p, memories } as Part
       }),
     )

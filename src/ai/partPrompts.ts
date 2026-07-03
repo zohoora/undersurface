@@ -327,8 +327,12 @@ export function buildPartMessages(
 
   // Entry summaries for manager/weaver-role parts
   if (entrySummaries && entrySummaries.length > 0 && (part.ifsRole === 'manager' || part.ifsRole === 'self')) {
+    // Sanitized like every sibling consumer of these fields: summaries are
+    // LLM-derived from user transcripts and persisted, so a coaxed reflection
+    // output would otherwise become a second-order injection into all future
+    // manager/self part prompts.
     const summaryLines = entrySummaries.map((s) =>
-      `- Themes: ${s.themes.join(', ')} | Arc: ${s.emotionalArc}`
+      `- Themes: ${s.themes.map(sanitizeForPrompt).join(', ')} | Arc: ${sanitizeForPrompt(s.emotionalArc)}`
     ).join('\n')
     systemContent += `\n\nRecent entry summaries:\n${summaryLines}`
   }
