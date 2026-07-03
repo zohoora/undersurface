@@ -5,6 +5,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { InkWeight } from '../../extensions/inkWeight'
 import { useAutocorrect } from '../../hooks/useAutocorrect'
 import { useTypewriter } from '../../hooks/useTypewriter'
+import { useAppendQueue } from '../../hooks/useAppendQueue'
 import { useHrvSession } from '../../hooks/useHrvSession'
 import { usePolarH10Session } from '../../hooks/usePolarH10Session'
 import { isWebBluetoothSupported } from '../../engine/polarH10Engine'
@@ -204,6 +205,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     markResponseStarted: () => activeBio?.markResponseStarted() ?? false,
   }
 
+  // Single append queue shared by every message writer (text turn, stream
+  // finalize, both voice transcript sides) so concurrent appends serialize.
+  const enqueueAppend = useAppendQueue()
+
   const { generateTherapistMessage, appendUserMessage } = useSessionStream({
     sessionRef,
     messagesRef,
@@ -215,6 +220,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     setOpenerError,
     hrv: biometricSource,
     typewriter,
+    enqueueAppend,
   })
 
   const voice = useSessionVoice({
@@ -226,6 +232,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     setMessages,
     appendUserMessage,
     hrv: biometricSource,
+    enqueueAppend,
   })
 
   // Synchronous re-entry lock: `isStreaming` is stale render state and stays

@@ -10,6 +10,7 @@ import type { SessionOrchestrator } from '../engine/sessionOrchestrator'
 import { trackEvent } from '../services/analytics'
 import type { Session, SessionMessage } from '../types'
 import type { BiometricSource } from './useSessionStream'
+import type { EnqueueAppend } from './useAppendQueue'
 
 export interface SessionVoiceWiring {
   sessionRef: RefObject<Session | null>
@@ -20,6 +21,7 @@ export interface SessionVoiceWiring {
   setMessages: (next: SessionMessage[]) => void
   appendUserMessage: (content: string, inputMethod?: 'text' | 'voice') => Promise<unknown>
   hrv: BiometricSource
+  enqueueAppend: EnqueueAppend
 }
 
 // Bundles all voice-session concerns: starting/stopping the realtime channel,
@@ -36,6 +38,7 @@ export function useSessionVoice({
   setMessages,
   appendUserMessage,
   hrv,
+  enqueueAppend,
 }: SessionVoiceWiring) {
   const voice = useVoiceSession()
 
@@ -47,35 +50,40 @@ export function useSessionVoice({
     const trimmed = content.trim()
     if (!trimmed) return
 
-    const currentMessages = messagesRef.current
-    const phase = orchestratorRef.current.detectPhase(currentMessages)
-    const message: SessionMessage = {
-      id: generateId(),
-      speaker: 'therapist',
-      partId: null,
-      partName: null,
-      content: trimmed,
-      timestamp: Date.now(),
-      phase,
-      isEmergence: false,
-      inputMethod: 'voice',
-    }
+    // Serialized: the realtime API can deliver a user transcript and this
+    // assistant transcript near-simultaneously — unserialized, both would read
+    // the same base array and one message would be lost. Read fresh in-queue.
+    await enqueueAppend(async () => {
+      const currentMessages = messagesRef.current
+      const phase = orchestratorRef.current.detectPhase(currentMessages)
+      const message: SessionMessage = {
+        id: generateId(),
+        speaker: 'therapist',
+        partId: null,
+        partName: null,
+        content: trimmed,
+        timestamp: Date.now(),
+        phase,
+        isEmergence: false,
+        inputMethod: 'voice',
+      }
 
-    await sessionMessagesDb.add(currentSession.id, message)
+      await sessionMessagesDb.add(currentSession.id, message)
 
-    const updatedMessages = [...currentMessages, message]
-    const firstLine = currentSession.firstLine || trimmed.slice(0, 100)
+      const updatedMessages = [...currentMessages, message]
+      const firstLine = currentSession.firstLine || trimmed.slice(0, 100)
 
-    await db.sessions.update(currentSession.id, {
-      messageCount: updatedMessages.length,
-      firstLine,
-      phase,
+      await db.sessions.update(currentSession.id, {
+        messageCount: updatedMessages.length,
+        firstLine,
+        phase,
+      })
+
+      setSession(prev => prev ? { ...prev, messageCount: updatedMessages.length, firstLine, phase } : prev)
+      setMessages(updatedMessages)
+      messagesRef.current = updatedMessages
     })
-
-    setSession(prev => prev ? { ...prev, messageCount: updatedMessages.length, firstLine, phase } : prev)
-    setMessages(updatedMessages)
-    messagesRef.current = updatedMessages
-  }, [sessionRef, messagesRef, orchestratorRef, setSession, setMessages])
+  }, [sessionRef, messagesRef, orchestratorRef, setSession, setMessages, enqueueAppend])
 
   // Single source of truth for the voice system prompt, reused by handleStart
   // and the mid-session grounding push so the two can never drift.

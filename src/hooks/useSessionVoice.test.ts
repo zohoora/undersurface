@@ -125,8 +125,18 @@ function makeWiring(over: Partial<Parameters<typeof useSessionVoice>[0]> = {}) {
       buildPromptContext: vi.fn(() => null),
       addConversationEvent: vi.fn(),
     } as unknown as Parameters<typeof useSessionVoice>[0]['hrv'],
+    enqueueAppend: makeEnqueue(),
     ...over,
   } as Parameters<typeof useSessionVoice>[0]
+}
+
+function makeEnqueue() {
+  let tail: Promise<unknown> = Promise.resolve()
+  return <T>(fn: () => Promise<T>): Promise<T> => {
+    const run = tail.then(fn, fn)
+    tail = run.then(() => {}, () => {})
+    return run
+  }
 }
 
 beforeEach(() => {
