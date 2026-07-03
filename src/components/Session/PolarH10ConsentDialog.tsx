@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { db } from '../../store/db'
+import { useModalA11y } from '../../hooks/useModalA11y'
 import type { PolarH10Consent } from '../../types'
 
 interface Props {
@@ -16,6 +17,8 @@ interface Props {
 export function PolarH10ConsentDialog({ onAccept, onDecline }: Props) {
   const [bluetoothAccepted, setBluetoothAccepted] = useState(false)
   const [biometricAccepted, setBiometricAccepted] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useModalA11y(panelRef, onDecline)
 
   const canAccept = bluetoothAccepted && biometricAccepted
 
@@ -32,31 +35,44 @@ export function PolarH10ConsentDialog({ onAccept, onDecline }: Props) {
   }
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'rgba(0,0,0,0.5)',
-      zIndex: 1100,
-      padding: '16px',
-    }}>
-      <div style={{
-        background: 'var(--bg-primary)',
-        borderRadius: 16,
-        padding: 'clamp(20px, 5vw, 32px)',
-        maxWidth: 480,
-        width: '100%',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-      }}>
-        <h3 style={{
-          margin: '0 0 12px',
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 18,
-          fontWeight: 600,
-          color: 'var(--text-primary)',
-        }}>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(0,0,0,0.5)',
+        zIndex: 1100,
+        padding: '16px',
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onDecline() }}
+    >
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="polar-consent-title"
+        tabIndex={-1}
+        style={{
+          background: 'var(--bg-primary)',
+          borderRadius: 16,
+          padding: 'clamp(20px, 5vw, 32px)',
+          maxWidth: 480,
+          width: '100%',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        }}
+      >
+        <h3
+          id="polar-consent-title"
+          style={{
+            margin: '0 0 12px',
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 18,
+            fontWeight: 600,
+            color: 'var(--text-primary)',
+          }}
+        >
           Connect a Heart-Rate Monitor
         </h3>
 
