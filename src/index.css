@@ -8,3 +8,21 @@
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
 }
+
+/* Respect the OS "reduce motion" setting. This app leans on ambient motion
+   (breathing background, color bleed, voice field, staggered card entrances)
+   which is exactly the kind of continuous/parallax movement that can trigger
+   vestibular discomfort. Rather than delete animations (which can leave
+   opacity-0 reveal targets invisible), collapse them to effectively instant so
+   the end state still applies. The JS typewriter is setTimeout-driven and
+   unaffected — text still appears, just without CSS-level motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
