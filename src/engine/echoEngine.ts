@@ -23,7 +23,10 @@ export class EchoEngine {
     if (Math.random() > echoChance) return null
 
     try {
-      const allSummaries = await db.entrySummaries.orderBy('timestamp').reverse().toArray()
+      // Bounded read: echoes only draw from the [3d, echoMaxAge] window, and
+      // this runs on every pause. 120 newest summaries covers a ~90-day window
+      // for a daily user with margin, without scanning the whole collection.
+      const allSummaries = await db.entrySummaries.orderBy('timestamp').reverse().limit(120).toArray()
 
       const now = Date.now()
       const minAgeMs = 3 * 24 * 60 * 60 * 1000

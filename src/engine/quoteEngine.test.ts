@@ -13,7 +13,9 @@ vi.mock('../store/db', () => ({
     entrySummaries: {
       orderBy: () => ({
         reverse: () => ({
-          toArray: async () => [...fakeSummaries].sort((a, b) => b.timestamp - a.timestamp),
+          limit: () => ({
+            toArray: async () => [...fakeSummaries].sort((a, b) => b.timestamp - a.timestamp),
+          }),
         }),
       }),
     },
@@ -193,7 +195,7 @@ describe('QuoteEngine.findQuote — error path', () => {
     const dbModule = await import('../store/db')
     type OrderByReturn = ReturnType<typeof dbModule.db.entrySummaries.orderBy>
     const spy = vi.spyOn(dbModule.db.entrySummaries, 'orderBy').mockReturnValue({
-      reverse: () => ({ toArray: async () => { throw new Error('db down') } }),
+      reverse: () => ({ limit: () => ({ toArray: async () => { throw new Error('db down') } }) }),
     } as unknown as OrderByReturn)
 
     expect(await new QuoteEngine().findQuote('anything')).toBeNull()

@@ -14,7 +14,10 @@ export class QuoteEngine {
     if (Math.random() > quoteChance) return null
 
     try {
-      const allSummaries = await db.entrySummaries.orderBy('timestamp').reverse().toArray()
+      // Bounded read: only the 5 most-recent qualifying summaries are used, and
+      // this runs on every pause. 120 newest is far more than enough while
+      // avoiding a full-collection scan.
+      const allSummaries = await db.entrySummaries.orderBy('timestamp').reverse().limit(120).toArray()
 
       const minAgeMs = quoteMinAge * 24 * 60 * 60 * 1000
       const cutoff = Date.now() - minAgeMs
