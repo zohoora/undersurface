@@ -42,6 +42,9 @@ jobs:
       - name: Type check functions
         run: cd functions && npx tsc --noEmit
 
+      - name: Test functions
+        run: cd functions && npm test
+
       - name: Lint
         run: npm run lint
 
