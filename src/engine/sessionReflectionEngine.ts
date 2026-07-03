@@ -229,11 +229,13 @@ export async function reflectOnSession(
       await growthEngine.growParts(parts, profile ?? null)
     }
 
-    // 6h. Check for letters
+    // 6h. Check for letters — keyed to closed-session count (entrySummaries,
+    // one per close). The old `entries` collection has no writers since the
+    // diary→session pivot; its count is 0 forever and `0 % 10 === 0` fired a
+    // letter after every single close.
     try {
-      const totalEntries = await db.entries.count()
       const letterEngine = new LetterEngine()
-      await letterEngine.checkForLetter(totalEntries, parts)
+      await letterEngine.checkForLetter(totalSummaryCount, parts)
     } catch (error) {
       console.error('Letter check error:', error)
     }

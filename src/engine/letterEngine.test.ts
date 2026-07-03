@@ -28,6 +28,7 @@ vi.mock('../i18n', () => ({
 let memoriesByPart: Record<string, PartMemory[]> = {}
 let fakeSummaries: EntrySummary[] = []
 let fakeProfile: UserProfile | null = null
+let fakeLettersCount = 0
 const dbLettersAdd = vi.fn()
 
 vi.mock('../store/db', () => ({
@@ -47,7 +48,10 @@ vi.mock('../store/db', () => ({
       }),
     },
     userProfile: { get: async () => fakeProfile ?? undefined },
-    letters: { add: (...a: unknown[]) => dbLettersAdd(...a) },
+    letters: {
+      add: (...a: unknown[]) => dbLettersAdd(...a),
+      count: async () => fakeLettersCount,
+    },
   },
   generateId: () => 'letter-id',
 }))
@@ -93,6 +97,7 @@ beforeEach(() => {
   memoriesByPart = {}
   fakeSummaries = []
   fakeProfile = null
+  fakeLettersCount = 0
   dbLettersAdd.mockReset()
 })
 
@@ -104,9 +109,36 @@ describe('LetterEngine.checkForLetter — gating', () => {
     expect(chatCompletionMock).not.toHaveBeenCalled()
   })
 
-  it('returns null when entryCount is not a multiple of letterTriggerEntries', async () => {
+  it('returns null when the session count has not reached the trigger threshold', async () => {
     const result = await new LetterEngine().checkForLetter(7, [makePart({ id: 'p1' }), makePart({ id: 'p2' })])
     expect(result).toBeNull()
+  })
+
+  it('returns null at session count 0 — regression: the frozen entries counter made 0 % 10 === 0 fire a letter after every close', async () => {
+    memoriesByPart['p1'] = [{ id: 'm', partId: 'p1', entryId: 'e', content: 'x', type: 'reflection', timestamp: 1 } as PartMemory]
+    memoriesByPart['p2'] = [{ id: 'm', partId: 'p2', entryId: 'e', content: 'x', type: 'reflection', timestamp: 1 } as PartMemory]
+    fakeSummaries = [makeSummary()]
+    const result = await new LetterEngine().checkForLetter(0, [makePart({ id: 'p1' }), makePart({ id: 'p2' })])
+    expect(result).toBeNull()
+    expect(chatCompletionMock).not.toHaveBeenCalled()
+  })
+
+  it('returns null when the earned quota is already satisfied (count 10, 1 letter exists)', async () => {
+    memoriesByPart['p1'] = [{ id: 'm' } as PartMemory]
+    memoriesByPart['p2'] = [{ id: 'm' } as PartMemory]
+    fakeSummaries = [makeSummary()]
+    fakeLettersCount = 1
+    const result = await new LetterEngine().checkForLetter(10, [makePart({ id: 'p1' }), makePart({ id: 'p2' })])
+    expect(result).toBeNull()
+  })
+
+  it('self-heals: fires when a multiple was crossed between checks (count 31, 2 letters → 3 earned)', async () => {
+    memoriesByPart['p1'] = [{ id: 'm' } as PartMemory]
+    memoriesByPart['p2'] = [{ id: 'm' } as PartMemory]
+    fakeSummaries = [makeSummary()]
+    fakeLettersCount = 2
+    const result = await new LetterEngine().checkForLetter(31, [makePart({ id: 'p1' }), makePart({ id: 'p2' })])
+    expect(result).not.toBeNull()
   })
 
   it('proceeds when entryCount is a multiple of the trigger', async () => {

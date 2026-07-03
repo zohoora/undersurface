@@ -7,7 +7,12 @@ import { getPartDisplayName } from '../i18n'
 import type { Part, PartLetter } from '../types'
 
 export class LetterEngine {
-  async checkForLetter(entryCount: number, parts: Part[]): Promise<PartLetter | null> {
+  // sessionCount is the number of closed sessions (entrySummaries count — one
+  // summary is written per session close). A self-healing quota replaces the
+  // old bare-modulo gate: `count % N === 0` fired on 0 (the diary `entries`
+  // collection this was once keyed to has no writers anymore, so its count is
+  // permanently 0) and produced a letter after EVERY session close.
+  async checkForLetter(sessionCount: number, parts: Part[]): Promise<PartLetter | null> {
     try {
       const config = getGlobalConfig()
       if (config?.features.lettersFromParts !== true) return null
@@ -15,7 +20,10 @@ export class LetterEngine {
       const letterTriggerEntries = config.engagement?.letterTriggerEntries ?? 10
       const letterMinParts = config.engagement?.letterMinParts ?? 2
 
-      if (entryCount % letterTriggerEntries !== 0) return null
+      if (sessionCount <= 0) return null
+      const lettersEarned = Math.floor(sessionCount / letterTriggerEntries)
+      const existingLetters = await db.letters.count()
+      if (existingLetters >= lettersEarned) return null
 
       // Select top parts by memory count (most active)
       const partsWithActivity = await Promise.all(
