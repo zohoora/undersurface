@@ -1,6 +1,7 @@
 import { apiUrl } from '../api/apiBase'
 import { getAuthToken } from '../api/authedFetch'
 import { CRISIS_CLASSIFIER_PROMPT } from './crisisClassifierPrompt'
+import { SIGNAL_CLASSIFIER_PROMPT } from './signalClassifierPrompt'
 import { engineLog } from '../services/diagnostics'
 
 export type CrisisRisk = 0 | 1 | 2
@@ -475,6 +476,78 @@ export async function classifyCrisisRisk(
     }
   } catch {
     return { risk: 0 }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+export type SignalLevel = 0 | 1 | 2
+
+export interface SessionSignalsResult {
+  withdrawal: SignalLevel
+  rumination: SignalLevel
+  theme?: string
+}
+
+const SIGNAL_FAIL_OPEN: SessionSignalsResult = { withdrawal: 0, rumination: 0 }
+const SIGNAL_MAX_MESSAGES = 6
+const SIGNAL_MAX_CHARS = 2400
+const SIGNAL_THEME_MAX_CHARS = 60
+
+/**
+ * Per-turn withdrawal/rumination classifier (task: 'signal_check' →
+ * gpt-5-nano, structured output enforced server-side). Mirrors
+ * classifyCrisisRisk's shape: 5s abort, fail-open to zeros — a missed signal
+ * just means the companion carries on normally. Fire-and-forget from the
+ * session stream; must never block or delay therapist generation.
+ */
+export async function classifySessionSignals(
+  recentUserMessages: string[],
+): Promise<SessionSignalsResult> {
+  const token = await getAuthToken()
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5000)
+
+  // Last few messages, oldest→newest so the model reads the trend forward.
+  const sample = recentUserMessages
+    .slice(-SIGNAL_MAX_MESSAGES)
+    .map((m, i) => `[${i + 1}] ${m}`)
+    .join('\n')
+    .slice(-SIGNAL_MAX_CHARS)
+
+  try {
+    const response = await fetch(apiUrl('/api/chat'), {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        task: 'signal_check',
+        messages: [
+          { role: 'system', content: SIGNAL_CLASSIFIER_PROMPT },
+          { role: 'user', content: sample },
+        ],
+      }),
+      signal: controller.signal,
+    })
+
+    if (!response.ok) return SIGNAL_FAIL_OPEN
+
+    const data = await response.json()
+    const content = data?.choices?.[0]?.message?.content
+    if (typeof content !== 'string') return SIGNAL_FAIL_OPEN
+
+    const parsed = JSON.parse(content) as { withdrawal?: unknown; rumination?: unknown; theme?: unknown }
+    const isLevel = (v: unknown): v is SignalLevel => v === 0 || v === 1 || v === 2
+    if (!isLevel(parsed.withdrawal) || !isLevel(parsed.rumination)) return SIGNAL_FAIL_OPEN
+
+    const theme = typeof parsed.theme === 'string' && parsed.theme.trim().length > 0
+      ? parsed.theme.trim().slice(0, SIGNAL_THEME_MAX_CHARS)
+      : undefined
+    return { withdrawal: parsed.withdrawal, rumination: parsed.rumination, theme }
+  } catch {
+    return SIGNAL_FAIL_OPEN
   } finally {
     clearTimeout(timeout)
   }

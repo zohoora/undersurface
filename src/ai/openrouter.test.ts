@@ -192,6 +192,77 @@ describe('classifyCrisisRisk', () => {
   })
 })
 
+describe('classifySessionSignals', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.restoreAllMocks()
+  })
+
+  const loadClassify = async () => (await loadOpenrouter()).classifySessionSignals
+
+  it('parses levels + theme from a valid response', async () => {
+    mockFetch({
+      choices: [{ message: { content: '{"withdrawal": 0, "rumination": 2, "theme": "whether quitting was a mistake"}' } }],
+    })
+    const classify = await loadClassify()
+
+    const result = await classify(['msg one', 'msg two', 'msg three'])
+
+    expect(result).toEqual({ withdrawal: 0, rumination: 2, theme: 'whether quitting was a mistake' })
+  })
+
+  it('sends task: signal_check with numbered recent messages', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({
+        choices: [{ message: { content: '{"withdrawal": 0, "rumination": 0, "theme": ""}' } }],
+      }),
+      text: () => Promise.resolve(''),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const classify = await loadClassify()
+
+    await classify(['a', 'b', 'c', 'd', 'e', 'f', 'g'])
+
+    const args = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    const body = JSON.parse(args[1].body as string)
+    expect(body.task).toBe('signal_check')
+    // Capped at the 6 newest messages, oldest first.
+    expect(body.messages[1].content).toContain('[1] b')
+    expect(body.messages[1].content).toContain('[6] g')
+    expect(body.messages[1].content).not.toContain('] a')
+  })
+
+  it('omits theme when empty and truncates an oversized theme', async () => {
+    mockFetch({
+      choices: [{ message: { content: `{"withdrawal": 1, "rumination": 1, "theme": "${'x'.repeat(200)}"}` } }],
+    })
+    const classify = await loadClassify()
+    const result = await classify(['hello'])
+    expect(result.theme).toHaveLength(60)
+
+    mockFetch({
+      choices: [{ message: { content: '{"withdrawal": 0, "rumination": 0, "theme": ""}' } }],
+    })
+    const result2 = await (await loadClassify())(['hello'])
+    expect(result2.theme).toBeUndefined()
+  })
+
+  it('fails open to zeros on HTTP error, malformed JSON, and out-of-range levels', async () => {
+    const zeros = { withdrawal: 0, rumination: 0 }
+
+    mockFetch('Server error', false, 500)
+    expect(await (await loadClassify())(['x'])).toEqual(zeros)
+
+    mockFetch({ choices: [{ message: { content: 'not json' } }] })
+    expect(await (await loadClassify())(['x'])).toEqual(zeros)
+
+    mockFetch({ choices: [{ message: { content: '{"withdrawal": 7, "rumination": 0, "theme": ""}' } }] })
+    expect(await (await loadClassify())(['x'])).toEqual(zeros)
+  })
+})
+
 // ── streamChatCompletion preamble parsing ────────────────────────────────────
 //
 // The therapist response stream begins with `<<RISK:N>>\n\n` (see
