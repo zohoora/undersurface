@@ -326,6 +326,9 @@ export interface CompanionSignals {
     streak: number
     lastConfirmedAt: number
   } | null
+  // Stamped BEFORE the one-time user-parts history backfill starts (claim-
+  // first: an interrupted run never repeats; partial seeding is acceptable).
+  partsBackfillAt?: number
   updatedAt: number
 }
 

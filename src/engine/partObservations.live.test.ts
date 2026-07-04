@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { buildSessionReflectionPrompt } from '../ai/therapistPrompts'
+import { buildSessionReflectionPrompt, buildPartBackfillPrompt } from '../ai/therapistPrompts'
 
 declare const process: { env: Record<string, string | undefined> }
 
@@ -93,15 +93,21 @@ const CASES: EvalCase[] = [
 
 interface Observation { partId?: string; tentativeName?: string }
 
-async function callReflection(c: EvalCase): Promise<Observation[]> {
-  const messages = buildSessionReflectionPrompt({
-    transcript: c.transcript,
-    profile: null,
-    recentSummaries: [],
-    parts: [{ id: 'open', name: 'The Open', ifsRole: 'self' }],
-    existingFacts: null,
-    userParts: c.userParts,
-  })
+// The backfill path shares the rules constant but has its own lean prompt —
+// exercise both builders against the live model.
+type PromptPath = 'reflection' | 'backfill'
+
+async function callReflection(c: EvalCase, path: PromptPath = 'reflection'): Promise<Observation[]> {
+  const messages = path === 'backfill'
+    ? buildPartBackfillPrompt({ transcript: c.transcript, userParts: c.userParts })
+    : buildSessionReflectionPrompt({
+        transcript: c.transcript,
+        profile: null,
+        recentSummaries: [],
+        parts: [{ id: 'open', name: 'The Open', ifsRole: 'self' }],
+        existingFacts: null,
+        userParts: c.userParts,
+      })
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -151,6 +157,14 @@ describe.runIf(RUN_LIVE)('part observations — live eval', () => {
         const obs = await callReflection(c)
         const failed = isFailure(c, obs)
         console.log(`[parts-eval] ${failed ? 'FAIL' : 'pass'} ${c.id} (${c.contract}) → ${JSON.stringify(obs)}`)
+        if (failed) failures.push({ c, obs })
+      }
+      // Backfill prompt path: one genuine + one distress case through the
+      // lean builder — the shared rules must hold there too.
+      for (const c of CASES.filter((x) => x.id === 'genuine-recurring-pattern' || x.id === 'distress-out-of-scope')) {
+        const obs = await callReflection(c, 'backfill')
+        const failed = isFailure(c, obs)
+        console.log(`[parts-eval] ${failed ? 'FAIL' : 'pass'} ${c.id} [backfill] (${c.contract}) → ${JSON.stringify(obs)}`)
         if (failed) failures.push({ c, obs })
       }
       expect(failures.map((f) => `${f.c.id}: ${JSON.stringify(f.obs)}`)).toEqual([])

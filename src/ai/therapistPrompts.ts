@@ -633,6 +633,56 @@ export function buildTherapistSessionNotePrompt(
   ]
 }
 
+// Shared between the live reflection prompt and the history-backfill prompt so
+// the extraction contract can never drift between the two.
+// Spec: docs/superpowers/specs/2026-07-04-user-parts-model-design.md
+const PART_OBSERVATION_RULES = `PART OBSERVATIONS — extraction rules:
+- FIRST RULE: if the session contains distress, despair, self-harm, or crisis content, OMIT partObservations entirely. Pain is never catalogued as a part.
+- A part observation is a RECURRING behavioral or emotional move belonging to the writer ("a part of me that...", bracing, deflecting with humor, going quiet around a topic) — visible in THIS transcript, literally.
+- partId may ONLY be an id from "The writer's mapped parts" list. The Active parts (open, weaver, etc.) are the COMPANION's parts — never use their ids here. When no mapped parts are listed, never use partId; only tentativeName.
+- Match to a mapped part id whenever it is plausibly the same part; only invent a tentativeName when nothing listed fits.
+- NEVER extract from metaphor or figures of speech ("I told my anxiety to be quiet" is not a part sighting).
+- Recurrence must come from the WRITER: they signal repetition themselves ("again", "always", "every time", "same as when...") or the same move appears at least twice in this transcript. A single instance — one mood, one topic change, one moment of deflection — is NEVER an observation, no matter how vivid.
+- tentativeName must be lowercase, gentle, non-clinical, in everyday words ("the list-maker", "the part that braces") — no diagnostic or psychological jargon.
+- At most 2 observations. Bias strongly toward omitting: no clear sighting, omit the field entirely.`
+
+// Lean extraction prompt for the one-time history backfill: partObservations
+// ONLY, nothing else — no summaries, no facts, no memories.
+// Spec: docs/superpowers/specs/2026-07-04-user-parts-backfill-design.md
+export function buildPartBackfillPrompt(options: {
+  transcript: string
+  userParts: { id: string; name: string; description: string; stance: string }[]
+}): { role: 'system' | 'user'; content: string }[] {
+  const mapped = options.userParts.length > 0
+    ? `\n\nThe writer's mapped parts (match recurring patterns to these ids; do not duplicate):\n${options.userParts
+        .map(p => `- id: ${p.id} | "${sanitizeForPrompt(p.name)}" — ${sanitizeForPrompt(p.description)} (stance: ${sanitizeForPrompt(p.stance)})`)
+        .join('\n')}`
+    : ''
+
+  return [
+    {
+      role: 'system',
+      content: `You are an analytical observer reviewing a PAST session transcript from a diary writer's history, looking only for recurring parts of the writer.${mapped}
+
+Respond with valid JSON only:
+{
+  "partObservations": [
+    { "partId": "existing-id-when-this-matches-a-mapped-part-above", "quote": "exact phrase from session (max 15 words)", "stance": "updated 3-8 word internal descriptor" },
+    { "tentativeName": "the part that braces", "description": "one sentence in plain language", "stance": "3-8 word internal descriptor", "quote": "exact phrase from session (max 15 words)" }
+  ]
+}
+
+${PART_OBSERVATION_RULES}
+
+If there is nothing to observe, respond with {"partObservations": []}.${UNTRUSTED_CONTENT_PREAMBLE}`,
+    },
+    {
+      role: 'user',
+      content: `Session transcript:\n\n${wrapUserContent(options.transcript, 'transcript')}`,
+    },
+  ]
+}
+
 export interface SessionReflectionPromptOptions {
   transcript: string
   profile: UserProfile | null
@@ -689,15 +739,7 @@ export function buildSessionReflectionPrompt(
   const partObservationRules = userParts !== undefined
     ? `
 
-PART OBSERVATIONS — extraction rules:
-- FIRST RULE: if the session contains distress, despair, self-harm, or crisis content, OMIT partObservations entirely. Pain is never catalogued as a part.
-- A part observation is a RECURRING behavioral or emotional move belonging to the writer ("a part of me that...", bracing, deflecting with humor, going quiet around a topic) — visible in THIS transcript, literally.
-- partId may ONLY be an id from "The writer's mapped parts" list. The Active parts (open, weaver, etc.) are the COMPANION's parts — never use their ids here. When no mapped parts are listed, never use partId; only tentativeName.
-- Match to a mapped part id whenever it is plausibly the same part; only invent a tentativeName when nothing listed fits.
-- NEVER extract from metaphor or figures of speech ("I told my anxiety to be quiet" is not a part sighting).
-- Recurrence must come from the WRITER: they signal repetition themselves ("again", "always", "every time", "same as when...") or the same move appears at least twice in this transcript. A single instance — one mood, one topic change, one moment of deflection — is NEVER an observation, no matter how vivid.
-- tentativeName must be lowercase, gentle, non-clinical, in everyday words ("the list-maker", "the part that braces") — no diagnostic or psychological jargon.
-- At most 2 observations. Bias strongly toward omitting: no clear sighting, omit the field entirely.
+${PART_OBSERVATION_RULES}
 
 COINED PHRASES — extraction rules:
 - Only phrases the WRITER invented or uses in a personal, idiosyncratic sense ("the basement", "gray days"). Not common idioms, not the companion's phrasing. Max 3; omit the field when none.`

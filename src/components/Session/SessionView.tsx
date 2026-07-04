@@ -18,6 +18,7 @@ import { useSessionVoice } from '../../hooks/useSessionVoice'
 import { useSessionStream, type BiometricSource } from '../../hooks/useSessionStream'
 import { VoiceField } from './VoiceField'
 import { loadTherapistContext } from '../../engine/sessionContextLoader'
+import { maybeBackfillUserParts } from '../../engine/userPartsBackfill'
 import type { TherapistContext } from '../../engine/sessionContextLoader'
 import { reflectOnSession } from '../../engine/sessionReflectionEngine'
 import { getWeatherEngine } from '../../store/weatherStore'
@@ -110,9 +111,15 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     let cancelled = false
 
     async function init() {
-      const context = await loadTherapistContext()
+      // Pass the resumed session's id so open-time rupture detection excludes
+      // it from the prior-session list (new sessions don't exist yet here).
+      const context = await loadTherapistContext(sessionId ?? undefined)
       if (cancelled) return
       contextRef.current = context
+
+      // One-time user-parts history backfill (flag- and claim-gated inside;
+      // fire-and-forget, never on the session's critical path).
+      void maybeBackfillUserParts()
 
       if (sessionId) {
         const existingSession = await db.sessions.get(sessionId)

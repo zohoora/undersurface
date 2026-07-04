@@ -5,7 +5,7 @@ vi.mock('../i18n', () => ({
   getLLMLanguageName: vi.fn(() => 'English'),
 }))
 
-import { buildTherapistSystemPrompt, buildTherapistMessages, buildTherapistSessionNotePrompt, buildSessionReflectionPrompt } from './therapistPrompts'
+import { buildTherapistSystemPrompt, buildTherapistMessages, buildTherapistSessionNotePrompt, buildSessionReflectionPrompt, buildPartBackfillPrompt } from './therapistPrompts'
 import { REGISTER_TIER_IDS } from './registerTiers'
 import type { SessionMessage, PartMemory, UserProfile, EntrySummary, SessionPhase } from '../types'
 
@@ -422,6 +422,23 @@ describe('buildTherapistSystemPrompt — rupture repair / rumination pivot / sof
     // Precision rails spelled out for the model.
     expect(withParts[0].content).toContain('not a part sighting')
     expect(withParts[0].content).toContain('At most 2 observations')
+  })
+
+  it('backfill prompt shares the observation rules and asks ONLY for partObservations', () => {
+    const messages = buildPartBackfillPrompt({
+      transcript: 'Writer: hello there',
+      userParts: [{ id: 'up1', name: 'the bracer', description: 'braces', stance: 'protective' }],
+    })
+    const system = messages[0].content
+    // Same rules text as the live reflection prompt (shared constant).
+    expect(system).toContain('Pain is never catalogued as a part')
+    expect(system).toContain('never use partId; only tentativeName')
+    expect(system).toContain('id: up1')
+    // Lean contract: no summaries/facts/memories machinery.
+    expect(system).toContain('partObservations')
+    expect(system).not.toContain('entrySummary')
+    expect(system).not.toContain('personalFacts')
+    expect(messages[1].content).toContain('<user_transcript>')
   })
 
   it('reflection prompt instructs the loopSignal output', () => {
