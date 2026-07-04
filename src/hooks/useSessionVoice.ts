@@ -94,6 +94,17 @@ export function useSessionVoice({
     const isFirstTurn = (messagesRef.current ?? []).every(m => m.speaker !== 'therapist')
     const sessionId = sessionRef.current?.id
     const inSessionRelaxBreaks = sessionId ? await loadInSessionRelaxBreaks(sessionId) : []
+    const repairContext = getGlobalConfig()?.features?.ruptureRepair === true && isFirstTurn && !grounded
+      ? context.repairContext ?? undefined
+      : undefined
+    // Consume-once, mirroring the text stream: a repair delivered by voice
+    // instructions must not repeat in the next session. Best-effort clear.
+    if (repairContext) {
+      context.repairContext = null
+      void db.companionSignals
+        .update('current', { pendingRepair: null, updatedAt: Date.now() })
+        .catch(() => { /* best-effort */ })
+    }
     return buildTherapistSystemPrompt({
       phase: sessionRef.current?.phase ?? 'opening',
       recentSessionNotes: context.recentSessionNotes,
@@ -112,6 +123,10 @@ export function useSessionVoice({
       // persisted into transcripts). Crisis safety on voice rests on
       // SAFETY_RULES plus the L1 regex over user transcripts.
       includeRiskPreamble: false,
+      // Rupture repair applies at voice-session start too (instructions are
+      // built once; the prompt layer gates it to isFirstTurn + !grounded).
+      // Live per-turn signals (pivot/soften) are text-surface-only in v1.
+      repairContext,
     })
   }, [contextRef, sessionRef, messagesRef, hrv])
 

@@ -47,7 +47,7 @@ npm run build && firebase deploy --only hosting
 ### 2. Cloud Functions (Firebase Functions, Node.js 22)
 
 Six functions split across `functions/src/`:
-- **`chat`** (`functions/src/chat.ts`) — proxies AI requests to OpenAI; `gpt-5.5` for therapist/journal turns, `gpt-5-nano` for the `task: 'crisis_check'` route (512MiB, minInstances: 1, 300s). Aborts the upstream request on client disconnect and signals mid-stream truncation as a real error (not a clean finish). Enforces an optional **durable monthly token quota** (`functions/src/shared/quota.ts`, reserve-then-reconcile; crisis-checks exempt; config on `appConfig/global.quota`; usage in top-level `quotas/{uid}`)
+- **`chat`** (`functions/src/chat.ts`) — proxies AI requests to OpenAI; `gpt-5.5` for therapist/journal turns, `gpt-5-nano` for the `task: 'crisis_check'` and `task: 'signal_check'` classifier routes (512MiB, minInstances: 1, 300s). Aborts the upstream request on client disconnect and signals mid-stream truncation as a real error (not a clean finish). Enforces an optional **durable monthly token quota** (`functions/src/shared/quota.ts`, reserve-then-reconcile; crisis-checks exempt; config on `appConfig/global.quota`; usage in top-level `quotas/{uid}`)
 - **`realtimeTokenApi`** (`functions/src/realtime.ts`) — mints OpenAI Realtime client secrets for `gpt-realtime-2` voice sessions (256MiB, minInstances: 1, 30s)
 - **`soundscapeApi`** (`functions/src/soundscapeApi.ts`) — ElevenLabs-backed custom soundscape generator + Firestore cache (`functions/src/soundscape/`) (256MiB, 60s)
 - **`accountApi`** (`functions/src/account.ts`) — account deletion + contact form, table-driven action dispatch (256MiB, 60s)
@@ -134,7 +134,7 @@ Note: `src/ai/sessionPrompts.ts` exists but has no non-test consumers — candid
 
 ### Data storage
 
-- **Firestore** `users/{uid}/` — 18 subcollections in `db.ts`: entries (legacy — **no writers anymore**, read only by echo/quote/reflection engines and MCP), parts, memories, thoughts, interactions, entrySummaries, userProfile, personalFacts, fossils, letters, sessionLog, innerWeather, consent, sessions (docs carry `mode: 'standard' | 'real_talk'`, `status`, `favorited`, `journalPartsEnabled`), apiKeys, hrvSessions, relaxSessions, diagnostics. Plus `sessions/{id}/messages` subcollection (via the `sessionMessages` helper in `db.ts`, not the `db` proxy).
+- **Firestore** `users/{uid}/` — 19 subcollections in `db.ts`: entries (legacy — **no writers anymore**, read only by echo/quote/reflection engines and MCP), parts, memories, thoughts, interactions, entrySummaries, userProfile, personalFacts, fossils, letters, sessionLog, innerWeather, consent, sessions (docs carry `mode: 'standard' | 'real_talk'`, `status`, `favorited`, `journalPartsEnabled`), apiKeys, hrvSessions, relaxSessions, diagnostics, companionSignals (singleton `current`: consume-once `pendingRepair` + cross-session `ruminationWatch`). Plus `sessions/{id}/messages` subcollection (via the `sessionMessages` helper in `db.ts`, not the `db` proxy).
 - **Firestore** `appConfig/global` — readable by all authenticated, writable only via adminApi. Config allowlist: `features`, `tuning`, `grounding`, `announcement`, `quota` (`{ enabled, monthlyTokenCap, perRoleCaps }` — see the durable-quota note under `chat`)
 - **Firestore** `contactMessages` — top-level, deny-all in client rules, written/read via Cloud Functions
 - **Firestore** `quotas/{uid}` — top-level (NOT under `users/`, deliberately — the `users/{uid}/{document=**}` rule would let the owner write it, and Firestore unions `allow` rules). Client read-only / server-write-only. Holds `{ period, tokensUsed, requestCount }` for the durable token quota
@@ -169,7 +169,7 @@ SPA in `App.tsx` using `pushState`-based client-side routing (no router library)
 ### Feature flags
 
 6 core flags (default enabled, `!== false`): `partsEnabled`, `visualEffectsEnabled`, `autocorrectEnabled`, `paragraphFade`, `inkWeight`, `breathingBackground`.
-23 experimental flags (default disabled, `=== true`) across: Atmosphere, Part Intelligence, Memory/Engagement, Safety, Biometric (`webcamHrv`, `polarH10`), Voice (`voiceEnabled`), Relax (`relaxEnabled`, `customSoundscapesEnabled`). `colorBleed` no longer exists.
+25 experimental flags (default disabled, `=== true`) across: Atmosphere, Part Intelligence, Memory/Engagement, Safety (incl. `ruptureRepair`, `ruminationPivot` — companion signals, see below), Biometric (`webcamHrv`, `polarH10`), Voice (`voiceEnabled`), Relax (`relaxEnabled`, `customSoundscapesEnabled`). `colorBleed` no longer exists.
 
 Full list + settings cascade + tuning params: `.claude/docs/feature-flags.md`
 
@@ -187,6 +187,10 @@ Two layers, both feeding `activateGrounding` → `isGrounding` in the next promp
 - **L2 — LLM classifier.** Two shapes: in session mode it is folded into the therapist stream as a `<<RISK:N>>` preamble (parsed by `streamChatCompletion`'s `onRisk`; risk=2 arriving before the first token aborts the stream and retries grounded). In journal/parts mode, `classifyCrisisRisk` calls `/api/chat` with `task: 'crisis_check'`, routed server-side to `gpt-5-nano` with a strict JSON schema. Both fail open to risk 0 — L1 is the safety floor.
 
 Calibration history matters: a previous classifier over-called (grief, metaphor, hyperbole, gallows humor all flagged). Current prompts/thresholds are tuned for precision, not recall — do not "improve" recall without reading the eval set (`crisisClassifier.eval.ts`, `npm run test:crisis`).
+
+### Companion signals (rupture repair + rumination pivot)
+
+Two flag-gated behaviors (default OFF: `ruptureRepair`, `ruminationPivot`), spec in `docs/superpowers/specs/2026-07-03-rupture-rumination-design.md`. Three detection layers: deterministic rupture facts (`ruptureDetector.ts` — abandoned session with closed-habit guard, atypical gap vs own cadence, terse ending vs own median), a per-turn `task: 'signal_check'` gpt-5-nano classifier (`signalClassifierPrompt.ts` + `classifySessionSignals` — fully separate from the crisis classifier, quota-exempt, fail-open to zeros, fires from user turn 3), and a reflection-pass `loopSignal` (client counts consecutive no-new-information loop sessions; armed at streak 3). State: `companionSignals` singleton (consume-once `pendingRepair`, `ruminationWatch`). Effects: three prompt blocks in `therapistPrompts.ts` — `repairContext` (opener-only, name the disconnect once), `pivotDirective` (silent 4-move register shift; live tracker pivots are one-shot with a 6-turn cooldown, the cross-session watch pivots at most once per session), `softenStance` (held while withdrawal persists). **All three are suppressed under grounding — crisis owns the session.** Live per-turn signals are text-surface-only; voice gets `repairContext` at instruction build. Calibrated precision-first like the crisis classifier: brevity is not withdrawal, grief is not rumination.
 
 ### Subsystems
 

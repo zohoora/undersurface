@@ -45,6 +45,8 @@
 | `features.ghostText` | User-toggleable ghost text annotations from AI parts |
 | **Safety & Guidance** | |
 | `features.emergencyGrounding` | Distress detection + grounding mode |
+| `features.ruptureRepair` | Alliance-rupture detection (abandoned session / terse ending / atypical gap) + explicit repair at the next opener + silent mid-session stance softening on live withdrawal. Suppressed under grounding |
+| `features.ruminationPivot` | Rumination-loop detection (live per-turn classifier + cross-session reflection streak) + silent register pivot from a 4-move taxonomy. Suppressed under grounding. Spec: `docs/superpowers/specs/2026-07-03-rupture-rumination-design.md` |
 | `features.intentionsEnabled` | Per-entry writing intentions |
 | `features.guidedExplorations` | AI writing prompts on new entries |
 | **Biometric** (Session Mode only) | |
