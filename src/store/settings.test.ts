@@ -82,6 +82,23 @@ describe('settings', () => {
     expect('autocorrect' in parsed).toBe(false)
   })
 
+  it('defaults Drift device preferences (channel audio, volume 0.5, voice off)', () => {
+    storage.clear()
+    updateSettings({})
+    const s = getSettings()
+    expect(s.lastDriftBlsChannel).toBe('audio')
+    expect(s.lastDriftAudioVolume).toBe(0.5)
+    expect(s.lastDriftVoice).toBe(false)
+  })
+
+  it('round-trips lastDriftVoice through updateSettings', () => {
+    updateSettings({ lastDriftVoice: true })
+    expect(getSettings().lastDriftVoice).toBe(true)
+    // sparse-override persistence keeps only the diverging key
+    const parsed = JSON.parse(storage.get('undersurface:settings')!)
+    expect(parsed.lastDriftVoice).toBe(true)
+  })
+
   it('defaults timezone to the device zone, not a hardcoded one', () => {
     // The timezone defines "today's session" boundaries — a hardcoded ET
     // default split non-US users' sessions mid-afternoon.

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { getGlobalConfig } from './globalConfig'
 import { detectBrowserLanguage } from '../i18n/languages'
-import type { RelaxAudioTrack, RelaxSessionType, RelaxVisualMode, SessionMode } from '../types'
+import type { DriftBlsChannel, RelaxAudioTrack, RelaxSessionType, RelaxVisualMode, SessionMode } from '../types'
 
 export interface AppSettings {
   // Part responsiveness (0.5 = slower, 2.0 = faster)
@@ -38,6 +38,11 @@ export interface AppSettings {
   // Last-used custom soundscape prompt. Pre-fills the textarea when user
   // re-enters Relax mode so they don't have to retype.
   lastRelaxCustomPrompt?: string
+
+  // Last-chosen Drift preferences (device-local).
+  lastDriftBlsChannel: DriftBlsChannel
+  lastDriftAudioVolume: number  // 0..1
+  lastDriftVoice: boolean
 }
 
 // The device's zone, not a hardcoded one: the timezone defines "today's
@@ -66,6 +71,9 @@ const DEFAULTS: AppSettings = {
   lastRelaxAudioVolume: 0.5,
   lastRelaxVoiceEnabled: false,
   lastRelaxVisualMode: 'full',
+  lastDriftBlsChannel: 'audio',
+  lastDriftAudioVolume: 0.5,
+  lastDriftVoice: false,
 }
 
 const STORAGE_KEY = 'undersurface:settings'

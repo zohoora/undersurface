@@ -61,6 +61,8 @@ export interface GlobalConfig {
     relaxEnabled?: boolean
     // Custom soundscape generation in Relax mode (text prompt → ElevenLabs)
     customSoundscapesEnabled?: boolean
+    // Drift — bilateral noticing practice, launched from Relax (text + voice)
+    driftEnabled?: boolean
   }
   announcement: {
     message: string

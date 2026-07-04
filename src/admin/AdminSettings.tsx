@@ -41,6 +41,7 @@ const DEFAULTS: GlobalConfig = {
     voiceEnabled: false,
     relaxEnabled: false,
     customSoundscapesEnabled: false,
+    driftEnabled: false,
   },
   atmosphere: {
     timeShiftIntensity: 0.3,
@@ -699,6 +700,16 @@ export function AdminSettings() {
             </div>
             <div style={{ fontSize: 11, color: '#A09A94', marginTop: 12, lineHeight: 1.5 }}>
               Lets users describe a soundscape (e.g. "rain on a tin roof") and the system generates a 30s loop via ElevenLabs Sound Effects. Cached globally by content hash. Per-user limits: 5 generations / hour, 60 requests / hour.
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <ToggleRow
+                label="Drift (bilateral noticing practice)"
+                checked={!!config.features.driftEnabled}
+                onChange={(v) => setFeature('driftEnabled', v)}
+              />
+            </div>
+            <div style={{ fontSize: 11, color: '#A09A94', marginTop: 12, lineHeight: 1.5 }}>
+              A guided dual-attention practice with slow bilateral stimulation, launched from Relax. Text + voice. Always resolves toward settling; suppressed under grounding.
             </div>
           </>
         )}
