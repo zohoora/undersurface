@@ -261,6 +261,70 @@ describe('chat — upstream errors', () => {
   })
 })
 
+describe('chat — signal_check route', () => {
+  function stubCapturingFetch() {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [{ message: { content: '{"withdrawal":0,"rumination":0,"theme":""}' }, finish_reason: 'stop' }],
+      }),
+      text: async () => '',
+      body: null,
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+
+  it('routes to the small classifier model with the signal schema and minimal reasoning', async () => {
+    mockVerifyIdToken.mockResolvedValue({ uid: 'signal-uid-1' })
+    const fetchMock = stubCapturingFetch()
+
+    const res = makeRes()
+    await chat(makeReq({ body: {
+      task: 'signal_check',
+      messages: [
+        { role: 'system', content: 'classify' },
+        { role: 'user', content: '[1] hello' },
+      ],
+    } }), res)
+
+    const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)
+    expect(body.model).toBe('gpt-5-nano')
+    expect(body.reasoning_effort).toBe('minimal')
+    expect(body.response_format.json_schema.name).toBe('session_signals')
+    expect(body.max_completion_tokens).toBe(500)
+  })
+
+  it('forces non-streaming even when the client requests a stream', async () => {
+    mockVerifyIdToken.mockResolvedValue({ uid: 'signal-uid-2' })
+    const fetchMock = stubCapturingFetch()
+
+    const res = makeRes()
+    await chat(makeReq({ body: {
+      task: 'signal_check',
+      stream: true,
+      messages: [{ role: 'user', content: '[1] hi' }],
+    } }), res)
+
+    const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)
+    expect(body.stream).toBe(false)
+    // Response delivered as JSON, not SSE.
+    expect(res._jsonBody).toBeTruthy()
+  })
+
+  it('does not attach the signal schema to normal chat requests', async () => {
+    mockVerifyIdToken.mockResolvedValue({ uid: 'signal-uid-3' })
+    const fetchMock = stubCapturingFetch()
+
+    const res = makeRes()
+    await chat(makeReq(), res)
+
+    const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)
+    expect(body.response_format).toBeUndefined()
+  })
+})
+
 describe('accountApi', () => {
   it('returns 405 for non-POST', async () => {
     const req = makeReq({ method: 'GET' })

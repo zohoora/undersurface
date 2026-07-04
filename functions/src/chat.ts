@@ -33,6 +33,29 @@ const CRISIS_RESPONSE_FORMAT = {
   },
 } as const
 
+// Structured-output schema for the session signal classifier (task:
+// 'signal_check'). Withdrawal/rumination tiers are documented in
+// src/ai/signalClassifierPrompt.ts. Entirely separate from the crisis route —
+// same model + limits, different prompt/schema, so the crisis calibration
+// can't drift.
+const SIGNAL_RESPONSE_FORMAT = {
+  type: 'json_schema',
+  json_schema: {
+    name: 'session_signals',
+    strict: true,
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        withdrawal: { type: 'integer', enum: [0, 1, 2] },
+        rumination: { type: 'integer', enum: [0, 1, 2] },
+        theme: { type: 'string' },
+      },
+      required: ['withdrawal', 'rumination', 'theme'],
+    },
+  },
+} as const
+
 // gpt-5 reasoning models budget hidden reasoning + visible output against the
 // SAME max_completion_tokens. With reasoning_effort='minimal' the model still
 // uses some reasoning tokens; 500 leaves comfortable headroom for the small
@@ -170,6 +193,10 @@ export const chat = onRequest(
       ? reasoning_effort
       : undefined
     const isCrisisCheck = task === 'crisis_check'
+    // signal_check routes like crisis_check (nano, minimal reasoning, strict
+    // schema, non-streaming) but with its own prompt + schema.
+    const isSignalCheck = task === 'signal_check'
+    const isClassifierTask = isCrisisCheck || isSignalCheck
     if (!Array.isArray(messages) || messages.length === 0) {
       res.status(400).json({ error: 'Invalid messages' })
       return
@@ -193,9 +220,9 @@ export const chat = onRequest(
       }
     }
 
-    const modelForRequest = isCrisisCheck ? OPENAI_CRISIS_MODEL : OPENAI_CHAT_MODEL
-    const streamForRequest = !isCrisisCheck && !!stream
-    const resolvedMaxTokens = isCrisisCheck
+    const modelForRequest = isClassifierTask ? OPENAI_CRISIS_MODEL : OPENAI_CHAT_MODEL
+    const streamForRequest = !isClassifierTask && !!stream
+    const resolvedMaxTokens = isClassifierTask
       ? CRISIS_MAX_TOKENS
       : Math.min(
         typeof max_tokens === 'number' && max_tokens > 0 ? max_tokens : 150,
@@ -206,12 +233,15 @@ export const chat = onRequest(
     console.log(`[chat] start ${tag}`)
 
     // Durable monthly token quota. Crisis checks are ALWAYS exempt — a safety
-    // classification must never be blocked by a spend cap. Reserve this
-    // request's maximum completion-token spend up front; reconcile the unused
-    // portion after the response so the cap is a hard ceiling under concurrency.
+    // classification must never be blocked by a spend cap. Signal checks are
+    // exempt too: app-initiated, server-bounded (nano + 500 cap), still behind
+    // the rate limiter, and only ever fired alongside quota-gated chat turns.
+    // Reserve this request's maximum completion-token spend up front;
+    // reconcile the unused portion after the response so the cap is a hard
+    // ceiling under concurrency.
     const now = new Date()
     let quotaReservation: Awaited<ReturnType<typeof checkAndReserve>> | null = null
-    if (!isCrisisCheck) {
+    if (!isClassifierTask) {
       const quotaConfig = await loadQuotaConfig(now.getTime())
       if (quotaConfig.enabled) {
         quotaReservation = await checkAndReserve({
@@ -268,13 +298,14 @@ export const chat = onRequest(
           messages,
           max_completion_tokens: resolvedMaxTokens,
           stream: streamForRequest,
-          // Crisis classifier hardcodes reasoning_effort='minimal' (smaller
+          // Classifier tasks hardcode reasoning_effort='minimal' (smaller
           // model needs the budget for visible output, not hidden reasoning).
           // Other tasks pass the client-supplied value through unchanged.
-          ...(isCrisisCheck
+          ...(isClassifierTask
             ? { reasoning_effort: CRISIS_REASONING }
             : (resolvedReasoning ? { reasoning_effort: resolvedReasoning } : {})),
           ...(isCrisisCheck ? { response_format: CRISIS_RESPONSE_FORMAT } : {}),
+          ...(isSignalCheck ? { response_format: SIGNAL_RESPONSE_FORMAT } : {}),
         }),
       },
     )
