@@ -1,4 +1,4 @@
-import type { PartMemory, UserProfile, PersonalFacts, EntrySummary, SessionMessage, SessionPhase, SessionMode, RegisterTierId, InputMode, RelaxSession, RelaxSessionType } from '../types'
+import type { PartMemory, UserProfile, PersonalFacts, EntrySummary, SessionMessage, SessionPhase, SessionMode, RegisterTierId, InputMode, RelaxSession, RelaxSessionType, RuptureEvidence } from '../types'
 import { languageDirective, formatDateTime, formatTime, formatShortDate, GROUNDING_DIRECTIVE } from './partPrompts'
 import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from './promptSafety'
 import { REGISTER_TIERS, renderRegisterBlock, applyGroundingCap } from './registerTiers'
@@ -223,6 +223,15 @@ export interface TherapistPromptOptions {
   // Relax sessions the writer has taken across recent days. Used at session
   // start to inform background tone, not to be quoted back at the writer.
   recentRelaxBreaks?: RelaxSession[]
+  // Rupture evidence detected since the last session. Emitted ONLY on the
+  // opener (isFirstTurn) and suppressed under grounding. Consume-once at the
+  // call site — repair that repeats becomes an accusation.
+  repairContext?: { evidence: RuptureEvidence }
+  // Silent rumination pivot. Never on the first turn, suppressed under
+  // grounding. theme is model output — untrusted, wrapped before embedding.
+  pivotDirective?: { theme?: string }
+  // Live withdrawal detected mid-session: soften stance without naming it.
+  softenStance?: boolean
 }
 
 const RELAX_TYPE_LABELS: Record<RelaxSessionType, string> = {
@@ -272,6 +281,36 @@ function formatPersonalFactsBlock(facts: PersonalFacts): string {
 
   return `Concrete facts about this writer (use naturally — reference names, ask about ongoing situations, remember what matters to them. Do not list these or recite them; weave them in only when relevant):\n\n${sections.join('\n\n')}`
 }
+
+// ── Rupture repair / rumination pivot / withdrawal softening ────────────────
+// Spec: docs/superpowers/specs/2026-07-03-rupture-rumination-design.md
+
+const REPAIR_EVIDENCE_FRAMING: Record<RuptureEvidence, string> = {
+  abandoned: 'Their previous session stopped mid-conversation and was never picked back up.',
+  terse_ending: 'Their previous session ended with their replies going short and flat.',
+  atypical_gap: 'They have been away much longer than their usual rhythm.',
+}
+
+function repairBlock(evidence: RuptureEvidence): string {
+  return `Repair note (use ONCE, in your opening, then let it go):
+${REPAIR_EVIDENCE_FRAMING[evidence]}
+This may mean nothing — or it may mean something between you went sideways. In your opening, briefly and non-defensively acknowledge it: own that you may have missed something or gotten something wrong last time, and make it safe for them to say so. One or two sentences, warm and direct, no self-flagellation. Do NOT demand an explanation, do NOT interrogate why they left, do NOT guilt them for the absence. If they pick it up, listen openly and take their correction without defending yourself. If they let it pass, drop it completely and never raise it again.`
+}
+
+function pivotBlock(theme?: string): string {
+  const themeLine = theme
+    ? `\nThe looping topic has been: ${wrapUserContent(theme, 'looped-topic')}`
+    : ''
+  return `Register shift (silent — never announce or explain it):
+The writer has been circling the same ground without new information or movement. More reflection back at them will deepen the groove, not release it. WITHOUT naming any of this — no "I notice we keep coming back to…", no meta-commentary — validate what they just said in one brief sentence, then shift the register. Choose whichever fits what they just wrote:
+- Concrete next step: help them find one small, specific, doable action connected to their own words
+- Values and meaning: gently move from "why is this happening" to "what matters to you in this"
+- Body and present moment: bring attention to right-now sensation, breath, or surroundings
+- Offer a pause: suggest a short Relax break if the moment invites it
+Ride their own material — the shift should feel like a natural deepening, not a change of subject.${themeLine}`
+}
+
+const SOFTEN_BLOCK = `Stance adjustment (silent): The writer's replies suggest they may be pulling back from the conversation. Do not name this or ask about it. Make your responses shorter and warmer. Ask nothing probing — at most one gentle, open, low-pressure question, or none. No interpretations, no challenges, no naming of patterns. Leave them room; let them set the pace.`
 
 export function buildTherapistSystemPrompt(options: TherapistPromptOptions): string {
   const parts: string[] = []
@@ -391,6 +430,21 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
 - If a shift correlates with a specific topic, gently name the connection
 - Don't reference biometrics every message — use sparingly when it adds genuine insight
 - During grounding: note if biometrics show the user is settling (or not), adjust approach accordingly`)
+  }
+
+  // Rupture repair fires only on the opener; pivot/soften only mid-session.
+  // ALL THREE are suppressed under grounding — crisis owns the session, and
+  // pivoting away from a distress disclosure would be actively harmful.
+  if (!options.isGrounding) {
+    if (options.repairContext && options.isFirstTurn) {
+      parts.push(repairBlock(options.repairContext.evidence))
+    }
+    if (options.pivotDirective && !options.isFirstTurn) {
+      parts.push(pivotBlock(options.pivotDirective.theme))
+    }
+    if (options.softenStance) {
+      parts.push(SOFTEN_BLOCK)
+    }
   }
 
   // Allow inline recommendation phrases only when:
@@ -597,8 +651,19 @@ Respond with valid JSON only:
       "emotion": "the emotional context",
       "intensity": "low|medium|high"
     }
-  ]
+  ],
+  "loopSignal": {
+    "present": false,
+    "theme": "",
+    "newInformation": true
+  }
 }
+
+LOOP SIGNAL — rules:
+- "present" is true ONLY when this session substantially re-treads ground already visible in the recent entry summaries — same worry or grievance in nearly the same terms. Compare against the summaries above, not just within this session.
+- "newInformation" is true when this session added anything the summaries don't show: a new detail, a new feeling, a decision, a shift in perspective. When present=false, set newInformation=true.
+- "theme": when present=true, a neutral 3-8 word label for the re-trodden topic. Otherwise "".
+- Retelling a painful event, grief, and processing that is MOVING are not loops. When unsure, present=false.
 
 PERSONAL FACTS — extraction rules:
 - Return the FULL updated object (existing facts + new mentions, consolidated). Not a delta.
