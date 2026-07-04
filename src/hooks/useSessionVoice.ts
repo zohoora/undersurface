@@ -127,6 +127,14 @@ export function useSessionVoice({
       // built once; the prompt layer gates it to isFirstTurn + !grounded).
       // Live per-turn signals (pivot/soften) are text-surface-only in v1.
       repairContext,
+      // The writer's mapped parts + shared language, read-only on voice.
+      // Proposals are text-surface-only (no consent card exists in voice).
+      activeUserParts: getGlobalConfig()?.features?.userParts === true && context.activeUserParts.length > 0
+        ? context.activeUserParts
+        : undefined,
+      lexicon: getGlobalConfig()?.features?.userParts === true && context.personalFacts?.lexicon?.length
+        ? context.personalFacts.lexicon
+        : undefined,
     })
   }, [contextRef, sessionRef, messagesRef, hrv])
 

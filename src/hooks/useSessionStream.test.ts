@@ -46,11 +46,13 @@ vi.mock('./useGroundingMode', () => ({
 const sessionMessageAddMock = vi.fn(async () => {})
 const sessionUpdateMock = vi.fn(async () => {})
 const companionSignalsUpdateMock = vi.fn(async () => {})
+const userPartsUpdateMock = vi.fn(async () => {})
 let idCounter = 0
 vi.mock('../store/db', () => ({
   db: {
     sessions: { update: (...a: unknown[]) => sessionUpdateMock(...a) },
     companionSignals: { update: (...a: unknown[]) => companionSignalsUpdateMock(...a) },
+    userParts: { update: (...a: unknown[]) => userPartsUpdateMock(...a) },
   },
   sessionMessages: { add: (...a: unknown[]) => sessionMessageAddMock(...a) },
   generateId: () => `msg-${++idCounter}`,
@@ -110,6 +112,8 @@ function makeContext(over: Partial<TherapistContext> = {}): TherapistContext {
     recentRelaxBreaks: [],
     repairContext: null,
     ruminationWatch: null,
+    activeUserParts: [],
+    partProposalCandidate: null,
     ...over,
   }
 }
@@ -219,6 +223,7 @@ beforeEach(() => {
   classifySignalsMock.mockResolvedValue({ withdrawal: 0, rumination: 0 })
   buildOptionsSpy.mockClear()
   companionSignalsUpdateMock.mockClear()
+  userPartsUpdateMock.mockClear()
   featuresMock = {}
   isGroundingMock.mockReturnValue(false)
   idCounter = 0
@@ -811,5 +816,129 @@ describe('session signals wiring', () => {
 
     const lastBuild = buildOptionsSpy.mock.calls.at(-1)![0] as { softenStance?: boolean }
     expect(lastBuild.softenStance).toBe(true)
+  })
+})
+
+// ─── User parts wiring ───────────────────────────────────────────────────────
+
+describe('user parts wiring', () => {
+  function streamOk(text: string) {
+    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
+      callbacks.onToken(text)
+      callbacks.onComplete()
+    })
+  }
+
+  async function runGenerate(
+    result: { current: { generateTherapistMessage: (m: SessionMessage[], s: Session) => Promise<SessionMessage[]> } },
+    wiring: ReturnType<typeof makeWiring>,
+    tw: TypewriterMock,
+    messages: SessionMessage[],
+    reply: string,
+  ) {
+    await act(async () => {
+      tw.pendingComplete = null
+      const p = result.current.generateTherapistMessage(messages, wiring.sessionRef.current!)
+      for (let i = 0; i < 1000 && !tw.pendingComplete; i++) await Promise.resolve()
+      await tw.pendingComplete?.(reply)
+      await p
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+  }
+
+  const nonOpener = [makeUserMsg('hello there'), { ...makeUserMsg('x'), speaker: 'therapist' as const }]
+  const candidate = { id: 'up-7', tentativeName: 'the bracer', description: 'braces before good news', quote: 'here we go again' }
+
+  it('threads activeUserParts + lexicon into the build under the flag', async () => {
+    featuresMock = { userParts: true }
+    streamOk('A reply.')
+    const tw = makeTypewriter()
+    const context = makeContext({
+      activeUserParts: [{ name: 'the bracer', description: 'braces', stance: 'protective' }],
+      personalFacts: { id: 'current', people: [], dates: [], context: [], currentThreads: [], lexicon: ['the basement'], lastUpdated: 1 } as never,
+    })
+    const wiring = makeWiring({ typewriter: tw, context, messages: nonOpener })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    await runGenerate(result, wiring, tw, nonOpener, 'A reply.')
+
+    const opts = buildOptionsSpy.mock.calls[0][0]
+    expect(opts.activeUserParts).toEqual([{ name: 'the bracer', description: 'braces', stance: 'protective' }])
+    expect(opts.lexicon).toEqual(['the basement'])
+  })
+
+  it('omits parts context when the flag is off', async () => {
+    featuresMock = {}
+    streamOk('A reply.')
+    const tw = makeTypewriter()
+    const context = makeContext({
+      activeUserParts: [{ name: 'the bracer', description: 'braces', stance: 'protective' }],
+      partProposalCandidate: candidate,
+    })
+    const wiring = makeWiring({ typewriter: tw, context, messages: nonOpener })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    await runGenerate(result, wiring, tw, nonOpener, 'A reply.')
+
+    const opts = buildOptionsSpy.mock.calls[0][0]
+    expect(opts.activeUserParts).toBeUndefined()
+    expect(opts.partProposal).toBeUndefined()
+  })
+
+  it('proposal: included on non-openers, stays available until the marker lands, then stamps proposedAt', async () => {
+    featuresMock = { userParts: true }
+    const tw = makeTypewriter()
+    const context = makeContext({ partProposalCandidate: candidate })
+    const wiring = makeWiring({ typewriter: tw, context, messages: nonOpener })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    // Build 1: proposal included; model does NOT emit the marker.
+    streamOk('No natural moment yet.')
+    await runGenerate(result, wiring, tw, nonOpener, 'No natural moment yet.')
+    expect(buildOptionsSpy.mock.calls[0][0].partProposal).toEqual(candidate)
+    expect(userPartsUpdateMock).not.toHaveBeenCalled() // no marker → no stamp
+
+    // Build 2: still available; model emits the marker → stamp + stop.
+    buildOptionsSpy.mockClear()
+    const withMarker = 'I noticed [a part of you that braces?](#propose-part:up-7) today.'
+    streamOk(withMarker)
+    await runGenerate(result, wiring, tw, nonOpener, withMarker)
+    expect(buildOptionsSpy.mock.calls[0][0].partProposal).toEqual(candidate)
+    expect(userPartsUpdateMock).toHaveBeenCalledWith('up-7', expect.objectContaining({ proposedAt: expect.any(Number) }))
+
+    // Build 3: offered — no longer included.
+    buildOptionsSpy.mockClear()
+    streamOk('Onward.')
+    await runGenerate(result, wiring, tw, nonOpener, 'Onward.')
+    expect(buildOptionsSpy.mock.calls[0][0].partProposal).toBeUndefined()
+  })
+
+  it('proposal never rides the opener or a pivot build', async () => {
+    featuresMock = { userParts: true, ruminationPivot: true }
+    streamOk('A reply.')
+    const tw = makeTypewriter()
+    const context = makeContext({
+      partProposalCandidate: candidate,
+      ruminationWatch: { theme: 'the loop' },
+    })
+    const wiring = makeWiring({ typewriter: tw, context, messages: nonOpener })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    // Opener build: neither proposal nor pivot.
+    await runGenerate(result, wiring, tw, [], 'A reply.')
+    expect(buildOptionsSpy.mock.calls[0][0].partProposal).toBeUndefined()
+
+    // Non-opener: the watch pivot fires this build → proposal must wait.
+    buildOptionsSpy.mockClear()
+    await runGenerate(result, wiring, tw, nonOpener, 'A reply.')
+    const opts = buildOptionsSpy.mock.calls[0][0]
+    expect(opts.pivotDirective).toEqual({ theme: 'the loop' })
+    expect(opts.partProposal).toBeUndefined()
+
+    // Next build: pivot consumed → proposal may ride now.
+    buildOptionsSpy.mockClear()
+    await runGenerate(result, wiring, tw, nonOpener, 'A reply.')
+    expect(buildOptionsSpy.mock.calls[0][0].partProposal).toEqual(candidate)
   })
 })

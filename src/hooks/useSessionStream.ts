@@ -4,6 +4,7 @@ import { db, sessionMessages as sessionMessagesDb, generateId } from '../store/d
 import { getGlobalConfig } from '../store/globalConfig'
 import { buildTherapistMessages } from '../ai/therapistPrompts'
 import { streamChatCompletion, reasoningForSpeed, classifyCrisisRisk, classifySessionSignals } from '../ai/openrouter'
+import { containsPartProposal } from '../ai/partProposalParser'
 import { loadInSessionRelaxBreaks } from '../engine/sessionContextLoader'
 import { SignalTracker } from '../engine/signalTracker'
 import type { TherapistContext } from '../engine/sessionContextLoader'
@@ -85,6 +86,9 @@ export function useSessionStream(wiring: SessionStreamWiring) {
   // Set when a build actually included repairContext; cleared (with the
   // persistent pendingRepair) once that opener finalizes non-empty.
   const repairIncludedRef = useRef(false)
+  // Set once a finalized message actually carried the part-proposal marker —
+  // the offer happened; stop including the block this session.
+  const proposalOfferedRef = useRef(false)
 
   const resetSignalsForSession = (sessionId: string) => {
     if (signalSessionIdRef.current === sessionId) return
@@ -94,6 +98,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     softenRef.current = false
     watchPivotUsedRef.current = false
     repairIncludedRef.current = false
+    proposalOfferedRef.current = false
   }
 
   // Returns the updated messages array after the therapist message is finalized.
@@ -205,6 +210,27 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           }
         }
 
+        // User parts context + at most one proposal. The proposal block stays
+        // available across turns (the model waits for a natural moment) until
+        // a finalized message actually carries the marker; it never shares a
+        // build with a pivot or softening — one intervention at a time.
+        const partsFlagOn = signalFeatures?.userParts === true
+        const activeUserParts = partsFlagOn && context?.activeUserParts?.length
+          ? context.activeUserParts
+          : undefined
+        const lexicon = partsFlagOn && context?.personalFacts?.lexicon?.length
+          ? context.personalFacts.lexicon
+          : undefined
+        const partProposal =
+          partsFlagOn &&
+          !isFirstTurn &&
+          !pivotDirective &&
+          !softenRef.current &&
+          !proposalOfferedRef.current &&
+          context?.partProposalCandidate
+            ? context.partProposalCandidate
+            : undefined
+
         const promptMessages = buildTherapistMessages(currentMessages, {
           phase,
           recentSessionNotes: context?.recentSessionNotes,
@@ -221,6 +247,9 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           repairContext,
           pivotDirective,
           softenStance: repairFlagOn && softenRef.current ? true : undefined,
+          activeUserParts,
+          lexicon,
+          partProposal,
         })
 
         typewriter.reset()
@@ -298,6 +327,18 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             if (contextRef.current) contextRef.current.repairContext = null
             void db.companionSignals
               .update('current', { pendingRepair: null, updatedAt: Date.now() })
+              .catch(() => { /* best-effort */ })
+          }
+
+          // Part proposal: stamp proposedAt ONLY when the finalized message
+          // actually carried the marker (the model may rightly never find a
+          // natural moment — then nothing is stamped and the candidate
+          // re-arms next session).
+          if (partProposal && containsPartProposal(fullText)) {
+            proposalOfferedRef.current = true
+            if (contextRef.current) contextRef.current.partProposalCandidate = null
+            void db.userParts
+              .update(partProposal.id, { proposedAt: Date.now(), updatedAt: Date.now() })
               .catch(() => { /* best-effort */ })
           }
         }
