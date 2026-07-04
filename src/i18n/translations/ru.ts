@@ -214,6 +214,33 @@ const ru = {
 
 
   'parts.settings.retire': 'Отпустить',
+
+
+  'intentions.card.hint': 'Взять это с собой до следующего раза?',
+
+
+  'intentions.card.keep': 'Взять',
+
+
+  'intentions.card.skip': 'Не в этот раз',
+
+
+  'checkin.prompt': 'С чем вы уходите?',
+
+
+  'checkin.heavier': 'Тяжелее',
+
+
+  'checkin.same': 'Примерно так же',
+
+
+  'checkin.shadeLighter': 'Чуть легче',
+
+
+  'checkin.lighter': 'Легче',
+
+
+  'checkin.muchLighter': 'Гораздо легче',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Билатеральный ритм',
 

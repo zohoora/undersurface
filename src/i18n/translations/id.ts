@@ -214,6 +214,33 @@ const id = {
 
 
   'parts.settings.retire': 'Istirahatkan',
+
+
+  'intentions.card.hint': 'Bawa ini sampai lain kali?',
+
+
+  'intentions.card.keep': 'Bawa',
+
+
+  'intentions.card.skip': 'Tidak kali ini',
+
+
+  'checkin.prompt': 'Bagaimana perasaanmu saat pergi?',
+
+
+  'checkin.heavier': 'Lebih berat',
+
+
+  'checkin.same': 'Kurang lebih sama',
+
+
+  'checkin.shadeLighter': 'Sedikit lebih ringan',
+
+
+  'checkin.lighter': 'Lebih ringan',
+
+
+  'checkin.muchLighter': 'Jauh lebih ringan',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Irama bilateral',
 

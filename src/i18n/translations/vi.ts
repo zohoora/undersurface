@@ -214,6 +214,33 @@ const vi = {
 
 
   'parts.settings.retire': 'Cho nghỉ',
+
+
+  'intentions.card.hint': 'Mang điều này theo đến lần sau nhé?',
+
+
+  'intentions.card.keep': 'Mang theo',
+
+
+  'intentions.card.skip': 'Lần này thì thôi',
+
+
+  'checkin.prompt': 'Bạn rời đi với cảm giác thế nào?',
+
+
+  'checkin.heavier': 'Nặng hơn',
+
+
+  'checkin.same': 'Gần như cũ',
+
+
+  'checkin.shadeLighter': 'Nhẹ đi một chút',
+
+
+  'checkin.lighter': 'Nhẹ hơn',
+
+
+  'checkin.muchLighter': 'Nhẹ hơn nhiều',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Nhịp hai bên',
 

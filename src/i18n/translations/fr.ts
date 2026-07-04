@@ -214,6 +214,33 @@ const fr = {
 
 
   'parts.settings.retire': 'Mettre au repos',
+
+
+  'intentions.card.hint': 'Emporter ceci jusqu’à la prochaine fois ?',
+
+
+  'intentions.card.keep': 'L’emporter',
+
+
+  'intentions.card.skip': 'Pas cette fois',
+
+
+  'checkin.prompt': 'Comment repars-tu ?',
+
+
+  'checkin.heavier': 'Plus lourd',
+
+
+  'checkin.same': 'À peu près pareil',
+
+
+  'checkin.shadeLighter': 'Un peu plus léger',
+
+
+  'checkin.lighter': 'Plus léger',
+
+
+  'checkin.muchLighter': 'Bien plus léger',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Rythme bilatéral',
 

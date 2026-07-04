@@ -2,28 +2,36 @@ import { memo, useMemo } from 'react'
 import type { SessionMessage as SessionMessageType } from '../../types'
 import { RecommendationSegments } from './RecommendationSegments'
 import { PartProposalCard } from './PartProposalCard'
+import { IntentionCard } from './IntentionCard'
 import { extractPartProposal } from '../../ai/partProposalParser'
+import { extractIntentionOffer } from '../../ai/intentionOfferParser'
 import { scrubLeakedRiskMarker } from '../../ai/openrouter'
 
 interface Props {
   message: SessionMessageType
   onRecommendationTap?: (target: string) => void
+  // Set only for the ACTIVE session with the sessionIntentions flag on —
+  // history and closed sessions never grow offer cards.
+  intentionOfferSessionId?: string | null
 }
 
 export const SessionMessageBubble = memo(function SessionMessageBubble({
   message,
   onRecommendationTap,
+  intentionOfferSessionId,
 }: Props) {
   const isUser = message.speaker === 'user'
   // Therapist messages persisted while older parsers were live can carry a
   // leaked `<<RISK:N>>` preamble — scrub at render so history stays clean.
   const scrubbed = isUser ? message.content : scrubLeakedRiskMarker(message.content)
-  // Part-proposal marker: phrase renders as plain text; the consent card
-  // renders beneath (and renders nothing once the part isn't a candidate).
-  const { cleanText: content, proposal } = useMemo(
-    () => (isUser ? { cleanText: scrubbed, proposal: null } : extractPartProposal(scrubbed)),
-    [isUser, scrubbed],
-  )
+  // Part-proposal / intention-offer markers: phrases render as plain text; the
+  // consent cards render beneath.
+  const { content, proposal, offer } = useMemo(() => {
+    if (isUser) return { content: scrubbed, proposal: null, offer: null }
+    const partPass = extractPartProposal(scrubbed)
+    const offerPass = extractIntentionOffer(partPass.cleanText)
+    return { content: offerPass.cleanText, proposal: partPass.proposal, offer: offerPass.offer }
+  }, [isUser, scrubbed])
   const showRecommendations =
     !isUser && typeof message.content === 'string' && onRecommendationTap
 
@@ -61,6 +69,9 @@ export const SessionMessageBubble = memo(function SessionMessageBubble({
             : content}
         </div>
         {proposal && <PartProposalCard partId={proposal.partId} />}
+        {offer && intentionOfferSessionId && (
+          <IntentionCard phrase={offer.phrase} sessionId={intentionOfferSessionId} />
+        )}
       </div>
     </>
   )

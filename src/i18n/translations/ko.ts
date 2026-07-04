@@ -214,6 +214,33 @@ const ko = {
 
 
   'parts.settings.retire': '쉬게 하기',
+
+
+  'intentions.card.hint': '다음 시간까지 이것을 지니고 가시겠어요?',
+
+
+  'intentions.card.keep': '지니고 가기',
+
+
+  'intentions.card.skip': '이번엔 괜찮아요',
+
+
+  'checkin.prompt': '어떤 마음으로 마치시나요?',
+
+
+  'checkin.heavier': '더 무거워요',
+
+
+  'checkin.same': '비슷해요',
+
+
+  'checkin.shadeLighter': '조금 가벼워요',
+
+
+  'checkin.lighter': '가벼워요',
+
+
+  'checkin.muchLighter': '훨씬 가벼워요',
   // Bilateral stimulation
   'settings.bilateralStimulation': '양측 리듬',
 

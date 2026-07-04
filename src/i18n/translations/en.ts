@@ -307,6 +307,15 @@ const en = {
   'parts.card.notQuite': 'Not quite',
   'parts.settings.title': 'Parts of you',
   'parts.settings.retire': 'Retire',
+  'intentions.card.hint': 'Carry this with you until next time?',
+  'intentions.card.keep': 'Carry it',
+  'intentions.card.skip': 'Not this time',
+  'checkin.prompt': 'How are you leaving?',
+  'checkin.heavier': 'Heavier',
+  'checkin.same': 'About the same',
+  'checkin.shadeLighter': 'A shade lighter',
+  'checkin.lighter': 'Lighter',
+  'checkin.muchLighter': 'Much lighter',
 } as const
 
 export type TranslationKey = keyof typeof en

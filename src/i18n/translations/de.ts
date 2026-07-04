@@ -214,6 +214,33 @@ const de = {
 
 
   'parts.settings.retire': 'Ruhen lassen',
+
+
+  'intentions.card.hint': 'Bis zum nächsten Mal mitnehmen?',
+
+
+  'intentions.card.keep': 'Mitnehmen',
+
+
+  'intentions.card.skip': 'Diesmal nicht',
+
+
+  'checkin.prompt': 'Wie gehst du aus dieser Sitzung?',
+
+
+  'checkin.heavier': 'Schwerer',
+
+
+  'checkin.same': 'Etwa gleich',
+
+
+  'checkin.shadeLighter': 'Eine Spur leichter',
+
+
+  'checkin.lighter': 'Leichter',
+
+
+  'checkin.muchLighter': 'Viel leichter',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Bilateraler Rhythmus',
 

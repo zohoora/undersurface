@@ -214,6 +214,33 @@ const ja = {
 
 
   'parts.settings.retire': '休ませる',
+
+
+  'intentions.card.hint': '次回までこれを持っていきますか？',
+
+
+  'intentions.card.keep': '持っていく',
+
+
+  'intentions.card.skip': '今回はやめておく',
+
+
+  'checkin.prompt': 'どんな気持ちで終えますか？',
+
+
+  'checkin.heavier': '重くなった',
+
+
+  'checkin.same': 'あまり変わらない',
+
+
+  'checkin.shadeLighter': '少し軽くなった',
+
+
+  'checkin.lighter': '軽くなった',
+
+
+  'checkin.muchLighter': 'ずっと軽くなった',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'バイラテラル・リズム',
 

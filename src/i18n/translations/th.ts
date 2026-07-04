@@ -214,6 +214,33 @@ const th = {
 
 
   'parts.settings.retire': 'พักไว้',
+
+
+  'intentions.card.hint': 'พกสิ่งนี้ไว้จนถึงครั้งหน้าไหม?',
+
+
+  'intentions.card.keep': 'พกไว้',
+
+
+  'intentions.card.skip': 'ครั้งนี้ไม่เป็นไร',
+
+
+  'checkin.prompt': 'คุณจากไปด้วยความรู้สึกแบบไหน?',
+
+
+  'checkin.heavier': 'หนักขึ้น',
+
+
+  'checkin.same': 'พอ ๆ เดิม',
+
+
+  'checkin.shadeLighter': 'เบาขึ้นนิดหน่อย',
+
+
+  'checkin.lighter': 'เบาขึ้น',
+
+
+  'checkin.muchLighter': 'เบาขึ้นมาก',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'จังหวะสองข้าง',
 

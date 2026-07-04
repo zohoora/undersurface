@@ -1,5 +1,6 @@
-import type { Part, EntrySummary, UserProfile, PersonalFacts, SessionMessage, CompanionSignals, UserPart } from '../types'
-import { buildSessionReflectionPrompt, buildBoundedTranscript } from '../ai/therapistPrompts'
+import type { Part, EntrySummary, UserProfile, PersonalFacts, SessionMessage, CompanionSignals, UserPart, SessionIntention, StanceProfile, Session } from '../types'
+import { buildSessionReflectionPrompt, buildBoundedTranscript, buildStanceConsolidationPrompt } from '../ai/therapistPrompts'
+import { createIntention, applyIntentionOutcomes, openIntentions } from './intentionTracker'
 import { chatCompletion } from '../ai/openrouter'
 import { db, generateId } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
@@ -40,12 +41,17 @@ export async function reflectOnSession(
 
     // 3. Load profile + recent summaries + existing personal facts (+ the
     // writer's mapped parts, when the userParts flag is on)
-    const userPartsOn = getGlobalConfig()?.features?.userParts === true
-    const [profile, allSummaries, existingFacts, existingUserParts] = await Promise.all([
+    const features = getGlobalConfig()?.features
+    const userPartsOn = features?.userParts === true
+    const intentionsOn = features?.sessionIntentions === true
+    const stanceOn = features?.stanceAdaptation === true
+    const [profile, allSummaries, existingFacts, existingUserParts, allIntentions, sessionDoc] = await Promise.all([
       db.userProfile.get('current'),
       db.entrySummaries.orderBy('timestamp').reverse().toArray(),
       db.personalFacts.get('current'),
       userPartsOn ? db.userParts.toArray() : Promise.resolve([] as UserPart[]),
+      intentionsOn ? db.sessionIntentions.toArray() : Promise.resolve([] as SessionIntention[]),
+      stanceOn ? db.sessions.get(sessionId) : Promise.resolve(undefined as Session | undefined),
     ])
     const recentSummaries = allSummaries.slice(0, 5)
 
@@ -66,6 +72,11 @@ export async function reflectOnSession(
             .filter((p) => p.status !== 'retired')
             .map((p) => ({ id: p.id, name: p.name, description: p.description, stance: p.stance }))
         : undefined,
+      openIntentions: intentionsOn
+        ? openIntentions(allIntentions).map((i) => ({ id: i.id, text: i.text }))
+        : undefined,
+      includeStance: stanceOn || undefined,
+      closingCheckIn: stanceOn ? leavingFeelingLabel(sessionDoc?.leavingFeeling) : undefined,
     })
     // gpt-5.5 with default reasoning was burning the entire token budget on
     // hidden reasoning, leaving zero output. Reflection is structured JSON
@@ -254,6 +265,22 @@ export async function reflectOnSession(
       }
     }
 
+    // 6e-quater. Intention lifecycle + stance learning. Best-effort.
+    if (intentionsOn) {
+      try {
+        await updateSessionIntentions(sessionId, allIntentions, parsed.statedIntention, parsed.intentionOutcomes)
+      } catch (error) {
+        console.error('[reflect] intentions update error:', error)
+      }
+    }
+    if (stanceOn) {
+      try {
+        await updateStance(sessionId, parsed.stanceObservation)
+      } catch (error) {
+        console.error('[reflect] stance update error:', error)
+      }
+    }
+
     // 6f. Prune old memories
     await pruneMemories(parts)
 
@@ -307,6 +334,9 @@ function parseReflectionResponse(response: string): {
   loopSignal?: { present?: unknown; theme?: unknown; newInformation?: unknown }
   partObservations?: unknown
   coinedPhrases?: unknown
+  statedIntention?: { present?: unknown; text?: unknown }
+  intentionOutcomes?: unknown
+  stanceObservation?: { observation?: unknown; direction?: unknown }
 } | null {
   try {
     const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, response]
@@ -411,6 +441,106 @@ export async function updateUserPartsAndLexicon(
       })
     }
   }
+}
+
+function leavingFeelingLabel(feeling: Session['leavingFeeling']): string | undefined {
+  switch (feeling) {
+    case 'heavier': return 'heavier'
+    case 'same': return 'about the same'
+    case 'shade_lighter': return 'a shade lighter'
+    case 'lighter': return 'lighter'
+    case 'much_lighter': return 'much lighter'
+    default: return undefined
+  }
+}
+
+// Intention lifecycle from the reflection pass: outcomes first (matched by
+// id), then a newly volunteered intention. Exported for tests.
+// Spec: docs/superpowers/specs/2026-07-04-intentions-and-stance-design.md
+export async function updateSessionIntentions(
+  sessionId: string,
+  allIntentions: SessionIntention[],
+  statedIntention: { present?: unknown; text?: unknown } | undefined,
+  intentionOutcomes: unknown,
+): Promise<void> {
+  const now = Date.now()
+  let current = allIntentions
+
+  const outcomeUpdates = applyIntentionOutcomes(current, intentionOutcomes, now)
+  for (const update of outcomeUpdates) {
+    await db.sessionIntentions.update(update.id, update)
+    current = current.map((i) => (i.id === update.id ? update : i))
+  }
+
+  if (statedIntention?.present === true && typeof statedIntention.text === 'string') {
+    const result = createIntention(current, statedIntention.text, sessionId, now)
+    if (result) {
+      if (result.release) await db.sessionIntentions.update(result.release.id, result.release)
+      await db.sessionIntentions.add(result.create)
+    }
+  }
+}
+
+const STANCE_RAW_CAP = 20
+const STANCE_ENTRY_CAP = 6
+const STANCE_CONSOLIDATE_EVERY = 5
+
+// Stance learning: append this session's observation, and every Nth
+// observation distill the raw list into plain-language tendencies. Exported
+// for tests. Consolidation failures leave the previous entries untouched.
+export async function updateStance(
+  sessionId: string,
+  stanceObservation: { observation?: unknown; direction?: unknown } | undefined,
+): Promise<void> {
+  const dir = stanceObservation?.direction
+  const direction: 'helped' | 'hindered' | 'unclear' | null =
+    dir === 'helped' || dir === 'hindered' || dir === 'unclear'
+      ? (dir as 'helped' | 'hindered' | 'unclear')
+      : null
+  if (
+    !direction ||
+    typeof stanceObservation?.observation !== 'string' ||
+    !stanceObservation.observation.trim()
+  ) return
+
+  const existing = await db.stanceProfile.get('current')
+  const profile: StanceProfile = existing ?? {
+    id: 'current', rawObservations: [], entries: [], updatedAt: 0,
+  }
+
+  profile.rawObservations = [
+    ...profile.rawObservations,
+    {
+      observation: stanceObservation.observation.trim().slice(0, 200),
+      direction,
+      sessionId,
+      createdAt: Date.now(),
+    },
+  ].slice(-STANCE_RAW_CAP)
+  profile.updatedAt = Date.now()
+
+  if (profile.rawObservations.length % STANCE_CONSOLIDATE_EVERY === 0) {
+    try {
+      const response = await chatCompletion(
+        buildStanceConsolidationPrompt(profile.rawObservations),
+        60_000, 600, 'none',
+      )
+      const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, response]
+      const parsed = JSON.parse(jsonMatch[1]!.trim()) as { entries?: unknown }
+      if (Array.isArray(parsed.entries)) {
+        profile.entries = parsed.entries
+          .filter((e): e is string => typeof e === 'string' && e.trim().length > 0)
+          .map((e) => e.trim().slice(0, 160))
+          .slice(0, STANCE_ENTRY_CAP)
+        profile.consolidatedAt = Date.now()
+      }
+    } catch (error) {
+      console.warn('[reflect] stance consolidation skipped:', error)
+    }
+  }
+
+  if (existing) await db.stanceProfile.update('current', profile)
+  else await db.stanceProfile.add(profile)
 }
 
 const FACT_CAPS = { people: 30, dates: 20, context: 20, currentThreads: 8 }

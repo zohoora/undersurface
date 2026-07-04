@@ -214,6 +214,33 @@ const tr = {
 
 
   'parts.settings.retire': 'Dinlendir',
+
+
+  'intentions.card.hint': 'Bunu bir dahaki sefere kadar yanında taşır mısın?',
+
+
+  'intentions.card.keep': 'Taşı',
+
+
+  'intentions.card.skip': 'Bu sefer değil',
+
+
+  'checkin.prompt': 'Nasıl ayrılıyorsun?',
+
+
+  'checkin.heavier': 'Daha ağır',
+
+
+  'checkin.same': 'Aşağı yukarı aynı',
+
+
+  'checkin.shadeLighter': 'Bir tık daha hafif',
+
+
+  'checkin.lighter': 'Daha hafif',
+
+
+  'checkin.muchLighter': 'Çok daha hafif',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'İki taraflı ritim',
 

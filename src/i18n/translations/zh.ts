@@ -214,6 +214,33 @@ const zh = {
 
 
   'parts.settings.retire': '让它休息',
+
+
+  'intentions.card.hint': '把这个带到下次吗？',
+
+
+  'intentions.card.keep': '带上',
+
+
+  'intentions.card.skip': '这次先不了',
+
+
+  'checkin.prompt': '你带着怎样的感觉离开？',
+
+
+  'checkin.heavier': '更沉重',
+
+
+  'checkin.same': '差不多',
+
+
+  'checkin.shadeLighter': '轻了一点',
+
+
+  'checkin.lighter': '轻松了',
+
+
+  'checkin.muchLighter': '轻松多了',
   // Bilateral stimulation
   'settings.bilateralStimulation': '双侧节奏',
 

@@ -214,6 +214,33 @@ const nl = {
 
 
   'parts.settings.retire': 'Laten rusten',
+
+
+  'intentions.card.hint': 'Dit meenemen tot de volgende keer?',
+
+
+  'intentions.card.keep': 'Meenemen',
+
+
+  'intentions.card.skip': 'Deze keer niet',
+
+
+  'checkin.prompt': 'Hoe ga je weg?',
+
+
+  'checkin.heavier': 'Zwaarder',
+
+
+  'checkin.same': 'Ongeveer hetzelfde',
+
+
+  'checkin.shadeLighter': 'Een tikje lichter',
+
+
+  'checkin.lighter': 'Lichter',
+
+
+  'checkin.muchLighter': 'Veel lichter',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Bilateraal ritme',
 

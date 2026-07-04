@@ -214,6 +214,33 @@ const it = {
 
 
   'parts.settings.retire': 'Ritira',
+
+
+  'intentions.card.hint': 'Portarlo con te fino alla prossima volta?',
+
+
+  'intentions.card.keep': 'Portalo',
+
+
+  'intentions.card.skip': 'Non questa volta',
+
+
+  'checkin.prompt': 'Come te ne vai?',
+
+
+  'checkin.heavier': 'Più pesante',
+
+
+  'checkin.same': 'Più o meno uguale',
+
+
+  'checkin.shadeLighter': 'Un filo più leggero',
+
+
+  'checkin.lighter': 'Più leggero',
+
+
+  'checkin.muchLighter': 'Molto più leggero',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Ritmo bilaterale',
 

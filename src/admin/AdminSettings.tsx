@@ -29,6 +29,8 @@ const DEFAULTS: GlobalConfig = {
     ruptureRepair: false,
     ruminationPivot: false,
     userParts: false,
+    sessionIntentions: false,
+    stanceAdaptation: false,
     webcamHrv: false,
     polarH10: false,
     voiceEnabled: false,
@@ -603,6 +605,16 @@ export function AdminSettings() {
           label="User Parts (collaborative mapping + lexicon)"
           checked={!!config.features.userParts}
           onChange={(v) => setFeature('userParts', v)}
+        />
+        <ToggleRow
+          label="Session Intentions (the thread)"
+          checked={!!config.features.sessionIntentions}
+          onChange={(v) => setFeature('sessionIntentions', v)}
+        />
+        <ToggleRow
+          label="Stance Adaptation (N-of-1 + closing check-in)"
+          checked={!!config.features.stanceAdaptation}
+          onChange={(v) => setFeature('stanceAdaptation', v)}
         />
       </CollapsibleSection>
 

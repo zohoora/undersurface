@@ -37,6 +37,10 @@ export interface GlobalConfig {
     ruminationPivot?: boolean
     /** Collaborative user-parts mapping (propose → confirm) + shared lexicon. */
     userParts?: boolean
+    /** Between-session intentions: capture, warm follow-up, avoidance path. */
+    sessionIntentions?: boolean
+    /** N-of-1 stance learning: closing check-in + internal stance profile. */
+    stanceAdaptation?: boolean
     // Biometric
     webcamHrv?: boolean
     /** Polar H10 (or any standard Bluetooth HR monitor) — session-mode only. */

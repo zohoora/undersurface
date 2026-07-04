@@ -214,6 +214,33 @@ const pl = {
 
 
   'parts.settings.retire': 'Odłóż',
+
+
+  'intentions.card.hint': 'Zabrać to ze sobą do następnego razu?',
+
+
+  'intentions.card.keep': 'Zabieram',
+
+
+  'intentions.card.skip': 'Nie tym razem',
+
+
+  'checkin.prompt': 'Z czym wychodzisz?',
+
+
+  'checkin.heavier': 'Ciężej',
+
+
+  'checkin.same': 'Mniej więcej tak samo',
+
+
+  'checkin.shadeLighter': 'Odrobinę lżej',
+
+
+  'checkin.lighter': 'Lżej',
+
+
+  'checkin.muchLighter': 'Znacznie lżej',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Rytm bilateralny',
 

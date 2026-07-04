@@ -214,6 +214,33 @@ const hi = {
 
 
   'parts.settings.retire': 'विश्राम दें',
+
+
+  'intentions.card.hint': 'अगली बार तक इसे अपने साथ रखें?',
+
+
+  'intentions.card.keep': 'साथ रखें',
+
+
+  'intentions.card.skip': 'इस बार नहीं',
+
+
+  'checkin.prompt': 'आप कैसा महसूस करते हुए जा रहे हैं?',
+
+
+  'checkin.heavier': 'भारी',
+
+
+  'checkin.same': 'लगभग वैसा ही',
+
+
+  'checkin.shadeLighter': 'थोड़ा हल्का',
+
+
+  'checkin.lighter': 'हल्का',
+
+
+  'checkin.muchLighter': 'बहुत हल्का',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'द्विपक्षीय लय',
 

@@ -12,6 +12,10 @@ vi.mock('../ai/therapistPrompts', () => ({
   buildBoundedTranscript: vi.fn((messages: SessionMessage[]) =>
     messages.map(m => `${m.speaker}: ${m.content}`).join('\n'),
   ),
+  buildStanceConsolidationPrompt: vi.fn().mockReturnValue([
+    { role: 'system', content: 'consolidate' },
+    { role: 'user', content: 'observations' },
+  ]),
 }))
 vi.mock('../store/db', () => ({
   db: {
@@ -27,6 +31,9 @@ vi.mock('../store/db', () => ({
     parts: { toArray: vi.fn(async () => []) },
     companionSignals: { get: vi.fn(async () => undefined), add: vi.fn(), update: vi.fn() },
     userParts: { toArray: vi.fn(async () => []), add: vi.fn(), update: vi.fn() },
+    sessionIntentions: { toArray: vi.fn(async () => []), add: vi.fn(), update: vi.fn() },
+    stanceProfile: { get: vi.fn(async () => undefined), add: vi.fn(), update: vi.fn() },
+    sessions: { get: vi.fn(async () => undefined) },
   },
   generateId: vi.fn(() => 'gen-id'),
 }))
@@ -37,7 +44,7 @@ vi.mock('./letterEngine', () => ({
   LetterEngine: class { checkForLetter = vi.fn(async () => null) },
 }))
 
-import { reflectOnSession, updateCompanionSignals, updateUserPartsAndLexicon } from './sessionReflectionEngine'
+import { reflectOnSession, updateCompanionSignals, updateUserPartsAndLexicon, updateSessionIntentions, updateStance } from './sessionReflectionEngine'
 import { chatCompletion } from '../ai/openrouter'
 import { db } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
@@ -426,5 +433,102 @@ describe('updateUserPartsAndLexicon', () => {
     expect(db.userParts.update).not.toHaveBeenCalled()
     expect(db.personalFacts.add).not.toHaveBeenCalled()
     expect(db.personalFacts.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('updateSessionIntentions', () => {
+  beforeEach(() => {
+    vi.mocked(db.sessionIntentions.add).mockReset()
+    vi.mocked(db.sessionIntentions.update).mockReset()
+  })
+
+  const openOne = {
+    id: 'i1', text: 'call him thursday', sessionId: 's0', status: 'open',
+    askedCount: 0, notYetCount: 0, patternNamed: false, createdAt: 1, updatedAt: 1,
+  } as never
+
+  it('applies outcomes then creates a volunteered intention', async () => {
+    await updateSessionIntentions('s9', [openOne], { present: true, text: 'take the walk before work' }, [
+      { id: 'i1', outcome: 'kept', note: 'called, went well' },
+    ])
+
+    expect(db.sessionIntentions.update).toHaveBeenCalledWith('i1', expect.objectContaining({ status: 'kept' }))
+    expect(db.sessionIntentions.add).toHaveBeenCalledWith(expect.objectContaining({
+      text: 'take the walk before work', status: 'open', sessionId: 's9',
+    }))
+  })
+
+  it('writes nothing for malformed statedIntention and unknown outcome ids', async () => {
+    await updateSessionIntentions('s9', [openOne], { present: 'yes', text: 42 } as never, [
+      { id: 'ghost', outcome: 'kept' },
+    ])
+    expect(db.sessionIntentions.add).not.toHaveBeenCalled()
+    expect(db.sessionIntentions.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('updateStance', () => {
+  beforeEach(() => {
+    vi.mocked(db.stanceProfile.get).mockReset().mockResolvedValue(undefined)
+    vi.mocked(db.stanceProfile.add).mockReset()
+    vi.mocked(db.stanceProfile.update).mockReset()
+    mockChatCompletion.mockReset()
+  })
+
+  it('appends a valid observation (creates the profile when absent)', async () => {
+    await updateStance('s1', { observation: 'short warm replies landed', direction: 'helped' })
+
+    expect(db.stanceProfile.add).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'current',
+      rawObservations: [expect.objectContaining({ observation: 'short warm replies landed', direction: 'helped' })],
+    }))
+    expect(mockChatCompletion).not.toHaveBeenCalled() // 1 obs — no consolidation yet
+  })
+
+  it('consolidates every 5th observation into capped entries', async () => {
+    vi.mocked(db.stanceProfile.get).mockResolvedValue({
+      id: 'current',
+      rawObservations: Array.from({ length: 4 }, (_, i) => ({
+        observation: `obs ${i}`, direction: 'helped', sessionId: `s${i}`, createdAt: i,
+      })),
+      entries: [],
+      updatedAt: 1,
+    } as never)
+    mockChatCompletion.mockResolvedValue(JSON.stringify({
+      entries: ['challenge lands well once warmed up', 42, '  short replies in the evening  '],
+    }))
+
+    await updateStance('s5', { observation: 'obs 5', direction: 'hindered' })
+
+    expect(mockChatCompletion).toHaveBeenCalledTimes(1)
+    expect(db.stanceProfile.update).toHaveBeenCalledWith('current', expect.objectContaining({
+      entries: ['challenge lands well once warmed up', 'short replies in the evening'],
+    }))
+  })
+
+  it('a failed consolidation keeps previous entries and still appends the observation', async () => {
+    vi.mocked(db.stanceProfile.get).mockResolvedValue({
+      id: 'current',
+      rawObservations: Array.from({ length: 4 }, (_, i) => ({
+        observation: `obs ${i}`, direction: 'helped', sessionId: `s${i}`, createdAt: i,
+      })),
+      entries: ['existing tendency'],
+      updatedAt: 1,
+    } as never)
+    mockChatCompletion.mockRejectedValue(new Error('boom'))
+
+    await updateStance('s5', { observation: 'obs 5', direction: 'helped' })
+
+    expect(db.stanceProfile.update).toHaveBeenCalledWith('current', expect.objectContaining({
+      entries: ['existing tendency'],
+    }))
+  })
+
+  it('drops invalid observations entirely', async () => {
+    await updateStance('s1', { observation: '', direction: 'helped' })
+    await updateStance('s1', { observation: 'x', direction: 'sideways' } as never)
+    await updateStance('s1', undefined)
+    expect(db.stanceProfile.add).not.toHaveBeenCalled()
+    expect(db.stanceProfile.update).not.toHaveBeenCalled()
   })
 })

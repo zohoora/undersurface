@@ -19,6 +19,7 @@ import { useSessionStream, type BiometricSource } from '../../hooks/useSessionSt
 import { VoiceField } from './VoiceField'
 import { loadTherapistContext } from '../../engine/sessionContextLoader'
 import { maybeBackfillUserParts } from '../../engine/userPartsBackfill'
+import { ClosingCheckIn } from './ClosingCheckIn'
 import type { TherapistContext } from '../../engine/sessionContextLoader'
 import { reflectOnSession } from '../../engine/sessionReflectionEngine'
 import { getWeatherEngine } from '../../store/weatherStore'
@@ -78,6 +79,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const sessionRef = useRef<Session | null>(null)
   const messagesRef = useRef<SessionMessage[]>([])
+  // Stance check-in: shown after end-session; reflection defers on it (30s cap).
+  const [checkInSessionId, setCheckInSessionId] = useState<string | null>(null)
+  const reflectionFiredRef = useRef(false)
+  const pendingReflectionRef = useRef<(() => void) | null>(null)
   const handleSendRef = useRef<() => void>(() => {})
 
   const voiceEnabled = getGlobalConfig()?.features?.voiceEnabled === true
@@ -323,10 +328,26 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       phase: 'closing',
     } : prev)
 
-    // Non-blocking: run full reflection pipeline
-    db.parts.toArray()
-      .then(parts => reflectOnSession(currentSession.id, finalMessages, parts))
-      .catch(error => console.error('Session reflection error:', error))
+    // Non-blocking: run full reflection pipeline. When the stance check-in is
+    // active, defer reflection briefly so the one-tap "how are you leaving?"
+    // answer exists on the session doc when the stance observer reads it —
+    // the check-in never blocks closing; only reflection waits (max 30s).
+    const runReflection = () => {
+      if (reflectionFiredRef.current) return
+      reflectionFiredRef.current = true
+      db.parts.toArray()
+        .then(parts => reflectOnSession(currentSession.id, finalMessages, parts))
+        .catch(error => console.error('Session reflection error:', error))
+    }
+    if (getGlobalConfig()?.features?.stanceAdaptation === true) {
+      reflectionFiredRef.current = false
+      setCheckInSessionId(currentSession.id)
+      pendingReflectionRef.current = runReflection
+      window.setTimeout(runReflection, 30_000)
+    } else {
+      reflectionFiredRef.current = false
+      runReflection()
+    }
 
     // Persist weather
     weatherEngine.persist().catch(console.error)
@@ -604,6 +625,19 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         </button>
       )}
 
+      {/* One-tap closing check-in (stanceAdaptation flag; deferred reflection
+          fires on tap/skip or after 30s, whichever comes first) */}
+      {checkInSessionId && (
+        <ClosingCheckIn
+          sessionId={checkInSessionId}
+          onDone={() => {
+            setCheckInSessionId(null)
+            pendingReflectionRef.current?.()
+            pendingReflectionRef.current = null
+          }}
+        />
+      )}
+
       {/* Session note card (for closed sessions) */}
       {isClosed && session?.sessionNote && (
         <div className="session-note-card">
@@ -745,6 +779,11 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
               key={msg.id}
               message={msg}
               onRecommendationTap={handleRecommendationTap}
+              intentionOfferSessionId={
+                session?.status === 'active' && getGlobalConfig()?.features?.sessionIntentions === true
+                  ? session.id
+                  : null
+              }
             />
           ))}
 
