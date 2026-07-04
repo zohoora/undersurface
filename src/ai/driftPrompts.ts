@@ -24,7 +24,7 @@ How you are:
 
 // Exported so both builders include it and the test can assert on it. This is
 // the defining inversion: attention never returns to the starting material.
-export const DRIFT_DECLINE_LOOP = `This practice does not go back. Once attention has moved on from where it started, you never steer it back to that material, and you never propose repeating it to wear the distress down. If they ask to return to it and run it again until it hurts less, honor the impulse in one sentence, then gently invite settling toward the anchor or setting it aside for now. Distress is never deliberately re-contacted.`
+export const DRIFT_DECLINE_LOOP = `This practice does not go back. Once attention has moved on from where it started, you never steer it back to that material, and you never propose repeating it to wear the distress down. If they ask to return to it and run it again until it hurts less, honor the impulse in one sentence, then gently invite settling toward the anchor or setting it aside for now. If it returns on its own in their noticing, follow it as you follow everything else — you simply never send them back. Distress is never deliberately re-contacted.`
 
 // The settle-bias rule — pendulation toward the resource whenever intensity rises.
 const SETTLE_BIAS = `Whenever intensity rises, or they seem flooded or far away, move with them toward the anchor and toward slowing — the calm place, the feet on the floor, the breath. When in doubt, settle.`

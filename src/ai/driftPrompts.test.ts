@@ -77,6 +77,12 @@ describe('buildDriftVoiceInstructions', () => {
     expect(buildDriftVoiceInstructions({})).toContain(DRIFT_DECLINE_LOOP)
   })
 
+  it('pins the fixed pendulation question and the verbatim-cue directive', () => {
+    const p = buildDriftVoiceInstructions({})
+    expect(p).toContain('What do you notice now — softer, the same, or stronger?')
+    expect(p).toContain('word for word')
+  })
+
   it('wraps user part names as untrusted content', () => {
     expect(buildDriftVoiceInstructions({ userPartNames: ['The Critic'] }))
       .toContain('<user_part_names>The Critic</user_part_names>')
