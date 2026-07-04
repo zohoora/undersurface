@@ -309,7 +309,7 @@ export async function exportAllData() {
     'entries', 'parts', 'memories', 'thoughts', 'interactions',
     'entrySummaries', 'userProfile', 'personalFacts', 'fossils', 'letters',
     'sessionLog', 'innerWeather', 'consent', 'sessions',
-    'hrvSessions', 'relaxSessions', 'companionSignals', 'userParts',
+    'hrvSessions', 'relaxSessions', 'driftSessions', 'companionSignals', 'userParts',
     'sessionIntentions', 'stanceProfile', 'userValues', 'companionPromises',
   ] as const
 

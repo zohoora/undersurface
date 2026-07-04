@@ -21,6 +21,7 @@ export const USER_SUBCOLLECTIONS = [
   'apiKeys',
   'hrvSessions',
   'relaxSessions',
+  'driftSessions',
   'diagnostics',
   'companionSignals',
   'userParts',

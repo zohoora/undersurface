@@ -135,6 +135,35 @@ export interface RelaxSession {
   } | null
 }
 
+// Drift — a flag-gated (driftEnabled) bilateral dual-attention regulation
+// practice launched from Relax; the reprocessing loop is deliberately designed
+// out (the flow always resolves toward settling, never re-invoking the starting
+// point once left). Persisted under users/{uid}/driftSessions/{id}. Sibling to
+// relaxSessions — never bolted onto the parent chat Session.
+export type DriftOutcome = 'settled' | 'eased_early' | 'aborted_to_grounding' | 'abandoned'
+export type DriftBlsChannel = 'audio' | 'visual'
+export type DriftAnchorKind = 'calm_place' | 'feet'
+export interface DriftTranscriptEntry {
+  role: 'user' | 'companion' | 'cue'
+  content: string
+  atMs: number
+}
+export interface DriftSession {
+  id: string
+  // Parent chat session id if Drift was entered from inside a session; null when standalone.
+  parentSessionId: string | null
+  startedAt: number
+  endedAt: number | null
+  outcome: DriftOutcome | null
+  setCount: number
+  interweavesUsed: string[]
+  transcript: DriftTranscriptEntry[]
+  anchorKind: DriftAnchorKind
+  blsChannel: DriftBlsChannel
+  voiceUsed: boolean
+  hrvPresent: boolean
+}
+
 export interface Session {
   id: string
   startedAt: number
