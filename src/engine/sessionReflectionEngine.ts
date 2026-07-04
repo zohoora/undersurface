@@ -1,4 +1,4 @@
-import type { Part, EntrySummary, UserProfile, PersonalFacts, SessionMessage, CompanionSignals } from '../types'
+import type { Part, EntrySummary, UserProfile, PersonalFacts, SessionMessage, CompanionSignals, UserPart } from '../types'
 import { buildSessionReflectionPrompt, buildBoundedTranscript } from '../ai/therapistPrompts'
 import { chatCompletion } from '../ai/openrouter'
 import { db, generateId } from '../store/db'
@@ -6,6 +6,7 @@ import { getGlobalConfig } from '../store/globalConfig'
 import { LetterEngine } from './letterEngine'
 import { pruneGrowthCollections } from './memoryPruner'
 import { detectTerseEnding } from './ruptureDetector'
+import { applyPartObservations, mergeLexicon } from './userPartTracker'
 import { engineLog } from '../services/diagnostics'
 
 const MEMORY_CAPS: Record<string, number> = {
@@ -37,11 +38,14 @@ export async function reflectOnSession(
     // 2. Skip short sessions
     if (transcriptText.length < 100) return
 
-    // 3. Load profile + recent summaries + existing personal facts
-    const [profile, allSummaries, existingFacts] = await Promise.all([
+    // 3. Load profile + recent summaries + existing personal facts (+ the
+    // writer's mapped parts, when the userParts flag is on)
+    const userPartsOn = getGlobalConfig()?.features?.userParts === true
+    const [profile, allSummaries, existingFacts, existingUserParts] = await Promise.all([
       db.userProfile.get('current'),
       db.entrySummaries.orderBy('timestamp').reverse().toArray(),
       db.personalFacts.get('current'),
+      userPartsOn ? db.userParts.toArray() : Promise.resolve([] as UserPart[]),
     ])
     const recentSummaries = allSummaries.slice(0, 5)
 
@@ -57,6 +61,11 @@ export async function reflectOnSession(
       recentSummaries,
       parts: partsForPrompt,
       existingFacts: existingFacts ?? null,
+      userParts: userPartsOn
+        ? existingUserParts
+            .filter((p) => p.status !== 'retired')
+            .map((p) => ({ id: p.id, name: p.name, description: p.description, stance: p.stance }))
+        : undefined,
     })
     // gpt-5.5 with default reasoning was burning the entire token budget on
     // hidden reasoning, leaving zero output. Reflection is structured JSON
@@ -235,6 +244,16 @@ export async function reflectOnSession(
       console.error('[reflect] companion signal update error:', error)
     }
 
+    // 6e-ter. User-part observations + shared lexicon (flag-gated inside).
+    // Best-effort — never lets a parts failure affect the reflection.
+    if (userPartsOn) {
+      try {
+        await updateUserPartsAndLexicon(sessionId, existingUserParts, parsed.partObservations, parsed.coinedPhrases)
+      } catch (error) {
+        console.error('[reflect] user parts update error:', error)
+      }
+    }
+
     // 6f. Prune old memories
     await pruneMemories(parts)
 
@@ -286,6 +305,8 @@ function parseReflectionResponse(response: string): {
     bodyRegion: string; quote: string; emotion: string; intensity: string
   }>
   loopSignal?: { present?: unknown; theme?: unknown; newInformation?: unknown }
+  partObservations?: unknown
+  coinedPhrases?: unknown
 } | null {
   try {
     const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, response]
@@ -357,6 +378,38 @@ export async function updateCompanionSignals(
     current.updatedAt = Date.now()
     if (existing) await db.companionSignals.update('current', current)
     else await db.companionSignals.add(current)
+  }
+}
+
+// User-part observation + lexicon persistence from the reflection pass.
+// Exported for tests. The tracker does all judgment (caps, dedup, precision
+// rails); this just persists its output and the merged lexicon.
+// Spec: docs/superpowers/specs/2026-07-04-user-parts-model-design.md
+export async function updateUserPartsAndLexicon(
+  sessionId: string,
+  existingParts: UserPart[],
+  partObservations: unknown,
+  coinedPhrases: unknown,
+): Promise<void> {
+  const { updates, creates } = applyPartObservations(existingParts, partObservations, sessionId, Date.now())
+  for (const part of updates) {
+    await db.userParts.update(part.id, part)
+  }
+  for (const part of creates) {
+    await db.userParts.add(part)
+  }
+
+  const facts = await db.personalFacts.get('current')
+  const lexicon = mergeLexicon(facts?.lexicon, coinedPhrases)
+  if (lexicon) {
+    if (facts) {
+      await db.personalFacts.update('current', { lexicon, lastUpdated: Date.now() })
+    } else {
+      await db.personalFacts.add({
+        id: 'current', people: [], dates: [], context: [], currentThreads: [],
+        lexicon, lastUpdated: Date.now(),
+      })
+    }
   }
 }
 

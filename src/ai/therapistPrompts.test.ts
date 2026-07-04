@@ -364,6 +364,30 @@ describe('buildTherapistSystemPrompt — rupture repair / rumination pivot / sof
     expect(prompt).toContain('grounding')
   })
 
+  it('reflection prompt instructs partObservations + coinedPhrases ONLY when userParts is passed', () => {
+    const base = {
+      transcript: 'Writer: hello',
+      profile: null,
+      recentSummaries: [],
+      parts: [{ id: 'open', name: 'The Open', ifsRole: 'self' }],
+      existingFacts: null,
+    }
+    const without = buildSessionReflectionPrompt(base)
+    expect(without[0].content).not.toContain('partObservations')
+    expect(without[0].content).not.toContain('coinedPhrases')
+
+    const withParts = buildSessionReflectionPrompt({
+      ...base,
+      userParts: [{ id: 'up1', name: 'the bracer', description: 'braces before good news', stance: 'protective' }],
+    })
+    expect(withParts[0].content).toContain('partObservations')
+    expect(withParts[0].content).toContain('coinedPhrases')
+    expect(withParts[0].content).toContain('id: up1')
+    // Precision rails spelled out for the model.
+    expect(withParts[0].content).toContain('not a part sighting')
+    expect(withParts[0].content).toContain('At most 2 observations')
+  })
+
   it('reflection prompt instructs the loopSignal output', () => {
     const messages = buildSessionReflectionPrompt({
       transcript: 'Writer: hello',

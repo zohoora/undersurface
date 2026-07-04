@@ -26,17 +26,18 @@ vi.mock('../store/db', () => ({
     entries: { count: vi.fn(async () => 5) },
     parts: { toArray: vi.fn(async () => []) },
     companionSignals: { get: vi.fn(async () => undefined), add: vi.fn(), update: vi.fn() },
+    userParts: { toArray: vi.fn(async () => []), add: vi.fn(), update: vi.fn() },
   },
   generateId: vi.fn(() => 'gen-id'),
 }))
 vi.mock('../store/globalConfig', () => ({
-  getGlobalConfig: vi.fn(() => ({ features: { ruptureRepair: true, ruminationPivot: true } })),
+  getGlobalConfig: vi.fn(() => ({ features: { ruptureRepair: true, ruminationPivot: true, userParts: true } })),
 }))
 vi.mock('./letterEngine', () => ({
   LetterEngine: class { checkForLetter = vi.fn(async () => null) },
 }))
 
-import { reflectOnSession, updateCompanionSignals } from './sessionReflectionEngine'
+import { reflectOnSession, updateCompanionSignals, updateUserPartsAndLexicon } from './sessionReflectionEngine'
 import { chatCompletion } from '../ai/openrouter'
 import { db } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
@@ -369,5 +370,61 @@ describe('updateCompanionSignals', () => {
     await updateCompanionSignals('sess-9', terseMessages, undefined)
 
     expect(db.companionSignals.add).not.toHaveBeenCalled()
+  })
+})
+
+describe('updateUserPartsAndLexicon', () => {
+  beforeEach(() => {
+    vi.mocked(db.userParts.add).mockReset()
+    vi.mocked(db.userParts.update).mockReset()
+    vi.mocked(db.personalFacts.get).mockReset().mockResolvedValue(undefined)
+    vi.mocked(db.personalFacts.add).mockReset()
+    vi.mocked(db.personalFacts.update).mockReset()
+  })
+
+  it('persists new candidates and match updates from observations', async () => {
+    const existing = [{
+      id: 'up1', name: 'the bracer', description: 'braces', stance: 'protective',
+      status: 'candidate', evidence: [], sessionsSeen: 1, dismissedCount: 0,
+      lastActiveAt: 1, createdAt: 1, updatedAt: 1,
+    }] as never
+
+    await updateUserPartsAndLexicon('sess-1', existing, [
+      { partId: 'up1', quote: 'I braced again', stance: 'protective — softening' },
+      { tentativeName: 'the list-maker', description: 'turns feelings into tasks', stance: 'managerial', quote: 'made another list' },
+    ], undefined)
+
+    expect(db.userParts.update).toHaveBeenCalledWith('up1', expect.objectContaining({ sessionsSeen: 2 }))
+    expect(db.userParts.add).toHaveBeenCalledWith(expect.objectContaining({ name: 'the list-maker', status: 'candidate' }))
+  })
+
+  it('merges coined phrases into personalFacts.lexicon (creates the doc when absent)', async () => {
+    await updateUserPartsAndLexicon('sess-1', [], undefined, ['the basement'])
+
+    expect(db.personalFacts.add).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'current', lexicon: ['the basement'],
+    }))
+  })
+
+  it('updates lexicon on an existing facts doc without touching other fields', async () => {
+    vi.mocked(db.personalFacts.get).mockResolvedValue({
+      id: 'current', people: [], dates: [], context: [], currentThreads: [],
+      lexicon: ['gray days'], lastUpdated: 1,
+    } as never)
+
+    await updateUserPartsAndLexicon('sess-1', [], undefined, ['the basement'])
+
+    expect(db.personalFacts.update).toHaveBeenCalledWith('current', expect.objectContaining({
+      lexicon: ['gray days', 'the basement'],
+    }))
+  })
+
+  it('writes nothing for malformed observations and phrases', async () => {
+    await updateUserPartsAndLexicon('sess-1', [], 'garbage', 42)
+
+    expect(db.userParts.add).not.toHaveBeenCalled()
+    expect(db.userParts.update).not.toHaveBeenCalled()
+    expect(db.personalFacts.add).not.toHaveBeenCalled()
+    expect(db.personalFacts.update).not.toHaveBeenCalled()
   })
 })

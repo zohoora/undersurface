@@ -28,6 +28,7 @@ const DEFAULTS: GlobalConfig = {
     emergencyGrounding: false,
     ruptureRepair: false,
     ruminationPivot: false,
+    userParts: false,
     webcamHrv: false,
     polarH10: false,
     voiceEnabled: false,
@@ -597,6 +598,11 @@ export function AdminSettings() {
           label="Rumination Pivot (silent register shift)"
           checked={!!config.features.ruminationPivot}
           onChange={(v) => setFeature('ruminationPivot', v)}
+        />
+        <ToggleRow
+          label="User Parts (collaborative mapping + lexicon)"
+          checked={!!config.features.userParts}
+          onChange={(v) => setFeature('userParts', v)}
         />
       </CollapsibleSection>
 

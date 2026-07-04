@@ -35,6 +35,8 @@ export interface GlobalConfig {
     ruptureRepair?: boolean
     /** Silent register pivot out of rumination loops (live + cross-session). */
     ruminationPivot?: boolean
+    /** Collaborative user-parts mapping (propose → confirm) + shared lexicon. */
+    userParts?: boolean
     // Biometric
     webcamHrv?: boolean
     /** Polar H10 (or any standard Bluetooth HR monitor) — session-mode only. */

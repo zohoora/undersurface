@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { applyPartObservations, selectProposalCandidate } from './userPartTracker'
+import { applyPartObservations, selectProposalCandidate, mergeLexicon } from './userPartTracker'
 import type { UserPart } from '../types'
 
 const NOW = 1_750_000_000_000
@@ -163,5 +163,28 @@ describe('selectProposalCandidate', () => {
       makePart({ id: 'b', sessionsSeen: 4 }),
     ]
     expect(selectProposalCandidate(parts, NOW)?.id).toBe('b')
+  })
+})
+
+describe('mergeLexicon', () => {
+  it('appends new phrases, reinforces existing ones to the end, caps at 12', () => {
+    const existing = Array.from({ length: 12 }, (_, i) => `phrase-${i}`)
+    const merged = mergeLexicon(existing, ['the basement', 'phrase-3'])
+    expect(merged).toHaveLength(12)
+    expect(merged!.at(-1)).toBe('phrase-3')       // reinforced → moved to end
+    expect(merged!.at(-2)).toBe('the basement')   // new → appended
+    expect(merged).not.toContain('phrase-0')      // oldest dropped
+    expect(merged!.filter(p => p === 'phrase-3')).toHaveLength(1) // no dupes
+  })
+
+  it('returns null for malformed/empty input and filters oversized phrases', () => {
+    expect(mergeLexicon(['a'], 'not-an-array')).toBeNull()
+    expect(mergeLexicon(['a'], [])).toBeNull()
+    expect(mergeLexicon(['a'], [42, '', 'x'.repeat(41)])).toBeNull()
+  })
+
+  it('takes at most 3 phrases per session', () => {
+    const merged = mergeLexicon([], ['a', 'b', 'c', 'd'])
+    expect(merged).toEqual(['a', 'b', 'c'])
   })
 })

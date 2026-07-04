@@ -586,13 +586,23 @@ export interface SessionReflectionPromptOptions {
   recentSummaries: EntrySummary[]
   parts: { id: string; name: string; ifsRole: string }[]
   existingFacts: PersonalFacts | null
+  // The writer's mapped parts (candidates + active), so the model matches
+  // recurring patterns to EXISTING ids instead of duplicating. Absent when
+  // the userParts flag is off.
+  userParts?: { id: string; name: string; description: string; stance: string }[]
 }
 
 export function buildSessionReflectionPrompt(
   options: SessionReflectionPromptOptions,
 ): { role: 'system' | 'user'; content: string }[] {
-  const { transcript, profile, recentSummaries, parts, existingFacts } = options
+  const { transcript, profile, recentSummaries, parts, existingFacts, userParts } = options
   const partList = parts.map(p => `${p.name} (id: ${p.id}, role: ${p.ifsRole})`).join(', ')
+
+  const userPartsContext = userParts && userParts.length > 0
+    ? `\n\nThe writer's mapped parts (match recurring patterns to these ids; do not duplicate):\n${userParts
+        .map(p => `- id: ${p.id} | "${sanitizeForPrompt(p.name)}" — ${sanitizeForPrompt(p.description)} (stance: ${sanitizeForPrompt(p.stance)})`)
+        .join('\n')}`
+    : ''
 
   let profileContext = ''
   if (profile) {
@@ -613,12 +623,36 @@ export function buildSessionReflectionPrompt(
       }, null, 2)}`
     : '\n\nNo personal facts captured yet. Extract any concrete details mentioned in this session.'
 
+  // Only instruct part observation / lexicon harvest when the caller opted in
+  // (userParts flag on) — otherwise the model would emit fields we discard.
+  const partObservationSchema = userParts !== undefined
+    ? `,
+  "partObservations": [
+    { "partId": "existing-id-when-this-matches-a-mapped-part-above", "quote": "exact phrase from session (max 15 words)", "stance": "updated 3-8 word internal descriptor" },
+    { "tentativeName": "the part that braces", "description": "one sentence in plain language", "stance": "3-8 word internal descriptor", "quote": "exact phrase from session (max 15 words)" }
+  ],
+  "coinedPhrases": ["distinctive phrases the WRITER coined this session (max 3)"]`
+    : ''
+  const partObservationRules = userParts !== undefined
+    ? `
+
+PART OBSERVATIONS — extraction rules:
+- A part observation is a RECURRING behavioral or emotional move belonging to the writer ("a part of me that...", bracing, deflecting with humor, going quiet around a topic) — visible in THIS transcript, literally.
+- Match to an existing mapped part id whenever it is plausibly the same part; only invent a tentativeName when nothing listed fits.
+- NEVER extract from metaphor or figures of speech ("I told my anxiety to be quiet" is not a part sighting). Never from distress or crisis content. One-off events are not parts.
+- tentativeName must be lowercase, gentle, non-clinical, in everyday words ("the list-maker", "the part that braces") — no diagnostic or psychological jargon.
+- At most 2 observations. Bias strongly toward omitting: no clear sighting, omit the field entirely.
+
+COINED PHRASES — extraction rules:
+- Only phrases the WRITER invented or uses in a personal, idiosyncratic sense ("the basement", "gray days"). Not common idioms, not the companion's phrasing. Max 3; omit the field when none.`
+    : ''
+
   return [
     {
       role: 'system',
       content: `You are an analytical observer of a diary writer's inner world. You analyze completed session transcripts to extract insights. The session was a conversation between the writer and an IFS-informed companion.
 
-Active parts: ${partList}${profileContext}${summaryContext}${factsContext}
+Active parts: ${partList}${profileContext}${summaryContext}${factsContext}${userPartsContext}
 
 Respond with valid JSON only:
 {
@@ -656,14 +690,14 @@ Respond with valid JSON only:
     "present": false,
     "theme": "",
     "newInformation": true
-  }
+  }${partObservationSchema}
 }
 
 LOOP SIGNAL — rules:
 - "present" is true ONLY when this session substantially re-treads ground already visible in the recent entry summaries — same worry or grievance in nearly the same terms. Compare against the summaries above, not just within this session.
 - "newInformation" is true when this session added anything the summaries don't show: a new detail, a new feeling, a decision, a shift in perspective. When present=false, set newInformation=true.
 - "theme": when present=true, a neutral 3-8 word label for the re-trodden topic. Otherwise "".
-- Retelling a painful event, grief, and processing that is MOVING are not loops. When unsure, present=false.
+- Retelling a painful event, grief, and processing that is MOVING are not loops. When unsure, present=false.${partObservationRules}
 
 PERSONAL FACTS — extraction rules:
 - Return the FULL updated object (existing facts + new mentions, consolidated). Not a delta.

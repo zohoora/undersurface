@@ -125,6 +125,31 @@ export function applyPartObservations(
   return { updates, creates }
 }
 
+const LEXICON_CAP = 12
+const PHRASE_CHAR_CAP = 40
+const PHRASES_PER_SESSION_CAP = 3
+
+// Merge this session's coined phrases into the shared lexicon. Newest
+// reinforcement wins position (a re-coined phrase moves to the end); cap
+// drops the oldest. Returns null when nothing valid arrived (no write).
+export function mergeLexicon(existing: string[] | undefined, phrases: unknown): string[] | null {
+  if (!Array.isArray(phrases)) return null
+  const incoming = phrases
+    .filter((p): p is string => typeof p === 'string')
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0 && p.length <= PHRASE_CHAR_CAP)
+    .slice(0, PHRASES_PER_SESSION_CAP)
+  if (incoming.length === 0) return null
+
+  const merged = [...(existing ?? [])]
+  for (const phrase of incoming) {
+    const idx = merged.findIndex((m) => m.toLowerCase() === phrase.toLowerCase())
+    if (idx >= 0) merged.splice(idx, 1)
+    merged.push(phrase)
+  }
+  return merged.slice(-LEXICON_CAP)
+}
+
 // The one candidate (if any) eligible to be offered this session. Most-seen
 // wins — the strongest evidence gets the scarce proposal slot.
 export function selectProposalCandidate(parts: UserPart[], now: number): UserPart | null {
