@@ -9,6 +9,20 @@ import type { UserPart } from '../../types'
 // here — a part doesn't exist to the user until it's been offered and kept.
 // The full constellation view is SP4.
 // Spec: docs/superpowers/specs/2026-07-04-user-parts-model-design.md
+
+// Module-level (not render-scoped): the React Compiler purity rule forbids
+// impure calls like Date.now() in functions created during render.
+async function persistRename(id: string, name: string): Promise<void> {
+  try {
+    await db.userParts.update(id, { name, updatedAt: Date.now() })
+  } catch { /* optimistic UI; next open re-reads truth */ }
+}
+
+async function persistRetire(id: string): Promise<void> {
+  try {
+    await db.userParts.update(id, { status: 'retired', retiredAt: Date.now(), updatedAt: Date.now() })
+  } catch { /* optimistic UI; next open re-reads truth */ }
+}
 export function UserPartsSection({ isOpen }: { isOpen: boolean }) {
   const t = useTranslation()
   const [parts, setParts] = useState<UserPart[]>([])
@@ -28,20 +42,16 @@ export function UserPartsSection({ isOpen }: { isOpen: boolean }) {
 
   if (!enabled || parts.length === 0) return null
 
-  const rename = async (id: string, name: string) => {
+  const rename = (id: string, name: string) => {
     const trimmed = name.trim()
     if (!trimmed) return
     setParts((prev) => prev.map((p) => (p.id === id ? { ...p, name: trimmed } : p)))
-    try {
-      await db.userParts.update(id, { name: trimmed, updatedAt: Date.now() })
-    } catch { /* optimistic; next open re-reads truth */ }
+    void persistRename(id, trimmed)
   }
 
-  const retire = async (id: string) => {
+  const retire = (id: string) => {
     setParts((prev) => prev.filter((p) => p.id !== id))
-    try {
-      await db.userParts.update(id, { status: 'retired', retiredAt: Date.now(), updatedAt: Date.now() })
-    } catch { /* optimistic; next open re-reads truth */ }
+    void persistRetire(id)
   }
 
   return (
@@ -53,7 +63,7 @@ export function UserPartsSection({ isOpen }: { isOpen: boolean }) {
             <input
               defaultValue={part.name}
               aria-label={t['parts.settings.title']}
-              onBlur={(e) => { if (e.target.value.trim() !== part.name) void rename(part.id, e.target.value) }}
+              onBlur={(e) => { if (e.target.value.trim() !== part.name) rename(part.id, e.target.value) }}
               style={{
                 flex: 1,
                 minWidth: 0,
@@ -67,7 +77,7 @@ export function UserPartsSection({ isOpen }: { isOpen: boolean }) {
               }}
             />
             <button
-              onClick={() => void retire(part.id)}
+              onClick={() => retire(part.id)}
               style={{
                 fontSize: 10,
                 padding: '3px 8px',
