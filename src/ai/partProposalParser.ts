@@ -42,3 +42,16 @@ export function extractValueProposal(text: string): { cleanText: string; proposa
 export function containsValueProposal(text: string): boolean {
   return /\]\(#propose-value:[\w-]+\)/.test(text)
 }
+
+// Presence marker: [line](#presence) — the line renders; the live UI holds a
+// breathing presence indicator until the writer types again.
+const PRESENCE_PATTERN = /\[([^\]]+)\]\(#presence\)/g
+
+export function extractPresence(text: string): { cleanText: string; presence: boolean } {
+  let presence = false
+  const cleanText = text.replace(PRESENCE_PATTERN, (_f, line: string) => {
+    presence = true
+    return line
+  })
+  return { cleanText, presence }
+}

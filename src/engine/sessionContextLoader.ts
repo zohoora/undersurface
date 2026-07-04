@@ -45,6 +45,8 @@ export interface TherapistContext {
   duePromises: { id: string; text: string }[]
   missedPromise: { id: string; text: string } | null
   promiseSlotsOpen: boolean
+  // A pending story arc awaiting consume-once delivery (storyArcs flag).
+  storyArc: { text: string } | null
 }
 
 const MEMORY_SOURCE_PARTS = ['open', 'weaver', 'still']
@@ -59,6 +61,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
   const stanceOn = features?.stanceAdaptation === true
   const valuesOn = features?.userValues === true
   const interiorityOn = features?.companionInteriority === true
+  const arcsOn = features?.storyArcs === true
 
   const [sessions, memories, profiles, facts, relaxBreaks, signals, allUserParts, allIntentions, stanceProfile, allValues, allPromises] = await Promise.all([
     // Bounded: only the 5 newest noted sessions are kept, so scanning the
@@ -73,7 +76,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     db.userProfile.toArray(),
     db.personalFacts.get('current'),
     db.relaxSessions.orderBy('startedAt').reverse().limit(RECENT_RELAX_LIMIT * 2).toArray(),
-    repairOn || pivotOn || interiorityOn ? db.companionSignals.get('current') : Promise.resolve(undefined),
+    repairOn || pivotOn || interiorityOn || arcsOn ? db.companionSignals.get('current') : Promise.resolve(undefined),
     userPartsOn ? db.userParts.toArray() : Promise.resolve([] as UserPart[]),
     intentionsOn ? db.sessionIntentions.toArray() : Promise.resolve([] as SessionIntention[]),
     stanceOn || interiorityOn ? db.stanceProfile.get('current') : Promise.resolve(undefined as StanceProfile | undefined),
@@ -217,6 +220,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     duePromises,
     missedPromise: missed ? { id: missed.id, text: missed.text } : null,
     promiseSlotsOpen: interiorityOn && activePromises.length < 2,
+    storyArc: arcsOn && signals?.pendingArc?.text ? { text: signals.pendingArc.text } : null,
   }
 }
 

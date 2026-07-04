@@ -336,6 +336,8 @@ export interface CompanionSignals {
   carriedNoticing?: { text: string; fromSessionId: string; createdAt: number } | null
   // Cooldown stamp for story-arc reflections (>= 30 days between arcs).
   lastArcAt?: number
+  // A generated arc awaiting delivery (consume-once, non-opener turns).
+  pendingArc?: { text: string; createdAt: number } | null
   updatedAt: number
 }
 

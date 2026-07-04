@@ -19,6 +19,7 @@ import { useSessionStream, type BiometricSource } from '../../hooks/useSessionSt
 import { VoiceField } from './VoiceField'
 import { loadTherapistContext } from '../../engine/sessionContextLoader'
 import { maybeBackfillUserParts } from '../../engine/userPartsBackfill'
+import { maybeGenerateStoryArc } from '../../engine/storyArc'
 import { ClosingCheckIn } from './ClosingCheckIn'
 import type { TherapistContext } from '../../engine/sessionContextLoader'
 import { reflectOnSession } from '../../engine/sessionReflectionEngine'
@@ -122,9 +123,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       if (cancelled) return
       contextRef.current = context
 
-      // One-time user-parts history backfill (flag- and claim-gated inside;
-      // fire-and-forget, never on the session's critical path).
+      // One-time user-parts history backfill + story-arc trigger (both flag-
+      // gated inside; fire-and-forget, never on the session's critical path).
       void maybeBackfillUserParts()
+      void maybeGenerateStoryArc(sessionId ?? undefined)
 
       if (sessionId) {
         const existingSession = await db.sessions.get(sessionId)

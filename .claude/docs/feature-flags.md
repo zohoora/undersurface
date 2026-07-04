@@ -50,6 +50,11 @@
 | `features.userParts` | Collaborative user-parts mapping: reflection-pass observations → in-session proposal (`#propose-part` marker + consent card) → confirmed in the writer's own words; active parts + shared lexicon enter the prompt; "Parts of you" settings section. Suppressed under grounding. Spec: `docs/superpowers/specs/2026-07-04-user-parts-model-design.md` |
 | `features.sessionIntentions` | The thread: between-session intentions in the writer's words (volunteered via reflection or companion-offered via `#offer-intention` + IntentionCard), warm opener follow-up, 3×"not yet" → once-ever pattern naming + avoidancePatterns. Cap 3 open. Suppressed under grounding. Spec: `docs/superpowers/specs/2026-07-04-intentions-and-stance-design.md` |
 | `features.stanceAdaptation` | N-of-1 stance learning: one-tap closing check-in (`Session.leavingFeeling`) + per-session stance observations consolidated every 5th into ≤6 internal plain-language tendencies injected as prompt context. Never touches safety/grounding behavior. Internal-only v1 |
+| `features.userValues` | Collaborative values map (same propose→confirm grammar as parts, `#propose-value` + card); intentions link the value they serve; "What matters to you" in Settings. Spec: `docs/superpowers/specs/2026-07-04-companion-depth-program.md` |
+| `features.companionInteriority` | Process disclosure (≤1/session, grounded ONLY in stance data), companion promises (`#promise[:date]` markers, cap 2, `#kept-promise:<id>` delivery, misses acknowledged), carrying (one reflection noticing → next opener, consume-once) |
+| `features.companionPresence` | Designed silence: `[line](#presence)` renders one line + breathing indicator instead of paragraphs. Never during grounding |
+| `features.earnedHumor` | Rare callback levity (lexicon/history), never at the writer's expense, stance-suppressed when observations read it as hindered |
+| `features.storyArcs` | Story-so-far reflections at pivotal moments (long-gap return / anniversary), ≥30-day cooldown, declines on thin history, consume-once delivery |
 | `features.intentionsEnabled` | Per-entry writing intentions |
 | `features.guidedExplorations` | AI writing prompts on new entries |
 | **Biometric** (Session Mode only) | |

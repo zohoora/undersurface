@@ -99,6 +99,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
   // acknowledgment armed once per session.
   const carriedConsumedRef = useRef(false)
   const missedAcknowledgedRef = useRef(false)
+  const arcDeliveredRef = useRef(false)
 
   const resetSignalsForSession = (sessionId: string) => {
     if (signalSessionIdRef.current === sessionId) return
@@ -113,6 +114,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     patternNamedRef.current = false
     carriedConsumedRef.current = false
     missedAcknowledgedRef.current = false
+    arcDeliveredRef.current = false
   }
 
   // Returns the updated messages array after the therapist message is finalized.
@@ -289,6 +291,16 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           : undefined
         const promiseInvite = interiorityFlagOn && context?.promiseSlotsOpen === true ? true : undefined
 
+        // Story arc: delivered once on a non-opener turn, then cleared.
+        const storyArc =
+          signalFeatures?.storyArcs === true && !isFirstTurn && !arcDeliveredRef.current && context?.storyArc
+            ? context.storyArc
+            : undefined
+
+        // Presence + humor: register-level permissions, prompt-gated.
+        const allowPresence = signalFeatures?.companionPresence === true ? true : undefined
+        const allowHumor = signalFeatures?.earnedHumor === true ? true : undefined
+
         // Values: context every turn; the value proposal shares the single
         // per-session proposal slot with part proposals (parts win).
         const valuesFlagOn = signalFeatures?.userValues === true
@@ -336,6 +348,9 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           duePromises,
           missedPromise,
           promiseInvite,
+          allowPresence,
+          allowHumor,
+          storyArc,
         })
 
         typewriter.reset()
@@ -425,6 +440,15 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             if (contextRef.current) contextRef.current.partProposalCandidate = null
             void db.userParts
               .update(partProposal.id, { proposedAt: Date.now(), updatedAt: Date.now() })
+              .catch(() => { /* best-effort */ })
+          }
+
+          // Story arc: consumed by the build that delivered it.
+          if (storyArc) {
+            arcDeliveredRef.current = true
+            if (contextRef.current) contextRef.current.storyArc = null
+            void db.companionSignals
+              .update('current', { pendingArc: null, updatedAt: Date.now() })
               .catch(() => { /* best-effort */ })
           }
 

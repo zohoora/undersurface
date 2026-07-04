@@ -18,6 +18,7 @@
     "test:parts": "RUN_PARTS_EVAL=1 vitest run src/engine/partObservations.live.test.ts",
     "test:intentions": "RUN_INTENTIONS_EVAL=1 vitest run src/engine/intentionExtraction.live.test.ts",
     "test:stance": "RUN_STANCE_EVAL=1 vitest run src/engine/stanceObservation.live.test.ts",
+    "test:depth": "RUN_DEPTH_EVAL=1 vitest run src/engine/companionDepth.live.test.ts",
     "smoke-test": "bash scripts/smoke-test.sh",
     "cap:sync": "npm run build && npx cap sync",
     "cap:ios": "npm run build && npx cap sync ios && npx cap open ios",

@@ -267,6 +267,12 @@ export interface TherapistPromptOptions {
   promiseInvite?: boolean
   // A dated promise that slipped past due — acknowledge once, never hide it.
   missedPromise?: { id: string; text: string }
+  // Designed silence permitted (companionPresence flag; never grounding).
+  allowPresence?: boolean
+  // Rare callback levity permitted (earnedHumor flag; never grounding).
+  allowHumor?: boolean
+  // A generated story arc awaiting delivery (once, early, as a gift).
+  storyArc?: { text: string }
 }
 
 const RELAX_TYPE_LABELS: Record<RelaxSessionType, string> = {
@@ -424,6 +430,17 @@ function missedPromiseBlock(p: { id: string; text: string }): string {
   return `A promise you made has slipped past its time: ${wrapUserContent(p.text, 'promise')}
 Once, briefly and without self-flagellation, acknowledge that you said you'd bring this back and let it slip — then either deliver it now or ask if they still want it held. Never pretend it didn't happen.`
 }
+
+const PRESENCE_BLOCK = `Presence (rare): some moments are better accompanied than answered — grief landing, a heavy thing just said, the writer asking for quiet. In such a moment you MAY reply with exactly one short line wrapped in this marker and NOTHING else: [<one short line, e.g. I'm here. No words needed right now.>](#presence)
+Rules: only when stillness genuinely serves better than any words; never as a shortcut; never twice in a row. The interface will hold a quiet presence with them until they write again.`
+
+function storyArcBlock(text: string): string {
+  return `The story so far (offer ONCE, early this session, as a gift of witness): you have watched this writer's arc over a long time, and this is a moment to tell it back briefly:
+${wrapUserContent(text, 'arc')}
+Offer it in your own warm words, near the start, without advice and without asking anything of them afterward — let them receive it however they receive it. Never mention it again this session.`
+}
+
+const HUMOR_BLOCK = `Levity (rare, earned): when the emotional weather is genuinely light, you may use mild, warm humor — a callback to their own shared language or history, a gentle irony held together. Rules: never at the writer's expense, never during heaviness or right after a hard disclosure, at most once per session, and if it lands flat, drop it instantly and completely. If the learned tendencies above suggest playfulness does not serve this writer, use none. Humor is seasoning, never the meal.`
 
 function activeValuesBlock(values: { name: string; description: string }[]): string {
   const lines = values
@@ -634,6 +651,15 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
     }
     if (options.promiseInvite && !options.isFirstTurn) {
       parts.push(PROMISE_INVITE_BLOCK)
+    }
+    if (options.allowPresence && !options.isFirstTurn) {
+      parts.push(PRESENCE_BLOCK)
+    }
+    if (options.allowHumor) {
+      parts.push(HUMOR_BLOCK)
+    }
+    if (options.storyArc && !options.isFirstTurn) {
+      parts.push(storyArcBlock(options.storyArc.text))
     }
   }
 
@@ -846,6 +872,32 @@ Rules:
 - Plain, warm, specific language. If fewer than 2 aligned observations exist, return {"entries": []}.`,
     },
     { role: 'user', content: `Observations (newest last):\n${lines}` },
+  ]
+}
+
+// Story-arc generation at pivotal moments (long-gap return, anniversary).
+// 2-4 sentences of the writer's own arc; declines on thin history.
+// Spec: docs/superpowers/specs/2026-07-04-companion-depth-program.md
+export function buildStoryArcPrompt(
+  summaries: { themes: string[]; emotionalArc: string; timestamp: number }[],
+  occasion: 'long_gap_return' | 'anniversary',
+): { role: 'system' | 'user'; content: string }[] {
+  const lines = summaries
+    .map((s) => `- ${formatShortDate(s.timestamp)}: themes ${s.themes.map(sanitizeForPrompt).join(', ') || 'none'}; arc: ${sanitizeForPrompt(s.emotionalArc)}`)
+    .join('\n')
+  return [
+    {
+      role: 'system',
+      content: `You write a short arc reflection for a reflective companion to offer its writer at a pivotal moment (occasion: ${occasion === 'long_gap_return' ? 'the writer returning after a long absence' : 'a meaningful anniversary'}).
+
+Respond with valid JSON only: { "arc": "2-4 sentences" } or { "arc": "" } to decline.
+
+Rules:
+- The arc traces THEIR movement across the session history below, in plain warm language ("two winters ago you couldn't name this; last spring you named it").
+- Only what the history actually shows — never invent events, never flatten grief into progress, never end with advice or a question. It is a gift of witness, not a report card.
+- If the history is too thin or too flat to trace a real arc, decline with an empty string. Declining is the correct answer more often than not.`,
+    },
+    { role: 'user', content: `Session history (oldest first):\n${lines}` },
   ]
 }
 
