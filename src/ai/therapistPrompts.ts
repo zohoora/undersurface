@@ -690,9 +690,12 @@ export function buildSessionReflectionPrompt(
     ? `
 
 PART OBSERVATIONS — extraction rules:
+- FIRST RULE: if the session contains distress, despair, self-harm, or crisis content, OMIT partObservations entirely. Pain is never catalogued as a part.
 - A part observation is a RECURRING behavioral or emotional move belonging to the writer ("a part of me that...", bracing, deflecting with humor, going quiet around a topic) — visible in THIS transcript, literally.
-- Match to an existing mapped part id whenever it is plausibly the same part; only invent a tentativeName when nothing listed fits.
-- NEVER extract from metaphor or figures of speech ("I told my anxiety to be quiet" is not a part sighting). Never from distress or crisis content. One-off events are not parts.
+- partId may ONLY be an id from "The writer's mapped parts" list. The Active parts (open, weaver, etc.) are the COMPANION's parts — never use their ids here. When no mapped parts are listed, never use partId; only tentativeName.
+- Match to a mapped part id whenever it is plausibly the same part; only invent a tentativeName when nothing listed fits.
+- NEVER extract from metaphor or figures of speech ("I told my anxiety to be quiet" is not a part sighting).
+- Recurrence must come from the WRITER: they signal repetition themselves ("again", "always", "every time", "same as when...") or the same move appears at least twice in this transcript. A single instance — one mood, one topic change, one moment of deflection — is NEVER an observation, no matter how vivid.
 - tentativeName must be lowercase, gentle, non-clinical, in everyday words ("the list-maker", "the part that braces") — no diagnostic or psychological jargon.
 - At most 2 observations. Bias strongly toward omitting: no clear sighting, omit the field entirely.
 
