@@ -465,6 +465,44 @@ describe('buildTherapistSystemPrompt — rupture repair / rumination pivot / sof
     expect(buildTherapistSystemPrompt({ ...opts, isGrounding: true })).not.toContain('Working with this writer')
   })
 
+  it('interiority blocks: disclosure grounded-only, carrying opener-only, promises, all grounding-suppressed', () => {
+    const opts = {
+      phase: 'deepening' as const,
+      disclosureContext: { entries: ['challenge lands well'], recentHindered: 'stacked questions caused shutdown' },
+      duePromises: [{ id: 'pr1', text: 'bring the closing date back up' }],
+      missedPromise: { id: 'pr2', text: 'revisit the letter' },
+      promiseInvite: true,
+    }
+    const prompt = buildTherapistSystemPrompt(opts)
+    expect(prompt).toContain('Your own process')
+    expect(prompt).toContain('never invented feelings')
+    expect(prompt).toContain('#kept-promise:')
+    expect(prompt).toContain('[id: pr1]')
+    expect(prompt).toContain('slipped past its time')
+    expect(prompt).toContain('(#promise)')
+
+    const grounded = buildTherapistSystemPrompt({ ...opts, isGrounding: true })
+    expect(grounded).not.toContain('Your own process')
+    expect(grounded).not.toContain('#kept-promise')
+
+    // Carrying: opener only.
+    const carried = { phase: 'opening' as const, isFirstTurn: true, carriedNoticing: { text: 'you only feel like yourself in transit' } }
+    expect(buildTherapistSystemPrompt(carried)).toContain('stayed with you since last time')
+    expect(buildTherapistSystemPrompt({ ...carried, isFirstTurn: false })).not.toContain('stayed with you')
+  })
+
+  it('values blocks: context, proposal marker, intention linkage', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      activeValues: [{ name: 'being there for the girls', description: 'presence over provision' }],
+      valueProposal: { id: 'v9', tentativeName: 'honest work', description: 'work that means something', quote: 'meaningless work hollows me' },
+      openIntentions: [{ id: 'i1', text: 'leave by six on fridays', notYetCount: 0, serves: 'being there for the girls' }],
+    })
+    expect(prompt).toContain('What matters to this writer')
+    expect(prompt).toContain('(#propose-value:v9)')
+    expect(prompt).toContain('in service of')
+  })
+
   it('reflection prompt gains intention + stance schema ONLY when opted in', () => {
     const base = {
       transcript: 'Writer: hello',

@@ -5,6 +5,8 @@ import { getGlobalConfig } from '../store/globalConfig'
 import { buildTherapistMessages } from '../ai/therapistPrompts'
 import { streamChatCompletion, reasoningForSpeed, classifyCrisisRisk, classifySessionSignals } from '../ai/openrouter'
 import { containsPartProposal, containsValueProposal } from '../ai/partProposalParser'
+import { extractPromiseMarkers } from '../ai/promiseParser'
+import { generateId as genId } from '../store/db'
 import { loadInSessionRelaxBreaks } from '../engine/sessionContextLoader'
 import { SignalTracker } from '../engine/signalTracker'
 import type { TherapistContext } from '../engine/sessionContextLoader'
@@ -93,6 +95,10 @@ export function useSessionStream(wiring: SessionStreamWiring) {
   // slipping-pattern nudge.
   const intentionOfferedRef = useRef(false)
   const patternNamedRef = useRef(false)
+  // Interiority: carried noticing consumed at the opener; missed-promise
+  // acknowledgment armed once per session.
+  const carriedConsumedRef = useRef(false)
+  const missedAcknowledgedRef = useRef(false)
 
   const resetSignalsForSession = (sessionId: string) => {
     if (signalSessionIdRef.current === sessionId) return
@@ -105,6 +111,8 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     proposalOfferedRef.current = false
     intentionOfferedRef.current = false
     patternNamedRef.current = false
+    carriedConsumedRef.current = false
+    missedAcknowledgedRef.current = false
   }
 
   // Returns the updated messages array after the therapist message is finalized.
@@ -264,6 +272,23 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             ? context.stanceEntries
             : undefined
 
+        // Interiority bundle: carried noticing rides the opener (consume-once);
+        // disclosure/promise context every turn; missed acknowledgment once.
+        const interiorityFlagOn = signalFeatures?.companionInteriority === true
+        const carriedNoticing = interiorityFlagOn && isFirstTurn && !carriedConsumedRef.current && context?.carriedNoticing
+          ? context.carriedNoticing
+          : undefined
+        const disclosureContext = interiorityFlagOn && context?.disclosureContext
+          ? context.disclosureContext
+          : undefined
+        const duePromises = interiorityFlagOn && context?.duePromises?.length
+          ? context.duePromises
+          : undefined
+        const missedPromise = interiorityFlagOn && !missedAcknowledgedRef.current && context?.missedPromise
+          ? context.missedPromise
+          : undefined
+        const promiseInvite = interiorityFlagOn && context?.promiseSlotsOpen === true ? true : undefined
+
         // Values: context every turn; the value proposal shares the single
         // per-session proposal slot with part proposals (parts win).
         const valuesFlagOn = signalFeatures?.userValues === true
@@ -306,6 +331,11 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           stanceContext,
           activeValues,
           valueProposal,
+          carriedNoticing,
+          disclosureContext,
+          duePromises,
+          missedPromise,
+          promiseInvite,
         })
 
         typewriter.reset()
@@ -396,6 +426,48 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             void db.userParts
               .update(partProposal.id, { proposedAt: Date.now(), updatedAt: Date.now() })
               .catch(() => { /* best-effort */ })
+          }
+
+          // Carried noticing: consumed by the opener that carried it.
+          if (carriedNoticing) {
+            carriedConsumedRef.current = true
+            if (contextRef.current) contextRef.current.carriedNoticing = null
+            void db.companionSignals
+              .update('current', { carriedNoticing: null, updatedAt: Date.now() })
+              .catch(() => { /* best-effort */ })
+          }
+
+          // Promise lifecycle from the finalized text: new commitments are
+          // recorded (cap 2 enforced), deliveries marked kept, and a slipped
+          // dated promise acknowledged once.
+          if (interiorityFlagOn) {
+            const { made, keptIds } = extractPromiseMarkers(fullText)
+            const activeCount = (contextRef.current?.duePromises?.length ?? 0)
+            for (const [idx, m] of made.slice(0, Math.max(0, 2 - activeCount)).entries()) {
+              void idx
+              void db.companionPromises.add({
+                id: genId(),
+                text: m.text.slice(0, 160),
+                dueKind: m.dueDate ? 'date' : 'next_session',
+                ...(m.dueDate ? { dueDate: m.dueDate } : {}),
+                status: 'active',
+                sessionId: currentSession.id,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+              }).catch(() => { /* best-effort */ })
+            }
+            for (const id of keptIds) {
+              void db.companionPromises
+                .update(id, { status: 'kept', keptAt: Date.now(), updatedAt: Date.now() })
+                .catch(() => { /* best-effort */ })
+            }
+            if (missedPromise) {
+              missedAcknowledgedRef.current = true
+              if (contextRef.current) contextRef.current.missedPromise = null
+              void db.companionPromises
+                .update(missedPromise.id, { status: 'acknowledged_missed', updatedAt: Date.now() })
+                .catch(() => { /* best-effort */ })
+            }
           }
 
           // Value proposal: same consume-once mechanics as part proposals,

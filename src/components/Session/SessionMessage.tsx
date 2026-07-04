@@ -6,6 +6,7 @@ import { ValueProposalCard } from './ValueProposalCard'
 import { IntentionCard } from './IntentionCard'
 import { extractPartProposal, extractValueProposal } from '../../ai/partProposalParser'
 import { extractIntentionOffer } from '../../ai/intentionOfferParser'
+import { extractPromiseMarkers } from '../../ai/promiseParser'
 import { scrubLeakedRiskMarker } from '../../ai/openrouter'
 
 interface Props {
@@ -32,7 +33,8 @@ export const SessionMessageBubble = memo(function SessionMessageBubble({
     const partPass = extractPartProposal(scrubbed)
     const valuePass = extractValueProposal(partPass.cleanText)
     const offerPass = extractIntentionOffer(valuePass.cleanText)
-    return { content: offerPass.cleanText, proposal: partPass.proposal, offer: offerPass.offer, valueProposal: valuePass.proposal }
+    const promisePass = extractPromiseMarkers(offerPass.cleanText)
+    return { content: promisePass.cleanText, proposal: partPass.proposal, offer: offerPass.offer, valueProposal: valuePass.proposal }
   }, [isUser, scrubbed])
   const showRecommendations =
     !isUser && typeof message.content === 'string' && onRecommendationTap

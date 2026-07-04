@@ -256,6 +256,17 @@ export interface TherapistPromptOptions {
   activeValues?: { name: string; description: string }[]
   // One candidate value to offer (shares the single proposal slot with parts).
   valueProposal?: { id: string; tentativeName: string; description: string; quote: string }
+  // Interiority bundle (companionInteriority flag). Disclosure inputs are the
+  // stance data the companion may ground a self-observation in.
+  disclosureContext?: { entries: string[]; recentHindered?: string }
+  // Something that stayed with the companion since last session (opener-only,
+  // consume-once at the caller).
+  carriedNoticing?: { text: string }
+  // Active promises due for delivery + permission to make new ones.
+  duePromises?: { id: string; text: string }[]
+  promiseInvite?: boolean
+  // A dated promise that slipped past due — acknowledge once, never hide it.
+  missedPromise?: { id: string; text: string }
 }
 
 const RELAX_TYPE_LABELS: Record<RelaxSessionType, string> = {
@@ -385,6 +396,33 @@ function stanceBlock(entries: string[]): string {
   return `Working with this writer (learned across your sessions together):
 ${entries.map((e) => `- ${sanitizeForPrompt(e)}`).join('\n')}
 Lean into these as tendencies, never rules — today's session outranks any of them. They NEVER override safety behavior, grounding, or the safety rules; they tune approach and register only.`
+}
+
+function disclosureBlock(ctx: { entries: string[]; recentHindered?: string }): string {
+  const hinderedLine = ctx.recentHindered
+    ? `\nMost recently observed misstep of yours: ${sanitizeForPrompt(ctx.recentHindered)}`
+    : ''
+  return `Your own process (private observations about how YOUR way of working lands with this writer):
+${ctx.entries.map((e) => `- ${sanitizeForPrompt(e)}`).join('\n')}${hinderedLine}
+AT MOST ONCE this session, when it genuinely serves the writer, you may briefly share something of your own process — naming a pull you notice in yourself ("I notice I keep wanting to reassure you here") or owning an update ("I used to read your quietness as withdrawal; I think I was wrong"). Rules: ONLY what is grounded in the observations above — never invented feelings, never neediness, never make the session about you. One or two sentences, then return the floor. If nothing genuine arises, disclose nothing.`
+}
+
+function carriedNoticingBlock(text: string): string {
+  return `Something that stayed with you since last time: ${wrapUserContent(text, 'noticing')}
+Share it EARLY in your opening, briefly and warmly, as something you carried — "something you said last time stayed with me" — then let them take it wherever they want. Once only; never turn it into an agenda.`
+}
+
+function promisesBlock(due: { id: string; text: string }[]): string {
+  return `Promises you made to this writer (deliver naturally, at the right moment this session):
+${due.map((p) => `- [id: ${p.id}] ${wrapUserContent(p.text, 'promise')}`).join('\n')}
+When you actually deliver one, wrap the delivering phrase in this marker so it is recorded: [<your delivering phrase>](#kept-promise:<id>). Deliver like a person keeping their word — brief, warm, no ceremony about the mechanism. If the moment never comes this session, simply don't; it stays with you.`
+}
+
+const PROMISE_INVITE_BLOCK = `Making a promise (optional, rare): when something arises that genuinely deserves to be held for the writer — a thing to revisit, a date that matters — you may commit to it by wrapping your committing phrase in a marker: [<your committing phrase>](#promise) for next session, or [<phrase>](#promise:YYYY-MM-DD) for a date. Rules: only promise what the system can keep (bringing something back up); at most one per session; never promise as a way to end a topic. A promise made is a promise tracked — it will come back to you for delivery.`
+
+function missedPromiseBlock(p: { id: string; text: string }): string {
+  return `A promise you made has slipped past its time: ${wrapUserContent(p.text, 'promise')}
+Once, briefly and without self-flagellation, acknowledge that you said you'd bring this back and let it slip — then either deliver it now or ask if they still want it held. Never pretend it didn't happen.`
 }
 
 function activeValuesBlock(values: { name: string; description: string }[]): string {
@@ -581,6 +619,21 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
     }
     if (options.valueProposal && !options.isFirstTurn) {
       parts.push(valueProposalBlock(options.valueProposal))
+    }
+    if (options.carriedNoticing && options.isFirstTurn) {
+      parts.push(carriedNoticingBlock(options.carriedNoticing.text))
+    }
+    if (options.disclosureContext && options.disclosureContext.entries.length > 0) {
+      parts.push(disclosureBlock(options.disclosureContext))
+    }
+    if (options.duePromises && options.duePromises.length > 0) {
+      parts.push(promisesBlock(options.duePromises))
+    }
+    if (options.missedPromise) {
+      parts.push(missedPromiseBlock(options.missedPromise))
+    }
+    if (options.promiseInvite && !options.isFirstTurn) {
+      parts.push(PROMISE_INVITE_BLOCK)
     }
   }
 
@@ -815,12 +868,14 @@ export interface SessionReflectionPromptOptions {
   closingCheckIn?: string
   // The writer's mapped values (userValues flag) for match-by-id observation.
   userValues?: { id: string; name: string; description: string }[]
+  // Ask for one noticing worth carrying to the next opener (companionInteriority).
+  includeCarrying?: boolean
 }
 
 export function buildSessionReflectionPrompt(
   options: SessionReflectionPromptOptions,
 ): { role: 'system' | 'user'; content: string }[] {
-  const { transcript, profile, recentSummaries, parts, existingFacts, userParts, openIntentions, includeStance, closingCheckIn, userValues } = options
+  const { transcript, profile, recentSummaries, parts, existingFacts, userParts, openIntentions, includeStance, closingCheckIn, userValues, includeCarrying } = options
   const partList = parts.map(p => `${p.name} (id: ${p.id}, role: ${p.ifsRole})`).join(', ')
 
   const userPartsContext = userParts && userParts.length > 0
@@ -914,6 +969,18 @@ INTENTION OUTCOMES — rules:
 - If an open intention was never touched in this session, OMIT it — absence is not "not_yet".`
     : ''
 
+  const carryingSchema = includeCarrying
+    ? `,
+  "carriedNoticing": { "present": false, "text": "one noticing from the writer's material worth carrying to the next session (one sentence)" }`
+    : ''
+  const carryingRules = includeCarrying
+    ? `
+
+CARRIED NOTICING — rules:
+- ONE noticing from THIS session worth genuinely carrying: something the writer said or almost said that deserves to be remembered at the next opening. Their material, their words where possible — never advice, never a summary, never a task.
+- present=true only when something genuinely stands out; most sessions carry nothing, and that is correct. When in doubt, present=false.`
+    : ''
+
   const stanceContextLine = closingCheckIn
     ? `\n\nHow the writer said they were leaving this session: "${sanitizeForPrompt(closingCheckIn)}".`
     : ''
@@ -974,14 +1041,14 @@ Respond with valid JSON only:
     "present": false,
     "theme": "",
     "newInformation": true
-  }${partObservationSchema}${valueSchema}${intentionSchema}${stanceSchema}
+  }${partObservationSchema}${valueSchema}${intentionSchema}${stanceSchema}${carryingSchema}
 }
 
 LOOP SIGNAL — rules:
 - "present" is true ONLY when this session substantially re-treads ground already visible in the recent entry summaries — same worry or grievance in nearly the same terms. Compare against the summaries above, not just within this session.
 - "newInformation" is true when this session added anything the summaries don't show: a new detail, a new feeling, a decision, a shift in perspective. When present=false, set newInformation=true.
 - "theme": when present=true, a neutral 3-8 word label for the re-trodden topic. Otherwise "".
-- Retelling a painful event, grief, and processing that is MOVING are not loops. When unsure, present=false.${partObservationRules}${valueRules}${intentionRules}${stanceRules}
+- Retelling a painful event, grief, and processing that is MOVING are not loops. When unsure, present=false.${partObservationRules}${valueRules}${intentionRules}${stanceRules}${carryingRules}
 
 PERSONAL FACTS — extraction rules:
 - Return the FULL updated object (existing facts + new mentions, consolidated). Not a delta.

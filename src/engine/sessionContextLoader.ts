@@ -1,4 +1,4 @@
-import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue } from '../types'
+import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue, CompanionPromise } from '../types'
 import { db } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { detectOpenTimeEvidence } from './ruptureDetector'
@@ -38,6 +38,13 @@ export interface TherapistContext {
   valueProposalCandidate: { id: string; tentativeName: string; description: string; quote: string } | null
   // id → name map so intentions can show which value they serve.
   valueNamesById: Record<string, string>
+  // Interiority bundle (flag-gated): carried noticing (opener, consume-once),
+  // disclosure inputs, due/missed promises, and whether new ones may be made.
+  carriedNoticing: { text: string } | null
+  disclosureContext: { entries: string[]; recentHindered?: string } | null
+  duePromises: { id: string; text: string }[]
+  missedPromise: { id: string; text: string } | null
+  promiseSlotsOpen: boolean
 }
 
 const MEMORY_SOURCE_PARTS = ['open', 'weaver', 'still']
@@ -51,8 +58,9 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
   const intentionsOn = features?.sessionIntentions === true
   const stanceOn = features?.stanceAdaptation === true
   const valuesOn = features?.userValues === true
+  const interiorityOn = features?.companionInteriority === true
 
-  const [sessions, memories, profiles, facts, relaxBreaks, signals, allUserParts, allIntentions, stanceProfile, allValues] = await Promise.all([
+  const [sessions, memories, profiles, facts, relaxBreaks, signals, allUserParts, allIntentions, stanceProfile, allValues, allPromises] = await Promise.all([
     // Bounded: only the 5 newest noted sessions are kept, so scanning the
     // full collection is pure read amplification. 50 newest gives ample
     // margin for closed-without-note gaps.
@@ -65,11 +73,12 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     db.userProfile.toArray(),
     db.personalFacts.get('current'),
     db.relaxSessions.orderBy('startedAt').reverse().limit(RECENT_RELAX_LIMIT * 2).toArray(),
-    repairOn || pivotOn ? db.companionSignals.get('current') : Promise.resolve(undefined),
+    repairOn || pivotOn || interiorityOn ? db.companionSignals.get('current') : Promise.resolve(undefined),
     userPartsOn ? db.userParts.toArray() : Promise.resolve([] as UserPart[]),
     intentionsOn ? db.sessionIntentions.toArray() : Promise.resolve([] as SessionIntention[]),
-    stanceOn ? db.stanceProfile.get('current') : Promise.resolve(undefined as StanceProfile | undefined),
+    stanceOn || interiorityOn ? db.stanceProfile.get('current') : Promise.resolve(undefined as StanceProfile | undefined),
     valuesOn ? db.userValues.toArray() : Promise.resolve([] as UserValue[]),
+    interiorityOn ? db.companionPromises.toArray() : Promise.resolve([] as CompanionPromise[]),
   ])
 
   // Extract notes from the 5 most recent closed sessions
@@ -161,6 +170,20 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
   const valueNamesById: Record<string, string> = {}
   if (valuesOn) for (const v of allValues) if (v.status === 'active') valueNamesById[v.id] = v.name
 
+  // Interiority: due promises (next_session always due; dated within 3 days),
+  // one missed dated promise (>7 days past), disclosure inputs, carrying.
+  const DAY = 86_400_000
+  const activePromises = interiorityOn ? allPromises.filter((pr) => pr.status === 'active') : []
+  const duePromises = activePromises
+    .filter((pr) => pr.dueKind === 'next_session' || (pr.dueDate && new Date(pr.dueDate).getTime() - Date.now() < 3 * DAY && Date.now() - new Date(pr.dueDate).getTime() < 7 * DAY))
+    .map((pr) => ({ id: pr.id, text: pr.text }))
+  const missed = activePromises.find(
+    (pr) => pr.dueKind === 'date' && pr.dueDate && Date.now() - new Date(pr.dueDate).getTime() >= 7 * DAY,
+  )
+  const recentHindered = interiorityOn
+    ? [...(stanceProfile?.rawObservations ?? [])].reverse().find((o) => o.direction === 'hindered')?.observation
+    : undefined
+
   return {
     recentSessionNotes,
     relevantMemories: allMemories,
@@ -185,6 +208,15 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
       ? { id: valueCandidate.id, tentativeName: valueCandidate.name, description: valueCandidate.description, quote: valueCandidate.evidence.at(-1)?.quote ?? '' }
       : null,
     valueNamesById,
+    carriedNoticing: interiorityOn && signals?.carriedNoticing?.text
+      ? { text: signals.carriedNoticing.text }
+      : null,
+    disclosureContext: interiorityOn && (stanceProfile?.entries?.length || recentHindered)
+      ? { entries: stanceProfile?.entries ?? [], recentHindered }
+      : null,
+    duePromises,
+    missedPromise: missed ? { id: missed.id, text: missed.text } : null,
+    promiseSlotsOpen: interiorityOn && activePromises.length < 2,
   }
 }
 

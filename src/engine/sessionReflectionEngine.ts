@@ -47,6 +47,7 @@ export async function reflectOnSession(
     const intentionsOn = features?.sessionIntentions === true
     const stanceOn = features?.stanceAdaptation === true
     const valuesOn = features?.userValues === true
+    const interiorityOn = features?.companionInteriority === true
     const [profile, allSummaries, existingFacts, existingUserParts, allIntentions, sessionDoc, existingValues] = await Promise.all([
       db.userProfile.get('current'),
       db.entrySummaries.orderBy('timestamp').reverse().toArray(),
@@ -85,6 +86,7 @@ export async function reflectOnSession(
             .filter((v) => v.status !== 'retired')
             .map((v) => ({ id: v.id, name: v.name, description: v.description }))
         : undefined,
+      includeCarrying: interiorityOn || undefined,
     })
     // gpt-5.5 with default reasoning was burning the entire token budget on
     // hidden reasoning, leaving zero output. Reflection is structured JSON
@@ -298,6 +300,20 @@ export async function reflectOnSession(
         console.error('[reflect] stance update error:', error)
       }
     }
+    if (interiorityOn && parsed.carriedNoticing?.present === true && typeof parsed.carriedNoticing.text === 'string' && parsed.carriedNoticing.text.trim()) {
+      try {
+        const signals = await db.companionSignals.get('current')
+        const carried = {
+          text: parsed.carriedNoticing.text.trim().slice(0, 200),
+          fromSessionId: sessionId,
+          createdAt: Date.now(),
+        }
+        if (signals) await db.companionSignals.update('current', { ...signals, carriedNoticing: carried, updatedAt: Date.now() })
+        else await db.companionSignals.add({ id: 'current', pendingRepair: null, ruminationWatch: null, carriedNoticing: carried, updatedAt: Date.now() })
+      } catch (error) {
+        console.error('[reflect] carrying update error:', error)
+      }
+    }
 
     // 6f. Prune old memories
     await pruneMemories(parts)
@@ -356,6 +372,7 @@ function parseReflectionResponse(response: string): {
   intentionOutcomes?: unknown
   stanceObservation?: { observation?: unknown; direction?: unknown }
   valueObservations?: unknown
+  carriedNoticing?: { present?: unknown; text?: unknown }
 } | null {
   try {
     const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, response]
