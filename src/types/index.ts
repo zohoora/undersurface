@@ -299,6 +299,32 @@ export interface SessionLog {
   dayOfWeek: number
 }
 
+// Rupture / rumination signal state (singleton doc 'current'). Written by the
+// context loader (open-time rupture evidence), the reflection engine
+// (terse-ending marker, cross-session loop streak), and the session stream
+// (consume-once repair clearing). Spec:
+// docs/superpowers/specs/2026-07-03-rupture-rumination-design.md
+export type RuptureEvidence = 'abandoned' | 'terse_ending' | 'atypical_gap'
+
+export interface CompanionSignals {
+  id: 'current'
+  // Single slot; newest evidence wins. Cleared by the opener that uses it —
+  // a repair that repeats becomes an accusation.
+  pendingRepair: {
+    evidence: RuptureEvidence
+    sourceSessionId: string
+    createdAt: number
+  } | null
+  // Armed after 3 consecutive loop sessions (LLM judges recurrence; client
+  // only counts). theme is model output — treat as untrusted in prompts.
+  ruminationWatch: {
+    theme: string
+    streak: number
+    lastConfirmedAt: number
+  } | null
+  updatedAt: number
+}
+
 export interface GuidedExploration {
   id: string
   prompt: string

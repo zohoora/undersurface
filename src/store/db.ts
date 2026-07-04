@@ -22,6 +22,7 @@ import type {
   DiaryEntry, Part, PartMemory, PartThought, ThinkingOutLoudInteraction,
   EntrySummary, UserProfile, PersonalFacts, EntryFossil, PartLetter, SessionLog,
   InnerWeather, ConsentRecord, Session, SessionMessage, ApiKey, RelaxSession,
+  CompanionSignals,
 } from '../types'
 import type { HrvSessionData, CameraHrvConsent, PolarH10Consent } from '../types/hrv'
 import type { DiagnosticEvent } from '../services/diagnostics'
@@ -158,6 +159,7 @@ export const db = {
   hrvSessions: createCollectionProxy<HrvSessionData>('hrvSessions'),
   relaxSessions: createCollectionProxy<RelaxSession>('relaxSessions'),
   diagnostics: createCollectionProxy<DiagnosticEvent>('diagnostics'),
+  companionSignals: createCollectionProxy<CompanionSignals>('companionSignals'),
 }
 
 export const sessionMessages = {

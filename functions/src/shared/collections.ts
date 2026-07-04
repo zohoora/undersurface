@@ -22,4 +22,5 @@ export const USER_SUBCOLLECTIONS = [
   'hrvSessions',
   'relaxSessions',
   'diagnostics',
+  'companionSignals',
 ] as const
