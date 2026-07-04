@@ -241,6 +241,12 @@ const ru = {
 
 
   'checkin.muchLighter': 'Гораздо легче',
+
+
+  'values.card.hint': 'Это важно для вас? Назовите это своими словами',
+
+
+  'values.settings.title': 'Что для вас важно',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Билатеральный ритм',
 

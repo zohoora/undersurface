@@ -1,10 +1,11 @@
-import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals, UserPart, SessionIntention, StanceProfile } from '../types'
+import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue } from '../types'
 import { db } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { detectOpenTimeEvidence } from './ruptureDetector'
 import { RUMINATION_WATCH_ARM_STREAK } from './signalTracker'
 import { selectProposalCandidate } from './userPartTracker'
 import { orderForFollowUp, selectPatternToName } from './intentionTracker'
+import { selectValueProposal } from './userValueTracker'
 
 export interface TherapistContext {
   recentSessionNotes: { note: string; date: number }[]
@@ -29,9 +30,14 @@ export interface TherapistContext {
   // for a closing offer, + at most one slipping intention to name once.
   openIntentions: { id: string; text: string; notYetCount: number }[]
   intentionSlotsOpen: boolean
-  intentionPatternToName: { id: string; text: string } | null
+  intentionPatternToName: { id: string; text: string; valueName?: string } | null
   // Internal stance tendencies (flag-gated).
   stanceEntries: string[]
+  // Confirmed values (flag-gated) + at most one value-proposal candidate.
+  activeValues: { name: string; description: string }[]
+  valueProposalCandidate: { id: string; tentativeName: string; description: string; quote: string } | null
+  // id → name map so intentions can show which value they serve.
+  valueNamesById: Record<string, string>
 }
 
 const MEMORY_SOURCE_PARTS = ['open', 'weaver', 'still']
@@ -44,8 +50,9 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
   const userPartsOn = features?.userParts === true
   const intentionsOn = features?.sessionIntentions === true
   const stanceOn = features?.stanceAdaptation === true
+  const valuesOn = features?.userValues === true
 
-  const [sessions, memories, profiles, facts, relaxBreaks, signals, allUserParts, allIntentions, stanceProfile] = await Promise.all([
+  const [sessions, memories, profiles, facts, relaxBreaks, signals, allUserParts, allIntentions, stanceProfile, allValues] = await Promise.all([
     // Bounded: only the 5 newest noted sessions are kept, so scanning the
     // full collection is pure read amplification. 50 newest gives ample
     // margin for closed-without-note gaps.
@@ -62,6 +69,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     userPartsOn ? db.userParts.toArray() : Promise.resolve([] as UserPart[]),
     intentionsOn ? db.sessionIntentions.toArray() : Promise.resolve([] as SessionIntention[]),
     stanceOn ? db.stanceProfile.get('current') : Promise.resolve(undefined as StanceProfile | undefined),
+    valuesOn ? db.userValues.toArray() : Promise.resolve([] as UserValue[]),
   ])
 
   // Extract notes from the 5 most recent closed sessions
@@ -146,6 +154,13 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
   const orderedIntentions = intentionsOn ? orderForFollowUp(allIntentions) : []
   const patternToName = intentionsOn ? selectPatternToName(allIntentions) : null
 
+  const activeValues = valuesOn
+    ? allValues.filter((v) => v.status === 'active').map((v) => ({ name: v.name, description: v.description }))
+    : []
+  const valueCandidate = valuesOn ? selectValueProposal(allValues, Date.now()) : null
+  const valueNamesById: Record<string, string> = {}
+  if (valuesOn) for (const v of allValues) if (v.status === 'active') valueNamesById[v.id] = v.name
+
   return {
     recentSessionNotes,
     relevantMemories: allMemories,
@@ -156,10 +171,20 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     ruminationWatch,
     activeUserParts,
     partProposalCandidate,
-    openIntentions: orderedIntentions.map((i) => ({ id: i.id, text: i.text, notYetCount: i.notYetCount })),
+    openIntentions: orderedIntentions.map((i) => ({
+      id: i.id, text: i.text, notYetCount: i.notYetCount,
+      serves: i.valueId ? valueNamesById[i.valueId] : undefined,
+    })),
     intentionSlotsOpen: intentionsOn && orderedIntentions.length < 3,
-    intentionPatternToName: patternToName ? { id: patternToName.id, text: patternToName.text } : null,
+    intentionPatternToName: patternToName
+      ? { id: patternToName.id, text: patternToName.text, valueName: patternToName.valueId ? valueNamesById[patternToName.valueId] : undefined }
+      : null,
     stanceEntries: stanceOn ? stanceProfile?.entries ?? [] : [],
+    activeValues,
+    valueProposalCandidate: valueCandidate
+      ? { id: valueCandidate.id, tentativeName: valueCandidate.name, description: valueCandidate.description, quote: valueCandidate.evidence.at(-1)?.quote ?? '' }
+      : null,
+    valueNamesById,
   }
 }
 

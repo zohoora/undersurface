@@ -241,6 +241,12 @@ const th = {
 
 
   'checkin.muchLighter': 'เบาขึ้นมาก',
+
+
+  'values.card.hint': 'สิ่งนี้สำคัญกับคุณไหม? ตั้งชื่อด้วยคำของคุณ',
+
+
+  'values.settings.title': 'สิ่งที่สำคัญกับคุณ',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'จังหวะสองข้าง',
 

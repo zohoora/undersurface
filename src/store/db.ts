@@ -22,7 +22,7 @@ import type {
   DiaryEntry, Part, PartMemory, PartThought, ThinkingOutLoudInteraction,
   EntrySummary, UserProfile, PersonalFacts, EntryFossil, PartLetter, SessionLog,
   InnerWeather, ConsentRecord, Session, SessionMessage, ApiKey, RelaxSession,
-  CompanionSignals, UserPart, SessionIntention, StanceProfile,
+  CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue, CompanionPromise,
 } from '../types'
 import type { HrvSessionData, CameraHrvConsent, PolarH10Consent } from '../types/hrv'
 import type { DiagnosticEvent } from '../services/diagnostics'
@@ -163,6 +163,8 @@ export const db = {
   userParts: createCollectionProxy<UserPart>('userParts'),
   sessionIntentions: createCollectionProxy<SessionIntention>('sessionIntentions'),
   stanceProfile: createCollectionProxy<StanceProfile>('stanceProfile'),
+  userValues: createCollectionProxy<UserValue>('userValues'),
+  companionPromises: createCollectionProxy<CompanionPromise>('companionPromises'),
 }
 
 export const sessionMessages = {

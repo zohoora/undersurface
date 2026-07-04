@@ -241,6 +241,12 @@ const vi = {
 
 
   'checkin.muchLighter': 'Nhẹ hơn nhiều',
+
+
+  'values.card.hint': 'Điều này có quan trọng với bạn? Hãy đặt tên bằng lời của bạn',
+
+
+  'values.settings.title': 'Điều quan trọng với bạn',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Nhịp hai bên',
 

@@ -332,6 +332,10 @@ export interface CompanionSignals {
   // Stamped BEFORE the one-time user-parts history backfill starts (claim-
   // first: an interrupted run never repeats; partial seeding is acceptable).
   partsBackfillAt?: number
+  // One noticing carried between sessions (consume-once at the next opener).
+  carriedNoticing?: { text: string; fromSessionId: string; createdAt: number } | null
+  // Cooldown stamp for story-arc reflections (>= 30 days between arcs).
+  lastArcAt?: number
   updatedAt: number
 }
 
@@ -374,6 +378,8 @@ export interface SessionIntention {
   // patternNamed prevents repeats.
   notYetCount: number
   patternNamed: boolean
+  // The user value this intention serves, when the reflection pass linked one.
+  valueId?: string
   lastAskedAt?: number
   resolvedAt?: number
   outcomeNote?: string
@@ -395,6 +401,39 @@ export interface StanceProfile {
   }[]
   entries: string[]
   consolidatedAt?: number
+  updatedAt: number
+}
+
+// A value of the USER — what matters to them, in their words. Same
+// collaborative grammar as UserPart (proposed by the companion, confirmed and
+// named by the writer). Spec: docs/superpowers/specs/2026-07-04-companion-depth-program.md
+export interface UserValue {
+  id: string
+  name: string          // writer's words; tentative until confirmed
+  description: string
+  status: 'candidate' | 'active' | 'retired'
+  evidence: { sessionId: string; quote: string; observedAt: number }[]
+  sessionsSeen: number
+  dismissedCount: number
+  proposedAt?: number
+  confirmedAt?: number
+  retiredAt?: number
+  lastActiveAt: number
+  createdAt: number
+  updatedAt: number
+}
+
+// A promise the COMPANION made and must visibly keep (cap 2 active). Never
+// silently dropped — a missed dated promise is acknowledged.
+export interface CompanionPromise {
+  id: string
+  text: string
+  dueKind: 'next_session' | 'date'
+  dueDate?: string       // ISO date when dueKind === 'date'
+  status: 'active' | 'kept' | 'acknowledged_missed'
+  sessionId: string      // born in
+  createdAt: number
+  keptAt?: number
   updatedAt: number
 }
 

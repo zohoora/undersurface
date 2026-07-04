@@ -41,6 +41,16 @@ export interface GlobalConfig {
     sessionIntentions?: boolean
     /** N-of-1 stance learning: closing check-in + internal stance profile. */
     stanceAdaptation?: boolean
+    /** Collaborative values mapping + values-linked intentions. */
+    userValues?: boolean
+    /** Interiority bundle: process disclosure, companion promises, carrying. */
+    companionInteriority?: boolean
+    /** Designed silence: one line + breathing presence indicator. */
+    companionPresence?: boolean
+    /** Rare callback-based levity, stance-suppressed when it doesn't land. */
+    earnedHumor?: boolean
+    /** Story-so-far arcs at pivotal moments (gap returns, anniversaries). */
+    storyArcs?: boolean
     // Biometric
     webcamHrv?: boolean
     /** Polar H10 (or any standard Bluetooth HR monitor) — session-mode only. */

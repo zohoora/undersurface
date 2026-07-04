@@ -26,3 +26,19 @@ export function extractPartProposal(text: string): PartProposalExtraction {
 export function containsPartProposal(text: string): boolean {
   return /\]\(#propose-part:[\w-]+\)/.test(text)
 }
+
+// Same mechanics for value proposals: [phrase](#propose-value:<userValueId>).
+const VALUE_PATTERN = /\[([^\]]+)\]\(#propose-value:([\w-]+)\)/g
+
+export function extractValueProposal(text: string): { cleanText: string; proposal: { valueId: string; phrase: string } | null } {
+  let proposal: { valueId: string; phrase: string } | null = null
+  const cleanText = text.replace(VALUE_PATTERN, (_full, phrase: string, valueId: string) => {
+    if (!proposal) proposal = { valueId, phrase }
+    return phrase
+  })
+  return { cleanText, proposal }
+}
+
+export function containsValueProposal(text: string): boolean {
+  return /\]\(#propose-value:[\w-]+\)/.test(text)
+}

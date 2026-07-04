@@ -241,6 +241,12 @@ const hi = {
 
 
   'checkin.muchLighter': 'बहुत हल्का',
+
+
+  'values.card.hint': 'क्या यह आपके लिए मायने रखता है? इसे अपने शब्दों में नाम दें',
+
+
+  'values.settings.title': 'आपके लिए क्या मायने रखता है',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'द्विपक्षीय लय',
 

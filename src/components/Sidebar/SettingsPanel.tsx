@@ -9,6 +9,7 @@ import { submitContactMessage } from '../../api/accountApi'
 import { trackEvent } from '../../services/analytics'
 import { useTranslation, SUPPORTED_LANGUAGES, getLanguageCode } from '../../i18n'
 import { UserPartsSection } from './UserPartsSection'
+import { UserValuesSection } from './UserValuesSection'
 
 const TIMEZONE_VALUES = [
   'Pacific/Honolulu',
@@ -230,6 +231,9 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
 
           {/* Parts of you (userParts flag; renders nothing when off/empty) */}
           <UserPartsSection isOpen={isOpen} />
+
+          {/* What matters to you (userValues flag) */}
+          <UserValuesSection isOpen={isOpen} />
 
           {/* Language */}
           <div className="settings-section">

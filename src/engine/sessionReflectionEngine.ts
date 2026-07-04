@@ -1,4 +1,4 @@
-import type { Part, EntrySummary, UserProfile, PersonalFacts, SessionMessage, CompanionSignals, UserPart, SessionIntention, StanceProfile, Session } from '../types'
+import type { Part, EntrySummary, UserProfile, PersonalFacts, SessionMessage, CompanionSignals, UserPart, SessionIntention, StanceProfile, Session, UserValue } from '../types'
 import { buildSessionReflectionPrompt, buildBoundedTranscript, buildStanceConsolidationPrompt } from '../ai/therapistPrompts'
 import { createIntention, applyIntentionOutcomes, openIntentions } from './intentionTracker'
 import { chatCompletion } from '../ai/openrouter'
@@ -8,6 +8,7 @@ import { LetterEngine } from './letterEngine'
 import { pruneGrowthCollections } from './memoryPruner'
 import { detectTerseEnding } from './ruptureDetector'
 import { applyPartObservations, mergeLexicon } from './userPartTracker'
+import { applyValueObservations } from './userValueTracker'
 import { engineLog } from '../services/diagnostics'
 
 const MEMORY_CAPS: Record<string, number> = {
@@ -45,13 +46,15 @@ export async function reflectOnSession(
     const userPartsOn = features?.userParts === true
     const intentionsOn = features?.sessionIntentions === true
     const stanceOn = features?.stanceAdaptation === true
-    const [profile, allSummaries, existingFacts, existingUserParts, allIntentions, sessionDoc] = await Promise.all([
+    const valuesOn = features?.userValues === true
+    const [profile, allSummaries, existingFacts, existingUserParts, allIntentions, sessionDoc, existingValues] = await Promise.all([
       db.userProfile.get('current'),
       db.entrySummaries.orderBy('timestamp').reverse().toArray(),
       db.personalFacts.get('current'),
       userPartsOn ? db.userParts.toArray() : Promise.resolve([] as UserPart[]),
       intentionsOn ? db.sessionIntentions.toArray() : Promise.resolve([] as SessionIntention[]),
       stanceOn ? db.sessions.get(sessionId) : Promise.resolve(undefined as Session | undefined),
+      valuesOn ? db.userValues.toArray() : Promise.resolve([] as UserValue[]),
     ])
     const recentSummaries = allSummaries.slice(0, 5)
 
@@ -77,6 +80,11 @@ export async function reflectOnSession(
         : undefined,
       includeStance: stanceOn || undefined,
       closingCheckIn: stanceOn ? leavingFeelingLabel(sessionDoc?.leavingFeeling) : undefined,
+      userValues: valuesOn
+        ? existingValues
+            .filter((v) => v.status !== 'retired')
+            .map((v) => ({ id: v.id, name: v.name, description: v.description }))
+        : undefined,
     })
     // gpt-5.5 with default reasoning was burning the entire token budget on
     // hidden reasoning, leaving zero output. Reflection is structured JSON
@@ -268,9 +276,19 @@ export async function reflectOnSession(
     // 6e-quater. Intention lifecycle + stance learning. Best-effort.
     if (intentionsOn) {
       try {
-        await updateSessionIntentions(sessionId, allIntentions, parsed.statedIntention, parsed.intentionOutcomes)
+        const validValueIds = new Set(existingValues.map((v) => v.id))
+        await updateSessionIntentions(sessionId, allIntentions, parsed.statedIntention, parsed.intentionOutcomes, validValueIds)
       } catch (error) {
         console.error('[reflect] intentions update error:', error)
+      }
+    }
+    if (valuesOn) {
+      try {
+        const { updates, creates } = applyValueObservations(existingValues, parsed.valueObservations, sessionId, Date.now())
+        for (const v of updates) await db.userValues.update(v.id, v)
+        for (const v of creates) await db.userValues.add(v)
+      } catch (error) {
+        console.error('[reflect] values update error:', error)
       }
     }
     if (stanceOn) {
@@ -334,9 +352,10 @@ function parseReflectionResponse(response: string): {
   loopSignal?: { present?: unknown; theme?: unknown; newInformation?: unknown }
   partObservations?: unknown
   coinedPhrases?: unknown
-  statedIntention?: { present?: unknown; text?: unknown }
+  statedIntention?: { present?: unknown; text?: unknown; servesValueId?: unknown }
   intentionOutcomes?: unknown
   stanceObservation?: { observation?: unknown; direction?: unknown }
+  valueObservations?: unknown
 } | null {
   try {
     const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, response]
@@ -460,8 +479,9 @@ function leavingFeelingLabel(feeling: Session['leavingFeeling']): string | undef
 export async function updateSessionIntentions(
   sessionId: string,
   allIntentions: SessionIntention[],
-  statedIntention: { present?: unknown; text?: unknown } | undefined,
+  statedIntention: { present?: unknown; text?: unknown; servesValueId?: unknown } | undefined,
   intentionOutcomes: unknown,
+  validValueIds?: Set<string>,
 ): Promise<void> {
   const now = Date.now()
   let current = allIntentions
@@ -473,7 +493,10 @@ export async function updateSessionIntentions(
   }
 
   if (statedIntention?.present === true && typeof statedIntention.text === 'string') {
-    const result = createIntention(current, statedIntention.text, sessionId, now)
+    const valueId = typeof statedIntention.servesValueId === 'string' && validValueIds?.has(statedIntention.servesValueId)
+      ? statedIntention.servesValueId
+      : undefined
+    const result = createIntention(current, statedIntention.text, sessionId, now, valueId)
     if (result) {
       if (result.release) await db.sessionIntentions.update(result.release.id, result.release)
       await db.sessionIntentions.add(result.create)

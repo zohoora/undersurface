@@ -241,6 +241,12 @@ const pl = {
 
 
   'checkin.muchLighter': 'Znacznie lżej',
+
+
+  'values.card.hint': 'Czy to jest dla ciebie ważne? Nazwij to własnymi słowami',
+
+
+  'values.settings.title': 'Co jest dla ciebie ważne',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Rytm bilateralny',
 

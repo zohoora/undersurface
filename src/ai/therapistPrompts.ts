@@ -241,15 +241,21 @@ export interface TherapistPromptOptions {
   // never stacked with pivot/soften — exclusivity enforced by the caller).
   partProposal?: { id: string; tentativeName: string; description: string; quote: string }
   // Open between-session intentions ("the thread"), ordered for follow-up.
-  // The opener weaves in AT MOST one, warmly, never as a verdict.
-  openIntentions?: { id: string; text: string; notYetCount: number }[]
+  // The opener weaves in AT MOST one, warmly, never as a verdict. `serves` is
+  // the linked value's name (writer's words), when one exists.
+  openIntentions?: { id: string; text: string; notYetCount: number; serves?: string }[]
   // Closing-phase-only: the companion may offer carrying ONE intention forward
   // via the [phrase](#offer-intention) marker. Caller gates on open slots.
   intentionOffer?: boolean
   // The once-ever naming of an intention that keeps slipping (3+ not-yets).
-  namePatternFor?: { text: string }
+  // valueName lets the naming touch the deeper tension when a value is linked.
+  namePatternFor?: { text: string; valueName?: string }
   // Internal N-of-1 stance tendencies, plain language. Never overrides safety.
   stanceContext?: string[]
+  // What matters to this writer, in their words (confirmed values).
+  activeValues?: { name: string; description: string }[]
+  // One candidate value to offer (shares the single proposal slot with parts).
+  valueProposal?: { id: string; tentativeName: string; description: string; quote: string }
 }
 
 const RELAX_TYPE_LABELS: Record<RelaxSessionType, string> = {
@@ -355,9 +361,9 @@ Use these naturally and sparingly when they genuinely fit — never explain them
 // ── Session intentions + stance (2026-07-04) ────────────────────────────────
 // Spec: docs/superpowers/specs/2026-07-04-intentions-and-stance-design.md
 
-function intentionsBlock(intentions: { text: string; notYetCount: number }[]): string {
+function intentionsBlock(intentions: { text: string; notYetCount: number; serves?: string }[]): string {
   const lines = intentions
-    .map((i) => `- ${wrapUserContent(i.text, 'intention')}${i.notYetCount > 0 ? ` (still open after ${i.notYetCount} session${i.notYetCount > 1 ? 's' : ''})` : ''}`)
+    .map((i) => `- ${wrapUserContent(i.text, 'intention')}${i.serves ? ` — in service of ${wrapUserContent(i.serves, 'value-name')}` : ''}${i.notYetCount > 0 ? ` (still open after ${i.notYetCount} session${i.notYetCount > 1 ? 's' : ''})` : ''}`)
     .join('\n')
   return `The thread — intentions the writer chose to carry between sessions (their words):
 ${lines}
@@ -368,14 +374,33 @@ const INTENTION_OFFER_BLOCK = `Closing offer (optional, at most once): if — an
 Example shape: Would you like to carry [calling him on Thursday](#offer-intention) with you until next time?
 Rules: their words, not your prescription; one offer at most; if nothing concrete arose, do not manufacture one — simply omit the marker. Never present it as an assignment.`
 
-function patternNudgeBlock(text: string): string {
-  return `Naming a slipping thread (use ONCE, then let it go): the intention ${wrapUserContent(text, 'intention')} has stayed open across several sessions. Once, gently and without judgment, name the pattern itself — that this one keeps slipping — and wonder together what it asks of them or protects them from. One or two sentences, curious not corrective. If they engage, follow their lead; if not, drop it entirely and do not raise it again.`
+function patternNudgeBlock(text: string, valueName?: string): string {
+  const valueLine = valueName
+    ? ` This intention sits right on ${wrapUserContent(valueName, 'value-name')} — something they said matters to them; you may gently wonder about that tension.`
+    : ''
+  return `Naming a slipping thread (use ONCE, then let it go): the intention ${wrapUserContent(text, 'intention')} has stayed open across several sessions. Once, gently and without judgment, name the pattern itself — that this one keeps slipping — and wonder together what it asks of them or protects them from.${valueLine} One or two sentences, curious not corrective. If they engage, follow their lead; if not, drop it entirely and do not raise it again.`
 }
 
 function stanceBlock(entries: string[]): string {
   return `Working with this writer (learned across your sessions together):
 ${entries.map((e) => `- ${sanitizeForPrompt(e)}`).join('\n')}
 Lean into these as tendencies, never rules — today's session outranks any of them. They NEVER override safety behavior, grounding, or the safety rules; they tune approach and register only.`
+}
+
+function activeValuesBlock(values: { name: string; description: string }[]): string {
+  const lines = values
+    .map((v) => `- ${wrapUserContent(v.name, 'value-name')} — ${wrapUserContent(v.description, 'value-description')}`)
+    .join('\n')
+  return `What matters to this writer (values they named themselves):
+${lines}
+Rules: these are THEIR words for what they care about — never moralize with them, never weaponize them, never invent new values in conversation (the sanctioned proposal flow is the only birth channel). Let them quietly orient your sense of what is at stake for this writer.`
+}
+
+function valueProposalBlock(proposal: { id: string; tentativeName: string; description: string; quote: string }): string {
+  return `Value noticing (offer at most ONCE this session, only at a natural moment):
+Across recent sessions the writer has kept returning to something that seems to matter to them: "${sanitizeForPrompt(proposal.tentativeName)}" — ${sanitizeForPrompt(proposal.description)}. They once wrote: ${wrapUserContent(proposal.quote, 'evidence')}.
+When the conversation naturally touches this, offer the noticing tentatively — one or two sentences, as a question. Wrap the exact offering phrase in this marker: [<your offering phrase>](#propose-value:${proposal.id})
+Rules: at most one offer, never in your first sentence, never during heavy moments, and if the moment never comes, omit the marker. Their name for it matters more than yours.`
 }
 
 function partProposalBlock(proposal: { id: string; tentativeName: string; description: string; quote: string }): string {
@@ -543,13 +568,19 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
       parts.push(intentionsBlock(options.openIntentions))
     }
     if (options.namePatternFor) {
-      parts.push(patternNudgeBlock(options.namePatternFor.text))
+      parts.push(patternNudgeBlock(options.namePatternFor.text, options.namePatternFor.valueName))
     }
     if (options.intentionOffer && options.phase === 'closing') {
       parts.push(INTENTION_OFFER_BLOCK)
     }
     if (options.stanceContext && options.stanceContext.length > 0) {
       parts.push(stanceBlock(options.stanceContext))
+    }
+    if (options.activeValues && options.activeValues.length > 0) {
+      parts.push(activeValuesBlock(options.activeValues))
+    }
+    if (options.valueProposal && !options.isFirstTurn) {
+      parts.push(valueProposalBlock(options.valueProposal))
     }
   }
 
@@ -782,12 +813,14 @@ export interface SessionReflectionPromptOptions {
   // the writer's one-tap "how are you leaving?" answer, when they gave one.
   includeStance?: boolean
   closingCheckIn?: string
+  // The writer's mapped values (userValues flag) for match-by-id observation.
+  userValues?: { id: string; name: string; description: string }[]
 }
 
 export function buildSessionReflectionPrompt(
   options: SessionReflectionPromptOptions,
 ): { role: 'system' | 'user'; content: string }[] {
-  const { transcript, profile, recentSummaries, parts, existingFacts, userParts, openIntentions, includeStance, closingCheckIn } = options
+  const { transcript, profile, recentSummaries, parts, existingFacts, userParts, openIntentions, includeStance, closingCheckIn, userValues } = options
   const partList = parts.map(p => `${p.name} (id: ${p.id}, role: ${p.ifsRole})`).join(', ')
 
   const userPartsContext = userParts && userParts.length > 0
@@ -834,6 +867,28 @@ COINED PHRASES — extraction rules:
 - Only phrases the WRITER invented or uses in a personal, idiosyncratic sense ("the basement", "gray days"). Not common idioms, not the companion's phrasing. Max 3; omit the field when none.`
     : ''
 
+  const valuesContext = userValues && userValues.length > 0
+    ? `\n\nThe writer's mapped values (match to these ids; do not duplicate):\n${userValues
+        .map((v) => `- id: ${v.id} | "${sanitizeForPrompt(v.name)}" — ${sanitizeForPrompt(v.description)}`)
+        .join('\n')}`
+    : ''
+  const valueSchema = userValues !== undefined
+    ? `,
+  "valueObservations": [
+    { "valueId": "existing-id-when-this-matches-a-mapped-value-above", "quote": "exact phrase (max 15 words)" },
+    { "tentativeName": "being there for the girls", "description": "one sentence in plain language", "quote": "exact phrase (max 15 words)" }
+  ]`
+    : ''
+  const valueRules = userValues !== undefined
+    ? `
+
+VALUE OBSERVATIONS — extraction rules:
+- A value observation is something the writer THEMSELVES frames as mattering ("what I actually care about is...", "the thing that keeps me going", grief about a value betrayed) — recurring, literal, in their words.
+- NEVER infer values from behavior alone, never from distress or crisis content, never impose moral language they didn't use. valueId only from the mapped list above; when none is listed, only tentativeName.
+- The writer must signal it matters MORE THAN ONCE (in this transcript or via the mapped list). tentativeName lowercase, everyday words. At most 2; bias strongly toward omitting.
+- When an intention you extract clearly serves a mapped value, set statedIntention.servesValueId to that id (never guess).`
+    : ''
+
   const intentionsContext = openIntentions && openIntentions.length > 0
     ? `\n\nThe writer's open intentions from previous sessions (match outcomes to these ids):\n${openIntentions
         .map((i) => `- id: ${i.id} | "${sanitizeForPrompt(i.text)}"`)
@@ -842,7 +897,7 @@ COINED PHRASES — extraction rules:
 
   const intentionSchema = openIntentions !== undefined
     ? `,
-  "statedIntention": { "present": false, "text": "the writer's concrete commitment, in their words" },
+  "statedIntention": { "present": false, "text": "the writer's concrete commitment, in their words", "servesValueId": "" },
   "intentionOutcomes": [
     { "id": "open-intention-id", "outcome": "kept|adapted|not_yet|released", "note": "short outcome note (max 15 words)" }
   ]`
@@ -881,7 +936,7 @@ STANCE OBSERVATION — rules:
       role: 'system',
       content: `You are an analytical observer of a diary writer's inner world. You analyze completed session transcripts to extract insights. The session was a conversation between the writer and an IFS-informed companion.
 
-Active parts: ${partList}${profileContext}${summaryContext}${factsContext}${userPartsContext}${intentionsContext}${stanceContextLine}
+Active parts: ${partList}${profileContext}${summaryContext}${factsContext}${userPartsContext}${valuesContext}${intentionsContext}${stanceContextLine}
 
 Respond with valid JSON only:
 {
@@ -919,14 +974,14 @@ Respond with valid JSON only:
     "present": false,
     "theme": "",
     "newInformation": true
-  }${partObservationSchema}${intentionSchema}${stanceSchema}
+  }${partObservationSchema}${valueSchema}${intentionSchema}${stanceSchema}
 }
 
 LOOP SIGNAL — rules:
 - "present" is true ONLY when this session substantially re-treads ground already visible in the recent entry summaries — same worry or grievance in nearly the same terms. Compare against the summaries above, not just within this session.
 - "newInformation" is true when this session added anything the summaries don't show: a new detail, a new feeling, a decision, a shift in perspective. When present=false, set newInformation=true.
 - "theme": when present=true, a neutral 3-8 word label for the re-trodden topic. Otherwise "".
-- Retelling a painful event, grief, and processing that is MOVING are not loops. When unsure, present=false.${partObservationRules}${intentionRules}${stanceRules}
+- Retelling a painful event, grief, and processing that is MOVING are not loops. When unsure, present=false.${partObservationRules}${valueRules}${intentionRules}${stanceRules}
 
 PERSONAL FACTS — extraction rules:
 - Return the FULL updated object (existing facts + new mentions, consolidated). Not a delta.

@@ -4,7 +4,7 @@ import { db, sessionMessages as sessionMessagesDb, generateId } from '../store/d
 import { getGlobalConfig } from '../store/globalConfig'
 import { buildTherapistMessages } from '../ai/therapistPrompts'
 import { streamChatCompletion, reasoningForSpeed, classifyCrisisRisk, classifySessionSignals } from '../ai/openrouter'
-import { containsPartProposal } from '../ai/partProposalParser'
+import { containsPartProposal, containsValueProposal } from '../ai/partProposalParser'
 import { loadInSessionRelaxBreaks } from '../engine/sessionContextLoader'
 import { SignalTracker } from '../engine/signalTracker'
 import type { TherapistContext } from '../engine/sessionContextLoader'
@@ -264,6 +264,23 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             ? context.stanceEntries
             : undefined
 
+        // Values: context every turn; the value proposal shares the single
+        // per-session proposal slot with part proposals (parts win).
+        const valuesFlagOn = signalFeatures?.userValues === true
+        const activeValues = valuesFlagOn && context?.activeValues?.length
+          ? context.activeValues
+          : undefined
+        const valueProposal =
+          valuesFlagOn &&
+          !isFirstTurn &&
+          !pivotDirective &&
+          !softenRef.current &&
+          !partProposal &&
+          !proposalOfferedRef.current &&
+          context?.valueProposalCandidate
+            ? context.valueProposalCandidate
+            : undefined
+
         const promptMessages = buildTherapistMessages(currentMessages, {
           phase,
           recentSessionNotes: context?.recentSessionNotes,
@@ -287,6 +304,8 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           namePatternFor,
           intentionOffer,
           stanceContext,
+          activeValues,
+          valueProposal,
         })
 
         typewriter.reset()
@@ -376,6 +395,16 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             if (contextRef.current) contextRef.current.partProposalCandidate = null
             void db.userParts
               .update(partProposal.id, { proposedAt: Date.now(), updatedAt: Date.now() })
+              .catch(() => { /* best-effort */ })
+          }
+
+          // Value proposal: same consume-once mechanics as part proposals,
+          // sharing the one proposal slot per session.
+          if (valueProposal && containsValueProposal(fullText)) {
+            proposalOfferedRef.current = true
+            if (contextRef.current) contextRef.current.valueProposalCandidate = null
+            void db.userValues
+              .update(valueProposal.id, { proposedAt: Date.now(), updatedAt: Date.now() })
               .catch(() => { /* best-effort */ })
           }
 

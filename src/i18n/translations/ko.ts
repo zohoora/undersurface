@@ -241,6 +241,12 @@ const ko = {
 
 
   'checkin.muchLighter': '훨씬 가벼워요',
+
+
+  'values.card.hint': '이것이 당신에게 중요한가요? 당신의 말로 이름을 지어주세요',
+
+
+  'values.settings.title': '당신에게 중요한 것',
   // Bilateral stimulation
   'settings.bilateralStimulation': '양측 리듬',
 

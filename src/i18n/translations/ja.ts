@@ -241,6 +241,12 @@ const ja = {
 
 
   'checkin.muchLighter': 'ずっと軽くなった',
+
+
+  'values.card.hint': 'これはあなたにとって大切ですか？あなたの言葉で名前を',
+
+
+  'values.settings.title': 'あなたにとって大切なこと',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'バイラテラル・リズム',
 

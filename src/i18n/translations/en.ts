@@ -316,6 +316,8 @@ const en = {
   'checkin.shadeLighter': 'A shade lighter',
   'checkin.lighter': 'Lighter',
   'checkin.muchLighter': 'Much lighter',
+  'values.card.hint': 'Does this matter to you? Name it in your own words',
+  'values.settings.title': 'What matters to you',
 } as const
 
 export type TranslationKey = keyof typeof en

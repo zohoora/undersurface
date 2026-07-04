@@ -29,6 +29,7 @@ export function createIntention(
   text: string,
   sessionId: string,
   now: number,
+  valueId?: string,
 ): { create: SessionIntention; release: SessionIntention | null } | null {
   const trimmed = text.trim().slice(0, TEXT_CHAR_CAP)
   if (!trimmed) return null
@@ -49,6 +50,7 @@ export function createIntention(
       askedCount: 0,
       notYetCount: 0,
       patternNamed: false,
+      ...(valueId ? { valueId } : {}),
       createdAt: now,
       updatedAt: now,
     },

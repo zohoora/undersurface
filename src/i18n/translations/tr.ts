@@ -241,6 +241,12 @@ const tr = {
 
 
   'checkin.muchLighter': 'Çok daha hafif',
+
+
+  'values.card.hint': 'Bu senin için önemli mi? Kendi kelimelerinle adlandır',
+
+
+  'values.settings.title': 'Senin için önemli olanlar',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'İki taraflı ritim',
 

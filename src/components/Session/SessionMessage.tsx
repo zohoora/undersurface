@@ -2,8 +2,9 @@ import { memo, useMemo } from 'react'
 import type { SessionMessage as SessionMessageType } from '../../types'
 import { RecommendationSegments } from './RecommendationSegments'
 import { PartProposalCard } from './PartProposalCard'
+import { ValueProposalCard } from './ValueProposalCard'
 import { IntentionCard } from './IntentionCard'
-import { extractPartProposal } from '../../ai/partProposalParser'
+import { extractPartProposal, extractValueProposal } from '../../ai/partProposalParser'
 import { extractIntentionOffer } from '../../ai/intentionOfferParser'
 import { scrubLeakedRiskMarker } from '../../ai/openrouter'
 
@@ -26,11 +27,12 @@ export const SessionMessageBubble = memo(function SessionMessageBubble({
   const scrubbed = isUser ? message.content : scrubLeakedRiskMarker(message.content)
   // Part-proposal / intention-offer markers: phrases render as plain text; the
   // consent cards render beneath.
-  const { content, proposal, offer } = useMemo(() => {
-    if (isUser) return { content: scrubbed, proposal: null, offer: null }
+  const { content, proposal, offer, valueProposal } = useMemo(() => {
+    if (isUser) return { content: scrubbed, proposal: null, offer: null, valueProposal: null }
     const partPass = extractPartProposal(scrubbed)
-    const offerPass = extractIntentionOffer(partPass.cleanText)
-    return { content: offerPass.cleanText, proposal: partPass.proposal, offer: offerPass.offer }
+    const valuePass = extractValueProposal(partPass.cleanText)
+    const offerPass = extractIntentionOffer(valuePass.cleanText)
+    return { content: offerPass.cleanText, proposal: partPass.proposal, offer: offerPass.offer, valueProposal: valuePass.proposal }
   }, [isUser, scrubbed])
   const showRecommendations =
     !isUser && typeof message.content === 'string' && onRecommendationTap
@@ -69,6 +71,7 @@ export const SessionMessageBubble = memo(function SessionMessageBubble({
             : content}
         </div>
         {proposal && <PartProposalCard partId={proposal.partId} />}
+        {valueProposal && <ValueProposalCard valueId={valueProposal.valueId} />}
         {offer && intentionOfferSessionId && (
           <IntentionCard phrase={offer.phrase} sessionId={intentionOfferSessionId} />
         )}

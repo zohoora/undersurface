@@ -31,6 +31,11 @@ const DEFAULTS: GlobalConfig = {
     userParts: false,
     sessionIntentions: false,
     stanceAdaptation: false,
+    userValues: false,
+    companionInteriority: false,
+    companionPresence: false,
+    earnedHumor: false,
+    storyArcs: false,
     webcamHrv: false,
     polarH10: false,
     voiceEnabled: false,
@@ -615,6 +620,31 @@ export function AdminSettings() {
           label="Stance Adaptation (N-of-1 + closing check-in)"
           checked={!!config.features.stanceAdaptation}
           onChange={(v) => setFeature('stanceAdaptation', v)}
+        />
+        <ToggleRow
+          label="User Values (collaborative mapping + linked intentions)"
+          checked={!!config.features.userValues}
+          onChange={(v) => setFeature('userValues', v)}
+        />
+        <ToggleRow
+          label="Companion Interiority (disclosure, promises, carrying)"
+          checked={!!config.features.companionInteriority}
+          onChange={(v) => setFeature('companionInteriority', v)}
+        />
+        <ToggleRow
+          label="Companion Presence (designed silence)"
+          checked={!!config.features.companionPresence}
+          onChange={(v) => setFeature('companionPresence', v)}
+        />
+        <ToggleRow
+          label="Earned Humor (callback levity)"
+          checked={!!config.features.earnedHumor}
+          onChange={(v) => setFeature('earnedHumor', v)}
+        />
+        <ToggleRow
+          label="Story Arcs (pivotal-moment reflections)"
+          checked={!!config.features.storyArcs}
+          onChange={(v) => setFeature('storyArcs', v)}
         />
       </CollapsibleSection>
 

@@ -241,6 +241,12 @@ const id = {
 
 
   'checkin.muchLighter': 'Jauh lebih ringan',
+
+
+  'values.card.hint': 'Apakah ini penting bagimu? Beri nama dengan katamu',
+
+
+  'values.settings.title': 'Yang penting bagimu',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Irama bilateral',
 

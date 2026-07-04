@@ -310,7 +310,7 @@ export async function exportAllData() {
     'entrySummaries', 'userProfile', 'personalFacts', 'fossils', 'letters',
     'sessionLog', 'innerWeather', 'consent', 'sessions',
     'hrvSessions', 'relaxSessions', 'companionSignals', 'userParts',
-    'sessionIntentions', 'stanceProfile',
+    'sessionIntentions', 'stanceProfile', 'userValues', 'companionPromises',
   ] as const
 
   const results = await Promise.all(

@@ -241,6 +241,12 @@ const nl = {
 
 
   'checkin.muchLighter': 'Veel lichter',
+
+
+  'values.card.hint': 'Doet dit ertoe voor jou? Benoem het in je eigen woorden',
+
+
+  'values.settings.title': 'Wat er voor jou toe doet',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Bilateraal ritme',
 

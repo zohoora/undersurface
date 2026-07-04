@@ -241,6 +241,12 @@ const pt = {
 
 
   'checkin.muchLighter': 'Muito mais leve',
+
+
+  'values.card.hint': 'Isso importa para você? Nomeie com suas palavras',
+
+
+  'values.settings.title': 'O que importa para você',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Ritmo bilateral',
 

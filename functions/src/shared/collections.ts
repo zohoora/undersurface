@@ -26,4 +26,6 @@ export const USER_SUBCOLLECTIONS = [
   'userParts',
   'sessionIntentions',
   'stanceProfile',
+  'userValues',
+  'companionPromises',
 ] as const

@@ -241,6 +241,12 @@ const de = {
 
 
   'checkin.muchLighter': 'Viel leichter',
+
+
+  'values.card.hint': 'Ist dir das wichtig? Benenne es in deinen Worten',
+
+
+  'values.settings.title': 'Was dir wichtig ist',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Bilateraler Rhythmus',
 

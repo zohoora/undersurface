@@ -241,6 +241,12 @@ const zh = {
 
 
   'checkin.muchLighter': '轻松多了',
+
+
+  'values.card.hint': '这对你重要吗？用你自己的话为它命名',
+
+
+  'values.settings.title': '对你重要的事',
   // Bilateral stimulation
   'settings.bilateralStimulation': '双侧节奏',
 
