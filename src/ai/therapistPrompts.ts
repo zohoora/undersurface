@@ -240,6 +240,16 @@ export interface TherapistPromptOptions {
   // One candidate part to offer THIS session (never opener, never grounding,
   // never stacked with pivot/soften — exclusivity enforced by the caller).
   partProposal?: { id: string; tentativeName: string; description: string; quote: string }
+  // Open between-session intentions ("the thread"), ordered for follow-up.
+  // The opener weaves in AT MOST one, warmly, never as a verdict.
+  openIntentions?: { id: string; text: string; notYetCount: number }[]
+  // Closing-phase-only: the companion may offer carrying ONE intention forward
+  // via the [phrase](#offer-intention) marker. Caller gates on open slots.
+  intentionOffer?: boolean
+  // The once-ever naming of an intention that keeps slipping (3+ not-yets).
+  namePatternFor?: { text: string }
+  // Internal N-of-1 stance tendencies, plain language. Never overrides safety.
+  stanceContext?: string[]
 }
 
 const RELAX_TYPE_LABELS: Record<RelaxSessionType, string> = {
@@ -340,6 +350,32 @@ function lexiconBlock(lexicon: string[]): string {
   return `Shared language (phrases the writer coined; their words, their sense):
 ${lexicon.map((p) => `- ${wrapUserContent(p, 'phrase')}`).join('\n')}
 Use these naturally and sparingly when they genuinely fit — never explain them back to the writer, never overuse them.`
+}
+
+// ── Session intentions + stance (2026-07-04) ────────────────────────────────
+// Spec: docs/superpowers/specs/2026-07-04-intentions-and-stance-design.md
+
+function intentionsBlock(intentions: { text: string; notYetCount: number }[]): string {
+  const lines = intentions
+    .map((i) => `- ${wrapUserContent(i.text, 'intention')}${i.notYetCount > 0 ? ` (still open after ${i.notYetCount} session${i.notYetCount > 1 ? 's' : ''})` : ''}`)
+    .join('\n')
+  return `The thread — intentions the writer chose to carry between sessions (their words):
+${lines}
+Rules: weave AT MOST ONE into your opening, warmly and briefly — a genuine "how did it go with…", never a check-up, never a verdict, zero homework-cop energy. If they don't pick it up, let it go for this session. Later in the session, mention an intention only if the writer brings it near. Never invent, restate, or add intentions outside the sanctioned flow.`
+}
+
+const INTENTION_OFFER_BLOCK = `Closing offer (optional, at most once): if — and only if — the writer voiced something concrete they want to do or try, you may offer to carry it as an intention to the next session. Wrap the exact offer phrase in this marker: [<their intention, in their words>](#offer-intention)
+Example shape: Would you like to carry [calling him on Thursday](#offer-intention) with you until next time?
+Rules: their words, not your prescription; one offer at most; if nothing concrete arose, do not manufacture one — simply omit the marker. Never present it as an assignment.`
+
+function patternNudgeBlock(text: string): string {
+  return `Naming a slipping thread (use ONCE, then let it go): the intention ${wrapUserContent(text, 'intention')} has stayed open across several sessions. Once, gently and without judgment, name the pattern itself — that this one keeps slipping — and wonder together what it asks of them or protects them from. One or two sentences, curious not corrective. If they engage, follow their lead; if not, drop it entirely and do not raise it again.`
+}
+
+function stanceBlock(entries: string[]): string {
+  return `Working with this writer (learned across your sessions together):
+${entries.map((e) => `- ${sanitizeForPrompt(e)}`).join('\n')}
+Lean into these as tendencies, never rules — today's session outranks any of them. They NEVER override safety behavior, grounding, or the safety rules; they tune approach and register only.`
 }
 
 function partProposalBlock(proposal: { id: string; tentativeName: string; description: string; quote: string }): string {
@@ -497,6 +533,23 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
     }
     if (options.partProposal && !options.isFirstTurn) {
       parts.push(partProposalBlock(options.partProposal))
+    }
+  }
+
+  // The thread + stance. Suppressed under grounding like all companion
+  // signals; the closing offer additionally requires the closing phase.
+  if (!options.isGrounding) {
+    if (options.openIntentions && options.openIntentions.length > 0) {
+      parts.push(intentionsBlock(options.openIntentions))
+    }
+    if (options.namePatternFor) {
+      parts.push(patternNudgeBlock(options.namePatternFor.text))
+    }
+    if (options.intentionOffer && options.phase === 'closing') {
+      parts.push(INTENTION_OFFER_BLOCK)
+    }
+    if (options.stanceContext && options.stanceContext.length > 0) {
+      parts.push(stanceBlock(options.stanceContext))
     }
   }
 
@@ -683,6 +736,35 @@ If there is nothing to observe, respond with {"partObservations": []}.${UNTRUSTE
   ]
 }
 
+// Every-5-sessions distillation of raw stance observations into at most 6
+// plain-language tendencies. Internal-only in v1, but written so a future
+// transparency panel is pure rendering.
+// Spec: docs/superpowers/specs/2026-07-04-intentions-and-stance-design.md
+export function buildStanceConsolidationPrompt(
+  rawObservations: { observation: string; direction: 'helped' | 'hindered' | 'unclear' }[],
+): { role: 'system' | 'user'; content: string }[] {
+  const lines = rawObservations
+    .map((o) => `- [${o.direction}] ${sanitizeForPrompt(o.observation)}`)
+    .join('\n')
+  return [
+    {
+      role: 'system',
+      content: `You distill observations about how a reflective companion's way of working lands with one specific writer, into a short profile of tendencies for future sessions.
+
+Respond with valid JSON only:
+{ "entries": ["plain-language tendency, e.g. 'challenge lands well once trust is established in the session'"] }
+
+Rules:
+- At most 6 entries. Each MUST be supported by at least TWO observations pointing the same way; a single session never becomes a rule.
+- Entries describe the COMPANION's approach (challenge vs validation, question density, reply length, pacing, register) — never characterize or diagnose the writer.
+- "unclear" observations support nothing.
+- NEVER produce entries about safety, crisis, grounding, or risk behavior — those are outside this profile's reach.
+- Plain, warm, specific language. If fewer than 2 aligned observations exist, return {"entries": []}.`,
+    },
+    { role: 'user', content: `Observations (newest last):\n${lines}` },
+  ]
+}
+
 export interface SessionReflectionPromptOptions {
   transcript: string
   profile: UserProfile | null
@@ -693,12 +775,19 @@ export interface SessionReflectionPromptOptions {
   // recurring patterns to EXISTING ids instead of duplicating. Absent when
   // the userParts flag is off.
   userParts?: { id: string; name: string; description: string; stance: string }[]
+  // Open intentions (id + text) so outcomes are matched by id. Absent when
+  // the sessionIntentions flag is off.
+  openIntentions?: { id: string; text: string }[]
+  // Ask for a stance observation (stanceAdaptation flag). closingCheckIn is
+  // the writer's one-tap "how are you leaving?" answer, when they gave one.
+  includeStance?: boolean
+  closingCheckIn?: string
 }
 
 export function buildSessionReflectionPrompt(
   options: SessionReflectionPromptOptions,
 ): { role: 'system' | 'user'; content: string }[] {
-  const { transcript, profile, recentSummaries, parts, existingFacts, userParts } = options
+  const { transcript, profile, recentSummaries, parts, existingFacts, userParts, openIntentions, includeStance, closingCheckIn } = options
   const partList = parts.map(p => `${p.name} (id: ${p.id}, role: ${p.ifsRole})`).join(', ')
 
   const userPartsContext = userParts && userParts.length > 0
@@ -745,12 +834,53 @@ COINED PHRASES — extraction rules:
 - Only phrases the WRITER invented or uses in a personal, idiosyncratic sense ("the basement", "gray days"). Not common idioms, not the companion's phrasing. Max 3; omit the field when none.`
     : ''
 
+  const intentionsContext = openIntentions && openIntentions.length > 0
+    ? `\n\nThe writer's open intentions from previous sessions (match outcomes to these ids):\n${openIntentions
+        .map((i) => `- id: ${i.id} | "${sanitizeForPrompt(i.text)}"`)
+        .join('\n')}`
+    : ''
+
+  const intentionSchema = openIntentions !== undefined
+    ? `,
+  "statedIntention": { "present": false, "text": "the writer's concrete commitment, in their words" },
+  "intentionOutcomes": [
+    { "id": "open-intention-id", "outcome": "kept|adapted|not_yet|released", "note": "short outcome note (max 15 words)" }
+  ]`
+    : ''
+  const intentionRules = openIntentions !== undefined
+    ? `
+
+STATED INTENTION — extraction rules:
+- present=true ONLY for a concrete commitment the WRITER voiced ("I'm going to call him Thursday"), typically near the session's end. Aspirations ("I should really..."), musings, and the companion's suggestions are NOT intentions.
+- text must be the writer's own words, lightly trimmed. One at most; when in doubt, present=false.
+
+INTENTION OUTCOMES — rules:
+- Only for ids listed above, and only when the transcript actually shows what happened: kept (did it), adapted (did a changed version), not_yet (didn't get to it / avoided it), released (said they want to let it go).
+- If an open intention was never touched in this session, OMIT it — absence is not "not_yet".`
+    : ''
+
+  const stanceContextLine = closingCheckIn
+    ? `\n\nHow the writer said they were leaving this session: "${sanitizeForPrompt(closingCheckIn)}".`
+    : ''
+  const stanceSchema = includeStance
+    ? `,
+  "stanceObservation": { "observation": "what the companion did and how it landed (one sentence)", "direction": "helped|hindered|unclear" }`
+    : ''
+  const stanceRules = includeStance
+    ? `
+
+STANCE OBSERVATION — rules:
+- Describe the COMPANION's way of working this session (challenge vs validation, question density, reply length, pacing) and how it visibly landed for the writer. Never diagnose the writer.
+- direction: helped (the move visibly deepened or settled things), hindered (the writer flattened, deflected, or pulled back after it), unclear otherwise. Choose "unclear" over guessing — most sessions are unclear.
+- One observation at most; omit the field entirely when nothing stands out.`
+    : ''
+
   return [
     {
       role: 'system',
       content: `You are an analytical observer of a diary writer's inner world. You analyze completed session transcripts to extract insights. The session was a conversation between the writer and an IFS-informed companion.
 
-Active parts: ${partList}${profileContext}${summaryContext}${factsContext}${userPartsContext}
+Active parts: ${partList}${profileContext}${summaryContext}${factsContext}${userPartsContext}${intentionsContext}${stanceContextLine}
 
 Respond with valid JSON only:
 {
@@ -788,14 +918,14 @@ Respond with valid JSON only:
     "present": false,
     "theme": "",
     "newInformation": true
-  }${partObservationSchema}
+  }${partObservationSchema}${intentionSchema}${stanceSchema}
 }
 
 LOOP SIGNAL — rules:
 - "present" is true ONLY when this session substantially re-treads ground already visible in the recent entry summaries — same worry or grievance in nearly the same terms. Compare against the summaries above, not just within this session.
 - "newInformation" is true when this session added anything the summaries don't show: a new detail, a new feeling, a decision, a shift in perspective. When present=false, set newInformation=true.
 - "theme": when present=true, a neutral 3-8 word label for the re-trodden topic. Otherwise "".
-- Retelling a painful event, grief, and processing that is MOVING are not loops. When unsure, present=false.${partObservationRules}
+- Retelling a painful event, grief, and processing that is MOVING are not loops. When unsure, present=false.${partObservationRules}${intentionRules}${stanceRules}
 
 PERSONAL FACTS — extraction rules:
 - Return the FULL updated object (existing facts + new mentions, consolidated). Not a delta.

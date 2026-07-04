@@ -5,7 +5,7 @@ vi.mock('../i18n', () => ({
   getLLMLanguageName: vi.fn(() => 'English'),
 }))
 
-import { buildTherapistSystemPrompt, buildTherapistMessages, buildTherapistSessionNotePrompt, buildSessionReflectionPrompt, buildPartBackfillPrompt } from './therapistPrompts'
+import { buildTherapistSystemPrompt, buildTherapistMessages, buildTherapistSessionNotePrompt, buildSessionReflectionPrompt, buildPartBackfillPrompt, buildStanceConsolidationPrompt } from './therapistPrompts'
 import { REGISTER_TIER_IDS } from './registerTiers'
 import type { SessionMessage, PartMemory, UserProfile, EntrySummary, SessionPhase } from '../types'
 
@@ -422,6 +422,82 @@ describe('buildTherapistSystemPrompt — rupture repair / rumination pivot / sof
     // Precision rails spelled out for the model.
     expect(withParts[0].content).toContain('not a part sighting')
     expect(withParts[0].content).toContain('At most 2 observations')
+  })
+
+  it('intentions block: follow-up rules, untrusted wrap, grounding suppression', () => {
+    const opts = {
+      phase: 'opening' as const,
+      openIntentions: [{ id: 'i1', text: 'call him thursday', notYetCount: 2 }],
+    }
+    const prompt = buildTherapistSystemPrompt(opts)
+    expect(prompt).toContain('The thread')
+    expect(prompt).toContain('<user_intention>call him thursday</user_intention>')
+    expect(prompt).toContain('AT MOST ONE')
+    expect(prompt).toContain('still open after 2 sessions')
+
+    expect(buildTherapistSystemPrompt({ ...opts, isGrounding: true })).not.toContain('The thread')
+  })
+
+  it('intention offer block appears ONLY in the closing phase and never under grounding', () => {
+    const base = { intentionOffer: true }
+    expect(buildTherapistSystemPrompt({ ...base, phase: 'closing' })).toContain('#offer-intention')
+    expect(buildTherapistSystemPrompt({ ...base, phase: 'deepening' })).not.toContain('#offer-intention')
+    expect(buildTherapistSystemPrompt({ ...base, phase: 'closing', isGrounding: true })).not.toContain('#offer-intention')
+  })
+
+  it('pattern nudge names the slipping thread once, gently', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      namePatternFor: { text: 'call him thursday' },
+    })
+    expect(prompt).toContain('Naming a slipping thread')
+    expect(prompt).toContain('use ONCE')
+    expect(prompt).toContain('curious not corrective')
+  })
+
+  it('stance block frames tendencies, never rules, and never overrides safety', () => {
+    const opts = { phase: 'deepening' as const, stanceContext: ['challenge lands well once warmed up'] }
+    const prompt = buildTherapistSystemPrompt(opts)
+    expect(prompt).toContain('Working with this writer')
+    expect(prompt).toContain('tendencies, never rules')
+    expect(prompt).toContain('NEVER override safety')
+
+    expect(buildTherapistSystemPrompt({ ...opts, isGrounding: true })).not.toContain('Working with this writer')
+  })
+
+  it('reflection prompt gains intention + stance schema ONLY when opted in', () => {
+    const base = {
+      transcript: 'Writer: hello',
+      profile: null,
+      recentSummaries: [],
+      parts: [{ id: 'open', name: 'The Open', ifsRole: 'self' }],
+      existingFacts: null,
+    }
+    const plain = buildSessionReflectionPrompt(base)
+    expect(plain[0].content).not.toContain('statedIntention')
+    expect(plain[0].content).not.toContain('stanceObservation')
+
+    const opted = buildSessionReflectionPrompt({
+      ...base,
+      openIntentions: [{ id: 'i1', text: 'call him thursday' }],
+      includeStance: true,
+      closingCheckIn: 'lighter',
+    })
+    expect(opted[0].content).toContain('statedIntention')
+    expect(opted[0].content).toContain('id: i1')
+    expect(opted[0].content).toContain('absence is not "not_yet"')
+    expect(opted[0].content).toContain('stanceObservation')
+    expect(opted[0].content).toContain('"lighter"')
+    expect(opted[0].content).toContain('"unclear" over guessing')
+  })
+
+  it('stance consolidation prompt requires 2+ support and bans safety entries', () => {
+    const messages = buildStanceConsolidationPrompt([
+      { observation: 'short replies landed', direction: 'helped' },
+    ])
+    expect(messages[0].content).toContain('at least TWO observations')
+    expect(messages[0].content).toContain('NEVER produce entries about safety')
+    expect(messages[1].content).toContain('[helped] short replies landed')
   })
 
   it('backfill prompt shares the observation rules and asks ONLY for partObservations', () => {
