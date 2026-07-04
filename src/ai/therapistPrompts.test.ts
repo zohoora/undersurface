@@ -364,6 +364,42 @@ describe('buildTherapistSystemPrompt — rupture repair / rumination pivot / sof
     expect(prompt).toContain('grounding')
   })
 
+  it('includes the user-parts block with untrusted-wrapped names, suppressed under grounding', () => {
+    const opts = {
+      phase: 'deepening' as const,
+      activeUserParts: [{ name: 'the bracer', description: 'braces before good news', stance: 'protective' }],
+    }
+    const prompt = buildTherapistSystemPrompt(opts)
+    expect(prompt).toContain('Parts of the writer you both know')
+    expect(prompt).toContain('<user_part-name>the bracer</user_part-name>')
+    expect(prompt).toContain('never quote or paraphrase')
+
+    const grounded = buildTherapistSystemPrompt({ ...opts, isGrounding: true })
+    expect(grounded).not.toContain('Parts of the writer')
+  })
+
+  it('includes the lexicon block, suppressed under grounding', () => {
+    const opts = { phase: 'deepening' as const, lexicon: ['the basement', 'gray days'] }
+    const prompt = buildTherapistSystemPrompt(opts)
+    expect(prompt).toContain('Shared language')
+    expect(prompt).toContain('<user_phrase>the basement</user_phrase>')
+
+    expect(buildTherapistSystemPrompt({ ...opts, isGrounding: true })).not.toContain('Shared language')
+  })
+
+  it('includes the part-proposal block with the marker syntax, never on opener or grounding', () => {
+    const proposal = { id: 'up-9', tentativeName: 'the list-maker', description: 'turns feelings into tasks', quote: 'made another list instead' }
+    const prompt = buildTherapistSystemPrompt({ phase: 'deepening', isFirstTurn: false, partProposal: proposal })
+    expect(prompt).toContain('Part noticing')
+    expect(prompt).toContain('(#propose-part:up-9)')
+    expect(prompt).toContain('do not force it')
+
+    expect(buildTherapistSystemPrompt({ phase: 'opening', isFirstTurn: true, partProposal: proposal }))
+      .not.toContain('Part noticing')
+    expect(buildTherapistSystemPrompt({ phase: 'deepening', isGrounding: true, partProposal: proposal }))
+      .not.toContain('Part noticing')
+  })
+
   it('reflection prompt instructs partObservations + coinedPhrases ONLY when userParts is passed', () => {
     const base = {
       transcript: 'Writer: hello',

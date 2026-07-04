@@ -232,6 +232,14 @@ export interface TherapistPromptOptions {
   pivotDirective?: { theme?: string }
   // Live withdrawal detected mid-session: soften stance without naming it.
   softenStance?: boolean
+  // The writer's CONFIRMED parts (their names, their words). Stance stays
+  // internal — it shapes tone, never vocabulary. Suppressed under grounding.
+  activeUserParts?: { name: string; description: string; stance: string }[]
+  // Shared language the writer coined; used naturally and sparingly.
+  lexicon?: string[]
+  // One candidate part to offer THIS session (never opener, never grounding,
+  // never stacked with pivot/soften — exclusivity enforced by the caller).
+  partProposal?: { id: string; tentativeName: string; description: string; quote: string }
 }
 
 const RELAX_TYPE_LABELS: Record<RelaxSessionType, string> = {
@@ -311,6 +319,36 @@ Ride their own material — the shift should feel like a natural deepening, not 
 }
 
 const SOFTEN_BLOCK = `Stance adjustment (silent): The writer's replies suggest they may be pulling back from the conversation. Do not name this or ask about it. Make your responses shorter and warmer. Ask nothing probing — at most one gentle, open, low-pressure question, or none. No interpretations, no challenges, no naming of patterns. Leave them room; let them set the pace.`
+
+// ── User parts (SP1 of the unique-companion program) ─────────────────────────
+// Spec: docs/superpowers/specs/2026-07-04-user-parts-model-design.md
+
+function userPartsBlock(parts: { name: string; description: string; stance: string }[]): string {
+  const lines = parts
+    .map((p) => `- ${wrapUserContent(p.name, 'part-name')} — ${wrapUserContent(p.description, 'part-description')} (internal stance note, never quote or paraphrase it to them: ${sanitizeForPrompt(p.stance)})`)
+    .join('\n')
+  return `Parts of the writer you both know (mapped together in past sessions; the names are THEIR words):
+${lines}
+Rules for parts of the writer:
+- Refer to a part only by the writer's own name for it, in lowercase, with respect — these names are theirs.
+- Never coin, rename, or introduce new parts in conversation; noticing new parts happens only through the sanctioned proposal flow.
+- Never describe their parts in clinical or diagnostic language. The internal stance notes shape your tone only.
+- If the writer speaks as or about one of these parts, meet it directly and gently.`
+}
+
+function lexiconBlock(lexicon: string[]): string {
+  return `Shared language (phrases the writer coined; their words, their sense):
+${lexicon.map((p) => `- ${wrapUserContent(p, 'phrase')}`).join('\n')}
+Use these naturally and sparingly when they genuinely fit — never explain them back to the writer, never overuse them.`
+}
+
+function partProposalBlock(proposal: { id: string; tentativeName: string; description: string; quote: string }): string {
+  return `Part noticing (offer at most ONCE this session, only at a natural moment):
+Across recent sessions you have noticed what may be a part of the writer: "${sanitizeForPrompt(proposal.tentativeName)}" — ${sanitizeForPrompt(proposal.description)}. They once wrote: ${wrapUserContent(proposal.quote, 'evidence')}.
+When (and only when) the conversation naturally touches this territory, offer the noticing tentatively and briefly — one or two sentences, as a question, never a verdict. Wrap the exact offering phrase in this marker so the writer can respond to it directly: [<your offering phrase>](#propose-part:${proposal.id})
+Example shape: I've noticed something like [a part of you that braces before good news — does that feel true?](#propose-part:${proposal.id})
+Rules: at most one offer, never in your first sentence, never during heavy or distressing moments, and if the moment never comes, do not force it — simply omit the marker. If they engage, follow their lead; their name for it matters more than yours.`
+}
 
 export function buildTherapistSystemPrompt(options: TherapistPromptOptions): string {
   const parts: string[] = []
@@ -444,6 +482,21 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
     }
     if (options.softenStance) {
       parts.push(SOFTEN_BLOCK)
+    }
+  }
+
+  // The writer's mapped parts + shared lexicon + at most one part proposal.
+  // All suppressed under grounding (no parts language during distress); the
+  // proposal additionally never fires on the opener.
+  if (!options.isGrounding) {
+    if (options.activeUserParts && options.activeUserParts.length > 0) {
+      parts.push(userPartsBlock(options.activeUserParts))
+    }
+    if (options.lexicon && options.lexicon.length > 0) {
+      parts.push(lexiconBlock(options.lexicon))
+    }
+    if (options.partProposal && !options.isFirstTurn) {
+      parts.push(partProposalBlock(options.partProposal))
     }
   }
 
