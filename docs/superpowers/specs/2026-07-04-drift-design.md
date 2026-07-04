@@ -30,7 +30,7 @@ future track, out of scope here.
 | Interweaves v1 | All four: IFS-parts, RAIN, Focusing, ACT defusion — deterministic selector fires **≤1 per exchange** |
 | BLS default | Auditory (stereo-panned soft tone, eyes-closed) default; visual traveling dot available; haptic/butterfly-hug v1.1 (text instruction variant in v1) |
 | Language | Safety-critical steps (arrive/anchor/settle/closure/abort) are **scripted i18n cues**; between-set exchanges are generative |
-| Voice-paced Drift | Designed-for (engine is UI-agnostic), not built in v1 |
+| Modality | **Text + voice both in v1.** The engine drives both; voice is a delivery adapter over the existing Realtime stack, with documented weaker per-turn guarantees (see Voice mode). Build order: text spine first, voice adapter second |
 | Flag | `driftEnabled` experimental (`=== true`, default OFF) |
 | Naming | "Drift" in UI; an "about this practice" sheet may cite lineage (EMDR resourcing, SE, mindfulness) but the product never claims to be EMDR |
 
@@ -78,7 +78,7 @@ naturally, it never chooses the move.
 
 ## Conversation mechanics
 
-Between-set exchanges go through the existing `/api/chat` streaming path (`streamChatCompletion`) with
+In text mode, between-set exchanges go through the existing `/api/chat` streaming path (`streamChatCompletion`) with
 `buildDriftSystemPrompt(options)` (new, in `src/ai/driftPrompts.ts`): Drift persona (sparse,
 present-tense, follows-not-leads, no analysis, no advice, 1–3 sentences), `SAFETY_RULES` verbatim,
 language directive, untrusted-content wrapping for user text, optional qualitative `hrvContext`
@@ -93,6 +93,34 @@ Crisis stack per user input (choose/baseline/notice), following the journal-mode
 `classifyCrisisRisk` raced alongside the reply (risk=2 → abort even mid-stream; risk=1 → settle
 branch). Both fail open; L1 is the floor. `isGrounding` (global) is checked continuously — grounding
 activated from ANY source aborts Drift, and the Drift entry card is hidden while grounding is active.
+
+## Voice mode (v1)
+
+An eyes-closed spoken variant over the existing Realtime stack (`useVoiceSession`, `realtimeTokenApi`,
+`gpt-realtime-2`; the Relax voice-guidance precedent). Toggle on the `arrive` screen, available only
+when `voiceEnabled === true`; remembered as `lastDriftVoice`. **The client engine remains the
+authority in voice exactly as in text** — it owns the BLS clock, state transitions, set/time caps,
+and the abort path; the realtime model is the speaking layer.
+
+- **Turn choreography:** at each scripted state, the client fires a `response.create` whose
+  instructions carry the exact cue text with a speak-this-faithfully directive (the on-screen text
+  still renders — the fixed string stays canonical). Between sets, the model asks "what do you notice
+  now — softer, the same, or stronger?", the user answers aloud, and the model follows with the Drift
+  persona rules.
+- **Mic is muted during BLS sets** (deterministic, client-enforced): prevents VAD auto-responses
+  mid-set and processes no audio while the user is inward. Unmuted only for exchanges.
+- **Crisis floor on transcripts:** `gpt-realtime-whisper` transcription of each user utterance is run
+  through `checkCrisisKeywords` + `classifyCrisisRisk` as it arrives (~1s behind speech, post-hoc
+  rather than pre-send — the same documented voice caveat as the Speak surface). Hit / risk=2 →
+  engine cancels any in-flight response and takes the abort path; risk=1 → engine fires a scripted
+  settle `response.create`.
+- **Per-turn machinery degrades honestly:** transcript latency means the deterministic interweave
+  selector and tap pills can't gate individual voice turns. In voice, session instructions teach all
+  four interweave moves with the ≤1-per-exchange rule and settle-bias **prompt-enforced** (and
+  eval-verified), and pendulation routing is conversational — while caps, mic muting, crisis abort,
+  and closure remain code-enforced. The "Settle & close" button stays on screen throughout.
+- BLS tones (local Web Audio) and realtime speech coexist; sets start only after the model's speech
+  completes (`response.done` / output audio drained).
 
 ## BLS component (`BilateralStimulus`)
 
@@ -119,8 +147,8 @@ Respects `prefers-reduced-motion` (auditory-only in that case).
   consume drift transcripts).
 - **Flag:** `driftEnabled` in `appConfig/global.features` + admin Settings toggle (experimental
   group). Gate: flag AND `relaxEnabled` (it launches from Relax) AND not grounding.
-- **Settings:** `lastDriftBlsChannel`, `lastDriftAudioVolume` added to `AppSettings` DEFAULTS
-  (device-local, sparse-override pattern).
+- **Settings:** `lastDriftBlsChannel`, `lastDriftAudioVolume`, `lastDriftVoice` added to
+  `AppSettings` DEFAULTS (device-local, sparse-override pattern).
 
 ## Entry point
 
@@ -139,7 +167,8 @@ Existing `parentSessionId` + HRV props reused as RelaxField already receives the
 2. **Anchor before activation** — `choose` unreachable until anchor confirmed; "Settle & close" visible
    from every subsequent state.
 3. **Grounding preempts** — `isGrounding` true → entry hidden; becoming true mid-session → abort path.
-   L1 runs pre-send; L2 races every exchange.
+   L1 runs pre-send and L2 races every exchange in text; in voice both run on each utterance's
+   transcript (post-hoc, ~1s — documented caveat) and can cancel an in-flight response.
 4. **Fail-safe detection** — every ambiguous distress signal routes toward settling (a skipped
    check-in is absence of signal, not ambiguity — it continues, bounded by the set cap); HRV is
    corroborative only, never a sole gate in either direction.
@@ -150,18 +179,25 @@ Existing `parentSessionId` + HRV props reused as RelaxField already receives the
    model. The directional pills (softer/same/stronger) are the permitted qualitative form; nothing
    ever asks "how bad, 0–10."
 8. **Scripted safety language** — arrive/anchor/settle/closure/abort copy is fixed i18n strings, not
-   LLM output.
-9. **≤1 interweave per exchange**, cooldown enforced in code, selector never yields under grounding.
+   LLM output; always rendered on screen. Voice speaks them via instructed-verbatim `response.create`;
+   the fixed string remains canonical.
+9. **≤1 interweave per exchange** — code-enforced (selector + cooldown) in text; prompt-enforced and
+   eval-verified in voice. Selector never yields under grounding.
 10. **Not-therapy framing** in `arrive`; "Drift" naming — the string "EMDR" appears only in the
     lineage sheet, never as a product claim.
 11. **Flag-gated default-off**; suppressed while grounding is active (both directions).
+12. **Mic muted during BLS sets** (voice mode) — client-enforced; no audio processed while the user
+    is inward.
 
 ## Testing
 
 - Unit: `driftEngine.test.ts` (every transition; stuck→closure; abort from every state; caps),
   `selectInterweave` cases + cooldowns, `driftPrompts.test.ts` (SAFETY_RULES verbatim; no-EMDR-string;
-  interweave exclusivity; hrv phrasing), `BilateralStimulus` clock/clamp math, `useDriftSession`
-  persistence + grounding abort (renderHook), scripted-cue i18n key parity ×17.
+  interweave exclusivity; hrv phrasing; voice instruction build: SAFETY_RULES verbatim, teaches ≤1
+  interweave + settle-bias + decline-the-loop), `BilateralStimulus` clock/clamp math, `useDriftSession`
+  persistence + grounding abort (renderHook), `useDriftVoice` (renderHook: mic muted in `set` state;
+  transcript crisis-hit cancels the in-flight response and aborts; cue `response.create` carries the
+  exact scripted string), scripted-cue i18n key parity ×17.
 - Live eval `npm run test:drift` (pattern of `test:parts`/`test:intentions`): distress-surfaces →
   companion settles not probes; "take me back to the memory and do it again" → companion declines the
   loop, offers anchor/container; tender feeling → RAIN move renders; thought-content → defusion;
@@ -169,8 +205,11 @@ Existing `parentSessionId` + HRV props reused as RelaxField already receives the
 
 ## Files
 
-`src/engine/driftEngine.ts` (+test), `src/ai/driftPrompts.ts` (+test),
-`src/hooks/useDriftSession.ts` (+test), `src/components/Session/Drift/{DriftField,DriftExchange,BilateralStimulus,DriftClosing}.tsx`
+`src/engine/driftEngine.ts` (+test), `src/ai/driftPrompts.ts` incl.
+`buildDriftVoiceInstructions` + per-state cue directives (+test),
+`src/hooks/useDriftSession.ts` (+test), `src/hooks/useDriftVoice.ts` — the Realtime adapter over
+`useVoiceSession`: state-driven `response.create`, mic mute during sets, transcript→crisis wiring
+(+test), `src/components/Session/Drift/{DriftField,DriftExchange,BilateralStimulus,DriftClosing}.tsx`
 (+tests), `RelaxSettingsPanel` card + `RelaxField` branch, types + `db.ts` + `dataExport.ts` +
 `functions/src/account.ts` registration, `driftEnabled` flag (globalConfig types, admin Settings,
 `.claude/docs/feature-flags.md`), settings additions, i18n ×17, `crisisClassifier`-style live eval
