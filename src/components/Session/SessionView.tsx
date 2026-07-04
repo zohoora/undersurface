@@ -78,6 +78,11 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const contextRef = useRef<TherapistContext | null>(null)
   const weatherEngine = getWeatherEngine()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  // Scrolls the session note (rendered under "session closed") into view on the
+  // close transition. justClosedRef scopes it to a just-ended session, so
+  // reopening an old closed session still lands on the conversation.
+  const closedNoteEndRef = useRef<HTMLDivElement>(null)
+  const justClosedRef = useRef(false)
   const sessionRef = useRef<Session | null>(null)
   const messagesRef = useRef<SessionMessage[]>([])
   // Stance check-in: shown after end-session; reflection defers on it (30s cap).
@@ -112,6 +117,16 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, typewriter.displayedContent, checkInSessionId])
+
+  // Reveal the session note (under "session closed", below the conversation
+  // anchor) once, on the close transition. Guarded so it fires only for a
+  // session that just ended here, not when reopening an already-closed one.
+  useEffect(() => {
+    if (session?.status === 'closed' && justClosedRef.current) {
+      justClosedRef.current = false
+      closedNoteEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [session?.status])
 
   // Init effect — runs once per sessionId change. Suppressed deps are
   // `startNewSession`, `typewriter`, `hrv`: all three are useCallback/hook
@@ -336,6 +351,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       phase: 'closing',
     })
 
+    justClosedRef.current = true
     setSession(prev => prev ? {
       ...prev,
       status: 'closed',
@@ -645,29 +661,6 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         </button>
       )}
 
-      {/* Session note card (for closed sessions) */}
-      {isClosed && session?.sessionNote && (
-        <div className="session-note-card">
-          <div style={{
-            fontSize: 11,
-            fontFamily: "'Inter', sans-serif",
-            fontWeight: 600,
-            color: 'var(--text-secondary)',
-            textTransform: 'uppercase' as const,
-            letterSpacing: '0.05em',
-            marginBottom: 8,
-          }}>
-            Session Note
-          </div>
-          <div className="session-message-text" style={{
-            color: 'var(--text-primary)',
-            fontStyle: 'italic',
-          }}>
-            {session.sessionNote}
-          </div>
-        </div>
-      )}
-
       {/* HRV Toggle (inline, non-fixed). Webcam button is hidden when the
           Polar H10 is the active source — H10 takes priority. */}
       {getGlobalConfig()?.features?.webcamHrv === true && !isClosed && !hrv.enabled && !polar.enabled && (
@@ -906,6 +899,31 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
           session closed
         </div>
       )}
+
+      {/* Session note card — under the "session closed" line so it's the last
+          thing a closed session shows, where the reader's eye ends up. */}
+      {isClosed && session?.sessionNote && (
+        <div className="session-note-card">
+          <div style={{
+            fontSize: 11,
+            fontFamily: "'Inter', sans-serif",
+            fontWeight: 600,
+            color: 'var(--text-secondary)',
+            textTransform: 'uppercase' as const,
+            letterSpacing: '0.05em',
+            marginBottom: 8,
+          }}>
+            Session Note
+          </div>
+          <div className="session-message-text" style={{
+            color: 'var(--text-primary)',
+            fontStyle: 'italic',
+          }}>
+            {session.sessionNote}
+          </div>
+        </div>
+      )}
+      <div ref={closedNoteEndRef} />
 
       {/* HRV Consent Dialog (webcam path) */}
       {hrv.showConsent && (
