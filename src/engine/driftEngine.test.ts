@@ -85,7 +85,7 @@ describe('driftReduce — forward spine', () => {
     expect(driftReduce(notBaseline, { type: 'BASELINE_DONE' })).toEqual(notBaseline)
     // NOTICE outside notice is ignored.
     const inSet = stateIn('set')
-    expect(driftReduce(inSet, { type: 'NOTICE', direction: 'stronger', risk: 0 })).toEqual(inSet)
+    expect(driftReduce(inSet, { type: 'NOTICE', direction: 'stronger', risk: 0, interweave: null })).toEqual(inSet)
   })
 })
 
@@ -94,7 +94,7 @@ describe('driftReduce — happy path resolves via cap to settled', () => {
     const events: DriftEvent[] = [...TO_FIRST_NOTICE.slice(0, 4)] // through BASELINE_DONE (phase set)
     for (let i = 0; i < 6; i++) {
       events.push({ type: 'SET_COMPLETE' })
-      events.push({ type: 'NOTICE', direction: 'softer', risk: 0 })
+      events.push({ type: 'NOTICE', direction: 'softer', risk: 0, interweave: null })
     }
     let s = run(events)
     expect(s.phase).toBe('closure')
@@ -109,7 +109,7 @@ describe('driftReduce — happy path resolves via cap to settled', () => {
     let s = run(TO_FIRST_NOTICE.slice(0, 4)) // phase set, setCount 0
     for (let i = 0; i < 40; i++) {
       s = driftReduce(s, { type: 'SET_COMPLETE' })
-      s = driftReduce(s, { type: 'NOTICE', direction: 'softer', risk: 0 })
+      s = driftReduce(s, { type: 'NOTICE', direction: 'softer', risk: 0, interweave: null })
       expect(s.setCount).toBeLessThanOrEqual(DRIFT_LIMITS.hardSetCap)
     }
     // The tighter setTarget bound stops it well before hardSetCap.
@@ -122,13 +122,13 @@ describe('driftReduce — happy path resolves via cap to settled', () => {
 describe('driftReduce — pendulation (settle branch)', () => {
   it('stronger → settle (inSettleRecheck set), re-check stronger → closure(settle) → eased_early', () => {
     let s = run(TO_FIRST_NOTICE) // notice, inSettleRecheck false
-    s = driftReduce(s, { type: 'NOTICE', direction: 'stronger', risk: 0 })
+    s = driftReduce(s, { type: 'NOTICE', direction: 'stronger', risk: 0, interweave: null })
     expect(s.phase).toBe('settle')
     expect(s.inSettleRecheck).toBe(true)
     s = driftReduce(s, { type: 'SETTLE_DONE' })
     expect(s.phase).toBe('notice')
     expect(s.inSettleRecheck).toBe(true) // stays true until a non-stronger notice
-    s = driftReduce(s, { type: 'NOTICE', direction: 'stronger', risk: 0 })
+    s = driftReduce(s, { type: 'NOTICE', direction: 'stronger', risk: 0, interweave: null })
     expect(s.phase).toBe('closure')
     expect(s.closureReason).toBe('settle')
     expect(outcomeForReason(s.closureReason)).toBe('eased_early')
@@ -136,16 +136,16 @@ describe('driftReduce — pendulation (settle branch)', () => {
 
   it('stronger → settle → softer clears inSettleRecheck and returns to set', () => {
     let s = run(TO_FIRST_NOTICE)
-    s = driftReduce(s, { type: 'NOTICE', direction: 'stronger', risk: 0 })
+    s = driftReduce(s, { type: 'NOTICE', direction: 'stronger', risk: 0, interweave: null })
     s = driftReduce(s, { type: 'SETTLE_DONE' })
-    s = driftReduce(s, { type: 'NOTICE', direction: 'softer', risk: 0 })
+    s = driftReduce(s, { type: 'NOTICE', direction: 'softer', risk: 0, interweave: null })
     expect(s.phase).toBe('set')
     expect(s.inSettleRecheck).toBe(false)
   })
 
   it('L2 risk=1 routes like stronger (overrides a softer pill)', () => {
     let s = run(TO_FIRST_NOTICE)
-    s = driftReduce(s, { type: 'NOTICE', direction: 'softer', risk: 1 })
+    s = driftReduce(s, { type: 'NOTICE', direction: 'softer', risk: 1, interweave: null })
     expect(s.phase).toBe('settle')
     expect(s.inSettleRecheck).toBe(true)
   })
@@ -154,11 +154,11 @@ describe('driftReduce — pendulation (settle branch)', () => {
 describe('driftReduce — stuck detection', () => {
   it('two consecutive "same" notices → closure(stuck) → settled', () => {
     let s = run(TO_FIRST_NOTICE) // notice, setCount 1
-    s = driftReduce(s, { type: 'NOTICE', direction: 'same', risk: 0 })
+    s = driftReduce(s, { type: 'NOTICE', direction: 'same', risk: 0, interweave: null })
     expect(s.phase).toBe('set')
     expect(s.sameStreak).toBe(1)
     s = driftReduce(s, { type: 'SET_COMPLETE' })
-    s = driftReduce(s, { type: 'NOTICE', direction: 'same', risk: 0 })
+    s = driftReduce(s, { type: 'NOTICE', direction: 'same', risk: 0, interweave: null })
     expect(s.phase).toBe('closure')
     expect(s.closureReason).toBe('stuck')
     expect(outcomeForReason(s.closureReason)).toBe('settled')
@@ -166,18 +166,29 @@ describe('driftReduce — stuck detection', () => {
 
   it('a softer notice resets the same-streak', () => {
     let s = run(TO_FIRST_NOTICE)
-    s = driftReduce(s, { type: 'NOTICE', direction: 'same', risk: 0 }) // streak 1 → set
+    s = driftReduce(s, { type: 'NOTICE', direction: 'same', risk: 0, interweave: null }) // streak 1 → set
     s = driftReduce(s, { type: 'SET_COMPLETE' })
-    s = driftReduce(s, { type: 'NOTICE', direction: 'softer', risk: 0 }) // reset
+    s = driftReduce(s, { type: 'NOTICE', direction: 'softer', risk: 0, interweave: null }) // reset
     expect(s.sameStreak).toBe(0)
     expect(s.phase).toBe('set')
+  })
+})
+
+describe('driftReduce — interweave record (cooldown input)', () => {
+  it('NOTICE records the interweave used; a null-interweave exchange clears it', () => {
+    let s = run(TO_FIRST_NOTICE)
+    s = driftReduce(s, { type: 'NOTICE', direction: 'softer', risk: 0, interweave: 'rain' })
+    expect(s.lastInterweave).toBe('rain')
+    s = driftReduce(s, { type: 'SET_COMPLETE' })
+    s = driftReduce(s, { type: 'NOTICE', direction: 'softer', risk: 0, interweave: null })
+    expect(s.lastInterweave).toBeNull()
   })
 })
 
 describe('driftReduce — caps', () => {
   it('a softer notice at the set target closes via cap', () => {
     const s = stateIn('notice', { setCount: DRIFT_LIMITS.setTarget })
-    const next = driftReduce(s, { type: 'NOTICE', direction: 'softer', risk: 0 })
+    const next = driftReduce(s, { type: 'NOTICE', direction: 'softer', risk: 0, interweave: null })
     expect(next.phase).toBe('closure')
     expect(next.closureReason).toBe('cap')
   })
@@ -257,7 +268,7 @@ describe('driftReduce — CRISIS from every phase', () => {
 
   it('risk=2 in a notice closes to crisis regardless of direction', () => {
     const s = run(TO_FIRST_NOTICE)
-    const next = driftReduce(s, { type: 'NOTICE', direction: 'softer', risk: 2 })
+    const next = driftReduce(s, { type: 'NOTICE', direction: 'softer', risk: 2, interweave: null })
     expect(next.phase).toBe('closure')
     expect(next.closureReason).toBe('crisis')
   })
@@ -286,11 +297,11 @@ const SAMPLE_EVENTS: DriftEvent[] = [
   { type: 'STARTING_POINT' },
   { type: 'BASELINE_DONE' },
   { type: 'SET_COMPLETE' },
-  { type: 'NOTICE', direction: 'softer', risk: 0 },
-  { type: 'NOTICE', direction: 'same', risk: 0 },
-  { type: 'NOTICE', direction: 'stronger', risk: 0 },
-  { type: 'NOTICE', direction: 'skipped', risk: 1 },
-  { type: 'NOTICE', direction: 'softer', risk: 2 },
+  { type: 'NOTICE', direction: 'softer', risk: 0, interweave: null },
+  { type: 'NOTICE', direction: 'same', risk: 0, interweave: null },
+  { type: 'NOTICE', direction: 'stronger', risk: 0, interweave: null },
+  { type: 'NOTICE', direction: 'skipped', risk: 1, interweave: null },
+  { type: 'NOTICE', direction: 'softer', risk: 2, interweave: null },
   { type: 'SETTLE_DONE' },
   { type: 'REQUEST_CLOSE' },
   { type: 'CRISIS' },
@@ -337,6 +348,12 @@ describe('selectInterweave', () => {
     expect(selectInterweave('i keep thinking about it', base)).toBe('defusion')
     expect(selectInterweave('a part of me wants to run', base)).toBe('parts')
     expect(selectInterweave('my throat feels tight', base)).toBe('focusing')
+  })
+
+  it('matches defusion phrases with straight or curly apostrophes', () => {
+    expect(selectInterweave('i\'m such a mess', base)).toBe('defusion')
+    expect(selectInterweave('i’m such a mess', base)).toBe('defusion')
+    expect(selectInterweave('i shouldn\'t have said it', base)).toBe('defusion')
   })
 
   it('prioritises parts over rain when both are present', () => {

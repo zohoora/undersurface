@@ -32,8 +32,8 @@ export interface DriftState {
   elapsedMs: number
   closureReason: ClosureReason
   // The interweave used on the previous exchange, for the one-exchange cooldown.
-  // No reducer event carries interweave data (NOTICE holds only direction+risk),
-  // so the driving hook owns this value and passes it into selectInterweave.
+  // Set by the reducer from NOTICE.interweave; the hook passes state.lastInterweave
+  // into selectInterweave.
   lastInterweave: InterweaveKind | null
 }
 
@@ -43,7 +43,7 @@ export type DriftEvent =
   | { type: 'STARTING_POINT' }
   | { type: 'BASELINE_DONE' }
   | { type: 'SET_COMPLETE' }
-  | { type: 'NOTICE'; direction: NoticeDirection; risk: 0 | 1 | 2 }
+  | { type: 'NOTICE'; direction: NoticeDirection; risk: 0 | 1 | 2; interweave: InterweaveKind | null }
   | { type: 'SETTLE_DONE' }
   | { type: 'REQUEST_CLOSE' }
   | { type: 'CRISIS' }
@@ -99,27 +99,30 @@ function canRequestClose(phase: DriftPhase): boolean {
 function reduceNotice(state: DriftState, event: Extract<DriftEvent, { type: 'NOTICE' }>): DriftState {
   if (state.phase !== 'notice') return state
   const { direction, risk } = event
+  // Record the interweave used on this exchange — the reducer owns the
+  // one-exchange-cooldown input that selectInterweave reads next turn.
+  const s: DriftState = { ...state, lastInterweave: event.interweave }
 
   // Crisis preempts everything.
-  if (risk === 2) return toClosure(state, 'crisis')
+  if (risk === 2) return toClosure(s, 'crisis')
 
   // Intensity rising (tapped stronger, or L2 risk=1) → pendulate toward the
   // anchor. If the settle re-check itself came back stronger, we do NOT loop
   // back to the material — we close (mapped to eased_early).
   if (direction === 'stronger' || risk === 1) {
-    if (state.inSettleRecheck) return toClosure(state, 'settle')
-    return { ...state, phase: 'settle', inSettleRecheck: true, sameStreak: 0 }
+    if (s.inSettleRecheck) return toClosure(s, 'settle')
+    return { ...s, phase: 'settle', inSettleRecheck: true, sameStreak: 0 }
   }
 
   // "same" twice consecutively → stuck → closure. Otherwise another set.
   if (direction === 'same') {
-    const sameStreak = state.sameStreak + 1
-    if (sameStreak >= 2) return toClosure(state, 'stuck')
-    return toSet(state, { sameStreak, inSettleRecheck: false })
+    const sameStreak = s.sameStreak + 1
+    if (sameStreak >= 2) return toClosure(s, 'stuck')
+    return toSet(s, { sameStreak, inSettleRecheck: false })
   }
 
   // softer or skipped → neutral continue; the streak and settle re-check clear.
-  return toSet(state, { sameStreak: 0, inSettleRecheck: false })
+  return toSet(s, { sameStreak: 0, inSettleRecheck: false })
 }
 
 function reduceTick(state: DriftState, elapsedMs: number): DriftState {
@@ -185,7 +188,7 @@ const RAIN_WORDS = [
 ]
 const DEFUSION_WORDS = [
   'i keep thinking', 'the thought', 'i tell myself', 'story', 'should have',
-  'shouldn’t', 'always ruin', 'never get', 'i’m such',
+  'shouldn\'t', 'always ruin', 'never get', 'i\'m such',
 ]
 const FOCUSING_WORDS = [
   'tight', 'knot', 'chest', 'throat', 'stomach', 'pressure', 'warm', 'cold',
@@ -198,7 +201,7 @@ function escapeRegExp(s: string): string {
 }
 
 function matchesPartName(lowerText: string, name: string): boolean {
-  const n = name.trim().toLowerCase()
+  const n = name.trim().toLowerCase().replace(/[’‘]/g, '\'')
   if (!n) return false
   return new RegExp(`\\b${escapeRegExp(n)}\\b`).test(lowerText)
 }
@@ -208,7 +211,8 @@ export function selectInterweave(
   opts: { lastInterweave: InterweaveKind | null; grounding: boolean; userPartNames: string[] },
 ): InterweaveKind | null {
   if (opts.grounding) return null
-  const lower = text.toLowerCase()
+  // Fold curly apostrophes so platform smart-punctuation and plain typing both match.
+  const lower = text.toLowerCase().replace(/[’‘]/g, '\'')
   const has = (w: string) => lower.includes(w)
 
   const emotionMatched = RAIN_WORDS.some(has)
