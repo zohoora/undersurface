@@ -199,6 +199,21 @@ const ko = {
 
 
   'common.dismiss': '닫기',
+
+
+  'parts.card.hint': '맞다고 느껴진다면, 당신의 말로 이름을 지어주세요',
+
+
+  'parts.card.keep': '간직하기',
+
+
+  'parts.card.notQuite': '조금 다르네요',
+
+
+  'parts.settings.title': '당신의 부분들',
+
+
+  'parts.settings.retire': '쉬게 하기',
   // Bilateral stimulation
   'settings.bilateralStimulation': '양측 리듬',
 

@@ -199,6 +199,21 @@ const nl = {
 
 
   'common.dismiss': 'Sluiten',
+
+
+  'parts.card.hint': 'Als dit klopt, geef het dan een naam in je eigen woorden',
+
+
+  'parts.card.keep': 'Bewaren',
+
+
+  'parts.card.notQuite': 'Niet helemaal',
+
+
+  'parts.settings.title': 'Delen van jou',
+
+
+  'parts.settings.retire': 'Laten rusten',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Bilateraal ritme',
 

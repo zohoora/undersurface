@@ -199,6 +199,21 @@ const fr = {
 
 
   'common.dismiss': 'Ignorer',
+
+
+  'parts.card.hint': 'Si cela te semble juste, nomme-le avec tes propres mots',
+
+
+  'parts.card.keep': 'Garder',
+
+
+  'parts.card.notQuite': 'Pas tout à fait',
+
+
+  'parts.settings.title': 'Parties de toi',
+
+
+  'parts.settings.retire': 'Mettre au repos',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Rythme bilatéral',
 

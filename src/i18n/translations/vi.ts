@@ -199,6 +199,21 @@ const vi = {
 
 
   'common.dismiss': 'Bỏ qua',
+
+
+  'parts.card.hint': 'Nếu điều này đúng, hãy đặt tên bằng lời của bạn',
+
+
+  'parts.card.keep': 'Giữ lại',
+
+
+  'parts.card.notQuite': 'Chưa đúng lắm',
+
+
+  'parts.settings.title': 'Những phần trong bạn',
+
+
+  'parts.settings.retire': 'Cho nghỉ',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Nhịp hai bên',
 

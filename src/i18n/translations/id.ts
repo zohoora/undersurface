@@ -199,6 +199,21 @@ const id = {
 
 
   'common.dismiss': 'Tutup',
+
+
+  'parts.card.hint': 'Jika ini terasa benar, beri nama dengan kata-katamu sendiri',
+
+
+  'parts.card.keep': 'Simpan',
+
+
+  'parts.card.notQuite': 'Kurang tepat',
+
+
+  'parts.settings.title': 'Bagian dirimu',
+
+
+  'parts.settings.retire': 'Istirahatkan',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Irama bilateral',
 

@@ -302,6 +302,11 @@ const en = {
   // Echo thoughts
   'echo.label': 'The Past',
   'common.dismiss': 'Dismiss',
+  'parts.card.hint': 'If this feels true, name it in your own words',
+  'parts.card.keep': 'Keep',
+  'parts.card.notQuite': 'Not quite',
+  'parts.settings.title': 'Parts of you',
+  'parts.settings.retire': 'Retire',
 } as const
 
 export type TranslationKey = keyof typeof en

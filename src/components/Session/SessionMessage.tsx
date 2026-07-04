@@ -1,6 +1,8 @@
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
 import type { SessionMessage as SessionMessageType } from '../../types'
 import { RecommendationSegments } from './RecommendationSegments'
+import { PartProposalCard } from './PartProposalCard'
+import { extractPartProposal } from '../../ai/partProposalParser'
 import { scrubLeakedRiskMarker } from '../../ai/openrouter'
 
 interface Props {
@@ -15,7 +17,13 @@ export const SessionMessageBubble = memo(function SessionMessageBubble({
   const isUser = message.speaker === 'user'
   // Therapist messages persisted while older parsers were live can carry a
   // leaked `<<RISK:N>>` preamble — scrub at render so history stays clean.
-  const content = isUser ? message.content : scrubLeakedRiskMarker(message.content)
+  const scrubbed = isUser ? message.content : scrubLeakedRiskMarker(message.content)
+  // Part-proposal marker: phrase renders as plain text; the consent card
+  // renders beneath (and renders nothing once the part isn't a candidate).
+  const { cleanText: content, proposal } = useMemo(
+    () => (isUser ? { cleanText: scrubbed, proposal: null } : extractPartProposal(scrubbed)),
+    [isUser, scrubbed],
+  )
   const showRecommendations =
     !isUser && typeof message.content === 'string' && onRecommendationTap
 
@@ -52,6 +60,7 @@ export const SessionMessageBubble = memo(function SessionMessageBubble({
             ? <RecommendationSegments text={content} onTap={onRecommendationTap} />
             : content}
         </div>
+        {proposal && <PartProposalCard partId={proposal.partId} />}
       </div>
     </>
   )

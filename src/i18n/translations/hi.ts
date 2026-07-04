@@ -199,6 +199,21 @@ const hi = {
 
 
   'common.dismiss': 'खारिज करें',
+
+
+  'parts.card.hint': 'अगर यह सच लगे, तो इसे अपने शब्दों में नाम दें',
+
+
+  'parts.card.keep': 'रखें',
+
+
+  'parts.card.notQuite': 'बिल्कुल नहीं',
+
+
+  'parts.settings.title': 'आपके हिस्से',
+
+
+  'parts.settings.retire': 'विश्राम दें',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'द्विपक्षीय लय',
 

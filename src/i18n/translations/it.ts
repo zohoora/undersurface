@@ -199,6 +199,21 @@ const it = {
 
 
   'common.dismiss': 'Ignora',
+
+
+  'parts.card.hint': 'Se ti suona vero, dagli un nome con le tue parole',
+
+
+  'parts.card.keep': 'Tieni',
+
+
+  'parts.card.notQuite': 'Non proprio',
+
+
+  'parts.settings.title': 'Parti di te',
+
+
+  'parts.settings.retire': 'Ritira',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Ritmo bilaterale',
 

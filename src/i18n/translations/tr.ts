@@ -199,6 +199,21 @@ const tr = {
 
 
   'common.dismiss': 'Kapat',
+
+
+  'parts.card.hint': 'Bu doğru geliyorsa, kendi kelimelerinle bir isim ver',
+
+
+  'parts.card.keep': 'Sakla',
+
+
+  'parts.card.notQuite': 'Pek değil',
+
+
+  'parts.settings.title': 'Senin parçaların',
+
+
+  'parts.settings.retire': 'Dinlendir',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'İki taraflı ritim',
 

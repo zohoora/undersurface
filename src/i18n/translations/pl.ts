@@ -199,6 +199,21 @@ const pl = {
 
 
   'common.dismiss': 'Zamknij',
+
+
+  'parts.card.hint': 'Jeśli to brzmi prawdziwie, nazwij to własnymi słowami',
+
+
+  'parts.card.keep': 'Zachowaj',
+
+
+  'parts.card.notQuite': 'Nie do końca',
+
+
+  'parts.settings.title': 'Części ciebie',
+
+
+  'parts.settings.retire': 'Odłóż',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Rytm bilateralny',
 

@@ -199,6 +199,21 @@ const ru = {
 
 
   'common.dismiss': 'Закрыть',
+
+
+  'parts.card.hint': 'Если это отзывается, назовите это своими словами',
+
+
+  'parts.card.keep': 'Сохранить',
+
+
+  'parts.card.notQuite': 'Не совсем',
+
+
+  'parts.settings.title': 'Части вас',
+
+
+  'parts.settings.retire': 'Отпустить',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Билатеральный ритм',
 

@@ -199,6 +199,21 @@ const th = {
 
 
   'common.dismiss': 'ปิด',
+
+
+  'parts.card.hint': 'ถ้ารู้สึกว่าใช่ ตั้งชื่อด้วยคำของคุณเอง',
+
+
+  'parts.card.keep': 'เก็บไว้',
+
+
+  'parts.card.notQuite': 'ยังไม่ใช่',
+
+
+  'parts.settings.title': 'ส่วนต่าง ๆ ของคุณ',
+
+
+  'parts.settings.retire': 'พักไว้',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'จังหวะสองข้าง',
 

@@ -199,6 +199,21 @@ const es = {
 
 
   'common.dismiss': 'Descartar',
+
+
+  'parts.card.hint': 'Si esto te resuena, nómbralo con tus propias palabras',
+
+
+  'parts.card.keep': 'Guardar',
+
+
+  'parts.card.notQuite': 'No exactamente',
+
+
+  'parts.settings.title': 'Partes de ti',
+
+
+  'parts.settings.retire': 'Retirar',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Ritmo bilateral',
 

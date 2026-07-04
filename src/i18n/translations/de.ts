@@ -199,6 +199,21 @@ const de = {
 
 
   'common.dismiss': 'Schließen',
+
+
+  'parts.card.hint': 'Wenn sich das stimmig anfühlt, gib ihm einen Namen in deinen Worten',
+
+
+  'parts.card.keep': 'Behalten',
+
+
+  'parts.card.notQuite': 'Nicht ganz',
+
+
+  'parts.settings.title': 'Teile von dir',
+
+
+  'parts.settings.retire': 'Ruhen lassen',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Bilateraler Rhythmus',
 

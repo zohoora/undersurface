@@ -199,6 +199,21 @@ const ja = {
 
 
   'common.dismiss': '閉じる',
+
+
+  'parts.card.hint': 'もしそう感じるなら、あなた自身の言葉で名前をつけてください',
+
+
+  'parts.card.keep': '残す',
+
+
+  'parts.card.notQuite': 'ちょっと違う',
+
+
+  'parts.settings.title': 'あなたのパーツ',
+
+
+  'parts.settings.retire': '休ませる',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'バイラテラル・リズム',
 

@@ -199,6 +199,21 @@ const pt = {
 
 
   'common.dismiss': 'Dispensar',
+
+
+  'parts.card.hint': 'Se isso parecer verdadeiro, dê um nome com suas próprias palavras',
+
+
+  'parts.card.keep': 'Guardar',
+
+
+  'parts.card.notQuite': 'Não exatamente',
+
+
+  'parts.settings.title': 'Partes de você',
+
+
+  'parts.settings.retire': 'Aposentar',
   // Bilateral stimulation
   'settings.bilateralStimulation': 'Ritmo bilateral',
 

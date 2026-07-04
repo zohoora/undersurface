@@ -199,6 +199,21 @@ const zh = {
 
 
   'common.dismiss': '关闭',
+
+
+  'parts.card.hint': '如果这感觉真实，用你自己的话为它命名',
+
+
+  'parts.card.keep': '保留',
+
+
+  'parts.card.notQuite': '不太对',
+
+
+  'parts.settings.title': '你的部分',
+
+
+  'parts.settings.retire': '让它休息',
   // Bilateral stimulation
   'settings.bilateralStimulation': '双侧节奏',
 
