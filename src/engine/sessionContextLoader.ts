@@ -1,5 +1,8 @@
-import type { PartMemory, UserProfile, PersonalFacts, RelaxSession } from '../types'
+import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals } from '../types'
 import { db } from '../store/db'
+import { getGlobalConfig } from '../store/globalConfig'
+import { detectOpenTimeEvidence } from './ruptureDetector'
+import { RUMINATION_WATCH_ARM_STREAK } from './signalTracker'
 
 export interface TherapistContext {
   recentSessionNotes: { note: string; date: number }[]
@@ -9,13 +12,24 @@ export interface TherapistContext {
   // Most recent relax sessions across the user's history. Used at session
   // start to inform the therapist about recent breathwork/meditation work.
   recentRelaxBreaks: RelaxSession[]
+  // Rupture evidence for the opener (flag-gated; null when nothing fired).
+  // Persisted as pendingRepair before returning, so the stream's consume-once
+  // clearing is uniform whether the evidence came from open-time detection or
+  // the reflection pass.
+  repairContext: { evidence: RuptureEvidence } | null
+  // Armed cross-session rumination watch (streak >= 3), flag-gated.
+  ruminationWatch: { theme: string } | null
 }
 
 const MEMORY_SOURCE_PARTS = ['open', 'weaver', 'still']
 const RECENT_RELAX_LIMIT = 5
 
-export async function loadTherapistContext(): Promise<TherapistContext> {
-  const [sessions, memories, profiles, facts, relaxBreaks] = await Promise.all([
+export async function loadTherapistContext(currentSessionId?: string): Promise<TherapistContext> {
+  const features = getGlobalConfig()?.features
+  const repairOn = features?.ruptureRepair === true
+  const pivotOn = features?.ruminationPivot === true
+
+  const [sessions, memories, profiles, facts, relaxBreaks, signals] = await Promise.all([
     // Bounded: only the 5 newest noted sessions are kept, so scanning the
     // full collection is pure read amplification. 50 newest gives ample
     // margin for closed-without-note gaps.
@@ -28,6 +42,7 @@ export async function loadTherapistContext(): Promise<TherapistContext> {
     db.userProfile.toArray(),
     db.personalFacts.get('current'),
     db.relaxSessions.orderBy('startedAt').reverse().limit(RECENT_RELAX_LIMIT * 2).toArray(),
+    repairOn || pivotOn ? db.companionSignals.get('current') : Promise.resolve(undefined),
   ])
 
   // Extract notes from the 5 most recent closed sessions
@@ -60,12 +75,48 @@ export async function loadTherapistContext(): Promise<TherapistContext> {
     .filter(r => r.endedAt !== null)
     .slice(0, RECENT_RELAX_LIMIT)
 
+  // Rupture evidence: open-time markers (abandoned / atypical gap) computed
+  // from prior sessions — excluding the session being opened, which on the
+  // resume path is already in the list. Fresh evidence overwrites any stored
+  // pendingRepair (newest wins, single slot); otherwise fall back to what the
+  // reflection pass stored (terse ending).
+  let repairContext: { evidence: RuptureEvidence } | null = null
+  if (repairOn) {
+    const prior = sessions.filter(s => s.id !== currentSessionId)
+    const openEvidence = detectOpenTimeEvidence(prior, Date.now())
+    if (openEvidence) {
+      repairContext = { evidence: openEvidence }
+      const updated: CompanionSignals = {
+        id: 'current',
+        pendingRepair: {
+          evidence: openEvidence,
+          sourceSessionId: prior[0]?.id ?? '',
+          createdAt: Date.now(),
+        },
+        ruminationWatch: signals?.ruminationWatch ?? null,
+        updatedAt: Date.now(),
+      }
+      // Await so the stream's later consume-once clear can't be overtaken.
+      if (signals) await db.companionSignals.update('current', updated)
+      else await db.companionSignals.add(updated)
+    } else if (signals?.pendingRepair) {
+      repairContext = { evidence: signals.pendingRepair.evidence }
+    }
+  }
+
+  const ruminationWatch =
+    pivotOn && signals?.ruminationWatch && signals.ruminationWatch.streak >= RUMINATION_WATCH_ARM_STREAK
+      ? { theme: signals.ruminationWatch.theme }
+      : null
+
   return {
     recentSessionNotes,
     relevantMemories: allMemories,
     userProfile,
     personalFacts: facts ?? null,
     recentRelaxBreaks,
+    repairContext,
+    ruminationWatch,
   }
 }
 

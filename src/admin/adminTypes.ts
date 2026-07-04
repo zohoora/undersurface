@@ -30,6 +30,11 @@ export interface GlobalConfig {
     breathingBackground?: boolean
     // Safety
     emergencyGrounding?: boolean
+    // Companion signals (rupture repair + rumination pivot)
+    /** Explicit alliance-rupture repair at the next session's opener. */
+    ruptureRepair?: boolean
+    /** Silent register pivot out of rumination loops (live + cross-session). */
+    ruminationPivot?: boolean
     // Biometric
     webcamHrv?: boolean
     /** Polar H10 (or any standard Bluetooth HR monitor) — session-mode only. */

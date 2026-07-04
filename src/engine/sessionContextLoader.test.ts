@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { Session, PartMemory, UserProfile, PersonalFacts, RelaxSession } from '../types'
+import type { Session, PartMemory, UserProfile, PersonalFacts, RelaxSession, CompanionSignals } from '../types'
 
 // Per-collection fixtures the tests configure; the db mock pulls from these.
 type State = {
@@ -9,6 +9,9 @@ type State = {
   personalFacts: PersonalFacts | undefined
   relaxSessions: RelaxSession[]
   relaxSessionsByParent: Record<string, RelaxSession[]>
+  companionSignals: CompanionSignals | undefined
+  companionSignalWrites: CompanionSignals[]
+  features: Record<string, boolean>
   // Records the limit the loader applied to the sessions query, so tests can
   // assert the scan is bounded.
   sessionsQueryLimit: number | null
@@ -24,9 +27,16 @@ function freshState(): State {
     personalFacts: undefined,
     relaxSessions: [],
     relaxSessionsByParent: {},
+    companionSignals: undefined,
+    companionSignalWrites: [],
+    features: {},
     sessionsQueryLimit: null,
   }
 }
+
+vi.mock('../store/globalConfig', () => ({
+  getGlobalConfig: () => ({ features: state.features }),
+}))
 
 vi.mock('../store/db', () => ({
   db: {
@@ -74,6 +84,11 @@ vi.mock('../store/db', () => ({
           toArray: async () => state.relaxSessionsByParent[parentId] ?? [],
         }),
       }),
+    },
+    companionSignals: {
+      get: async () => state.companionSignals,
+      add: async (doc: CompanionSignals) => { state.companionSignalWrites.push(doc) },
+      update: async (_id: string, doc: CompanionSignals) => { state.companionSignalWrites.push(doc) },
     },
   },
 }))
@@ -260,5 +275,90 @@ describe('loadInSessionRelaxBreaks', () => {
   it('returns [] when the parent session has no relax breaks', async () => {
     const result = await loadInSessionRelaxBreaks('unknown')
     expect(result).toEqual([])
+  })
+})
+
+describe('loadTherapistContext — rupture evidence + rumination watch', () => {
+  const DAY = 86_400_000
+  const NOW = Date.now()
+
+  // A habitual closer's history on a 2-day cadence, newest 12 days old —
+  // fires the atypical-gap marker (12d > 3×2d and > 10d floor).
+  function seedGapHistory() {
+    state.sessions = Array.from({ length: 6 }, (_, i) =>
+      makeSession({ id: `h${i}`, startedAt: NOW - (12 + i * 2) * DAY, status: 'closed' }),
+    )
+  }
+
+  it('computes open-time evidence, persists it as pendingRepair, and returns repairContext', async () => {
+    state.features = { ruptureRepair: true }
+    seedGapHistory()
+
+    const ctx = await loadTherapistContext()
+
+    expect(ctx.repairContext).toEqual({ evidence: 'atypical_gap' })
+    expect(state.companionSignalWrites).toHaveLength(1)
+    expect(state.companionSignalWrites[0].pendingRepair?.evidence).toBe('atypical_gap')
+  })
+
+  it('excludes the session being resumed from the prior list', async () => {
+    state.features = { ruptureRepair: true }
+    seedGapHistory()
+    // The resumed session is brand-new; if it were counted, the gap would be ~0.
+    state.sessions.push(makeSession({ id: 'current-one', startedAt: NOW - 1000, status: 'active' }))
+
+    const ctx = await loadTherapistContext('current-one')
+
+    expect(ctx.repairContext).toEqual({ evidence: 'atypical_gap' })
+  })
+
+  it('falls back to stored pendingRepair (terse ending from reflection) when nothing fires at open', async () => {
+    state.features = { ruptureRepair: true }
+    state.sessions = [makeSession({ id: 's1', startedAt: NOW - DAY, status: 'closed' })]
+    state.companionSignals = {
+      id: 'current',
+      pendingRepair: { evidence: 'terse_ending', sourceSessionId: 's1', createdAt: NOW - DAY },
+      ruminationWatch: null,
+      updatedAt: NOW - DAY,
+    }
+
+    const ctx = await loadTherapistContext()
+
+    expect(ctx.repairContext).toEqual({ evidence: 'terse_ending' })
+    expect(state.companionSignalWrites).toHaveLength(0) // read-only path
+  })
+
+  it('returns no repairContext when the flag is off, even with evidence everywhere', async () => {
+    state.features = {}
+    seedGapHistory()
+    state.companionSignals = {
+      id: 'current',
+      pendingRepair: { evidence: 'abandoned', sourceSessionId: 'x', createdAt: NOW },
+      ruminationWatch: null,
+      updatedAt: NOW,
+    }
+
+    const ctx = await loadTherapistContext()
+
+    expect(ctx.repairContext).toBeNull()
+    expect(state.companionSignalWrites).toHaveLength(0)
+  })
+
+  it('arms ruminationWatch only at streak >= 3 and only under its flag', async () => {
+    state.features = { ruminationPivot: true }
+    state.companionSignals = {
+      id: 'current',
+      pendingRepair: null,
+      ruminationWatch: { theme: 'the job decision', streak: 3, lastConfirmedAt: NOW },
+      updatedAt: NOW,
+    }
+    expect((await loadTherapistContext()).ruminationWatch).toEqual({ theme: 'the job decision' })
+
+    state.companionSignals.ruminationWatch = { theme: 'the job decision', streak: 2, lastConfirmedAt: NOW }
+    expect((await loadTherapistContext()).ruminationWatch).toBeNull()
+
+    state.features = {}
+    state.companionSignals.ruminationWatch = { theme: 'the job decision', streak: 5, lastConfirmedAt: NOW }
+    expect((await loadTherapistContext()).ruminationWatch).toBeNull()
   })
 })

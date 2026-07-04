@@ -26,6 +26,8 @@ const DEFAULTS: GlobalConfig = {
     ritualsNotStreaks: false,
     unfinishedThreads: false,
     emergencyGrounding: false,
+    ruptureRepair: false,
+    ruminationPivot: false,
     webcamHrv: false,
     polarH10: false,
     voiceEnabled: false,
@@ -586,6 +588,16 @@ export function AdminSettings() {
             />
           </>
         )}
+        <ToggleRow
+          label="Rupture Repair (opener acknowledgment)"
+          checked={!!config.features.ruptureRepair}
+          onChange={(v) => setFeature('ruptureRepair', v)}
+        />
+        <ToggleRow
+          label="Rumination Pivot (silent register shift)"
+          checked={!!config.features.ruminationPivot}
+          onChange={(v) => setFeature('ruminationPivot', v)}
+        />
       </CollapsibleSection>
 
       {/* Biometric */}
