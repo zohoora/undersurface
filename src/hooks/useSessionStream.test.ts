@@ -10,14 +10,26 @@ import type { TherapistContext } from '../engine/sessionContextLoader'
 // control onToken/onComplete/onError per case.
 const streamMock = vi.fn()
 const classifyCrisisRiskMock = vi.fn(async () => ({ risk: 0 }))
+const classifySignalsMock = vi.fn(async () => ({ withdrawal: 0 as const, rumination: 0 as const }))
 vi.mock('../ai/openrouter', () => ({
   streamChatCompletion: (...args: unknown[]) => streamMock(...args),
   reasoningForSpeed: () => 'medium',
   classifyCrisisRisk: (...a: unknown[]) => classifyCrisisRiskMock(...a),
+  classifySessionSignals: (...a: unknown[]) => classifySignalsMock(...a),
 }))
 
+// Captures the options of every prompt build so tests can assert threading.
+const buildOptionsSpy = vi.fn()
 vi.mock('../ai/therapistPrompts', () => ({
-  buildTherapistMessages: () => [{ role: 'system', content: 'stub' }],
+  buildTherapistMessages: (_h: unknown, opts: unknown) => {
+    buildOptionsSpy(opts)
+    return [{ role: 'system', content: 'stub' }]
+  },
+}))
+
+let featuresMock: Record<string, boolean> = {}
+vi.mock('../store/globalConfig', () => ({
+  getGlobalConfig: () => ({ features: featuresMock }),
 }))
 
 vi.mock('../engine/sessionContextLoader', () => ({
@@ -33,9 +45,13 @@ vi.mock('./useGroundingMode', () => ({
 
 const sessionMessageAddMock = vi.fn(async () => {})
 const sessionUpdateMock = vi.fn(async () => {})
+const companionSignalsUpdateMock = vi.fn(async () => {})
 let idCounter = 0
 vi.mock('../store/db', () => ({
-  db: { sessions: { update: (...a: unknown[]) => sessionUpdateMock(...a) } },
+  db: {
+    sessions: { update: (...a: unknown[]) => sessionUpdateMock(...a) },
+    companionSignals: { update: (...a: unknown[]) => companionSignalsUpdateMock(...a) },
+  },
   sessionMessages: { add: (...a: unknown[]) => sessionMessageAddMock(...a) },
   generateId: () => `msg-${++idCounter}`,
 }))
@@ -85,13 +101,16 @@ function makeSession(over: Partial<Session> = {}): Session {
   }
 }
 
-function makeContext(): TherapistContext {
+function makeContext(over: Partial<TherapistContext> = {}): TherapistContext {
   return {
     recentSessionNotes: [],
     relevantMemories: [],
     userProfile: null,
     personalFacts: null,
     recentRelaxBreaks: [],
+    repairContext: null,
+    ruminationWatch: null,
+    ...over,
   }
 }
 
@@ -196,6 +215,11 @@ beforeEach(() => {
   activateGroundingMock.mockClear()
   classifyCrisisRiskMock.mockReset()
   classifyCrisisRiskMock.mockResolvedValue({ risk: 0 })
+  classifySignalsMock.mockReset()
+  classifySignalsMock.mockResolvedValue({ withdrawal: 0, rumination: 0 })
+  buildOptionsSpy.mockClear()
+  companionSignalsUpdateMock.mockClear()
+  featuresMock = {}
   isGroundingMock.mockReturnValue(false)
   idCounter = 0
 })
@@ -607,5 +631,185 @@ describe('useSessionStream — appendUserMessage', () => {
     await act(async () => { await result.current.appendUserMessage('spoken aloud', 'voice') })
     const [, msg] = sessionMessageAddMock.mock.calls[0]
     expect((msg as SessionMessage).inputMethod).toBe('voice')
+  })
+})
+
+// ─── Rupture repair / rumination pivot wiring ────────────────────────────────
+
+describe('session signals wiring', () => {
+  function streamOk(text = 'A reply.') {
+    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
+      callbacks.onToken(text)
+      callbacks.onComplete()
+    })
+  }
+
+  async function runGenerate(
+    result: { current: { generateTherapistMessage: (m: SessionMessage[], s: Session) => Promise<SessionMessage[]> } },
+    wiring: ReturnType<typeof makeWiring>,
+    tw: TypewriterMock,
+    messages: SessionMessage[],
+    reply = 'A reply.',
+  ) {
+    await act(async () => {
+      // Wait for THIS generate's completion handler to register — a fixed
+      // single microtask undercounts when the fire-and-forget classifier
+      // consumes ticks, leaving pendingComplete pointing at the previous
+      // generate's (already-settled) closure and hanging the run.
+      tw.pendingComplete = null
+      const p = result.current.generateTherapistMessage(messages, wiring.sessionRef.current!)
+      for (let i = 0; i < 1000 && !tw.pendingComplete; i++) await Promise.resolve()
+      await tw.pendingComplete?.(reply)
+      await p
+      // Let the fire-and-forget classifier .then land.
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+  }
+
+  const threeUserMsgs = [
+    makeUserMsg('first message here'),
+    makeUserMsg('second message here'),
+    makeUserMsg('third message here'),
+  ]
+
+  it('fires the signal classifier from user turn 3 when a flag is on', async () => {
+    featuresMock = { ruminationPivot: true }
+    streamOk()
+    const tw = makeTypewriter()
+    const wiring = makeWiring({ typewriter: tw, messages: threeUserMsgs })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    await runGenerate(result, wiring, tw, threeUserMsgs)
+
+    expect(classifySignalsMock).toHaveBeenCalledTimes(1)
+    expect(classifySignalsMock).toHaveBeenCalledWith([
+      'first message here', 'second message here', 'third message here',
+    ])
+  })
+
+  it('does NOT fire the classifier below 3 user messages or with flags off', async () => {
+    streamOk()
+    const tw = makeTypewriter()
+    // Flags off, 3 messages:
+    const wiring = makeWiring({ typewriter: tw, messages: threeUserMsgs })
+    const { result } = renderHook(() => useSessionStream(wiring))
+    await runGenerate(result, wiring, tw, threeUserMsgs)
+    expect(classifySignalsMock).not.toHaveBeenCalled()
+
+    // Flag on, 2 messages:
+    featuresMock = { ruptureRepair: true }
+    const tw2 = makeTypewriter()
+    const wiring2 = makeWiring({ typewriter: tw2, messages: threeUserMsgs.slice(0, 2) })
+    const { result: result2 } = renderHook(() => useSessionStream(wiring2))
+    await runGenerate(result2, wiring2, tw2, threeUserMsgs.slice(0, 2))
+    expect(classifySignalsMock).not.toHaveBeenCalled()
+  })
+
+  it('threads repairContext into the opener build, then consumes it exactly once', async () => {
+    featuresMock = { ruptureRepair: true }
+    streamOk('Good to see you again.')
+    const tw = makeTypewriter()
+    const context = makeContext({ repairContext: { evidence: 'abandoned' } })
+    const wiring = makeWiring({ typewriter: tw, context })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    // Opener (no messages → first turn).
+    await runGenerate(result, wiring, tw, [], 'Good to see you again.')
+
+    expect(buildOptionsSpy.mock.calls[0][0]).toMatchObject({
+      isFirstTurn: true,
+      repairContext: { evidence: 'abandoned' },
+    })
+    // Consume-once: in-memory copy nulled + persistent slot cleared.
+    expect(wiring.contextRef.current?.repairContext).toBeNull()
+    expect(companionSignalsUpdateMock).toHaveBeenCalledWith('current', expect.objectContaining({
+      pendingRepair: null,
+    }))
+
+    // A second first-turn build must NOT re-include it.
+    buildOptionsSpy.mockClear()
+    await runGenerate(result, wiring, tw, [], 'Welcome back.')
+    expect(buildOptionsSpy.mock.calls[0][0].repairContext).toBeUndefined()
+  })
+
+  it('does not thread repairContext when its flag is off', async () => {
+    featuresMock = { ruminationPivot: true } // other flag on, repair off
+    streamOk()
+    const tw = makeTypewriter()
+    const context = makeContext({ repairContext: { evidence: 'atypical_gap' } })
+    const wiring = makeWiring({ typewriter: tw, context })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    await runGenerate(result, wiring, tw, [])
+
+    expect(buildOptionsSpy.mock.calls[0][0].repairContext).toBeUndefined()
+    expect(companionSignalsUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('an armed ruminationWatch pivots at most once per session, never on the opener', async () => {
+    featuresMock = { ruminationPivot: true }
+    streamOk()
+    const tw = makeTypewriter()
+    const context = makeContext({ ruminationWatch: { theme: 'the job decision' } })
+    const withTherapist = [...threeUserMsgs, { ...makeUserMsg('x'), speaker: 'therapist' as const }]
+    // messagesRef must track the passed history — the finalize path treats an
+    // append that doesn't grow past currentMessages as an empty completion.
+    const wiring = makeWiring({ typewriter: tw, context, messages: withTherapist })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    // Opener: no pivot.
+    await runGenerate(result, wiring, tw, [])
+    expect(buildOptionsSpy.mock.calls[0][0].pivotDirective).toBeUndefined()
+
+    // First non-first turn: pivot with the watch theme.
+    buildOptionsSpy.mockClear()
+    await runGenerate(result, wiring, tw, withTherapist)
+    expect(buildOptionsSpy.mock.calls[0][0].pivotDirective).toEqual({ theme: 'the job decision' })
+
+    // Next turn: not again.
+    buildOptionsSpy.mockClear()
+    await runGenerate(result, wiring, tw, withTherapist)
+    expect(buildOptionsSpy.mock.calls[0][0].pivotDirective).toBeUndefined()
+  })
+
+  it('live tracker: 2 consecutive elevated rumination turns arm exactly one pivot (then cooldown)', async () => {
+    featuresMock = { ruminationPivot: true }
+    classifySignalsMock.mockResolvedValue({ withdrawal: 0, rumination: 2, theme: 'the move' })
+    streamOk()
+    const tw = makeTypewriter()
+    const withTherapist = [...threeUserMsgs, { ...makeUserMsg('x'), speaker: 'therapist' as const }]
+    const wiring = makeWiring({ typewriter: tw, messages: withTherapist })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    // Whether the arming record lands just before or just after a given build
+    // is a microtask-ordering detail; the invariant is exactly ONE pivot fires
+    // across sustained elevation (cooldown blocks repeats).
+    await runGenerate(result, wiring, tw, withTherapist) // record #1 — not armed
+    await runGenerate(result, wiring, tw, withTherapist) // record #2 — arms
+    await runGenerate(result, wiring, tw, withTherapist) // consumes / cooldown
+    await runGenerate(result, wiring, tw, withTherapist) // cooldown
+
+    const pivots = buildOptionsSpy.mock.calls
+      .map((c) => (c[0] as { pivotDirective?: { theme?: string } }).pivotDirective)
+      .filter(Boolean)
+    expect(pivots).toEqual([{ theme: 'the move' }])
+  })
+
+  it('live tracker: sustained withdrawal holds softenStance on later builds', async () => {
+    featuresMock = { ruptureRepair: true }
+    classifySignalsMock.mockResolvedValue({ withdrawal: 2, rumination: 0 })
+    streamOk()
+    const tw = makeTypewriter()
+    const withTherapist = [...threeUserMsgs, { ...makeUserMsg('x'), speaker: 'therapist' as const }]
+    const wiring = makeWiring({ typewriter: tw, messages: withTherapist })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    await runGenerate(result, wiring, tw, withTherapist) // record #1
+    await runGenerate(result, wiring, tw, withTherapist) // record #2 — soft arms
+    await runGenerate(result, wiring, tw, withTherapist) // held
+
+    const lastBuild = buildOptionsSpy.mock.calls.at(-1)![0] as { softenStance?: boolean }
+    expect(lastBuild.softenStance).toBe(true)
   })
 })

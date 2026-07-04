@@ -1,9 +1,11 @@
-import { useCallback, type Dispatch, type RefObject, type SetStateAction } from 'react'
+import { useCallback, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import { useSettings } from '../store/settings'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../store/db'
+import { getGlobalConfig } from '../store/globalConfig'
 import { buildTherapistMessages } from '../ai/therapistPrompts'
-import { streamChatCompletion, reasoningForSpeed, classifyCrisisRisk } from '../ai/openrouter'
+import { streamChatCompletion, reasoningForSpeed, classifyCrisisRisk, classifySessionSignals } from '../ai/openrouter'
 import { loadInSessionRelaxBreaks } from '../engine/sessionContextLoader'
+import { SignalTracker } from '../engine/signalTracker'
 import type { TherapistContext } from '../engine/sessionContextLoader'
 import { isGroundingActive, activateGrounding } from './useGroundingMode'
 import { getWeatherEngine } from '../store/weatherStore'
@@ -69,6 +71,31 @@ export function useSessionStream(wiring: SessionStreamWiring) {
   const tr = useTranslation()
   const weatherEngine = getWeatherEngine()
 
+  // Live rupture/rumination signal state. All transient and session-scoped —
+  // reset when the session id changes; nothing here persists.
+  // Spec: docs/superpowers/specs/2026-07-03-rupture-rumination-design.md
+  const signalTrackerRef = useRef(new SignalTracker())
+  const signalSessionIdRef = useRef<string | null>(null)
+  // One-shot pivot armed by the live tracker; consumed by the next build.
+  const pendingPivotRef = useRef<{ theme?: string } | null>(null)
+  // Held softening state (tracker arms/releases it).
+  const softenRef = useRef(false)
+  // The cross-session ruminationWatch triggers at most ONE pivot per session.
+  const watchPivotUsedRef = useRef(false)
+  // Set when a build actually included repairContext; cleared (with the
+  // persistent pendingRepair) once that opener finalizes non-empty.
+  const repairIncludedRef = useRef(false)
+
+  const resetSignalsForSession = (sessionId: string) => {
+    if (signalSessionIdRef.current === sessionId) return
+    signalSessionIdRef.current = sessionId
+    signalTrackerRef.current.reset()
+    pendingPivotRef.current = null
+    softenRef.current = false
+    watchPivotUsedRef.current = false
+    repairIncludedRef.current = false
+  }
+
   // Returns the updated messages array after the therapist message is finalized.
   //
   // Crisis detection (L2) is folded into this same call: the therapist emits
@@ -107,6 +134,32 @@ export function useSessionStream(wiring: SessionStreamWiring) {
         .catch(() => { /* classifyCrisisRisk already fails open to 0 */ })
     }
 
+    // Per-turn withdrawal/rumination signal classification (flag-gated).
+    // Fire-and-forget alongside the crisis backstop — the result lands during
+    // streaming and shapes the NEXT turn's prompt via the tracker refs. Only
+    // from user turn 3 (trends need history) and never during grounding.
+    resetSignalsForSession(currentSession.id)
+    const signalFeatures = getGlobalConfig()?.features
+    const repairFlagOn = signalFeatures?.ruptureRepair === true
+    const pivotFlagOn = signalFeatures?.ruminationPivot === true
+    const userMessages = currentMessages.filter(m => m.speaker === 'user')
+    if ((repairFlagOn || pivotFlagOn) && userMessages.length >= 3 && !isGroundingActive()) {
+      void classifySessionSignals(userMessages.slice(-6).map(m => m.content))
+        .then(result => {
+          const state = signalTrackerRef.current.record({
+            withdrawal: result.withdrawal,
+            rumination: result.rumination,
+          })
+          if (pivotFlagOn && state.pivotActive) {
+            pendingPivotRef.current = { theme: result.theme }
+          }
+          if (repairFlagOn) {
+            softenRef.current = state.softenActive
+          }
+        })
+        .catch(() => { /* classifySessionSignals already fails open to zeros */ })
+    }
+
     // Up to 3 total attempts to get non-empty content. The therapist sometimes
     // emits zero content tokens — model exhausts its budget on internal reasoning,
     // refusal returns blank, transient OpenAI hiccup. Retrying papers over most
@@ -129,6 +182,29 @@ export function useSessionStream(wiring: SessionStreamWiring) {
         const inSessionRelaxBreaks = currentSession.id
           ? await loadInSessionRelaxBreaks(currentSession.id)
           : []
+        const isFirstTurn = isFirstTherapistTurn(currentMessages)
+
+        // Rupture repair: opener-only, consume-once (cleared after the opener
+        // that used it finalizes). Pivot: a live tracker arm wins; otherwise
+        // the cross-session watch triggers at most one pivot per session.
+        // The prompt layer additionally suppresses all of these under
+        // grounding, so no isGrounding checks are duplicated here.
+        const repairContext = repairFlagOn && isFirstTurn && context?.repairContext
+          ? context.repairContext
+          : undefined
+        if (repairContext) repairIncludedRef.current = true
+
+        let pivotDirective: { theme?: string } | undefined
+        if (pivotFlagOn && !isFirstTurn) {
+          if (pendingPivotRef.current) {
+            pivotDirective = pendingPivotRef.current
+            pendingPivotRef.current = null
+          } else if (context?.ruminationWatch && !watchPivotUsedRef.current) {
+            watchPivotUsedRef.current = true
+            pivotDirective = { theme: context.ruminationWatch.theme }
+          }
+        }
+
         const promptMessages = buildTherapistMessages(currentMessages, {
           phase,
           recentSessionNotes: context?.recentSessionNotes,
@@ -139,9 +215,12 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           hrvContext,
           mode: currentSession.mode ?? 'standard',
           allowRecommendations: true,
-          isFirstTurn: isFirstTherapistTurn(currentMessages),
+          isFirstTurn,
           inSessionRelaxBreaks,
           recentRelaxBreaks: context?.recentRelaxBreaks,
+          repairContext,
+          pivotDirective,
+          softenStance: repairFlagOn && softenRef.current ? true : undefined,
         })
 
         typewriter.reset()
@@ -209,6 +288,18 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             typewriter.reset()
             resolveMessages(updatedMessages)
           })
+
+          // Consume-once repair: the opener that used the repair evidence has
+          // now landed. Clear both the in-memory copy (so retries and later
+          // turns don't re-include it) and the persistent slot. Best-effort —
+          // a failed clear just risks one extra repair next session.
+          if (repairIncludedRef.current) {
+            repairIncludedRef.current = false
+            if (contextRef.current) contextRef.current.repairContext = null
+            void db.companionSignals
+              .update('current', { pendingRepair: null, updatedAt: Date.now() })
+              .catch(() => { /* best-effort */ })
+          }
         }
 
         hrv.resetResponseStarted()
