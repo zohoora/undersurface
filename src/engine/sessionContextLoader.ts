@@ -1,9 +1,10 @@
-import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals, UserPart } from '../types'
+import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals, UserPart, SessionIntention, StanceProfile } from '../types'
 import { db } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { detectOpenTimeEvidence } from './ruptureDetector'
 import { RUMINATION_WATCH_ARM_STREAK } from './signalTracker'
 import { selectProposalCandidate } from './userPartTracker'
+import { orderForFollowUp, selectPatternToName } from './intentionTracker'
 
 export interface TherapistContext {
   recentSessionNotes: { note: string; date: number }[]
@@ -24,6 +25,13 @@ export interface TherapistContext {
   activeUserParts: { name: string; description: string; stance: string }[]
   // At most one candidate eligible to be offered this session, flag-gated.
   partProposalCandidate: { id: string; tentativeName: string; description: string; quote: string } | null
+  // Open intentions ordered for follow-up (flag-gated) + whether slots remain
+  // for a closing offer, + at most one slipping intention to name once.
+  openIntentions: { id: string; text: string; notYetCount: number }[]
+  intentionSlotsOpen: boolean
+  intentionPatternToName: { id: string; text: string } | null
+  // Internal stance tendencies (flag-gated).
+  stanceEntries: string[]
 }
 
 const MEMORY_SOURCE_PARTS = ['open', 'weaver', 'still']
@@ -34,8 +42,10 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
   const repairOn = features?.ruptureRepair === true
   const pivotOn = features?.ruminationPivot === true
   const userPartsOn = features?.userParts === true
+  const intentionsOn = features?.sessionIntentions === true
+  const stanceOn = features?.stanceAdaptation === true
 
-  const [sessions, memories, profiles, facts, relaxBreaks, signals, allUserParts] = await Promise.all([
+  const [sessions, memories, profiles, facts, relaxBreaks, signals, allUserParts, allIntentions, stanceProfile] = await Promise.all([
     // Bounded: only the 5 newest noted sessions are kept, so scanning the
     // full collection is pure read amplification. 50 newest gives ample
     // margin for closed-without-note gaps.
@@ -50,6 +60,8 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     db.relaxSessions.orderBy('startedAt').reverse().limit(RECENT_RELAX_LIMIT * 2).toArray(),
     repairOn || pivotOn ? db.companionSignals.get('current') : Promise.resolve(undefined),
     userPartsOn ? db.userParts.toArray() : Promise.resolve([] as UserPart[]),
+    intentionsOn ? db.sessionIntentions.toArray() : Promise.resolve([] as SessionIntention[]),
+    stanceOn ? db.stanceProfile.get('current') : Promise.resolve(undefined as StanceProfile | undefined),
   ])
 
   // Extract notes from the 5 most recent closed sessions
@@ -131,6 +143,9 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
       }
     : null
 
+  const orderedIntentions = intentionsOn ? orderForFollowUp(allIntentions) : []
+  const patternToName = intentionsOn ? selectPatternToName(allIntentions) : null
+
   return {
     recentSessionNotes,
     relevantMemories: allMemories,
@@ -141,6 +156,10 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     ruminationWatch,
     activeUserParts,
     partProposalCandidate,
+    openIntentions: orderedIntentions.map((i) => ({ id: i.id, text: i.text, notYetCount: i.notYetCount })),
+    intentionSlotsOpen: intentionsOn && orderedIntentions.length < 3,
+    intentionPatternToName: patternToName ? { id: patternToName.id, text: patternToName.text } : null,
+    stanceEntries: stanceOn ? stanceProfile?.entries ?? [] : [],
   }
 }
 

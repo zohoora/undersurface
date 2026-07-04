@@ -871,7 +871,8 @@ INTENTION OUTCOMES — rules:
 
 STANCE OBSERVATION — rules:
 - Describe the COMPANION's way of working this session (challenge vs validation, question density, reply length, pacing) and how it visibly landed for the writer. Never diagnose the writer.
-- direction: helped (the move visibly deepened or settled things), hindered (the writer flattened, deflected, or pulled back after it), unclear otherwise. Choose "unclear" over guessing — most sessions are unclear.
+- direction: "helped" ONLY when a specific companion move produced a visible SHIFT — new ground opened, a stuck view loosened, distress settled. A pleasant or smooth session where nothing changed is "unclear", not "helped". "hindered" when the writer flattened, deflected, or pulled back right after a move.
+- Choose "unclear" over guessing — MOST sessions are unclear, and that is the correct answer for them.
 - One observation at most; omit the field entirely when nothing stands out.`
     : ''
 

@@ -89,6 +89,10 @@ export function useSessionStream(wiring: SessionStreamWiring) {
   // Set once a finalized message actually carried the part-proposal marker —
   // the offer happened; stop including the block this session.
   const proposalOfferedRef = useRef(false)
+  // Same one-shot semantics for the closing intention offer and the once-ever
+  // slipping-pattern nudge.
+  const intentionOfferedRef = useRef(false)
+  const patternNamedRef = useRef(false)
 
   const resetSignalsForSession = (sessionId: string) => {
     if (signalSessionIdRef.current === sessionId) return
@@ -99,6 +103,8 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     watchPivotUsedRef.current = false
     repairIncludedRef.current = false
     proposalOfferedRef.current = false
+    intentionOfferedRef.current = false
+    patternNamedRef.current = false
   }
 
   // Returns the updated messages array after the therapist message is finalized.
@@ -231,6 +237,33 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             ? context.partProposalCandidate
             : undefined
 
+        // The thread: follow-up context every turn; a once-ever pattern nudge
+        // for a slipping intention (never stacked with another intervention);
+        // the closing offer while slots remain and none was made yet.
+        const intentionsFlagOn = signalFeatures?.sessionIntentions === true
+        const openIntentions = intentionsFlagOn && context?.openIntentions?.length
+          ? context.openIntentions
+          : undefined
+        const namePatternFor =
+          intentionsFlagOn &&
+          !isFirstTurn &&
+          !pivotDirective &&
+          !softenRef.current &&
+          !partProposal &&
+          !patternNamedRef.current &&
+          context?.intentionPatternToName
+            ? { text: context.intentionPatternToName.text }
+            : undefined
+        const intentionOffer =
+          intentionsFlagOn && !intentionOfferedRef.current && context?.intentionSlotsOpen === true
+            ? true
+            : undefined
+
+        const stanceContext =
+          signalFeatures?.stanceAdaptation === true && context?.stanceEntries?.length
+            ? context.stanceEntries
+            : undefined
+
         const promptMessages = buildTherapistMessages(currentMessages, {
           phase,
           recentSessionNotes: context?.recentSessionNotes,
@@ -250,6 +283,10 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           activeUserParts,
           lexicon,
           partProposal,
+          openIntentions,
+          namePatternFor,
+          intentionOffer,
+          stanceContext,
         })
 
         typewriter.reset()
@@ -340,6 +377,33 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             void db.userParts
               .update(partProposal.id, { proposedAt: Date.now(), updatedAt: Date.now() })
               .catch(() => { /* best-effort */ })
+          }
+
+          // Intention offer: one per session, counted only when the marker
+          // actually appeared.
+          if (intentionOffer && fullText.includes('](#offer-intention)')) {
+            intentionOfferedRef.current = true
+          }
+
+          // Slipping-pattern nudge: once EVER per intention. The build that
+          // carried the instruction counts as the naming — mark it in
+          // Firestore and feed the existing avoidance machinery.
+          if (namePatternFor && context?.intentionPatternToName) {
+            patternNamedRef.current = true
+            const { id, text } = context.intentionPatternToName
+            if (contextRef.current) contextRef.current.intentionPatternToName = null
+            void db.sessionIntentions
+              .update(id, { patternNamed: true, updatedAt: Date.now() })
+              .catch(() => { /* best-effort */ })
+            void db.userProfile.get('current').then((profile) => {
+              if (!profile) return
+              const line = `keeps deferring the intention "${text.slice(0, 60)}"`
+              if (profile.avoidancePatterns.includes(line)) return
+              return db.userProfile.update('current', {
+                avoidancePatterns: [...profile.avoidancePatterns, line].slice(-10),
+                lastUpdated: Date.now(),
+              })
+            }).catch(() => { /* best-effort */ })
           }
         }
 

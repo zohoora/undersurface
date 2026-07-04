@@ -48,6 +48,8 @@
 | `features.ruptureRepair` | Alliance-rupture detection (abandoned session / terse ending / atypical gap) + explicit repair at the next opener + silent mid-session stance softening on live withdrawal. Suppressed under grounding |
 | `features.ruminationPivot` | Rumination-loop detection (live per-turn classifier + cross-session reflection streak) + silent register pivot from a 4-move taxonomy. Suppressed under grounding. Spec: `docs/superpowers/specs/2026-07-03-rupture-rumination-design.md` |
 | `features.userParts` | Collaborative user-parts mapping: reflection-pass observations → in-session proposal (`#propose-part` marker + consent card) → confirmed in the writer's own words; active parts + shared lexicon enter the prompt; "Parts of you" settings section. Suppressed under grounding. Spec: `docs/superpowers/specs/2026-07-04-user-parts-model-design.md` |
+| `features.sessionIntentions` | The thread: between-session intentions in the writer's words (volunteered via reflection or companion-offered via `#offer-intention` + IntentionCard), warm opener follow-up, 3×"not yet" → once-ever pattern naming + avoidancePatterns. Cap 3 open. Suppressed under grounding. Spec: `docs/superpowers/specs/2026-07-04-intentions-and-stance-design.md` |
+| `features.stanceAdaptation` | N-of-1 stance learning: one-tap closing check-in (`Session.leavingFeeling`) + per-session stance observations consolidated every 5th into ≤6 internal plain-language tendencies injected as prompt context. Never touches safety/grounding behavior. Internal-only v1 |
 | `features.intentionsEnabled` | Per-entry writing intentions |
 | `features.guidedExplorations` | AI writing prompts on new entries |
 | **Biometric** (Session Mode only) | |

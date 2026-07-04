@@ -135,6 +135,14 @@ export function useSessionVoice({
       lexicon: getGlobalConfig()?.features?.userParts === true && context.personalFacts?.lexicon?.length
         ? context.personalFacts.lexicon
         : undefined,
+      // Thread follow-up + stance tendencies, read-only on voice. Offers and
+      // pattern nudges are text-surface-only in v1.
+      openIntentions: getGlobalConfig()?.features?.sessionIntentions === true && context.openIntentions.length > 0
+        ? context.openIntentions
+        : undefined,
+      stanceContext: getGlobalConfig()?.features?.stanceAdaptation === true && context.stanceEntries.length > 0
+        ? context.stanceEntries
+        : undefined,
     })
   }, [contextRef, sessionRef, messagesRef, hrv])
 

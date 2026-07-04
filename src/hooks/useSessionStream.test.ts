@@ -47,12 +47,15 @@ const sessionMessageAddMock = vi.fn(async () => {})
 const sessionUpdateMock = vi.fn(async () => {})
 const companionSignalsUpdateMock = vi.fn(async () => {})
 const userPartsUpdateMock = vi.fn(async () => {})
+const intentionUpdateMock = vi.fn(async () => {})
 let idCounter = 0
 vi.mock('../store/db', () => ({
   db: {
     sessions: { update: (...a: unknown[]) => sessionUpdateMock(...a) },
     companionSignals: { update: (...a: unknown[]) => companionSignalsUpdateMock(...a) },
     userParts: { update: (...a: unknown[]) => userPartsUpdateMock(...a) },
+    sessionIntentions: { update: (...a: unknown[]) => intentionUpdateMock(...a) },
+    userProfile: { get: async () => undefined, update: async () => {} },
   },
   sessionMessages: { add: (...a: unknown[]) => sessionMessageAddMock(...a) },
   generateId: () => `msg-${++idCounter}`,
@@ -114,6 +117,10 @@ function makeContext(over: Partial<TherapistContext> = {}): TherapistContext {
     ruminationWatch: null,
     activeUserParts: [],
     partProposalCandidate: null,
+    openIntentions: [],
+    intentionSlotsOpen: false,
+    intentionPatternToName: null,
+    stanceEntries: [],
     ...over,
   }
 }
@@ -224,6 +231,7 @@ beforeEach(() => {
   buildOptionsSpy.mockClear()
   companionSignalsUpdateMock.mockClear()
   userPartsUpdateMock.mockClear()
+  intentionUpdateMock.mockClear()
   featuresMock = {}
   isGroundingMock.mockReturnValue(false)
   idCounter = 0
@@ -940,5 +948,122 @@ describe('user parts wiring', () => {
     buildOptionsSpy.mockClear()
     await runGenerate(result, wiring, tw, nonOpener, 'A reply.')
     expect(buildOptionsSpy.mock.calls[0][0].partProposal).toEqual(candidate)
+  })
+})
+
+// ─── Intentions + stance wiring ──────────────────────────────────────────────
+
+describe('intentions + stance wiring', () => {
+  function streamOk(text: string) {
+    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
+      callbacks.onToken(text)
+      callbacks.onComplete()
+    })
+  }
+
+  async function runGenerate(
+    result: { current: { generateTherapistMessage: (m: SessionMessage[], s: Session) => Promise<SessionMessage[]> } },
+    wiring: ReturnType<typeof makeWiring>,
+    tw: TypewriterMock,
+    messages: SessionMessage[],
+    reply: string,
+  ) {
+    await act(async () => {
+      tw.pendingComplete = null
+      const p = result.current.generateTherapistMessage(messages, wiring.sessionRef.current!)
+      for (let i = 0; i < 1000 && !tw.pendingComplete; i++) await Promise.resolve()
+      await tw.pendingComplete?.(reply)
+      await p
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+  }
+
+  const nonOpener = [makeUserMsg('hello there'), { ...makeUserMsg('x'), speaker: 'therapist' as const }]
+
+  it('threads openIntentions, stanceContext, and the offer flag under their flags', async () => {
+    featuresMock = { sessionIntentions: true, stanceAdaptation: true }
+    streamOk('A reply.')
+    const tw = makeTypewriter()
+    const context = makeContext({
+      openIntentions: [{ id: 'i1', text: 'call him thursday', notYetCount: 1 }],
+      intentionSlotsOpen: true,
+      stanceEntries: ['short replies land well'],
+    })
+    const wiring = makeWiring({ typewriter: tw, context, messages: nonOpener })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    await runGenerate(result, wiring, tw, nonOpener, 'A reply.')
+
+    const opts = buildOptionsSpy.mock.calls[0][0]
+    expect(opts.openIntentions).toEqual([{ id: 'i1', text: 'call him thursday', notYetCount: 1 }])
+    expect(opts.intentionOffer).toBe(true)
+    expect(opts.stanceContext).toEqual(['short replies land well'])
+  })
+
+  it('omits all of it when flags are off', async () => {
+    featuresMock = {}
+    streamOk('A reply.')
+    const tw = makeTypewriter()
+    const context = makeContext({
+      openIntentions: [{ id: 'i1', text: 'call him thursday', notYetCount: 0 }],
+      intentionSlotsOpen: true,
+      stanceEntries: ['x'],
+    })
+    const wiring = makeWiring({ typewriter: tw, context, messages: nonOpener })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    await runGenerate(result, wiring, tw, nonOpener, 'A reply.')
+
+    const opts = buildOptionsSpy.mock.calls[0][0]
+    expect(opts.openIntentions).toBeUndefined()
+    expect(opts.intentionOffer).toBeUndefined()
+    expect(opts.stanceContext).toBeUndefined()
+  })
+
+  it('the offer stops re-arming once a finalized message carried the marker', async () => {
+    featuresMock = { sessionIntentions: true }
+    const tw = makeTypewriter()
+    const context = makeContext({ intentionSlotsOpen: true })
+    const wiring = makeWiring({ typewriter: tw, context, messages: nonOpener })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    const withMarker = 'Carry [calling him](#offer-intention) with you?'
+    streamOk(withMarker)
+    await runGenerate(result, wiring, tw, nonOpener, withMarker)
+    expect(buildOptionsSpy.mock.calls[0][0].intentionOffer).toBe(true)
+
+    buildOptionsSpy.mockClear()
+    streamOk('Onward.')
+    await runGenerate(result, wiring, tw, nonOpener, 'Onward.')
+    expect(buildOptionsSpy.mock.calls[0][0].intentionOffer).toBeUndefined()
+  })
+
+  it('pattern nudge: included once, marks patternNamed + feeds avoidance, never stacks with a pivot', async () => {
+    featuresMock = { sessionIntentions: true, ruminationPivot: true }
+    streamOk('A reply.')
+    const tw = makeTypewriter()
+    const context = makeContext({
+      intentionPatternToName: { id: 'i9', text: 'call him thursday' },
+      ruminationWatch: { theme: 'the loop' },
+    })
+    const wiring = makeWiring({ typewriter: tw, context, messages: nonOpener })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    // Build 1: the watch pivot wins; nudge must wait.
+    await runGenerate(result, wiring, tw, nonOpener, 'A reply.')
+    expect(buildOptionsSpy.mock.calls[0][0].pivotDirective).toEqual({ theme: 'the loop' })
+    expect(buildOptionsSpy.mock.calls[0][0].namePatternFor).toBeUndefined()
+
+    // Build 2: pivot consumed → nudge rides, then marks named.
+    buildOptionsSpy.mockClear()
+    await runGenerate(result, wiring, tw, nonOpener, 'A reply.')
+    expect(buildOptionsSpy.mock.calls[0][0].namePatternFor).toEqual({ text: 'call him thursday' })
+    expect(intentionUpdateMock).toHaveBeenCalledWith('i9', expect.objectContaining({ patternNamed: true }))
+
+    // Build 3: never again.
+    buildOptionsSpy.mockClear()
+    await runGenerate(result, wiring, tw, nonOpener, 'A reply.')
+    expect(buildOptionsSpy.mock.calls[0][0].namePatternFor).toBeUndefined()
   })
 })
