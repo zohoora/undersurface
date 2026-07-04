@@ -1,9 +1,11 @@
-import type { Part, EntrySummary, UserProfile, PersonalFacts, SessionMessage } from '../types'
+import type { Part, EntrySummary, UserProfile, PersonalFacts, SessionMessage, CompanionSignals } from '../types'
 import { buildSessionReflectionPrompt, buildBoundedTranscript } from '../ai/therapistPrompts'
 import { chatCompletion } from '../ai/openrouter'
 import { db, generateId } from '../store/db'
+import { getGlobalConfig } from '../store/globalConfig'
 import { LetterEngine } from './letterEngine'
 import { pruneGrowthCollections } from './memoryPruner'
+import { detectTerseEnding } from './ruptureDetector'
 import { engineLog } from '../services/diagnostics'
 
 const MEMORY_CAPS: Record<string, number> = {
@@ -225,6 +227,14 @@ export async function reflectOnSession(
       }
     }
 
+    // 6e-bis. Rupture/rumination signal state (terse-ending marker + loop
+    // streak). Best-effort — never lets a signal failure affect the reflection.
+    try {
+      await updateCompanionSignals(sessionId, messages, parsed.loopSignal)
+    } catch (error) {
+      console.error('[reflect] companion signal update error:', error)
+    }
+
     // 6f. Prune old memories
     await pruneMemories(parts)
 
@@ -275,6 +285,7 @@ function parseReflectionResponse(response: string): {
   somaticSignals?: Array<{
     bodyRegion: string; quote: string; emotion: string; intensity: string
   }>
+  loopSignal?: { present?: unknown; theme?: unknown; newInformation?: unknown }
 } | null {
   try {
     const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, response]
@@ -282,6 +293,70 @@ function parseReflectionResponse(response: string): {
   } catch {
     console.error('Failed to parse session reflection response:', response.slice(0, 200))
     return null
+  }
+}
+
+// Rupture/rumination signal state updates from the reflection pass. Exported
+// for tests. Spec: docs/superpowers/specs/2026-07-03-rupture-rumination-design.md
+//
+// Terse-ending: the one rupture marker that needs message lengths, computed
+// here where the messages are already in memory (abandonment/gap are computed
+// at session open from session docs). Loop streak: the LLM judges recurrence
+// against the summaries it was shown; the client only counts consecutive
+// no-new-information loop sessions. Consumers treat streak >= 3 as armed.
+export async function updateCompanionSignals(
+  sessionId: string,
+  messages: SessionMessage[],
+  loopSignal: { present?: unknown; theme?: unknown; newInformation?: unknown } | undefined,
+): Promise<void> {
+  const features = getGlobalConfig()?.features
+  const repairOn = features?.ruptureRepair === true
+  const pivotOn = features?.ruminationPivot === true
+  if (!repairOn && !pivotOn) return
+
+  const existing = await db.companionSignals.get('current')
+  const current: CompanionSignals = existing ?? {
+    id: 'current',
+    pendingRepair: null,
+    ruminationWatch: null,
+    updatedAt: 0,
+  }
+  let changed = false
+
+  if (repairOn) {
+    const lengths = messages
+      .filter((m) => m.speaker === 'user')
+      .map((m) => (m.content ?? '').length)
+    if (detectTerseEnding(lengths)) {
+      // Single slot — newest evidence wins.
+      current.pendingRepair = { evidence: 'terse_ending', sourceSessionId: sessionId, createdAt: Date.now() }
+      changed = true
+    }
+  }
+
+  if (pivotOn) {
+    // Malformed/missing loopSignal is treated as "no loop" (precision-first):
+    // present must be literally true and newInformation literally false.
+    const looped = loopSignal?.present === true && loopSignal?.newInformation === false
+    if (looped) {
+      const theme = nonEmptyString(loopSignal?.theme)?.slice(0, 60) ?? ''
+      current.ruminationWatch = {
+        theme,
+        streak: (current.ruminationWatch?.streak ?? 0) + 1,
+        lastConfirmedAt: Date.now(),
+      }
+      changed = true
+    } else if (current.ruminationWatch) {
+      // A session that breaks the loop clears the watch entirely.
+      current.ruminationWatch = null
+      changed = true
+    }
+  }
+
+  if (changed) {
+    current.updatedAt = Date.now()
+    if (existing) await db.companionSignals.update('current', current)
+    else await db.companionSignals.add(current)
   }
 }
 

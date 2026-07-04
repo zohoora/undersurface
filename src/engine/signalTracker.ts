@@ -21,6 +21,10 @@ const ARM_STREAK = 2
 const PIVOT_COOLDOWN_TURNS = 6
 const SOFTEN_RELEASE_STREAK = 2
 
+// Cross-session watch (companionSignals.ruminationWatch): consumers treat the
+// reflection-pass streak as armed at this many consecutive loop sessions.
+export const RUMINATION_WATCH_ARM_STREAK = 3
+
 export class SignalTracker {
   private ruminationStreak = 0
   private pivotCooldown = 0

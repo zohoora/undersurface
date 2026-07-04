@@ -25,16 +25,21 @@ vi.mock('../store/db', () => ({
     memories: { add: vi.fn(), where: vi.fn(() => ({ equals: vi.fn(() => ({ toArray: vi.fn(async () => []) })) })), delete: vi.fn() },
     entries: { count: vi.fn(async () => 5) },
     parts: { toArray: vi.fn(async () => []) },
+    companionSignals: { get: vi.fn(async () => undefined), add: vi.fn(), update: vi.fn() },
   },
   generateId: vi.fn(() => 'gen-id'),
+}))
+vi.mock('../store/globalConfig', () => ({
+  getGlobalConfig: vi.fn(() => ({ features: { ruptureRepair: true, ruminationPivot: true } })),
 }))
 vi.mock('./letterEngine', () => ({
   LetterEngine: class { checkForLetter = vi.fn(async () => null) },
 }))
 
-import { reflectOnSession } from './sessionReflectionEngine'
+import { reflectOnSession, updateCompanionSignals } from './sessionReflectionEngine'
 import { chatCompletion } from '../ai/openrouter'
 import { db } from '../store/db'
+import { getGlobalConfig } from '../store/globalConfig'
 
 const mockChatCompletion = vi.mocked(chatCompletion)
 
@@ -286,5 +291,83 @@ describe('reflectOnSession', () => {
     // Should not throw, should not store anything
     expect(db.entrySummaries.add).not.toHaveBeenCalled()
     expect(db.memories.add).not.toHaveBeenCalled()
+  })
+})
+
+describe('updateCompanionSignals', () => {
+  beforeEach(() => {
+    vi.mocked(db.companionSignals.get).mockReset().mockResolvedValue(undefined)
+    vi.mocked(db.companionSignals.add).mockReset()
+    vi.mocked(db.companionSignals.update).mockReset()
+    vi.mocked(getGlobalConfig).mockReturnValue(
+      { features: { ruptureRepair: true, ruminationPivot: true } } as never,
+    )
+  })
+
+  // 8+ engaged user messages then a collapsing tail (< 40% of median).
+  const terseMessages = [
+    ...Array.from({ length: 6 }, (_, i) => makeMessage({ id: `m${i}`, content: 'x'.repeat(100) })),
+    makeMessage({ id: 't1', content: 'ok' }),
+    makeMessage({ id: 't2', content: 'sure' }),
+    makeMessage({ id: 't3', content: 'fine' }),
+  ]
+
+  it('writes a terse_ending pendingRepair when the session tail collapses', async () => {
+    await updateCompanionSignals('sess-9', terseMessages, undefined)
+
+    expect(db.companionSignals.add).toHaveBeenCalledWith(expect.objectContaining({
+      pendingRepair: expect.objectContaining({ evidence: 'terse_ending', sourceSessionId: 'sess-9' }),
+    }))
+  })
+
+  it('increments the loop streak on present && !newInformation', async () => {
+    vi.mocked(db.companionSignals.get).mockResolvedValue({
+      id: 'current', pendingRepair: null, updatedAt: 0,
+      ruminationWatch: { theme: 'old', streak: 2, lastConfirmedAt: 1 },
+    } as never)
+
+    await updateCompanionSignals('sess-9', [makeMessage()], { present: true, theme: 'the job decision', newInformation: false })
+
+    expect(db.companionSignals.update).toHaveBeenCalledWith('current', expect.objectContaining({
+      ruminationWatch: expect.objectContaining({ streak: 3, theme: 'the job decision' }),
+    }))
+  })
+
+  it('clears the watch when the loop breaks (newInformation: true)', async () => {
+    vi.mocked(db.companionSignals.get).mockResolvedValue({
+      id: 'current', pendingRepair: null, updatedAt: 0,
+      ruminationWatch: { theme: 'old', streak: 2, lastConfirmedAt: 1 },
+    } as never)
+
+    await updateCompanionSignals('sess-9', [makeMessage()], { present: true, theme: 'old', newInformation: true })
+
+    expect(db.companionSignals.update).toHaveBeenCalledWith('current', expect.objectContaining({
+      ruminationWatch: null,
+    }))
+  })
+
+  it('treats malformed loopSignal as no loop (precision-first) and writes nothing when no watch exists', async () => {
+    await updateCompanionSignals('sess-9', [makeMessage()], { present: 'yes', newInformation: 'no' } as never)
+
+    expect(db.companionSignals.add).not.toHaveBeenCalled()
+    expect(db.companionSignals.update).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when both flags are off', async () => {
+    vi.mocked(getGlobalConfig).mockReturnValue({ features: {} } as never)
+
+    await updateCompanionSignals('sess-9', terseMessages, { present: true, theme: 't', newInformation: false })
+
+    expect(db.companionSignals.get).not.toHaveBeenCalled()
+    expect(db.companionSignals.add).not.toHaveBeenCalled()
+  })
+
+  it('gates each behavior on its own flag', async () => {
+    // Only ruminationPivot on: terse ending must NOT be written.
+    vi.mocked(getGlobalConfig).mockReturnValue({ features: { ruminationPivot: true } } as never)
+
+    await updateCompanionSignals('sess-9', terseMessages, undefined)
+
+    expect(db.companionSignals.add).not.toHaveBeenCalled()
   })
 })
