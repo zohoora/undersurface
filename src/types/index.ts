@@ -156,6 +156,9 @@ export interface Session {
   // unified Journal surface. Read with `journalPartsEnabled !== false` so
   // legacy sessions (undefined) default to true (opt-out semantics).
   journalPartsEnabled?: boolean
+  // One-tap closing check-in ("How are you leaving?"), skippable — absent
+  // when skipped or when the stanceAdaptation flag is off.
+  leavingFeeling?: 'heavier' | 'same' | 'shade_lighter' | 'lighter' | 'much_lighter'
 }
 
 export interface SessionMessage {
@@ -354,6 +357,44 @@ export interface UserPart {
   retiredAt?: number
   lastActiveAt: number
   createdAt: number
+  updatedAt: number
+}
+
+// A between-session intention in the writer's own words ("the thread").
+// Volunteered intentions come straight from reflection; companion-offered ones
+// require the IntentionCard. Cap 3 open — scarcity keeps it meaningful.
+// Spec: docs/superpowers/specs/2026-07-04-intentions-and-stance-design.md
+export interface SessionIntention {
+  id: string
+  text: string
+  sessionId: string
+  status: 'open' | 'kept' | 'adapted' | 'released' | 'expired'
+  askedCount: number
+  // Three "not yet"s make the avoidance itself material — named once, then
+  // patternNamed prevents repeats.
+  notYetCount: number
+  patternNamed: boolean
+  lastAskedAt?: number
+  resolvedAt?: number
+  outcomeNote?: string
+  createdAt: number
+  updatedAt: number
+}
+
+// Internal N-of-1 stance profile (singleton 'current'): what ways of working
+// actually help THIS writer, learned from their own sessions. Plain-language
+// entries (a future transparency panel is pure rendering). Never touches
+// safety behavior.
+export interface StanceProfile {
+  id: 'current'
+  rawObservations: {
+    observation: string
+    direction: 'helped' | 'hindered' | 'unclear'
+    sessionId: string
+    createdAt: number
+  }[]
+  entries: string[]
+  consolidatedAt?: number
   updatedAt: number
 }
 

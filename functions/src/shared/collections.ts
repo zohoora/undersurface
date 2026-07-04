@@ -24,4 +24,6 @@ export const USER_SUBCOLLECTIONS = [
   'diagnostics',
   'companionSignals',
   'userParts',
+  'sessionIntentions',
+  'stanceProfile',
 ] as const
