@@ -84,6 +84,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const [checkInSessionId, setCheckInSessionId] = useState<string | null>(null)
   const reflectionFiredRef = useRef(false)
   const pendingReflectionRef = useRef<(() => void) | null>(null)
+  // The check-in now shows on tap, before the closing message finishes, so its
+  // answer can land before reflection is even set up. This records that, so
+  // whichever finishes last (closing message vs. answer) triggers reflection.
+  const checkInAnsweredRef = useRef(false)
   const handleSendRef = useRef<() => void>(() => {})
 
   const voiceEnabled = getGlobalConfig()?.features?.voiceEnabled === true
@@ -102,10 +106,12 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   useEffect(() => { sessionRef.current = session; sessionIdRef.current = session?.id ?? null }, [session])
   useEffect(() => { messagesRef.current = messages }, [messages])
 
-  // Auto-scroll on new messages or streaming content
+  // Auto-scroll on new messages, streaming content, or when the closing
+  // check-in appears — the check-in mounts just above this anchor, so scrolling
+  // the anchor into view keeps the check-in visible where the person is looking.
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, typewriter.displayedContent])
+  }, [messages, typewriter.displayedContent, checkInSessionId])
 
   // Init effect — runs once per sessionId change. Suppressed deps are
   // `startNewSession`, `typewriter`, `hrv`: all three are useCallback/hook
@@ -298,6 +304,14 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     const currentMessages = messagesRef.current
     if (!currentSession || currentSession.status === 'closed' || isStreaming) return
 
+    // Show the stance check-in immediately on tap — before the (multi-second)
+    // closing message + note generation — so it lands at the bottom in view,
+    // where the person already is. Reflection is coordinated with it below.
+    const stanceOn = getGlobalConfig()?.features?.stanceAdaptation === true
+    reflectionFiredRef.current = false
+    checkInAnsweredRef.current = false
+    if (stanceOn) setCheckInSessionId(currentSession.id)
+
     // Generate closing therapist message — returns updated messages array
     const finalMessages = await generateTherapistMessage(currentMessages, currentSession)
 
@@ -331,9 +345,12 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     } : prev)
 
     // Non-blocking: run full reflection pipeline. When the stance check-in is
-    // active, defer reflection briefly so the one-tap "how are you leaving?"
-    // answer exists on the session doc when the stance observer reads it —
-    // the check-in never blocks closing; only reflection waits (max 30s).
+    // active, reflection must not read the session doc until the one-tap "how
+    // are you leaving?" answer lands on it. The closing message and the answer
+    // can finish in either order now that the check-in shows on tap; whichever
+    // is last triggers the run. If the answer already arrived, go immediately;
+    // otherwise wait for it, capped at 30s so an unanswered check-in never
+    // strands reflection. The check-in never blocks closing.
     const runReflection = () => {
       if (reflectionFiredRef.current) return
       reflectionFiredRef.current = true
@@ -341,13 +358,14 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         .then(parts => reflectOnSession(currentSession.id, finalMessages, parts))
         .catch(error => console.error('Session reflection error:', error))
     }
-    if (getGlobalConfig()?.features?.stanceAdaptation === true) {
-      reflectionFiredRef.current = false
-      setCheckInSessionId(currentSession.id)
-      pendingReflectionRef.current = runReflection
-      window.setTimeout(runReflection, 30_000)
+    if (stanceOn) {
+      if (checkInAnsweredRef.current) {
+        runReflection()
+      } else {
+        pendingReflectionRef.current = runReflection
+        window.setTimeout(runReflection, 30_000)
+      }
     } else {
-      reflectionFiredRef.current = false
       runReflection()
     }
 
@@ -627,19 +645,6 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         </button>
       )}
 
-      {/* One-tap closing check-in (stanceAdaptation flag; deferred reflection
-          fires on tap/skip or after 30s, whichever comes first) */}
-      {checkInSessionId && (
-        <ClosingCheckIn
-          sessionId={checkInSessionId}
-          onDone={() => {
-            setCheckInSessionId(null)
-            pendingReflectionRef.current?.()
-            pendingReflectionRef.current = null
-          }}
-        />
-      )}
-
       {/* Session note card (for closed sessions) */}
       {isClosed && session?.sessionNote && (
         <div className="session-note-card">
@@ -850,6 +855,22 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
             </div>
           )}
         </>
+      )}
+
+      {/* One-tap closing check-in — mounts at the bottom, directly beneath the
+          conversation/closing message, the instant "end session" is tapped
+          (stanceAdaptation flag). Deferred reflection fires on tap/skip or after
+          30s, whichever comes first; coordination lives in handleEndSession. */}
+      {checkInSessionId && (
+        <ClosingCheckIn
+          sessionId={checkInSessionId}
+          onDone={() => {
+            setCheckInSessionId(null)
+            checkInAnsweredRef.current = true
+            pendingReflectionRef.current?.()
+            pendingReflectionRef.current = null
+          }}
+        />
       )}
 
       <div ref={messagesEndRef} />
