@@ -40,6 +40,11 @@ interface Props {
 export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClose }: Props) {
   const drift = useDriftSession(parentSessionId, hrvContext)
   const { phase } = drift.state
+  // Stable useCallback handlers off the API. Effects/timers depend on THESE, not
+  // the whole `drift` object — which is a fresh literal each render, so keying an
+  // effect on it would reset the set/settle timers on every 1s TICK re-render and
+  // run the abandon cleanup on every re-render (Codex #1/#2).
+  const { abandon, completeSet, settleDone, requestClose } = drift
   const settings = getSettings()
   const blsChannel = settings.lastDriftBlsChannel
   const audioVolume = settings.lastDriftAudioVolume
@@ -73,20 +78,21 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
   useEffect(() => { if (phase === 'closed') onClose() }, [phase, onClose])
 
   // If the overlay unmounts mid-practice (navigation), mark the session abandoned.
-  useEffect(() => () => { void drift.abandon() }, [drift])
+  // Keyed on the stable `abandon` so it fires only on true unmount, not re-renders.
+  useEffect(() => () => { void abandon() }, [abandon])
 
   // Set / settle bands auto-advance after one set duration. In voice mode the
   // set clock starts only once the BLS is actually running (after the cue).
   useEffect(() => {
     if (!setActive) return
-    const id = setTimeout(() => { drift.completeSet() }, DRIFT_LIMITS.setMs)
+    const id = setTimeout(() => { completeSet() }, DRIFT_LIMITS.setMs)
     return () => clearTimeout(id)
-  }, [setActive, drift])
+  }, [setActive, completeSet])
   useEffect(() => {
     if (phase !== 'settle') return
-    const id = setTimeout(() => { drift.settleDone() }, DRIFT_LIMITS.setMs)
+    const id = setTimeout(() => { settleDone() }, DRIFT_LIMITS.setMs)
     return () => clearTimeout(id)
-  }, [phase, drift])
+  }, [phase, settleDone])
 
   // Escape: from arrive just closes the overlay; anywhere else it routes through
   // the engine's graceful close (settle & land) — never a dead exit mid-practice.
@@ -94,11 +100,11 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       if (phase === 'arrive') onClose()
-      else drift.requestClose()
+      else requestClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [phase, drift, onClose])
+  }, [phase, requestClose, onClose])
 
   const beginDrift = () => {
     updateSettings({ lastDriftVoice: voice })
@@ -172,7 +178,7 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
             {drift.state.setCount < 2 && (
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{t('drift.set.butterflyHint')}</div>
             )}
-            <button type="button" onClick={drift.completeSet} style={ghostBtn}>{t('drift.set.skip')}</button>
+            <button type="button" onClick={completeSet} style={ghostBtn}>{t('drift.set.skip')}</button>
           </div>
         )}
 
@@ -197,7 +203,7 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
       {showSettleClose && (
         <button
           type="button"
-          onClick={drift.requestClose}
+          onClick={requestClose}
           style={{
             position: 'absolute', bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))', left: '50%', transform: 'translateX(-50%)',
             padding: '8px 16px', borderRadius: 999, border: '1px solid var(--border-subtle)',

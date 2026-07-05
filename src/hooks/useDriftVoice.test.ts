@@ -7,13 +7,16 @@ const speakMock = vi.fn()
 const setMicEnabledMock = vi.fn()
 const cancelResponseMock = vi.fn()
 let capturedOnUserTranscript: ((t: string) => void) | undefined
+// Mutable so a test can drive connecting → connected. speak() faithfully mirrors
+// the real hook: a no-op until the data channel is open (state === 'connected').
+let voiceStateMock: 'idle' | 'connecting' | 'connected' | 'error' = 'connected'
 vi.mock('./useVoiceSession', () => ({
   useVoiceSession: () => ({
-    state: 'connected',
+    state: voiceStateMock,
     assistantSpeaking: false,
     start: (o: { onUserTranscript?: (t: string) => void }) => { capturedOnUserTranscript = o.onUserTranscript; return startMock(o) },
     stop: stopMock,
-    speak: speakMock,
+    speak: (t: string) => { if (voiceStateMock === 'connected') speakMock(t) },
     setMicEnabled: setMicEnabledMock,
     cancelResponse: cancelResponseMock,
   }),
@@ -36,6 +39,7 @@ function base(over: Partial<DriftVoiceOptions> = {}): DriftVoiceOptions {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  voiceStateMock = 'connected'
   detectCrisisKeywordsMock.mockReturnValue(false)
   classifyCrisisRiskMock.mockResolvedValue({ risk: 0 })
   capturedOnUserTranscript = undefined
@@ -57,6 +61,18 @@ describe('useDriftVoice', () => {
     expect(setMicEnabledMock).toHaveBeenLastCalledWith(false)
     rerender(base({ phase: 'notice' }))
     expect(setMicEnabledMock).toHaveBeenLastCalledWith(true)
+  })
+
+  // Regression (Codex #3): speak() is a no-op until the data channel opens. If the
+  // cue is marked spoken before connect and never retried, the first phase's cue is
+  // lost. It must be gated on 'connected' and retried when the session reaches it.
+  it('retries the phase cue after the session connects (cue is a no-op while connecting)', () => {
+    voiceStateMock = 'connecting'
+    const { rerender } = renderHook((p: DriftVoiceOptions) => useDriftVoice(p), { initialProps: base({ phase: 'anchor', cueText: 'anchor cue' }) })
+    expect(speakMock).not.toHaveBeenCalled() // data channel not open yet
+    voiceStateMock = 'connected'
+    rerender(base({ phase: 'anchor', cueText: 'anchor cue' }))
+    expect(speakMock).toHaveBeenCalledWith('anchor cue') // retried on connect
   })
 
   it('speaks a cue once per phase entry', () => {

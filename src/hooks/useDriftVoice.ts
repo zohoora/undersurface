@@ -63,15 +63,19 @@ export function useDriftVoice(opts: DriftVoiceOptions): { voiceState: VoiceSessi
   }, [enabled, onUserTranscript])
 
   // Mic gating (open except during BLS sets) + one scripted cue per phase entry.
+  // speak() is a no-op until the data channel is open, so the cue is gated on
+  // 'connected' and retried when the session reaches it (voice.state is a dep).
+  // Without this the first phase's cue — spoken before connect — is silently
+  // dropped, leaving voice users without that phase's guidance (Codex #3).
   const lastCuePhaseRef = useRef<DriftPhase | null>(null)
   useEffect(() => {
     if (!enabled) return
     voiceRef.current.setMicEnabled(phase !== 'set')
-    if (cueText && lastCuePhaseRef.current !== phase) {
+    if (voice.state === 'connected' && cueText && lastCuePhaseRef.current !== phase) {
       lastCuePhaseRef.current = phase
       voiceRef.current.speak(cueText)
     }
-  }, [enabled, phase, cueText])
+  }, [enabled, phase, cueText, voice.state])
 
   return { voiceState: voice.state, assistantSpeaking: voice.assistantSpeaking }
 }

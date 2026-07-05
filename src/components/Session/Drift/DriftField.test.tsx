@@ -1,14 +1,21 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, cleanup, screen, fireEvent } from '@testing-library/react'
+import { render, cleanup, screen, fireEvent, act } from '@testing-library/react'
 import type { DriftApi } from '../../../hooks/useDriftSession'
 import type { DriftState } from '../../../engine/driftEngine'
+import { DRIFT_LIMITS } from '../../../engine/driftEngine'
 
 void React
 
 let currentApi: DriftApi
+// Return a FRESH object each render (spread), mirroring the real useDriftSession,
+// which builds a new API object literal every render. Effects keyed on the whole
+// `drift` object would thus re-run on every render — this is what makes the timer
+// and abandon dependency-stability regressions observable in tests. The callbacks
+// inside stay referentially stable (same vi.fn refs), exactly like the real hook's
+// useCallback handlers.
 vi.mock('../../../hooks/useDriftSession', () => ({
-  useDriftSession: () => currentApi,
+  useDriftSession: () => ({ ...currentApi }),
 }))
 
 // Voice wiring is covered by useDriftVoice.test; isolate DriftField from it.
@@ -105,5 +112,40 @@ describe('DriftField', () => {
     renderPhase(makeState({ phase: 'notice' }))
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(currentApi.requestClose).toHaveBeenCalled()
+  })
+
+  // Regression (Codex #2): the abandon cleanup must fire only on true unmount.
+  // With effects keyed on the whole `drift` object, every re-render ran the
+  // cleanup → abandon() → persistFinal('abandoned') on an active session.
+  it('abandons only on unmount, never on ordinary re-renders', () => {
+    const props = { parentSessionId: null, hrvContext: null, voiceAvailable: false, onClose: () => {} }
+    currentApi = makeApi(makeState({ phase: 'set' }))
+    const { rerender, unmount } = render(<DriftField {...props} />)
+    rerender(<DriftField {...props} />)
+    rerender(<DriftField {...props} />)
+    expect(currentApi.abandon).not.toHaveBeenCalled()
+    unmount()
+    expect(currentApi.abandon).toHaveBeenCalledTimes(1)
+  })
+
+  // Regression (Codex #1): the set timer must survive re-render churn. The real
+  // 1s TICK re-renders the tree every second; a timer keyed on `drift` reset each
+  // time and never reached setMs, so sets never auto-advanced.
+  it('auto-advances a set after setMs even as tick churn re-renders it', () => {
+    vi.useFakeTimers()
+    try {
+      const props = { parentSessionId: null, hrvContext: null, voiceAvailable: false, onClose: () => {} }
+      currentApi = makeApi(makeState({ phase: 'set' }))
+      const { rerender } = render(<DriftField {...props} />)
+      const step = DRIFT_LIMITS.setMs / 5 // < setMs, so any per-render reset would starve the timer
+      for (let i = 0; i < 6; i++) {
+        act(() => { vi.advanceTimersByTime(step) })
+        rerender(<DriftField {...props} />)
+      }
+      // Cumulative 6*step = 30s > setMs (25s): a stable timer has fired exactly once.
+      expect(currentApi.completeSet).toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
