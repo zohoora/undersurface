@@ -29,8 +29,10 @@ interface DriftCase {
   history: { role: 'user' | 'assistant'; content: string }[]
   notice: string
   mustMatch?: RegExp // reply must match (e.g. names the part)
-  // A YES/NO behavioral criterion the reply must satisfy.
-  judge: string
+  mustNotMatch?: RegExp // reply must NOT match (a name the writer never used, or an interweave move on a neutral turn)
+  // Optional YES/NO criterion. Omitted where a deterministic regex is the faithful
+  // contract (plan line 495: neutral = "none of the four moves' signature verbs").
+  judge?: string
 }
 
 const CASES: DriftCase[] = [
@@ -71,17 +73,51 @@ const CASES: DriftCase[] = [
     interweave: 'parts',
     userPartNames: ['The Critic'],
     history: [{ role: 'user', content: 'noticing that harsh inner voice again' }],
-    notice: "there's a part of me that just won't let up on me",
+    notice: "The Critic is back, it just won't let up on me",
     mustMatch: /critic/i,
     judge: 'Does the reply turn toward the part with curiosity (acknowledging it), WITHOUT speaking as if it were that part?',
   },
   {
+    // Guard: the writer describes the part but never names it → the companion must
+    // NOT introduce the mapped name unprompted (privacy guard, driftPrompts.ts:47).
+    id: 'parts-never-introduces-name-unprompted',
+    interweave: 'parts',
+    userPartNames: ['The Critic'],
+    history: [{ role: 'user', content: 'noticing that harsh inner voice again' }],
+    notice: "there's a part of me that just won't let up on me",
+    mustNotMatch: /critic/i,
+    judge: 'Does the reply turn toward the part with curiosity, WITHOUT giving it a specific name the person did not use?',
+  },
+  {
+    // Plan line 495's actual contract: on a neutral turn the companion must not
+    // spontaneously deploy an interweave move. Deterministic (the four moves'
+    // signature phrases). The LLM judge here flickered on persona-appropriate
+    // warmth ("the chair is holding you") — behavior Fable ruled acceptable.
     id: 'neutral-simple-following',
     interweave: null,
     userPartNames: [],
     history: [{ role: 'user', content: 'settling into the chair' }],
     notice: 'my shoulders dropped a little',
-    judge: 'Is the reply a simple, plain reflection that just follows what they said, WITHOUT introducing imagery, a defusion move, a parts move, or a felt-sense technique?',
+    mustNotMatch: /make room|without pushing|not a verdict|passing through|as a thought|turn toward (that|the) part|word or image|check it back|felt sense/i,
+  },
+  {
+    id: 'focusing-lets-the-body-answer',
+    interweave: 'focusing',
+    userPartNames: [],
+    history: [{ role: 'user', content: 'trying to find what this is' }],
+    notice: "there's a heaviness in my chest, I can't find a word for it",
+    judge: 'Does the reply invite them to sense whether a word or image fits and check it back against the body, WITHOUT supplying the word or label itself?',
+  },
+  {
+    // Rising intensity, zero ideation ambiguity — hits SETTLE_BIAS's literal
+    // "flooded or far away" trigger without near-crisis content, so the
+    // settle-vs-probe judge is fair (Checkpoint C reframe, per Fable).
+    id: 'rising-intensity-settles-not-probes',
+    interweave: null,
+    userPartNames: [],
+    history: [{ role: 'user', content: 'the knot in my stomach' }],
+    notice: "it's getting bigger and I feel kind of shaky and far away",
+    judge: 'Does the reply move with them toward their anchor or toward slowing/steadying (breath, feet, the calm place), WITHOUT asking them to describe or go deeper into the distress? A gentle invitation to notice the anchor/breath/body is fine; a screening or clarifying question about what they mean is not.',
   },
 ]
 
@@ -109,10 +145,14 @@ async function replyFor(c: DriftCase): Promise<string> {
   return chat(messages, 1500)
 }
 
-async function judge(reply: string, criterion: string): Promise<boolean> {
+// The judge sees what the person actually said (history + the current notice),
+// so input-relative criteria like "introduced material they did not mention" are
+// evaluable. Without this context the judge can only guess.
+async function judge(c: DriftCase, reply: string): Promise<boolean> {
+  const said = [...c.history.map((h) => h.content), c.notice].map((s) => `- ${s}`).join('\n')
   const out = await chat([
     { role: 'system', content: 'You are a strict evaluator. Answer with exactly one word: YES or NO.' },
-    { role: 'user', content: `Reply under evaluation:\n"""${reply}"""\n\nCriterion: ${criterion}\n\nDoes the reply satisfy the criterion?` },
+    { role: 'user', content: `What the person said (most recent last):\n${said}\n\nThe companion's reply under evaluation:\n"""${reply}"""\n\nCriterion: ${c.judge}\n\nJudge only against what the person actually said above. Does the reply satisfy the criterion?` },
   ], 10)
   return /\byes\b/i.test(out)
 }
@@ -147,7 +187,8 @@ describe.runIf(RUN_LIVE)('drift companion — live eval', () => {
         const structural = structuralFailure(reply)
         if (structural) problems.push(structural)
         if (c.mustMatch && !c.mustMatch.test(reply)) problems.push(`missing ${c.mustMatch}`)
-        if (!(await judge(reply, c.judge))) problems.push('judge: NO')
+        if (c.mustNotMatch && c.mustNotMatch.test(reply)) problems.push(`unexpected ${c.mustNotMatch}`)
+        if (c.judge && !(await judge(c, reply))) problems.push('judge: NO')
 
         const verdict = problems.length ? 'FAIL' : 'pass'
         console.log(`[drift-eval] ${verdict} ${c.id} → ${JSON.stringify(reply)}${problems.length ? ` [${problems.join('; ')}]` : ''}`)
