@@ -38,7 +38,7 @@ const OPEN_FOLLOWING = `Simply follow what is here. Reflect it back plainly, in 
 export const INTERWEAVE_FRAGMENTS: Record<InterweaveKind, string> = {
   rain: `The feeling they named is a hard one to hold. Invite them to let it be here without pushing it away, and to meet it with the same kindness they would offer a friend. You are not fixing it — only making room for it.`,
   defusion: `They are caught in a thought. Invite them to notice it AS a thought — words passing through, not a verdict — and to hold it lightly as it moves. Never argue with what the thought says or weigh whether it is true.`,
-  parts: `It sounds like a part of them is carrying something. Reflect that gently and invite them to turn toward that part with a little curiosity, using their own name for it if they gave one. Never speak for the part or tell them what it wants.`,
+  parts: `It sounds like a part of them is carrying something. Reflect that gently and invite them to turn toward that part with a little curiosity, using their own name for it only if they used it just now. Never speak for the part or tell them what it wants.`,
   focusing: `There is a felt sense in the body without clear words yet. Invite them to sense whether some word or image quietly fits it, and to check that word back against the body to see if it eases or shifts. Never hand them the word — let the body answer.`,
 }
 
