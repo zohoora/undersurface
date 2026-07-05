@@ -11,7 +11,10 @@ import { getLanguageCode } from '../i18n'
 import { db, generateId } from '../store/db'
 import type { DriftAnchorKind, DriftBlsChannel, DriftOutcome, DriftSession, DriftTranscriptEntry } from '../types'
 
-const NOTICE_MAX_TOKENS = 220
+// Matches Talk's proven floor (getMaxTokens 300–600): gpt-5.x reasoning eats the
+// budget before content, and too-tight caps return empty completions. 220 sat
+// below that floor — raised to 400 (Checkpoint C finding).
+const NOTICE_MAX_TOKENS = 400
 const RISK_RACE_MS = 1500
 const PERSIST_DEBOUNCE_MS = 2000
 
@@ -165,7 +168,9 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
       onError: () => { /* leave companion null; the flow still advances below */ },
     }, NOTICE_MAX_TOKENS, reasoningForSpeed(getSettings().responseSpeed), controller.signal)
     setStreamingText('')
-    if (companion != null) appendEntry({ role: 'companion', content: companion, atMs: Date.now() })
+    // Truthy, not just non-null: a truncated/empty completion must not append a
+    // blank companion bubble (the flow still advances via the NOTICE dispatch).
+    if (companion) appendEntry({ role: 'companion', content: companion, atMs: Date.now() })
 
     let timer: ReturnType<typeof setTimeout>
     const risk = await Promise.race<CrisisRisk>([
