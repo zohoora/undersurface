@@ -11,6 +11,11 @@ vi.mock('../../../hooks/useDriftSession', () => ({
   useDriftSession: () => currentApi,
 }))
 
+// Voice wiring is covered by useDriftVoice.test; isolate DriftField from it.
+vi.mock('../../../hooks/useDriftVoice', () => ({
+  useDriftVoice: () => ({ voiceState: 'idle', assistantSpeaking: false }),
+}))
+
 // Isolate DriftField from BLS internals (Web Audio / rAF) — Task 4 tests those.
 vi.mock('./BilateralStimulus', () => ({
   BilateralStimulus: ({ channel, running }: { channel: string; running: boolean }) =>

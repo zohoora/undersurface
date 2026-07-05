@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useDriftSession } from '../../../hooks/useDriftSession'
+import { useDriftVoice } from '../../../hooks/useDriftVoice'
 import { DRIFT_LIMITS } from '../../../engine/driftEngine'
+import type { DriftPhase, ClosureReason } from '../../../engine/driftEngine'
 import { BilateralStimulus } from './BilateralStimulus'
 import { DriftExchange } from './DriftExchange'
 import { DriftClosing } from './DriftClosing'
@@ -10,6 +12,20 @@ import type { DriftAnchorKind } from '../../../types'
 
 // Mid-range pass duration inside the 1500–2500ms bound.
 const PASS_MS = 2000
+
+// Scripted cue spoken aloud on entry to each phase in voice mode. The safety-copy
+// phases (anchor/settle/closure/abort) are fixed i18n strings, never LLM output;
+// set/notice are null — the model asks/handles the notice itself per instructions.
+function voiceCue(phase: DriftPhase, closureReason: ClosureReason): string | null {
+  switch (phase) {
+    case 'anchor': return t('drift.anchor.body')
+    case 'choose': return t('drift.choose.hint')
+    case 'baseline': return t('drift.baseline.prompt')
+    case 'settle': return t('drift.settle.line')
+    case 'closure': return closureReason === 'crisis' ? t('drift.abort.handoff') : t('drift.closure.anchor')
+    default: return null // arrive, set, notice, closed
+  }
+}
 
 interface Props {
   parentSessionId: string | null
@@ -33,18 +49,39 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
   // drives the in-session anchor reference (its label + future voice cues).
   const [anchorKind, setAnchorKind] = useState<DriftAnchorKind>('calm_place')
 
+  // Voice mode: the Realtime adapter. Utterances route by phase into the same
+  // engine driver as text; the crisis floor lives inside useDriftVoice.
+  const voiceOn = voice && voiceAvailable
+  const driftVoice = useDriftVoice({
+    enabled: voiceOn && phase !== 'arrive' && phase !== 'closed',
+    phase,
+    cueText: voiceCue(phase, drift.state.closureReason),
+    userPartNames: [], // v1: voice persona omits user-part names; text interweave still uses them
+    onUtterance: (text) => {
+      if (phase === 'choose') void drift.submitStartingPoint(text)
+      else if (phase === 'baseline') void drift.submitBaseline(text)
+      else if (phase === 'notice') void drift.submitNotice(text, 'skipped')
+    },
+    // activateGrounding() inside useDriftVoice already trips useDriftSession's
+    // grounding subscription → CRISIS dispatch; handling it here would double-dispatch.
+    onCrisis: () => {},
+  })
+  // In voice mode a BLS set holds until the model finishes its spoken cue.
+  const setActive = phase === 'set' && !(voiceOn && driftVoice.assistantSpeaking)
+
   // Close the overlay once the engine reaches its terminal phase.
   useEffect(() => { if (phase === 'closed') onClose() }, [phase, onClose])
 
   // If the overlay unmounts mid-practice (navigation), mark the session abandoned.
   useEffect(() => () => { void drift.abandon() }, [drift])
 
-  // Set / settle bands auto-advance after one set duration.
+  // Set / settle bands auto-advance after one set duration. In voice mode the
+  // set clock starts only once the BLS is actually running (after the cue).
   useEffect(() => {
-    if (phase !== 'set') return
+    if (!setActive) return
     const id = setTimeout(() => { drift.completeSet() }, DRIFT_LIMITS.setMs)
     return () => clearTimeout(id)
-  }, [phase, drift])
+  }, [setActive, drift])
   useEffect(() => {
     if (phase !== 'settle') return
     const id = setTimeout(() => { drift.settleDone() }, DRIFT_LIMITS.setMs)
@@ -83,7 +120,7 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
       }}
     >
       {(phase === 'set' || phase === 'settle') && (
-        <BilateralStimulus channel={blsChannel} running passMs={PASS_MS} volume={audioVolume} />
+        <BilateralStimulus channel={blsChannel} running={setActive || phase === 'settle'} passMs={PASS_MS} volume={audioVolume} />
       )}
 
       <div style={{
@@ -141,7 +178,7 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
 
         {phase === 'notice' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, width: '100%', maxWidth: 460 }}>
-            {(drift.streamingText || lastCompanion) && (
+            {!voiceOn && (drift.streamingText || lastCompanion) && (
               <div style={{ fontSize: 15, lineHeight: 1.7, color: 'var(--text-primary)' }}>{drift.streamingText || lastCompanion}</div>
             )}
             <DriftExchange prompt={t('drift.notice.prompt')} showPills onSubmit={(text, dir) => { void drift.submitNotice(text, dir) }} />

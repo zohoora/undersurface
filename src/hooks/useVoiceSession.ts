@@ -394,6 +394,23 @@ export function useVoiceSession() {
     setMuted(nextMuted)
   }, [muted])
 
+  // Deterministic mic gate for Drift (unlike toggleMute's flip): disables/enables
+  // all local audio tracks and forces `muted` to match, regardless of prior state.
+  const setMicEnabled = useCallback((enabled: boolean) => {
+    const stream = localStreamRef.current
+    if (!stream) return
+    for (const track of stream.getAudioTracks()) track.enabled = enabled
+    setMuted(!enabled)
+  }, [])
+
+  // Interrupt an in-flight assistant response (Drift mic gating + transcript
+  // crisis floor). No-op when the data channel isn't open.
+  const cancelResponse = useCallback(() => {
+    const dc = dcRef.current
+    if (!dc || dc.readyState !== 'open') return
+    try { dc.send(JSON.stringify({ type: 'response.cancel' })) } catch { /* already closing */ }
+  }, [])
+
   // Tell the connected assistant to vocalize a specific phrase. The
   // `instructions` override scopes to this single response — the session-level
   // persona stays intact. Used by passive (one-way) callers like Relax mode
@@ -434,6 +451,8 @@ export function useVoiceSession() {
     stop,
     speak,
     toggleMute,
+    setMicEnabled,
+    cancelResponse,
     sendSessionUpdate,
   }
 }
