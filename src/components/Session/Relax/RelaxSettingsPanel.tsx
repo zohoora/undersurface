@@ -10,6 +10,8 @@ interface Props {
   initial: RelaxSettings
   onBegin: (settings: RelaxSettings) => void
   onCancel: () => void
+  // When set (driftEnabled + not grounding), shows the Drift entry card.
+  onEnterDrift?: () => void
 }
 
 const DURATIONS: RelaxSettings['duration'][] = [5, 10, 20]
@@ -17,7 +19,7 @@ const TYPES: RelaxSessionType[] = ['breathwork', 'body_scan', 'safe_place', 'ope
 const STATIC_TRACKS: RelaxAudioTrack[] = ['none', 'ocean', 'forest', 'drone', 'binaural']
 const VISUAL_MODES: RelaxVisualMode[] = ['full', 'minimal', 'off']
 
-export function RelaxSettingsPanel({ initial, onBegin, onCancel }: Props) {
+export function RelaxSettingsPanel({ initial, onBegin, onCancel, onEnterDrift }: Props) {
   const [duration, setDuration] = useState<RelaxSettings['duration']>(initial.duration)
   const [sessionType, setSessionType] = useState<RelaxSessionType>(initial.sessionType)
   const [audioTrack, setAudioTrack] = useState<RelaxAudioTrack>(initial.audioTrack)
@@ -84,6 +86,13 @@ export function RelaxSettingsPanel({ initial, onBegin, onCancel }: Props) {
             </Pill>
           ))}
         </Group>
+
+        {onEnterDrift && (
+          <button type="button" onClick={onEnterDrift} style={driftCardStyle}>
+            <span style={{ fontSize: 14, color: 'rgba(240,240,250,0.92)' }}>{t('drift.card.title')}</span>
+            <span style={{ fontSize: 11, color: 'rgba(200,200,210,0.55)', marginTop: 3, lineHeight: 1.4 }}>{t('drift.card.subtitle')}</span>
+          </button>
+        )}
 
         <Group label={t('relax.settings.audio.label')}>
           {STATIC_TRACKS.map(tr => (
@@ -244,6 +253,20 @@ const labelStyle: React.CSSProperties = {
   textTransform: 'uppercase',
   letterSpacing: '0.06em',
   marginBottom: 8,
+}
+
+const driftCardStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  textAlign: 'left',
+  width: '100%',
+  padding: '12px 16px',
+  borderRadius: 10,
+  border: '1px solid rgba(255,255,255,0.12)',
+  background: 'rgba(255,255,255,0.03)',
+  cursor: 'pointer',
+  fontFamily: "'Inter', sans-serif",
 }
 
 const beginBtnStyle: React.CSSProperties = {
