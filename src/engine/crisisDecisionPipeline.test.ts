@@ -31,6 +31,24 @@ describe('crisis decision pipeline — L1 precision contract', () => {
     }
   })
 
+  it('hard-grounds a tightly defined farewell-note construction', () => {
+    expect(detectCrisisKeywords(
+      "If anyone reads this someday, I want you to know it wasn't your fault. I made the choice myself.",
+    )).toBe(true)
+  })
+
+  it('does not hard-ground ordinary writing or non-crisis choices with similar words', () => {
+    const nearMisses = [
+      "If anyone reads this review someday, the typo wasn't your fault.",
+      'If you read this later, I made the choice to quit my job and move home.',
+      "I made the choice myself, and the failed launch wasn't your fault.",
+    ]
+
+    for (const text of nearMisses) {
+      expect(detectCrisisKeywords(text), text).toBe(false)
+    }
+  })
+
   it('defers contextual language and slang to L2', () => {
     const contextual = [
       'I want to die. This dentist appointment is taking forever.',
