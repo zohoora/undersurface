@@ -1023,14 +1023,15 @@ INTENTION OUTCOMES — rules:
 
   const carryingSchema = includeCarrying
     ? `,
-  "carriedNoticing": { "present": false, "text": "one noticing from the writer's material worth carrying to the next session (one sentence)" }`
+  "carriedNoticing": { "present": false, "text": "" }`
     : ''
   const carryingRules = includeCarrying
     ? `
 
 CARRIED NOTICING — rules:
-- ONE noticing from THIS session worth genuinely carrying: something the writer said or almost said that deserves to be remembered at the next opening. Their material, their words where possible — never advice, never a summary, never a task.
-- present=true only when something genuinely stands out; most sessions carry nothing, and that is correct. When in doubt, present=false.`
+- Set present=true only for ONE novel, personally meaningful pattern, connection, or recognition the WRITER explicitly articulated in THIS session and that deserves to be remembered at the next opening. Use their words where possible — never advice, never a summary, never a task.
+- Ordinary recaps, logistics, pleasantries, routine activities, generic mood labels, and material introduced only by the companion are NOT carried noticings. A session that contains only "fine", errands/work/entertainment, and "nothing much" MUST return { "present": false, "text": "" }.
+- Most sessions carry nothing, and that is correct. If the writer did not clearly articulate a distinctive recognition, or if you are unsure, return present=false and text="".`
     : ''
 
   const stanceContextLine = closingCheckIn

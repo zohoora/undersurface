@@ -731,6 +731,20 @@ describe('buildSessionReflectionPrompt', () => {
     })
     expect(result[0].content).toContain('No personal facts captured yet')
   })
+
+  it('sets a strict evidence threshold for carried noticings', () => {
+    const result = buildSessionReflectionPrompt({
+      transcript: 'Writer: Fine. Groceries, work, a movie. Nothing much.',
+      profile: null,
+      recentSummaries: [],
+      parts: [],
+      existingFacts: null,
+      includeCarrying: true,
+    })
+    expect(result[0].content).toContain('novel, personally meaningful pattern')
+    expect(result[0].content).toContain('Ordinary recaps, logistics, pleasantries')
+    expect(result[0].content).toContain('{ "present": false, "text": "" }')
+  })
 })
 
 describe('buildTherapistSystemPrompt — recommendations', () => {
