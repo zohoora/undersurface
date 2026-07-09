@@ -1,4 +1,6 @@
-const tr = {
+import { sessionCopy } from './sessionCopy'
+
+const trBase = {
   'login.tagline': 'Özgürce yaz. Duraksadığında,\niç sesin uyanır —\nyargılamak için değil,\nkelimelerin arasında yanında oturmak için.',
   'login.email': 'E-posta',
   'login.password': 'Şifre',
@@ -395,5 +397,7 @@ const tr = {
   'drift.closing.softened': 'Orada içeride bir şey gevşedi. Biraz daha yumuşamış olarak ayrılıyorsun.',
   'drift.closing.steady': 'Onunla kaldın. Bu önemli.',
 } as const
+
+const tr = { ...trBase, ...sessionCopy.tr } as const
 
 export default tr

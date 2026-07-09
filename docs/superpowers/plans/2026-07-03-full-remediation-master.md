@@ -1,5 +1,7 @@
 # Full Remediation Master Plan (APP_REVIEW_FABLE5_2026-07-03)
 
+> **2026-07-09 follow-up:** a second implementation pass completed the non-privacy, non-security, and non-cost findings from `APP_REVIEW_TREE_AND_FOREST_2026-07-09.md`. The authoritative completion matrix is `2026-07-09-non-trust-remediation.md`; older unchecked boxes below describe the original plan and are not reliable status indicators.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Fix every confirmed finding from the three app reviews and implement all Fable-5-window recommendations (Feats 0/A/B/C/D/E + HRV honesty layer + a11y/i18n + eval harness), in staged, independently-deployable tranches.

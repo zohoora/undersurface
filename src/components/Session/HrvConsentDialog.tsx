@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { db } from '../../store/db'
 import { useModalA11y } from '../../hooks/useModalA11y'
 import type { CameraHrvConsent } from '../../types'
+import { useTranslation } from '../../i18n'
 
 interface Props {
   onAccept: () => void
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function HrvConsentDialog({ onAccept, onDecline }: Props) {
+  const t = useTranslation()
   const [cameraAccepted, setCameraAccepted] = useState(false)
   const [biometricAccepted, setBiometricAccepted] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -67,7 +69,7 @@ export function HrvConsentDialog({ onAccept, onDecline }: Props) {
             color: 'var(--text-primary)',
           }}
         >
-          Enable Biometric Sensing
+          {t['biometric.camera.title']}
         </h3>
 
         <p style={{
@@ -77,9 +79,7 @@ export function HrvConsentDialog({ onAccept, onDecline }: Props) {
           color: 'var(--text-secondary)',
           marginBottom: 20,
         }}>
-          This feature uses your camera to detect subtle changes in skin color caused by blood flow,
-          measuring your heart rate variability to understand your autonomic state.
-          No video is stored or transmitted — only derived metrics are saved to your account.
+          {t['biometric.camera.body']}
         </p>
 
         <label style={{
@@ -100,7 +100,7 @@ export function HrvConsentDialog({ onAccept, onDecline }: Props) {
             onChange={e => setCameraAccepted(e.target.checked)}
             style={{ marginTop: 2, width: 18, height: 18, flexShrink: 0 }}
           />
-          I understand my camera will be used to capture video for heart rate analysis
+          {t['biometric.camera.permission']}
         </label>
 
         <label style={{
@@ -121,7 +121,7 @@ export function HrvConsentDialog({ onAccept, onDecline }: Props) {
             onChange={e => setBiometricAccepted(e.target.checked)}
             style={{ marginTop: 2, width: 18, height: 18, flexShrink: 0 }}
           />
-          I agree to the collection of biometric data (heart rate, HRV metrics)
+          {t['biometric.data.permission']}
         </label>
 
         <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
@@ -139,7 +139,7 @@ export function HrvConsentDialog({ onAccept, onDecline }: Props) {
               minHeight: 44,
             }}
           >
-            Not now
+            {t['biometric.notNow']}
           </button>
           <button
             onClick={handleAccept}
@@ -158,7 +158,7 @@ export function HrvConsentDialog({ onAccept, onDecline }: Props) {
               minHeight: 44,
             }}
           >
-            Enable
+            {t['biometric.enable']}
           </button>
         </div>
       </div>

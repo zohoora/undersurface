@@ -489,6 +489,7 @@ export interface ConsentRecord {
   acceptedVersion: string
   disclaimerAccepted: boolean
   privacyAccepted: boolean
+  adultOnlyAcknowledged?: boolean
 }
 
 export interface ApiKey {

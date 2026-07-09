@@ -1,4 +1,6 @@
-const id = {
+import { sessionCopy } from './sessionCopy'
+
+const idBase = {
   'login.tagline': 'Tulis dengan bebas. Saat kamu berhenti,\nsuara dalam diri terbangun —\nbukan untuk menghakimi, tapi untuk duduk di sampingmu\ndi antara kata-kata.',
   'login.email': 'Email',
   'login.password': 'Kata sandi',
@@ -395,5 +397,7 @@ const id = {
   'drift.closing.softened': 'Ada yang mengendur di dalam sana. Kamu pergi sedikit lebih lembut.',
   'drift.closing.steady': 'Kamu tetap bersamanya. Itu berarti.',
 } as const
+
+const id = { ...idBase, ...sessionCopy.id } as const
 
 export default id

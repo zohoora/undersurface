@@ -10,7 +10,7 @@ import type { SessionOrchestrator } from '../engine/sessionOrchestrator'
 import { trackEvent } from '../services/analytics'
 import type { Session, SessionMessage } from '../types'
 import type { BiometricSource } from './useSessionStream'
-import type { EnqueueAppend } from './useAppendQueue'
+import type { EnqueueAppend } from '../engine/sessionRuntime'
 
 export interface SessionVoiceWiring {
   sessionRef: RefObject<Session | null>

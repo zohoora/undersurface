@@ -1,4 +1,6 @@
-const zh = {
+import { sessionCopy } from './sessionCopy'
+
+const zhBase = {
   'login.tagline': '自由书写。当你停顿时，\n一个内心的声音轻轻涌起——\n不是来评判，而是来陪伴你\n坐在文字之间。',
   'login.email': '邮箱',
   'login.password': '密码',
@@ -395,5 +397,7 @@ const zh = {
   'drift.closing.softened': '里面有什么松开了。你带着一点柔软离开。',
   'drift.closing.steady': '你陪着它待了下来。这很重要。',
 } as const
+
+const zh = { ...zhBase, ...sessionCopy.zh } as const
 
 export default zh

@@ -1,7 +1,7 @@
 {
   "name": "UnderSurface",
   "short_name": "UnderSurface",
-  "description": "A diary with inner voices",
+  "description": "A private reflection session that remembers what matters",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#FAF8F5",

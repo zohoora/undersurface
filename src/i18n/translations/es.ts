@@ -1,4 +1,6 @@
-const es = {
+import { sessionCopy } from './sessionCopy'
+
+const esBase = {
   'login.tagline': 'Escribe libremente. Cuando hagas una pausa,\nuna voz interior se agita —\nno para juzgar, sino para sentarse a tu lado\nentre las palabras.',
   'login.email': 'Correo electrónico',
   'login.password': 'Contraseña',
@@ -395,5 +397,7 @@ const es = {
   'drift.closing.softened': 'Algo se aflojó ahí dentro. Sales un poco más suave.',
   'drift.closing.steady': 'Te quedaste con ello. Eso cuenta.',
 } as const
+
+const es = { ...esBase, ...sessionCopy.es } as const
 
 export default es

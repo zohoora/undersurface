@@ -1,4 +1,6 @@
-const nl = {
+import { sessionCopy } from './sessionCopy'
+
+const nlBase = {
   'login.tagline': 'Schrijf vrij. Wanneer je pauzeert,\nroert een innerlijke stem zich —\nniet om te oordelen, maar om naast je te zitten\nin de woorden.',
   'login.email': 'E-mail',
   'login.password': 'Wachtwoord',
@@ -395,5 +397,7 @@ const nl = {
   'drift.closing.softened': 'Er is daarbinnen iets losgekomen. Je gaat een beetje zachter weg.',
   'drift.closing.steady': 'Je bent erbij gebleven. Dat telt.',
 } as const
+
+const nl = { ...nlBase, ...sessionCopy.nl } as const
 
 export default nl

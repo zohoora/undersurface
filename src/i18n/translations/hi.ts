@@ -1,4 +1,6 @@
-const hi = {
+import { sessionCopy } from './sessionCopy'
+
+const hiBase = {
   'login.tagline': 'स्वतंत्र रूप से लिखें। जब आप रुकें,\nएक आंतरिक आवाज़ जागती है —\nआंकने के लिए नहीं, बल्कि शब्दों में\nआपके पास बैठने के लिए।',
   'login.email': 'ईमेल',
   'login.password': 'पासवर्ड',
@@ -395,5 +397,7 @@ const hi = {
   'drift.closing.softened': 'अंदर कुछ ढीला पड़ा। तुम थोड़ा हल्का होकर जाते हो।',
   'drift.closing.steady': 'तुम इसके साथ बने रहे। यह मायने रखता है।',
 } as const
+
+const hi = { ...hiBase, ...sessionCopy.hi } as const
 
 export default hi

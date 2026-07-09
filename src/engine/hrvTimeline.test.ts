@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { HrvTimeline } from './hrvTimeline'
+import { HrvTimeline, MAX_HRV_TIMELINE_EVENTS } from './hrvTimeline'
 import type { HrvMeasurement } from '../types/hrv'
 
 function makeMeasurement(overrides: Partial<HrvMeasurement> = {}): HrvMeasurement {
@@ -165,6 +165,17 @@ describe('HrvTimeline', () => {
       timeline.addConversationEvent('user_message', 0)
       timeline.addMeasurement(makeMeasurement())
       expect(timeline.getMeasurements()).toHaveLength(2)
+    })
+
+    it('bounds in-memory history while keeping lifetime summary totals', () => {
+      const total = MAX_HRV_TIMELINE_EVENTS + 80
+      for (let i = 0; i < total; i++) {
+        timeline.addMeasurement(makeMeasurement({ timestamp: i, hr: 60 + (i % 10) }))
+      }
+
+      expect(timeline.events).toHaveLength(MAX_HRV_TIMELINE_EVENTS)
+      expect(timeline.getMeasurements()).toHaveLength(MAX_HRV_TIMELINE_EVENTS)
+      expect(timeline.getSummary()?.measurementCount).toBe(total)
     })
   })
 })

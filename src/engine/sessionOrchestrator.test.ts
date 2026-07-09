@@ -148,9 +148,9 @@ describe('SessionOrchestrator', () => {
   })
 
   describe('checkCrisisKeywords', () => {
-    it('detects "I want to die"', () => {
-      expect(orch.checkCrisisKeywords('I want to die')).toBe(true)
-      expect(mockActivateGrounding).toHaveBeenCalledWith('auto')
+    it('defers contextual "I want to die" language to L2', () => {
+      expect(orch.checkCrisisKeywords('I want to die')).toBe(false)
+      expect(mockActivateGrounding).not.toHaveBeenCalled()
     })
 
     it('detects "kill myself"', () => {
@@ -161,12 +161,12 @@ describe('SessionOrchestrator', () => {
       expect(orch.checkCrisisKeywords('I should end my life')).toBe(true)
     })
 
-    it('detects "I should die"', () => {
-      expect(orch.checkCrisisKeywords('I should die?')).toBe(true)
+    it('defers "I should die" to L2', () => {
+      expect(orch.checkCrisisKeywords('I should die?')).toBe(false)
     })
 
-    it('detects "don\'t want to be alive"', () => {
-      expect(orch.checkCrisisKeywords("I don't want to be alive anymore")).toBe(true)
+    it('defers "don\'t want to be alive" to L2', () => {
+      expect(orch.checkCrisisKeywords("I don't want to be alive anymore")).toBe(false)
     })
 
     it('does not flag normal text', () => {
@@ -197,14 +197,14 @@ describe('SessionOrchestrator', () => {
       expect(mockActivateGrounding).not.toHaveBeenCalled()
     })
 
-    it('still fires on explicit ideation embedded in longer text', () => {
-      expect(orch.checkCrisisKeywords("I keep thinking I want to die and I don't know what to do")).toBe(true)
+    it('still fires on an explicit method embedded in longer text', () => {
+      expect(orch.checkCrisisKeywords("I keep thinking I want to kill myself and I don't know what to do")).toBe(true)
     })
 
     it('has no cooldown — always runs', () => {
       mockActivateGrounding.mockClear()
-      orch.checkCrisisKeywords('I want to die')
-      orch.checkCrisisKeywords('I want to die')
+      orch.checkCrisisKeywords('I want to kill myself')
+      orch.checkCrisisKeywords('I want to kill myself')
       expect(mockActivateGrounding).toHaveBeenCalledTimes(2)
     })
   })
@@ -212,62 +212,62 @@ describe('SessionOrchestrator', () => {
   describe('detectCrisisKeywords', () => {
     it('is a pure function that does not activate grounding', () => {
       mockActivateGrounding.mockClear()
-      expect(detectCrisisKeywords('I want to die')).toBe(true)
+      expect(detectCrisisKeywords('I want to kill myself')).toBe(true)
       expect(mockActivateGrounding).not.toHaveBeenCalled()
     })
 
-    // New abbreviation patterns
-    it('detects "kms" abbreviation', () => {
-      expect(detectCrisisKeywords('i just wanna kms')).toBe(true)
+    // Slang and abbreviations require surrounding context.
+    it('defers "kms" abbreviation to L2', () => {
+      expect(detectCrisisKeywords('i just wanna kms')).toBe(false)
     })
 
-    it('detects "kys" abbreviation', () => {
-      expect(detectCrisisKeywords('sometimes I think kys')).toBe(true)
+    it('defers "kys" abbreviation to L2', () => {
+      expect(detectCrisisKeywords('sometimes I think kys')).toBe(false)
     })
 
-    it('detects "ctb" abbreviation', () => {
-      expect(detectCrisisKeywords('thinking about ctb tonight')).toBe(true)
+    it('defers "ctb" abbreviation to L2', () => {
+      expect(detectCrisisKeywords('thinking about ctb tonight')).toBe(false)
     })
 
     // New expanded patterns
-    it('detects "wanna die"', () => {
-      expect(detectCrisisKeywords('I wanna die')).toBe(true)
+    it('defers "wanna die" to L2', () => {
+      expect(detectCrisisKeywords('I wanna die')).toBe(false)
     })
 
-    it('detects "ready to die"', () => {
-      expect(detectCrisisKeywords('I feel ready to die')).toBe(true)
+    it('defers "ready to die" to L2', () => {
+      expect(detectCrisisKeywords('I feel ready to die')).toBe(false)
     })
 
-    it('detects "hurt myself"', () => {
-      expect(detectCrisisKeywords('I want to hurt myself')).toBe(true)
+    it('defers non-specific "hurt myself" to L2', () => {
+      expect(detectCrisisKeywords('I want to hurt myself')).toBe(false)
     })
 
-    it('detects "self-harm"', () => {
-      expect(detectCrisisKeywords('thoughts of self-harm')).toBe(true)
+    it('defers "self-harm" to L2', () => {
+      expect(detectCrisisKeywords('thoughts of self-harm')).toBe(false)
     })
 
-    it('detects "self harm" without hyphen', () => {
-      expect(detectCrisisKeywords('thinking about self harm')).toBe(true)
+    it('defers "self harm" without hyphen to L2', () => {
+      expect(detectCrisisKeywords('thinking about self harm')).toBe(false)
     })
 
-    it('detects "overdose"', () => {
-      expect(detectCrisisKeywords('thinking about overdose')).toBe(true)
+    it('defers "overdose" without first-person method detail to L2', () => {
+      expect(detectCrisisKeywords('thinking about overdose')).toBe(false)
     })
 
     it('detects "slit wrists"', () => {
       expect(detectCrisisKeywords('I could slit my wrists')).toBe(true)
     })
 
-    it('detects "no point in living"', () => {
-      expect(detectCrisisKeywords('there is no point in living')).toBe(true)
+    it('defers "no point in living" to L2', () => {
+      expect(detectCrisisKeywords('there is no point in living')).toBe(false)
     })
 
-    it('detects "can\'t do this anymore"', () => {
-      expect(detectCrisisKeywords("I can't do this anymore")).toBe(true)
+    it('defers "can\'t do this anymore" to L2', () => {
+      expect(detectCrisisKeywords("I can't do this anymore")).toBe(false)
     })
 
-    it('detects "don\'t want to wake up"', () => {
-      expect(detectCrisisKeywords("I don't want to wake up")).toBe(true)
+    it('defers "don\'t want to wake up" to L2', () => {
+      expect(detectCrisisKeywords("I don't want to wake up")).toBe(false)
     })
 
     it('detects "drown myself"', () => {
@@ -277,7 +277,7 @@ describe('SessionOrchestrator', () => {
     // Unicode bypass resistance
     it('detects crisis through non-breaking spaces', () => {
       // Using \u00A0 (non-breaking space) instead of regular space
-      expect(detectCrisisKeywords('want\u00A0to\u00A0die')).toBe(true)
+      expect(detectCrisisKeywords('want\u00A0to\u00A0kill\u00A0myself')).toBe(true)
     })
 
     it('detects crisis through zero-width characters', () => {
@@ -286,8 +286,8 @@ describe('SessionOrchestrator', () => {
     })
 
     it('detects crisis with fullwidth characters (NFKC normalization)', () => {
-      // Fullwidth "suicide" — NFKC normalizes to ASCII
-      expect(detectCrisisKeywords('\uFF53\uFF55\uFF49\uFF43\uFF49\uFF44\uFF45')).toBe(true)
+      // Fullwidth "kill myself" — NFKC normalizes to ASCII
+      expect(detectCrisisKeywords('Ｉ ｗａｎｔ ｔｏ ｋｉｌｌ ｍｙｓｅｌｆ')).toBe(true)
     })
 
     // False positive guards

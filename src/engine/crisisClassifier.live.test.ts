@@ -24,6 +24,7 @@ import {
   CRISIS_EVAL_CASES,
   type CrisisEvalCase,
 } from './crisisClassifier.eval'
+import { detectCrisisKeywords } from './sessionOrchestrator'
 
 // `process` is provided by the Node test runtime (vitest) but the app's
 // tsconfig.app.json doesn't include @types/node. Declare a narrow type so this
@@ -48,7 +49,11 @@ interface CallResult {
   reason: string
 }
 
-async function callClassifier(c: CrisisEvalCase): Promise<CallResult> {
+async function callFullStack(c: CrisisEvalCase): Promise<CallResult> {
+  if (detectCrisisKeywords(c.text)) {
+    return { risk: 2, reason: 'L1 hard floor' }
+  }
+
   const userContent = c.language === 'en'
     ? c.text
     : `Language: ${c.language}\n\nText:\n${c.text}`
@@ -92,7 +97,7 @@ function isFailure(c: CrisisEvalCase, result: CallResult): boolean {
   return false
 }
 
-describe.runIf(RUN_LIVE)('crisis classifier — live eval', () => {
+describe.runIf(RUN_LIVE)('crisis decision pipeline — live eval', () => {
   it('OPENAI_API_KEY is set', () => {
     expect(OPENAI_API_KEY, 'set OPENAI_API_KEY in env').not.toBe('')
   })
@@ -113,7 +118,7 @@ describe.runIf(RUN_LIVE)('crisis classifier — live eval', () => {
       for (const c of CRISIS_EVAL_CASES) {
         let result: CallResult
         try {
-          result = await callClassifier(c)
+          result = await callFullStack(c)
         } catch (err) {
           // A request failure on a single case shouldn't tank the whole run.
           // Treat it as a failure for the case so it shows up in the report.
@@ -141,7 +146,7 @@ describe.runIf(RUN_LIVE)('crisis classifier — live eval', () => {
 
       // Summary block.
        
-      console.log('\n========== Crisis classifier eval ==========')
+      console.log('\n========== Crisis full-stack eval ==========')
       for (const [category, t] of Object.entries(tally)) {
         const total = t.pass + t.fail
          
@@ -166,7 +171,7 @@ describe.runIf(RUN_LIVE)('crisis classifier — live eval', () => {
        
       console.log('============================================\n')
 
-      expect(failures, 'crisis classifier regressions detected — see console for details').toEqual([])
+      expect(failures, 'crisis decision-pipeline regressions detected — see console for details').toEqual([])
     },
   )
 })

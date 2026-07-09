@@ -37,6 +37,7 @@ import { getSettings } from './store/settings'
 import type { InnerWeather as InnerWeatherType } from './types'
 
 import { isAdmin } from './admin/isAdmin'
+import { hasRequiredConsent } from './auth/consentGate'
 
 function EditorSkeleton() {
   return (
@@ -147,7 +148,7 @@ function App() {
         await initializeDB()
 
         const consentDoc = await db.consent.get('terms')
-        if (!consentDoc || (consentDoc as { acceptedVersion?: string }).acceptedVersion !== '1.0') {
+        if (!hasRequiredConsent(consentDoc)) {
           setHasConsent(false)
           return
         }

@@ -1,10 +1,12 @@
 import { useState, useCallback, useRef } from 'react'
 import { HrvEngine } from '../engine/hrvEngine'
 import { HrvTimeline } from '../engine/hrvTimeline'
+import { buildHrvSessionArchive } from '../engine/hrvArchive'
 import { db } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { trackEvent } from '../services/analytics'
-import type { HrvMeasurement, HrvError, HrvSessionData, HrvConversationEventType } from '../types'
+import { engineLog } from '../services/diagnostics'
+import type { HrvMeasurement, HrvError, HrvConversationEventType } from '../types'
 
 /**
  * Manages HRV biometric session lifecycle: engine start/stop,
@@ -23,52 +25,33 @@ export function useHrvSession(sessionIdRef: React.RefObject<string | null>) {
   const hrvStartTimeRef = useRef<number>(0)
   const hrvFlushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const hrvResponseStartedRef = useRef(false)
+  const hrvFlushInFlightRef = useRef(false)
 
   const flushHrvData = useCallback(async () => {
     const currentSessionId = sessionIdRef.current
     const timeline = hrvTimelineRef.current
-    if (!currentSessionId || timeline.getMeasurements().length === 0) return
-
-    const measurements = timeline.getMeasurements()
-    const shifts = timeline.getRecentShifts(99999)
-
-    const avgHr = measurements.reduce((s, m) => s + m.hr, 0) / measurements.length
-    const avgRmssd = measurements.reduce((s, m) => s + m.rmssd, 0) / measurements.length
-    const avgConf = measurements.reduce((s, m) => s + m.confidence, 0) / measurements.length
-
-    const stateCounts: Record<string, number> = {}
-    for (const m of measurements) {
-      stateCounts[m.autonomicState] = (stateCounts[m.autonomicState] || 0) + 1
-    }
-    const dominantState = Object.entries(stateCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'transitioning'
-
-    // Grab signal dumps — keep only last 10 and trim RGB buffers to save space
-    const rawDumps = hrvEngineRef.current?.getSignalDumps() ?? []
-    const signalDumps = rawDumps.slice(-10).map(d => ({
-      ...d,
-      rBuffer: d.rBuffer.slice(-150), // last 5s at 30fps
-      gBuffer: d.gBuffer.slice(-150),
-      bBuffer: d.bBuffer.slice(-150),
-    }))
-
-    const data: HrvSessionData = {
+    if (!currentSessionId || hrvFlushInFlightRef.current) return
+    const data = buildHrvSessionArchive({
       id: currentSessionId,
       startedAt: hrvStartTimeRef.current,
       endedAt: Date.now(),
-      calibrationBaseline: timeline.baselineRmssd || 0,
-      measurements,
-      shifts,
-      signalDumps,
-      summary: {
-        dominantState: dominantState as HrvSessionData['summary']['dominantState'],
-        averageHr: Math.round(avgHr),
-        averageRmssd: Math.round(avgRmssd * 10) / 10,
-        shiftCount: shifts.length,
-        avgConfidence: Math.round(avgConf * 100) / 100,
-      },
-    }
+      timeline,
+      signalDumps: hrvEngineRef.current?.getSignalDumps() ?? [],
+      source: 'camera',
+    })
+    if (!data) return
 
-    await db.hrvSessions.add(data)
+    hrvFlushInFlightRef.current = true
+    try {
+      await db.hrvSessions.add(data)
+    } catch {
+      engineLog('error', 'hrv.persistence_failed', 'Could not persist the bounded camera HRV archive', {
+        sessionId: currentSessionId,
+        extra: { source: 'camera', measurements: data.measurements.length },
+      })
+    } finally {
+      hrvFlushInFlightRef.current = false
+    }
   }, [sessionIdRef])
 
   const start = useCallback(async () => {

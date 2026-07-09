@@ -77,7 +77,18 @@ describe('useAdminConfig — save', () => {
 
     await act(async () => { await result.current.save() })
 
-    expect(adminFetchMock).toHaveBeenCalledWith('updateConfig', { config: initial })
+    expect(adminFetchMock).toHaveBeenCalledWith('updateConfig', {
+      config: expect.objectContaining({
+        defaultResponseSpeed: 1.5,
+        features: initial.features,
+        atmosphere: initial.atmosphere,
+        partIntelligence: initial.partIntelligence,
+        engagement: initial.engagement,
+        grounding: initial.grounding,
+        voice: initial.voice,
+        announcement: initial.announcement,
+      }),
+    })
     await waitFor(() => expect(result.current.message?.type).toBe('success'))
     expect(result.current.config).toEqual(persisted) // server-returned shape wins
   })
@@ -119,6 +130,7 @@ describe('useAdminConfig — signalUpdate', () => {
     const version = parseInt(persisted.buildVersion as string, 10)
     expect(version).toBeGreaterThanOrEqual(before)
     expect(version).toBeLessThanOrEqual(after)
+    expect(Object.keys(persisted)).toEqual(['buildVersion'])
   })
 })
 

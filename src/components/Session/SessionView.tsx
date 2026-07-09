@@ -1,22 +1,20 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { InkWeight } from '../../extensions/inkWeight'
 import { useAutocorrect } from '../../hooks/useAutocorrect'
 import { useTypewriter } from '../../hooks/useTypewriter'
-import { useAppendQueue } from '../../hooks/useAppendQueue'
-import { useHrvSession } from '../../hooks/useHrvSession'
-import { usePolarH10Session } from '../../hooks/usePolarH10Session'
+import { useSessionBiometrics } from '../../hooks/useSessionBiometrics'
 import { isWebBluetoothSupported } from '../../engine/polarH10Engine'
 import { useSettings, updateSettings } from '../../store/settings'
 import { getGlobalConfig, useGlobalConfig } from '../../store/globalConfig'
 import { SessionBottomBar, type SessionSurface } from './SessionBottomBar'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../../store/db'
 import { SessionOrchestrator } from '../../engine/sessionOrchestrator'
+import { SessionRuntime, type SessionTicket } from '../../engine/sessionRuntime'
 import { useSessionVoice } from '../../hooks/useSessionVoice'
-import { useSessionStream, type BiometricSource } from '../../hooks/useSessionStream'
-import { VoiceField } from './VoiceField'
+import { useSessionStream } from '../../hooks/useSessionStream'
 import { loadTherapistContext } from '../../engine/sessionContextLoader'
 import { maybeBackfillUserParts } from '../../engine/userPartsBackfill'
 import { maybeGenerateStoryArc } from '../../engine/storyArc'
@@ -27,8 +25,6 @@ import { getWeatherEngine } from '../../store/weatherStore'
 import { trackEvent } from '../../services/analytics'
 import { SessionMessageBubble } from './SessionMessage'
 import { SessionJournalSurface } from './SessionJournalSurface'
-import { RelaxField } from './Relax/RelaxField'
-import { DriftField } from './Drift/DriftField'
 import { useGroundingMode } from '../../hooks/useGroundingMode'
 import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
@@ -36,6 +32,10 @@ import { PolarH10ConsentDialog } from './PolarH10ConsentDialog'
 import { PolarH10ConnectButton } from './PolarH10ConnectButton'
 import type { Session, SessionMessage, SessionMode } from '../../types'
 import { useTranslation } from '../../i18n'
+
+const VoiceField = lazy(() => import('./VoiceField').then(module => ({ default: module.VoiceField })))
+const RelaxField = lazy(() => import('./Relax/RelaxField'))
+const DriftField = lazy(() => import('./Drift/DriftField'))
 
 interface Props {
   sessionId: string | null
@@ -55,26 +55,17 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
   const typewriter = useTypewriter()
   const sessionIdRef = useRef<string | null>(sessionId)
-  const hrv = useHrvSession(sessionIdRef)
-  const polar = usePolarH10Session(sessionIdRef)
-
-  // Mutex: H10 takes priority. If the Polar engine begins streaming while
-  // the webcam path is running, stop the camera. The reverse can't arise —
-  // the webcam toggle is hidden when Polar is enabled.
-  const hrvStopAndFlush = hrv.stopAndFlush
-  useEffect(() => {
-    if (polar.enabled && hrv.enabled) {
-      hrvStopAndFlush().catch(console.error)
-    }
-  }, [polar.enabled, hrv.enabled, hrvStopAndFlush])
-
-  const activeBio = polar.enabled ? polar : hrv.enabled ? hrv : null
-  const biometricsEnabled = polar.enabled || hrv.enabled
-  // A source can fail while starting (camera denied, BT connect failed) so it
-  // never flips `enabled` — then activeBio is null and its error would never
-  // render. Surface that startup error on its own so the user isn't left
-  // wondering why nothing happened after they clicked connect.
-  const biometricStartupError = !activeBio ? (polar.error ?? hrv.error ?? null) : null
+  const biometrics = useSessionBiometrics(sessionIdRef)
+  const {
+    camera: hrv,
+    polar,
+    active: activeBio,
+    enabled: biometricsEnabled,
+    startupError: biometricStartupError,
+    source: biometricSource,
+    cleanup: cleanupBiometrics,
+    stopAndFlush: stopAndFlushBiometrics,
+  } = biometrics
 
   const orchestratorRef = useRef(new SessionOrchestrator())
   const contextRef = useRef<TherapistContext | null>(null)
@@ -87,6 +78,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const justClosedRef = useRef(false)
   const sessionRef = useRef<Session | null>(null)
   const messagesRef = useRef<SessionMessage[]>([])
+  const runtimeRef = useRef(new SessionRuntime())
   // Stance check-in: shown after end-session; reflection defers on it (30s cap).
   const [checkInSessionId, setCheckInSessionId] = useState<string | null>(null)
   const reflectionFiredRef = useRef(false)
@@ -142,13 +134,14 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   // on unrelated state churn, which would re-fire the opener LLM call.
   // The `cancelled` flag below guarantees teardown safety regardless.
   useEffect(() => {
-    let cancelled = false
+    const runtime = runtimeRef.current
+    const ticket = runtime.begin(sessionId)
 
     async function init() {
       // Pass the resumed session's id so open-time rupture detection excludes
       // it from the prior-session list (new sessions don't exist yet here).
       const context = await loadTherapistContext(sessionId ?? undefined)
-      if (cancelled) return
+      if (!runtime.isCurrent(ticket)) return
       contextRef.current = context
 
       // One-time user-parts history backfill + story-arc trigger (both flag-
@@ -158,7 +151,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
       if (sessionId) {
         const existingSession = await db.sessions.get(sessionId)
-        if (cancelled) return
+        if (!runtime.isCurrent(ticket)) return
         if (!existingSession) {
           // Stale bookmark / deleted session / another account's id: without
           // this, the view renders a composer wired to a null session — typing
@@ -171,31 +164,30 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         sessionRef.current = existingSession
 
         const existingMessages = await sessionMessagesDb.getAll(sessionId)
-        if (cancelled) return
+        if (!runtime.isCurrent(ticket)) return
         setMessages(existingMessages)
         messagesRef.current = existingMessages
       } else {
-        await startNewSession()
+        await startNewSession(ticket)
       }
     }
 
     init()
     return () => {
-      cancelled = true
       // Flush: if a therapist response finished streaming but is still
       // revealing when the session switches, persist it (finalizeMessage guards
       // its own state writes) rather than dropping the paid message.
       typewriter.cleanup(true)
+      runtime.end(ticket)
       // Reset shared streaming state so the next session doesn't inherit a
       // stuck "streaming" bubble (SessionView is one instance across sessions).
       setIsStreaming(false)
-      hrv.cleanupEngine()
-      polar.cleanupEngine()
+      cleanupBiometrics()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
-  const startNewSession = useCallback(async () => {
+  const startNewSession = useCallback(async (ticket: SessionTicket) => {
     const id = generateId()
 
     const newSession: Session = {
@@ -216,6 +208,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     }
 
     await db.sessions.add(newSession)
+    if (!runtimeRef.current.adoptSessionId(id, ticket)) return
     setSession(newSession)
     sessionRef.current = newSession
     onSessionCreated?.(id)
@@ -242,19 +235,12 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openingMethod, onSessionCreated, initialMode])
 
-  // Both hooks satisfy BiometricSource structurally; only one is feeding data
-  // at a time (mutex above). When neither is enabled the methods are inert.
-  const biometricSource: BiometricSource = {
-    enabled: !!activeBio,
-    buildPromptContext: () => activeBio?.buildPromptContext(),
-    addConversationEvent: (type, idx) => activeBio?.addConversationEvent(type, idx),
-    resetResponseStarted: () => { activeBio?.resetResponseStarted() },
-    markResponseStarted: () => activeBio?.markResponseStarted() ?? false,
-  }
-
   // Single append queue shared by every message writer (text turn, stream
   // finalize, both voice transcript sides) so concurrent appends serialize.
-  const enqueueAppend = useAppendQueue()
+  const enqueueAppend = useCallback(
+    <T,>(fn: () => Promise<T>): Promise<T> => runtimeRef.current.enqueueAppend(fn),
+    [],
+  )
 
   const { generateTherapistMessage, appendUserMessage } = useSessionStream({
     sessionRef,
@@ -268,6 +254,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     hrv: biometricSource,
     typewriter,
     enqueueAppend,
+    runtime: runtimeRef.current,
   })
 
   const voice = useSessionVoice({
@@ -286,14 +273,11 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   // false through the whole awaited append (a full server round-trip), so a
   // second Enter in that window duplicated the user message and launched two
   // concurrent streams into the shared typewriter.
-  const sendInFlightRef = useRef(false)
-
   const handleSend = useCallback(async (editorInstance?: ReturnType<typeof useEditor>) => {
     const ed = editorInstance
     const trimmed = ed?.getText().trim() ?? ''
     if (!trimmed || isStreaming || !sessionRef.current || sessionRef.current.status === 'closed') return
-    if (sendInFlightRef.current) return
-    sendInFlightRef.current = true
+    if (!runtimeRef.current.acquireSend()) return
 
     // Clear immediately so the same draft can't be re-read mid-append;
     // restored below if the write fails so the words are never lost.
@@ -317,7 +301,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         firstLine: result.firstLine,
       })
     } finally {
-      sendInFlightRef.current = false
+      runtimeRef.current.releaseSend()
     }
   }, [isStreaming, generateTherapistMessage, appendUserMessage])
 
@@ -396,15 +380,14 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     weatherEngine.persist().catch(console.error)
 
     // Save HRV data and stop engines (whichever is active)
-    await hrv.stopAndFlush()
-    await polar.stopAndFlush()
+    await stopAndFlushBiometrics()
 
     trackEvent('session_closed', {
       session_id: currentSession.id,
       message_count: finalMessages.length,
       duration_ms: endedAt - currentSession.startedAt,
     })
-  }, [isStreaming, generateTherapistMessage, hrv, polar, weatherEngine])
+  }, [isStreaming, generateTherapistMessage, stopAndFlushBiometrics, weatherEngine])
 
   const updateSession = useCallback(async (patch: Partial<Session>) => {
     if (!session?.id) return
@@ -536,14 +519,6 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       setSurface('talk')
     }
   }, [voice.state, surface])
-
-  // The biometrics bar is fixed full-width at the top (z-index 50) and would
-  // otherwise cover the mobile sidebar hamburger — the app's only navigation.
-  // A body class lets the hamburger's CSS drop below the bar.
-  useEffect(() => {
-    document.body.classList.toggle('biometrics-active', biometricsEnabled)
-    return () => document.body.classList.remove('biometrics-active')
-  }, [biometricsEnabled])
 
   const isClosed = session?.status === 'closed'
   const canEnd = !isStreaming && messages.length >= 2 && !isClosed
@@ -958,17 +933,19 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
     {/* Voice session overlay — full-screen field visualization */}
     {voiceEnabled && voice.state !== 'idle' && (
-      <VoiceField
-        state={voice.state}
-        error={voice.error}
-        muted={voice.muted}
-        assistantSpeaking={voice.assistantSpeaking}
-        userSpeaking={voice.userSpeaking}
-        remoteStream={voice.remoteStream}
-        dominantEmotion={weatherEngine.getCurrentDominantEmotion()}
-        onToggleMute={voice.toggleMute}
-        onEnd={voice.handleEnd}
-      />
+      <Suspense fallback={null}>
+        <VoiceField
+          state={voice.state}
+          error={voice.error}
+          muted={voice.muted}
+          assistantSpeaking={voice.assistantSpeaking}
+          userSpeaking={voice.userSpeaking}
+          remoteStream={voice.remoteStream}
+          dominantEmotion={weatherEngine.getCurrentDominantEmotion()}
+          onToggleMute={voice.toggleMute}
+          onEnd={voice.handleEnd}
+        />
+      </Suspense>
     )}
 
     {/* Relax mode overlay — meditation/biofeedback/hypnotherapy surface.
@@ -977,10 +954,11 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         nothing is streaming. Users who want Polar in Relax should pair it
         from the Talk surface first. */}
     {relaxEnabled && surface === 'relax' && (
-      <RelaxField
-        parentSessionId={session?.id ?? null}
-        onClose={() => handleSurfaceChange('talk')}
-        hrv={{
+      <Suspense fallback={null}>
+        <RelaxField
+          parentSessionId={session?.id ?? null}
+          onClose={() => handleSurfaceChange('talk')}
+          hrv={{
           enabled: activeBio?.enabled ?? false,
           calibrating: activeBio?.calibrating ?? false,
           latest: activeBio?.latestMeasurement ?? null,
@@ -994,8 +972,9 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
           // stream is up, the breath circle follows real breath instead
           // of the internal pacer.
           chestScaleGetter: polar.enabled ? polar.getBreathingScale : undefined,
-        }}
-      />
+          }}
+        />
+      </Suspense>
     )}
 
     {/* Drift overlay — its own surface since v2 (2026-07-09), separated from
@@ -1004,12 +983,14 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         even if grounding activated mid-practice (mount is not grounding-gated
         for exactly that reason — only the ENTRY pill is). */}
     {driftEnabled && surface === 'drift' && (
-      <DriftField
-        parentSessionId={session?.id ?? null}
-        hrvContext={null}
-        voiceAvailable={voiceEnabled}
-        onClose={() => handleSurfaceChange('talk')}
-      />
+      <Suspense fallback={null}>
+        <DriftField
+          parentSessionId={session?.id ?? null}
+          hrvContext={null}
+          voiceAvailable={voiceEnabled}
+          onClose={() => handleSurfaceChange('talk')}
+        />
+      </Suspense>
     )}
     </>
   )

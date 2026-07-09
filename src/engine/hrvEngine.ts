@@ -2,6 +2,7 @@ import type { HrvMeasurement, HrvError, HrvSignalDump, LandmarkerState } from '.
 import { engineLog } from '../services/diagnostics'
 import type { WorkerEngineLogMessage } from '../services/diagnostics'
 import type { FaceLandmarker as FaceLandmarkerType } from '@mediapipe/tasks-vision'
+import { butterworthBandpass, detectPeaks, computeHrvMetrics, classifyAutonomicState } from './hrvSignalWorker'
 
 // Module-level HR accessor for cross-component use (like isGroundingActive)
 let currentHeartRate: number | null = null
@@ -181,8 +182,8 @@ export class HrvEngine {
       if (this.worker) {
         this.worker.postMessage({ type: 'compute' })
       } else {
-        // Main-thread fallback: import and run signal processing directly
-        import('./hrvSignalWorker').then(({ butterworthBandpass, detectPeaks, computeHrvMetrics, classifyAutonomicState }) => {
+        // Main-thread fallback: run the same pure signal-processing helpers.
+        {
           if (this.greenBuffer.length < 90) return // need 3s of data
           const filtered = butterworthBandpass(this.greenBuffer, 30)
           const peaks = detectPeaks(filtered, 30)
@@ -206,7 +207,7 @@ export class HrvEngine {
           }
           this.latest = measurement
           this.measurementCallbacks.forEach(cb => cb(measurement))
-        })
+        }
       }
     }, 5000)
   }

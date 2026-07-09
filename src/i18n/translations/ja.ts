@@ -1,4 +1,6 @@
-const ja = {
+import { sessionCopy } from './sessionCopy'
+
+const jaBase = {
   'login.tagline': '自由に書いてください。あなたが立ち止まると、\n内なる声がそっと動き出します——\n裁くためではなく、あなたのそばに座るために\n言葉の中で。',
   'login.email': 'メールアドレス',
   'login.password': 'パスワード',
@@ -395,5 +397,7 @@ const ja = {
   'drift.closing.softened': 'そこで何かがほどけた。少しやわらいで戻っていける。',
   'drift.closing.steady': 'それと一緒にいられた。それは大切なこと。',
 } as const
+
+const ja = { ...jaBase, ...sessionCopy.ja } as const
 
 export default ja

@@ -673,7 +673,7 @@ export function AdminSettings() {
         </div>
       </CollapsibleSection>
 
-      {/* Relax Mode (4th session surface) */}
+      {/* Relax surface */}
       <CollapsibleSection
         title="Relax Mode"
         isExpanded={!!expanded.relax}
@@ -749,7 +749,7 @@ export function AdminSettings() {
               </select>
             </div>
             <div style={{ fontSize: 11, color: '#A09A94', marginTop: 12, lineHeight: 1.5 }}>
-              Conversation (therapist) mode only. Uses OpenAI gpt-realtime via WebRTC. Locks voice sessions to OpenAI's model regardless of the default model above.
+              Companion conversation only. Uses OpenAI Realtime via WebRTC and the configured default voice.
             </div>
           </>
         )}

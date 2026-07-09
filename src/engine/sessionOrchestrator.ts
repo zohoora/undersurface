@@ -3,48 +3,24 @@ import { buildTherapistSessionNotePrompt } from '../ai/therapistPrompts'
 import { chatCompletion, analyzeEmotionAndDistress } from '../ai/openrouter'
 import { activateGrounding } from '../store/groundingState'
 
-// Fast keyword-based crisis detection — no LLM, no cooldown, no feature flag.
-// This is a safety net that runs synchronously before the therapist responds.
-const CRISIS_PATTERNS = [
-  /\bwant\s+to\s+die\b/i,
+// L1 is deliberately narrower than the contextual L2 classifier. It exists to
+// catch explicit first-person methods/plans synchronously, not to interpret
+// distress vocabulary. Phrases such as "want to die", "kms", "overdose", and
+// "can't do this anymore" are common in hyperbole, recovery narratives, grief,
+// and quoted speech; every user-authored path sends those through L2 instead.
+//
+// Keep this list aligned with crisisDecisionPipeline.test.ts. Adding a phrase
+// here changes the user-visible outcome before the model can read its context.
+const HARD_FLOOR_CRISIS_PATTERNS = [
   /\bwant\s+to\s+kill\s+(myself|me)\b/i,
   /\bkill\s+myself\b/i,
-  /\bend\s+(my|this)\s+life\b/i,
-  /\bend\s+it\s+all\b/i,
-  /\bsuicid/i,
-  /\bdon'?t\s+want\s+to\s+(be\s+here|live|exist|be\s+alive)\b/i,
-  /\bwish\s+I\s+(was|were)\s+dead\b/i,
-  /\bbetter\s+off\s+dead\b/i,
-  /\bno\s+reason\s+to\s+(live|go\s+on|keep\s+going)\b/i,
-  /\bshould\s+I?\s*(just\s+)?die\b/i,
-  /\bI\s+should\s+die\b/i,
-  // NOTE: "rest forever" and "with jesus" were removed here. Context-free, they
-  // over-call on grief and religious idiom ("she is with jesus now", "may she
-  // rest forever"). Euphemistic ideation is exactly what the context-aware L2
-  // classifier judges — and L2 now runs in session mode, so L1 stays the
-  // high-precision EXPLICIT floor and defers ambiguous phrases to L2.
-  /\bjump\s+off\b/i,
+  /\bend\s+my\s+life\b/i,
   /\bcut\s+(myself|my\s+wrists?)\b/i,
   /\btake\s+(all\s+)?(the\s+)?pills\b/i,
   /\bswallow\s+(all\s+)?(the\s+)?pills\b/i,
   /\bhang\s+myself\b/i,
   /\bshoot\s+myself\b/i,
-  // Abbreviations and slang
-  /\bkms\b/i,
-  /\bkys\b/i,
-  /\bctb\b/i,
-  // Additional patterns
   /\bslit\s+(my\s+)?wrists?\b/i,
-  /\boverdose\b/i,
-  /\bwanna\s+die\b/i,
-  /\bready\s+to\s+die\b/i,
-  /\bplanning\s+to\s+(end|kill|die)\b/i,
-  /\bno\s+point\s+in\s+living\b/i,
-  /\blife\s+isn'?t\s+worth\b/i,
-  /\bcan'?t\s+do\s+this\s+anymore\b/i,
-  /\bdon'?t\s+want\s+to\s+wake\s+up\b/i,
-  /\bhurt\s+myself\b/i,
-  /\bself[- ]?harm\b/i,
   /\bdrown\s+myself\b/i,
 ]
 
@@ -62,7 +38,7 @@ function normalizeForCrisisDetection(text: string): string {
 
 export function detectCrisisKeywords(text: string): boolean {
   const normalized = normalizeForCrisisDetection(text)
-  return CRISIS_PATTERNS.some(p => p.test(normalized))
+  return HARD_FLOOR_CRISIS_PATTERNS.some(p => p.test(normalized))
 }
 
 export class SessionOrchestrator {

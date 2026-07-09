@@ -1,4 +1,6 @@
-const pt = {
+import { sessionCopy } from './sessionCopy'
+
+const ptBase = {
   'login.tagline': 'Escreva livremente. Quando você pausa,\numa voz interior desperta —\nnão para julgar, mas para sentar ao seu lado\nnas palavras.',
   'login.email': 'E-mail',
   'login.password': 'Senha',
@@ -395,5 +397,7 @@ const pt = {
   'drift.closing.softened': 'Algo se soltou ali dentro. Você sai um pouco mais suave.',
   'drift.closing.steady': 'Você ficou com isso. Isso conta.',
 } as const
+
+const pt = { ...ptBase, ...sessionCopy.pt } as const
 
 export default pt

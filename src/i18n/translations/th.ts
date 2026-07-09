@@ -1,4 +1,6 @@
-const th = {
+import { sessionCopy } from './sessionCopy'
+
+const thBase = {
   'login.tagline': 'เขียนอย่างอิสระ เมื่อคุณหยุด\nเสียงภายในจะตื่นขึ้น —\nไม่ใช่เพื่อตัดสิน แต่เพื่อนั่งข้างคุณ\nอยู่ในถ้อยคำ',
   'login.email': 'อีเมล',
   'login.password': 'รหัสผ่าน',
@@ -395,5 +397,7 @@ const th = {
   'drift.closing.softened': 'ข้างในมีบางอย่างคลายลง คุณจากไปอย่างอ่อนโยนขึ้นเล็กน้อย',
   'drift.closing.steady': 'คุณอยู่กับมัน นั่นมีความหมาย',
 } as const
+
+const th = { ...thBase, ...sessionCopy.th } as const
 
 export default th

@@ -556,7 +556,7 @@ describe('PartOrchestrator — scoring logic', () => {
     })
 
     it('L1 regex hit activates grounding immediately and skips L2', () => {
-      priv.checkCrisisInJournalMode('I want to die today, I cannot keep doing this')
+      priv.checkCrisisInJournalMode('I am going to kill myself tonight')
 
       expect(mockActivateGrounding).toHaveBeenCalledWith('auto')
       // L2 should NOT have been called — L1 already activated grounding

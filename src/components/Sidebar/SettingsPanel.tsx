@@ -10,6 +10,8 @@ import { trackEvent } from '../../services/analytics'
 import { useTranslation, SUPPORTED_LANGUAGES, getLanguageCode } from '../../i18n'
 import { UserPartsSection } from './UserPartsSection'
 import { UserValuesSection } from './UserValuesSection'
+import { db } from '../../store/db'
+import PolicyModal from '../PolicyModal'
 
 const TIMEZONE_VALUES = [
   'Pacific/Honolulu',
@@ -44,7 +46,6 @@ function getTimezoneName(iana: string, locale: string): string {
   }
 }
 
-const PolicyModal = lazy(() => import('../PolicyModal').catch(() => { window.location.reload(); return new Promise(() => {}) }))
 const DeleteAccountModal = lazy(() => import('../DeleteAccountModal').catch(() => { window.location.reload(); return new Promise(() => {}) }))
 
 const dataButtonBase = {
@@ -128,19 +129,17 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
 
   useEffect(() => {
     if (!user) return
-    import('../../store/db').then(({ db }) => {
-      db.apiKeys.toArray().then((keys) => {
-        if (keys.length > 0) {
-          const k = keys[0]
-          setApiKey({
-            id: k.id,
-            name: k.name || 'Default',
-            createdAt: k.createdAt,
-          })
-        }
-        setApiKeyLoading(false)
-      }).catch(() => setApiKeyLoading(false))
-    })
+    db.apiKeys.toArray().then((keys) => {
+      if (keys.length > 0) {
+        const k = keys[0]
+        setApiKey({
+          id: k.id,
+          name: k.name || 'Default',
+          createdAt: k.createdAt,
+        })
+      }
+      setApiKeyLoading(false)
+    }).catch(() => setApiKeyLoading(false))
   }, [user])
 
   const handleGenerateKey = async () => {
@@ -153,7 +152,6 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
 
     const keyId = crypto.randomUUID()
     const now = Date.now()
-    const { db } = await import('../../store/db')
     await db.apiKeys.add({
       id: keyId,
       hash,
@@ -168,7 +166,6 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
 
   const handleRevokeKey = async () => {
     if (!apiKey) return
-    const { db } = await import('../../store/db')
     await db.apiKeys.delete(apiKey.id)
     setApiKey(null)
     setGeneratedKey(null)

@@ -1,4 +1,6 @@
-const vi = {
+import { sessionCopy } from './sessionCopy'
+
+const viBase = {
   'login.tagline': 'Viết tự do. Khi bạn dừng lại,\nmột giọng nói bên trong thức dậy —\nkhông phải để phán xét, mà để ngồi bên bạn\ngiữa những con chữ.',
   'login.email': 'Email',
   'login.password': 'Mật khẩu',
@@ -395,5 +397,7 @@ const vi = {
   'drift.closing.softened': 'Có điều gì đó đã nới lỏng bên trong. Bạn rời đi nhẹ nhõm hơn một chút.',
   'drift.closing.steady': 'Bạn đã ở lại với nó. Điều đó có ý nghĩa.',
 } as const
+
+const vi = { ...viBase, ...sessionCopy.vi } as const
 
 export default vi

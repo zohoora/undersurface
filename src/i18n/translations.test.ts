@@ -23,7 +23,7 @@ const REQUIRED_KEYS = [
 ] as const
 
 const languageFiles = readdirSync(TRANSLATIONS_DIR)
-  .filter(f => f.endsWith('.ts') && !f.includes('.test.'))
+  .filter(f => f.endsWith('.ts') && !f.includes('.test.') && f !== 'sessionCopy.ts')
   .map(f => f.replace(/\.ts$/, ''))
 
 describe('translations coverage', () => {

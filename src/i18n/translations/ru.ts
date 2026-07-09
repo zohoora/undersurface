@@ -1,4 +1,6 @@
-const ru = {
+import { sessionCopy } from './sessionCopy'
+
+const ruBase = {
   'login.tagline': 'Пиши свободно. Когда ты замираешь,\nвнутренний голос пробуждается —\nне чтобы судить, а чтобы сесть рядом с тобой\nсреди слов.',
   'login.email': 'Электронная почта',
   'login.password': 'Пароль',
@@ -395,5 +397,7 @@ const ru = {
   'drift.closing.softened': 'Там что-то отпустило. Ты уходишь немного мягче.',
   'drift.closing.steady': 'Ты остался(ась) с этим. Это считается.',
 } as const
+
+const ru = { ...ruBase, ...sessionCopy.ru } as const
 
 export default ru

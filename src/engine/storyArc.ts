@@ -41,7 +41,7 @@ export async function maybeGenerateStoryArc(currentSessionId?: string): Promise<
     const [sessions, facts, summaries] = await Promise.all([
       db.sessions.orderBy('startedAt').reverse().limit(50).toArray(),
       db.personalFacts.get('current'),
-      db.entrySummaries.orderBy('timestamp').reverse().toArray(),
+      db.entrySummaries.orderBy('timestamp').reverse().limit(24).toArray(),
     ])
     if (summaries.length < MIN_SUMMARIES) return
 

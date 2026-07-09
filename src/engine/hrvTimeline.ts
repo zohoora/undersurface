@@ -3,10 +3,30 @@ import type {
   HrvConversationEventType, AutonomicState,
 } from '../types/hrv'
 
+// Prompt correlation only needs recent history. Keeping this bounded prevents
+// an all-day session from growing the in-memory event journal without limit.
+export const MAX_HRV_TIMELINE_EVENTS = 720
+export const MAX_HRV_TIMELINE_SHIFTS = 100
+
+export interface HrvTimelineSummary {
+  measurementCount: number
+  averageHr: number
+  averageRmssd: number
+  avgConfidence: number
+  dominantState: AutonomicState
+  shiftCount: number
+}
+
 export class HrvTimeline {
   events: HrvTimelineEvent[] = []
   shifts: HrvShift[] = []
   baselineRmssd: number | null = null
+  private measurementCount = 0
+  private hrTotal = 0
+  private rmssdTotal = 0
+  private confidenceTotal = 0
+  private shiftCount = 0
+  private stateCounts: Record<AutonomicState, number> = { calm: 0, activated: 0, transitioning: 0 }
 
   setBaseline(rmssd: number): void {
     this.baselineRmssd = rmssd
@@ -14,11 +34,18 @@ export class HrvTimeline {
 
   addMeasurement(m: HrvMeasurement): void {
     this.events.push({ timestamp: m.timestamp, type: 'measurement', measurement: m })
+    this.measurementCount++
+    this.hrTotal += m.hr
+    this.rmssdTotal += m.rmssd
+    this.confidenceTotal += m.confidence
+    this.stateCounts[m.autonomicState]++
     this.detectShift(m)
+    this.trimHistory()
   }
 
   addConversationEvent(type: HrvConversationEventType, messageIndex: number): void {
     this.events.push({ timestamp: Date.now(), type, messageIndex })
+    this.trimHistory()
   }
 
   getRecentShifts(windowSeconds = 120): HrvShift[] {
@@ -30,6 +57,24 @@ export class HrvTimeline {
     return this.events
       .filter(e => e.type === 'measurement' && e.measurement)
       .map(e => e.measurement!)
+  }
+
+  getShifts(): HrvShift[] {
+    return [...this.shifts]
+  }
+
+  getSummary(): HrvTimelineSummary | null {
+    if (this.measurementCount === 0) return null
+    const dominantState = (Object.entries(this.stateCounts) as [AutonomicState, number][])
+      .sort((a, b) => b[1] - a[1])[0][0]
+    return {
+      measurementCount: this.measurementCount,
+      averageHr: this.hrTotal / this.measurementCount,
+      averageRmssd: this.rmssdTotal / this.measurementCount,
+      avgConfidence: this.confidenceTotal / this.measurementCount,
+      dominantState,
+      shiftCount: this.shiftCount,
+    }
   }
 
   // `source` gates how much is trusted into the prompt. Polar H10 chest-strap
@@ -227,5 +272,15 @@ export class HrvTimeline {
       triggerMessageIndex,
       magnitude: Math.round(magnitude * 100) / 100,
     })
+    this.shiftCount++
+    if (this.shifts.length > MAX_HRV_TIMELINE_SHIFTS) {
+      this.shifts.splice(0, this.shifts.length - MAX_HRV_TIMELINE_SHIFTS)
+    }
+  }
+
+  private trimHistory(): void {
+    if (this.events.length > MAX_HRV_TIMELINE_EVENTS) {
+      this.events.splice(0, this.events.length - MAX_HRV_TIMELINE_EVENTS)
+    }
   }
 }

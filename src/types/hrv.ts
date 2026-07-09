@@ -130,6 +130,10 @@ export interface HrvSessionData {
   measurements: HrvMeasurement[]
   shifts: HrvShift[]
   signalDumps: HrvSignalDump[]
+  /** Lifetime count; measurements contains only the bounded recent archive. */
+  totalMeasurementCount?: number
+  /** Rolling archive format version. */
+  archiveVersion?: 2
   summary: {
     dominantState: AutonomicState
     averageHr: number

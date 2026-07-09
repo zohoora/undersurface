@@ -1,6 +1,6 @@
 const en = {
   // Login screen
-  'login.tagline': 'Write freely. When you pause,\nan inner voice stirs —\nnot to judge, but to sit beside you\nin the words.',
+  'login.tagline': 'A private reflection session\nfor whatever is here —\ntalk it through, write quietly,\nor take a moment to settle.',
   'login.email': 'Email',
   'login.password': 'Password',
   'login.signIn': 'Sign in',
@@ -18,18 +18,19 @@ const en = {
 
   // Onboarding
   'onboarding.welcome': 'Welcome to UnderSurface',
-  'onboarding.step1.body': 'This is a diary — but not just a diary. As you write, inner voices will appear on the page. They notice what you\'re writing about, and they respond — gently, honestly, sometimes in ways you don\'t expect.',
+  'onboarding.step1.body': 'UnderSurface opens into a private reflection session. You can talk with your companion, write quietly in Journal, speak aloud, or take a guided pause in Relax or Drift.',
   'onboarding.step1.button': 'How does it work?',
-  'onboarding.step2.title': 'Your inner voices',
-  'onboarding.step2.body1': 'As you write, different voices may appear — The Watcher, The Tender One, The Still Point, and others. Each notices different things: patterns in your words, emotions beneath the surface, what you might be avoiding.',
-  'onboarding.step2.body2': 'They learn from your writing and evolve over time. They\'re not therapists — they\'re companions to the writing process.',
+  'onboarding.step2.title': 'A companion that remembers',
+  'onboarding.step2.body1': 'Your companion can notice useful threads across sessions: words you use, intentions you choose, and patterns you decide are worth keeping.',
+  'onboarding.step2.body2': 'In Journal, optional inner voices can respond when you pause. You stay in control of what is kept and which surface you use.',
   'onboarding.step2.button': 'One more thing',
   'onboarding.step3.title': 'Before you begin',
-  'onboarding.step3.body': 'UnderSurface is a writing tool, not a therapeutic service. The inner voices are AI writing companions — they\'re not therapists, and they can\'t replace professional care.',
+  'onboarding.step3.body': 'UnderSurface is a reflection tool, not a therapeutic service. Its AI companion cannot diagnose, treat, replace professional care, or provide emergency help.',
   'onboarding.step3.disclaimer': 'I understand this is not a therapeutic service',
   'onboarding.step3.privacy': 'I\'ve read and accept the',
   'onboarding.step3.privacyLink': 'Privacy Policy',
-  'onboarding.step3.begin': 'Begin writing',
+  'onboarding.step3.adult': 'I confirm that I am 18 or older',
+  'onboarding.step3.begin': 'Begin a session',
   'onboarding.step3.starting': 'Starting...',
   'onboarding.back': 'Back',
 
@@ -106,7 +107,19 @@ const en = {
   'session.error.therapistUnreachable': 'Your companion couldn\'t be reached.',
   'session.error.retry': 'Retry',
 
-  // Relax mode (4th session surface)
+  // Biometric consent
+  'biometric.camera.title': 'Enable biometric sensing',
+  'biometric.camera.body': 'This feature uses your camera to detect subtle skin-color changes caused by blood flow and estimate heart rate variability. No video is stored or transmitted; derived readings and short diagnostic signal samples are saved to your account.',
+  'biometric.camera.permission': 'I understand my camera will capture video locally for heart-rate analysis',
+  'biometric.data.permission': 'I agree to the collection of biometric readings (heart rate and HRV metrics)',
+  'biometric.polar.title': 'Connect a heart-rate monitor',
+  'biometric.polar.body': 'This feature pairs your browser with a Polar H10 or compatible Bluetooth heart-rate monitor while you reflect. The device streams beat-to-beat intervals over Bluetooth and derived readings are saved to your account.',
+  'biometric.polar.permission': 'I understand my browser will connect to a Bluetooth heart-rate monitor',
+  'biometric.notNow': 'Not now',
+  'biometric.enable': 'Enable',
+  'biometric.connect': 'Connect',
+
+  // Relax surface
   'relax.settings.title': 'Settle in',
   'relax.settings.duration.label': 'Duration',
   'relax.settings.duration.5': '5 min',
@@ -267,7 +280,7 @@ const en = {
   'error.reload': 'Reload',
 
   // App-level strings
-  'app.subtitle': 'A diary where inner voices respond as you write',
+  'app.subtitle': 'A private reflection session that remembers what matters',
   'app.newVersion': 'New version available — tap to refresh',
   'app.skipToEditor': 'Skip to editor',
   'app.initError': 'Something went wrong',
@@ -350,11 +363,11 @@ const en = {
   'export.unknownVoice': 'Unknown Voice',
 
   // Landing page hero
-  'landing.headline': 'A diary that listens back',
-  'landing.feature1': 'Write freely — inner voices listen',
-  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
-  'landing.feature3': 'They learn your patterns and grow with you',
-  'landing.cta': 'Start writing — it\'s free',
+  'landing.headline': 'A reflection space that remembers what matters',
+  'landing.feature1': 'Talk it through or write privately',
+  'landing.feature2': 'Pause and settle with Relax or Drift',
+  'landing.feature3': 'Return to one useful thread next time',
+  'landing.cta': 'Begin a session — it\'s free',
   'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
   'landing.demoPartName': 'The Tender One',
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',

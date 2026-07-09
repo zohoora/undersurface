@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { db } from '../../store/db'
 import { useModalA11y } from '../../hooks/useModalA11y'
 import type { PolarH10Consent } from '../../types'
+import { useTranslation } from '../../i18n'
 
 interface Props {
   onAccept: () => void
@@ -15,6 +16,7 @@ interface Props {
  * derived HRV metrics) — the user can deny either independently.
  */
 export function PolarH10ConsentDialog({ onAccept, onDecline }: Props) {
+  const t = useTranslation()
   const [bluetoothAccepted, setBluetoothAccepted] = useState(false)
   const [biometricAccepted, setBiometricAccepted] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -73,7 +75,7 @@ export function PolarH10ConsentDialog({ onAccept, onDecline }: Props) {
             color: 'var(--text-primary)',
           }}
         >
-          Connect a Heart-Rate Monitor
+          {t['biometric.polar.title']}
         </h3>
 
         <p style={{
@@ -83,10 +85,7 @@ export function PolarH10ConsentDialog({ onAccept, onDecline }: Props) {
           color: 'var(--text-secondary)',
           marginBottom: 20,
         }}>
-          This feature pairs your browser with a Polar H10 (or any standard Bluetooth
-          heart-rate monitor) to measure heart rate and heart rate variability while
-          you write. The strap streams beat-to-beat intervals over Bluetooth — only
-          derived metrics are saved to your account.
+          {t['biometric.polar.body']}
         </p>
 
         <label style={{
@@ -107,7 +106,7 @@ export function PolarH10ConsentDialog({ onAccept, onDecline }: Props) {
             onChange={e => setBluetoothAccepted(e.target.checked)}
             style={{ marginTop: 2, width: 18, height: 18, flexShrink: 0 }}
           />
-          I understand my browser will connect to a Bluetooth heart-rate monitor
+          {t['biometric.polar.permission']}
         </label>
 
         <label style={{
@@ -128,7 +127,7 @@ export function PolarH10ConsentDialog({ onAccept, onDecline }: Props) {
             onChange={e => setBiometricAccepted(e.target.checked)}
             style={{ marginTop: 2, width: 18, height: 18, flexShrink: 0 }}
           />
-          I agree to the collection of biometric data (heart rate, HRV metrics)
+          {t['biometric.data.permission']}
         </label>
 
         <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
@@ -146,7 +145,7 @@ export function PolarH10ConsentDialog({ onAccept, onDecline }: Props) {
               minHeight: 44,
             }}
           >
-            Not now
+            {t['biometric.notNow']}
           </button>
           <button
             onClick={handleAccept}
@@ -165,7 +164,7 @@ export function PolarH10ConsentDialog({ onAccept, onDecline }: Props) {
               minHeight: 44,
             }}
           >
-            Connect
+            {t['biometric.connect']}
           </button>
         </div>
       </div>

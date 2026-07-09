@@ -12,8 +12,10 @@ vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }))
 // Build a chainable Firestore mock. Each test gets a fresh instance with
 // configurable get/set behavior so we can assert WHAT gets persisted.
 function makeFirestoreMock() {
-  const setMock = vi.fn().mockResolvedValue(undefined)
   let configDoc: Record<string, unknown> | null = null
+  const setMock = vi.fn().mockImplementation(async (value: Record<string, unknown>, options?: { merge?: boolean }) => {
+    configDoc = options?.merge ? { ...(configDoc ?? {}), ...value } : value
+  })
   const getMock = vi.fn().mockImplementation(() => ({
     exists: configDoc !== null,
     data: () => configDoc,
@@ -59,46 +61,86 @@ describe('handleGetConfig', () => {
   })
 })
 
-describe('handleUpdateConfig — key allowlist (load-bearing security invariant)', () => {
-  // CRITICAL: appConfig/global is readable by every authenticated user. An
-  // admin (or compromised admin token) MUST NOT be able to write arbitrary
-  // keys — only the four whitelisted top-level keys. If this test breaks,
-  // someone weakened the allowlist; review the change.
-  it('strips top-level keys that are NOT in the allowlist', async () => {
-    firestoreState.setConfigDoc({}) // post-set get
-    await handleUpdateConfig(
-      {
-        features: { partsEnabled: true },
-        tuning: { temperature: 0.7 },
-        grounding: { enabled: true },
-        announcement: 'hello',
-        // Below: keys an attacker might want injected — must be dropped.
-        secrets: { adminKey: 'pwned' },
-        adminEmails: ['attacker@example.com'],
-        __proto__: { dangerous: true },
-      },
+describe('handleUpdateConfig — schema and round trip', () => {
+  it('rejects unsupported top-level fields instead of reporting a false success', async () => {
+    await expect(handleUpdateConfig(
+      { features: { partsEnabled: true }, tuning: { temperature: 0.7 } },
       'zohoora@gmail.com',
-    )
+    )).rejects.toThrow('Unsupported config field: tuning')
+    expect(firestoreState.setMock).not.toHaveBeenCalled()
+  })
 
-    expect(firestoreState.setMock).toHaveBeenCalledOnce()
-    const [persisted] = firestoreState.setMock.mock.calls[0]
-    const persistedKeys = Object.keys(persisted as Record<string, unknown>).sort()
-    expect(persistedKeys).toEqual([
-      'announcement',
-      'features',
-      'grounding',
-      'tuning',
-      'updatedAt',
-      'updatedBy',
-    ])
-    expect(persisted).not.toHaveProperty('secrets')
-    expect(persisted).not.toHaveProperty('adminEmails')
+  it('rejects unsupported nested fields', async () => {
+    await expect(handleUpdateConfig(
+      { grounding: { enabled: true } },
+      'zohoora@gmail.com',
+    )).rejects.toThrow('Unsupported grounding field: enabled')
+    expect(firestoreState.setMock).not.toHaveBeenCalled()
+  })
+
+  it('round-trips every settings section rendered by the admin UI', async () => {
+    firestoreState.setConfigDoc({ quota: { enabled: false } })
+    const update = {
+      defaultResponseSpeed: 1.4,
+      features: {
+        partsEnabled: true,
+        visualEffectsEnabled: false,
+        autocorrectEnabled: true,
+        driftEnabled: true,
+      },
+      atmosphere: {
+        timeShiftIntensity: 0.4,
+        seasonalIntensity: 0.2,
+        seasonOverride: 'autumn',
+        flowThresholdSeconds: 80,
+        flowGlowIntensity: 0.6,
+        handwritingFont: 'Caveat',
+        handwritingEffectBoost: 1.2,
+      },
+      partIntelligence: {
+        quoteMinAge: 4,
+        quoteChance: 0.2,
+        disagreeChance: 0.1,
+        disagreeMinParts: 3,
+        quietThresholdDays: 5,
+        returnBonusMultiplier: 2,
+        catchphraseMaxPerPart: 3,
+        silenceFlowThreshold: 120,
+        silenceChance: 0.2,
+      },
+      engagement: {
+        echoMaxAge: 90,
+        echoChance: 0.1,
+        echoMaxPerSession: 3,
+        weatherUpdateInterval: 5,
+        letterTriggerEntries: 10,
+        letterMinParts: 2,
+        ritualDetectionWindow: 14,
+        threadMaxAge: 30,
+        threadChance: 0.15,
+      },
+      grounding: {
+        autoExitMinutes: 5,
+        selfRoleScoreBonus: 40,
+        otherRolePenalty: 30,
+        intensityThreshold: 3,
+      },
+      voice: { defaultVoice: 'marin' },
+      announcement: { message: 'Hello', type: 'info', dismissible: true },
+      buildVersion: 'release-2026-07-09',
+    }
+
+    const result = await handleUpdateConfig(update, 'zohoora@gmail.com')
+
+    expect(result.config).toMatchObject(update)
+    expect(result.config).toMatchObject({ quota: { enabled: false } })
+    expect(result.config).toMatchObject({ updatedBy: 'zohoora@gmail.com' })
   })
 
   it('attaches updatedBy = the admin email and a timestamp', async () => {
     firestoreState.setConfigDoc({})
     const before = Date.now()
-    await handleUpdateConfig({ features: { x: 1 } }, 'zohoora@gmail.com')
+    await handleUpdateConfig({ features: { partsEnabled: true } }, 'zohoora@gmail.com')
     const after = Date.now()
 
     const [persisted] = firestoreState.setMock.mock.calls[0] as [Record<string, unknown>]
@@ -110,17 +152,14 @@ describe('handleUpdateConfig — key allowlist (load-bearing security invariant)
 
   it('uses { merge: true } so partial updates do not wipe sibling keys', async () => {
     firestoreState.setConfigDoc({})
-    await handleUpdateConfig({ features: { x: 1 } }, 'zohoora@gmail.com')
+    await handleUpdateConfig({ features: { partsEnabled: true } }, 'zohoora@gmail.com')
     const [, options] = firestoreState.setMock.mock.calls[0]
     expect(options).toEqual({ merge: true })
   })
 
-  it('returns an error (no write) when the partial contains zero allowlisted keys', async () => {
-    const result = await handleUpdateConfig(
-      { secrets: 'x', notARealKey: 'y' },
-      'zohoora@gmail.com',
-    )
-    expect(result).toEqual({ error: 'No valid config keys provided' })
+  it('rejects an empty update', async () => {
+    await expect(handleUpdateConfig({}, 'zohoora@gmail.com'))
+      .rejects.toThrow('at least one field')
     expect(firestoreState.setMock).not.toHaveBeenCalled()
   })
 })

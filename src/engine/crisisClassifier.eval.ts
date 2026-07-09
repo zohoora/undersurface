@@ -89,7 +89,7 @@ export const CRISIS_EVAL_CASES: CrisisEvalCase[] = [
     language: 'en',
     expected: 0,
     category: 'negative',
-    note: 'Hyperbolic "want to die" — frustration about a mundane situation. NOTE: L1 regex WILL flag this; the classifier should still return 0. The regex is a high-precision keyword match; the classifier should be smarter.',
+    note: 'Hyperbolic "want to die" — frustration about a mundane situation. L1 must defer this contextual phrase to L2.',
   },
   {
     text: "Honestly the way she talked to me at the party — kill me. I'm never going to another one of her things.",

@@ -1,4 +1,6 @@
-const ko = {
+import { sessionCopy } from './sessionCopy'
+
+const koBase = {
   'login.tagline': '자유롭게 쓰세요. 멈출 때,\n내면의 목소리가 깨어납니다 —\n판단하려는 게 아니라,\n글 속에서 당신 곁에 앉으려는 거예요.',
   'login.email': '이메일',
   'login.password': '비밀번호',
@@ -395,5 +397,7 @@ const ko = {
   'drift.closing.softened': '그 안에서 뭔가 풀렸어. 조금 더 부드러워져서 돌아가.',
   'drift.closing.steady': '그것과 함께 있었어. 그거면 충분해.',
 } as const
+
+const ko = { ...koBase, ...sessionCopy.ko } as const
 
 export default ko

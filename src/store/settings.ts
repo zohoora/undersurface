@@ -83,6 +83,12 @@ const STORAGE_KEY = 'undersurface:settings'
 
 let cache: AppSettings | null = null
 const listeners = new Set<() => void>()
+const dependentInvalidators = new Set<() => void>()
+
+export function registerSettingsInvalidator(invalidator: () => void): () => void {
+  dependentInvalidators.add(invalidator)
+  return () => dependentInvalidators.delete(invalidator)
+}
 
 function getGlobalDefaults(): Partial<AppSettings> {
   const config = getGlobalConfig()
@@ -118,8 +124,7 @@ export function getSettings(): AppSettings {
 
 export function invalidateSettingsCache() {
   cache = null
-  // Lazy import to avoid circular dependency — only called on globalConfig update
-  import('../i18n/index').then((m) => m.invalidateTranslationCache()).catch(() => {})
+  for (const invalidate of dependentInvalidators) invalidate()
   notify()
 }
 
@@ -146,7 +151,7 @@ export function updateSettings(partial: Partial<AppSettings>) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sparse))
   cache = null // force a re-merge (DEFAULTS + globalDefaults + sparse) on next load
   if ('language' in partial) {
-    import('../i18n/index').then((m) => m.invalidateTranslationCache()).catch(() => {})
+    for (const invalidate of dependentInvalidators) invalidate()
   }
   notify()
 }

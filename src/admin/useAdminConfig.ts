@@ -7,6 +7,33 @@ export interface AdminConfigMessage {
   text: string
 }
 
+export function editableConfigUpdate(config: GlobalConfig): Partial<GlobalConfig> {
+  return {
+    defaultResponseSpeed: config.defaultResponseSpeed,
+    features: config.features,
+    atmosphere: config.atmosphere,
+    partIntelligence: config.partIntelligence,
+    engagement: config.engagement,
+    grounding: config.grounding,
+    voice: config.voice,
+    announcement: config.announcement,
+  }
+}
+
+function withDefaults(defaults: GlobalConfig, config: GlobalConfig | null): GlobalConfig {
+  if (!config) return { ...defaults }
+  return {
+    ...defaults,
+    ...config,
+    features: { ...defaults.features, ...config.features },
+    atmosphere: { ...defaults.atmosphere, ...config.atmosphere },
+    partIntelligence: { ...defaults.partIntelligence, ...config.partIntelligence },
+    engagement: { ...defaults.engagement, ...config.engagement },
+    grounding: { ...defaults.grounding, ...config.grounding },
+    voice: { ...defaults.voice, ...config.voice },
+  }
+}
+
 // Owns the AdminSettings page's config state + save/reset/signal-refresh
 // actions. The hook is extracted from AdminSettings.tsx so the load-bearing
 // round-trip (writes appConfig/global, which every authenticated user reads)
@@ -20,7 +47,7 @@ export function useAdminConfig(defaults: GlobalConfig) {
   useEffect(() => {
     adminFetch<{ config: GlobalConfig | null }>('getConfig')
       .then((res) => {
-        setConfig(res.config ?? { ...defaults })
+        setConfig(withDefaults(defaults, res.config))
         setLoading(false)
       })
       .catch((e) => {
@@ -34,41 +61,35 @@ export function useAdminConfig(defaults: GlobalConfig) {
   }, [])
 
   const save = useCallback(async () => {
+    if (!config) return
     setSaving(true)
     setMessage(null)
-    setConfig((current) => {
-      if (!current) return current
-      adminFetch<{ config: GlobalConfig }>('updateConfig', { config: current })
-        .then((result) => {
-          setConfig(result.config)
-          setMessage({ type: 'success', text: 'Settings saved' })
-        })
-        .catch((e) => {
-          setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Failed to save' })
-        })
-        .finally(() => setSaving(false))
-      return current
-    })
-  }, [])
+    try {
+      const result = await adminFetch<{ config: GlobalConfig }>('updateConfig', { config: editableConfigUpdate(config) })
+      setConfig(withDefaults(defaults, result.config))
+      setMessage({ type: 'success', text: 'Settings saved' })
+    } catch (e) {
+      setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Failed to save' })
+    } finally {
+      setSaving(false)
+    }
+  }, [config, defaults])
 
   const signalUpdate = useCallback(async () => {
+    if (!config) return
     setSaving(true)
     setMessage(null)
-    setConfig((current) => {
-      if (!current) return current
-      const updated = { ...current, buildVersion: Date.now().toString() }
-      adminFetch<{ config: GlobalConfig }>('updateConfig', { config: updated })
-        .then((result) => {
-          setConfig(result.config)
-          setMessage({ type: 'success', text: 'Update signaled — users will see a refresh prompt' })
-        })
-        .catch((e) => {
-          setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Failed to signal' })
-        })
-        .finally(() => setSaving(false))
-      return current
-    })
-  }, [])
+    const buildVersion = Date.now().toString()
+    try {
+      const result = await adminFetch<{ config: GlobalConfig }>('updateConfig', { config: { buildVersion } })
+      setConfig(withDefaults(defaults, result.config))
+      setMessage({ type: 'success', text: 'Update signaled — users will see a refresh prompt' })
+    } catch (e) {
+      setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Failed to signal' })
+    } finally {
+      setSaving(false)
+    }
+  }, [config, defaults])
 
   const resetDefaults = useCallback(() => {
     setConfig((current) => {

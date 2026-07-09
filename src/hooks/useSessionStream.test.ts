@@ -3,6 +3,7 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import { createRef, type RefObject } from 'react'
 import type { Session, SessionMessage } from '../types'
 import type { TherapistContext } from '../engine/sessionContextLoader'
+import { SessionRuntime } from '../engine/sessionRuntime'
 
 // ─── Mocks (hoisted by Vitest) ────────────────────────────────
 
@@ -152,14 +153,14 @@ function makeTypewriter(): TypewriterMock {
 function makeOrchestrator(over: Partial<{
   detectPhase: () => 'opening' | 'deepening' | 'closing'
   getMaxTokens: () => number
-  checkCrisisKeywords: (text: string) => void
+  checkCrisisKeywords: (text: string) => boolean
   checkEmotionAfterMessage: (text: string) => Promise<{ emotion: string } | null>
   generateSessionNote: () => Promise<string>
 }> = {}) {
   return {
     detectPhase: vi.fn(() => 'opening' as const),
     getMaxTokens: vi.fn(() => 300),
-    checkCrisisKeywords: vi.fn(),
+    checkCrisisKeywords: vi.fn(() => false),
     checkEmotionAfterMessage: vi.fn(async () => null),
     generateSessionNote: vi.fn(async () => ''),
     ...over,
@@ -181,6 +182,8 @@ function makeWiring(over: {
   ;(contextRef as { current: TherapistContext | null }).current = over.context !== undefined ? over.context : makeContext()
   const orchestrator = over.orchestrator ?? makeOrchestrator()
   const typewriter = over.typewriter ?? makeTypewriter()
+  const runtime = new SessionRuntime()
+  runtime.begin(sessionRef.current?.id ?? null)
 
   return {
     sessionRef,
@@ -202,11 +205,12 @@ function makeWiring(over: {
     // Real serialization primitive: a promise-chain queue. Using the actual
     // behavior (not a passthrough) keeps the append-ordering tests honest.
     enqueueAppend: makeEnqueue(),
+    runtime,
     orchestrator, // exposed for assertions
   }
 }
 
-// Mirror of useAppendQueue's chaining without the React wrapper.
+// Mirror of SessionRuntime's append chaining for focused hook tests.
 function makeEnqueue() {
   let tail: Promise<unknown> = Promise.resolve()
   return <T>(fn: () => Promise<T>): Promise<T> => {
@@ -476,24 +480,14 @@ describe('useSessionStream — onRisk preamble wiring', () => {
   })
 
   it('backstop: the standalone classifier activates grounding when the preamble is absent', async () => {
-    // Simulate a missing/malformed preamble that fails open to 0 — the stream
-    // never calls onRisk — while the independent L2 classifier catches it.
+    // L2 launches when the user turn is appended, independently of the
+    // therapist stream and therefore also on the Speak surface.
     classifyCrisisRiskMock.mockResolvedValue({ risk: 2 })
-    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
-      callbacks.onToken('I hear you.')
-      callbacks.onComplete()
-    })
-
-    const tw = makeTypewriter()
-    const userMsg = makeUserMsg('i cannot keep going like this')
-    const wiring = makeWiring({ typewriter: tw, messages: [userMsg] })
+    const wiring = makeWiring()
     const { result } = renderHook(() => useSessionStream(wiring))
 
     await act(async () => {
-      const p = result.current.generateTherapistMessage([userMsg], wiring.sessionRef.current!)
-      await Promise.resolve()
-      await tw.pendingComplete?.('I hear you.')
-      await p
+      await result.current.appendUserMessage('i cannot keep going like this')
       await Promise.resolve()
       await Promise.resolve()
     })
@@ -504,18 +498,10 @@ describe('useSessionStream — onRisk preamble wiring', () => {
 
   it('backstop: classifier returning 0 does not activate grounding', async () => {
     classifyCrisisRiskMock.mockResolvedValue({ risk: 0 })
-    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
-      callbacks.onToken('Tell me more.')
-      callbacks.onComplete()
-    })
-    const tw = makeTypewriter()
-    const wiring = makeWiring({ typewriter: tw, messages: [makeUserMsg('just a normal day')] })
+    const wiring = makeWiring()
     const { result } = renderHook(() => useSessionStream(wiring))
     await act(async () => {
-      const p = result.current.generateTherapistMessage([makeUserMsg('just a normal day')], wiring.sessionRef.current!)
-      await Promise.resolve()
-      await tw.pendingComplete?.('Tell me more.')
-      await p
+      await result.current.appendUserMessage('just a normal day')
       await Promise.resolve()
     })
     expect(activateGroundingMock).not.toHaveBeenCalled()
@@ -523,23 +509,15 @@ describe('useSessionStream — onRisk preamble wiring', () => {
 
   it('backstop: classifier is NOT called when grounding is already active', async () => {
     isGroundingMock.mockReturnValue(true)
-    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
-      callbacks.onToken('gentle presence')
-      callbacks.onComplete()
-    })
-    const tw = makeTypewriter()
-    const wiring = makeWiring({ typewriter: tw, messages: [makeUserMsg('anything')] })
+    const wiring = makeWiring()
     const { result } = renderHook(() => useSessionStream(wiring))
     await act(async () => {
-      const p = result.current.generateTherapistMessage([makeUserMsg('anything')], wiring.sessionRef.current!)
-      await Promise.resolve()
-      await tw.pendingComplete?.('gentle presence')
-      await p
+      await result.current.appendUserMessage('anything')
     })
     expect(classifyCrisisRiskMock).not.toHaveBeenCalled()
   })
 
-  it('backstop: classifier is not called on an opener turn (no user message)', async () => {
+  it('backstop: classifier is not called by an opener generation (no appended user message)', async () => {
     streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
       callbacks.onToken('Welcome.')
       callbacks.onComplete()

@@ -1,13 +1,15 @@
 import { useSyncExternalStore } from 'react'
-import { getSettings } from '../store/settings'
+import { getSettings, registerSettingsInvalidator } from '../store/settings'
 import { getLanguage } from './languages'
 import type { TranslationKey, TranslationStrings } from './translations/en'
 import en from './translations/en'
 
 // Lazy loaders for non-English translations — only the current language is fetched
-const translationLoaders = import.meta.glob<{ default: Record<string, string> }>(
+const translationLoaders = import.meta.glob<{ default: Record<string, string> }>([
   './translations/*.ts',
-)
+  '!./translations/sessionCopy.ts',
+  '!./translations/en.ts',
+])
 
 const translationMap = new Map<string, Record<string, string>>()
 translationMap.set('en', en)
@@ -85,6 +87,8 @@ export function invalidateTranslationCache() {
   preloadLanguage(getSettings().language ?? 'en')
   for (const fn of listeners) fn()
 }
+
+registerSettingsInvalidator(invalidateTranslationCache)
 
 /** Current language code (e.g. 'es') */
 export function getLanguageCode(): string {

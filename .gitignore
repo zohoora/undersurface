@@ -64,3 +64,4 @@ scripts/benchmark-results.json
 # re-upload convenience. See src/hooks/useRelaxSession.ts for the bucket path.
 public/audio/
 .local-audio-backup/
+.artifacts/

@@ -1,17 +1,18 @@
 # UnderSurface
 
-A session-first reflective companion app. Opening the app starts (or resumes) a daily session with an AI therapist companion. Within a session the user can move between four surfaces — talking, journaling, speaking aloud, or relaxing — while the companion carries context across all of them.
+A session-first reflective companion app. Opening the app starts (or resumes) a daily session with an AI companion. Within a session the user can move between five surfaces — Talk, Journal, Speak, Relax, and Drift — while the companion carries context across them.
 
 **Live at [undersurface.me](https://undersurface.me)**
 
 ## How It Works
 
-Visiting the app routes straight into a session: today's active session if one exists, otherwise a new one. Each session offers four surfaces, switched from the bottom bar:
+Visiting the app routes straight into a session: today's active session if one exists, otherwise a new one. Each session offers five surfaces, switched from the bottom bar:
 
-- **Talk** — streamed text conversation with the therapist companion (OpenAI `gpt-5.5`). Replies can include tappable recommendations (e.g. a breathing break).
+- **Talk** — streamed text conversation with the companion (OpenAI `gpt-5.5`). Replies can include tappable recommendations (e.g. a breathing break).
 - **Journal** — a quiet TipTap writing page inside the session. An optional "Inner voices" toggle activates the parts pipeline: when the writer pauses, slows down, or trails off, an IFS-inspired inner "part" responds on the page.
-- **Speak** — live voice conversation over WebRTC via OpenAI Realtime (`gpt-realtime-2`), tuned for an unhurried therapy register.
+- **Speak** — live voice conversation over WebRTC via OpenAI Realtime (`gpt-realtime-2`), tuned for an unhurried reflective register.
 - **Relax** — breathwork, body scan, safe place, or open awareness, with an adaptive breath circle, ambient soundscapes (preset or custom-generated via ElevenLabs), and optional voice guidance.
+- **Drift** — a short bilateral noticing-and-settling practice with deterministic, time-boxed progression and optional sparse companion turns.
 
 A **◇ Real Talk** toggle switches the companion's tone to one that names coping moves (avoidance, intellectualization, minimization, …) — not nice, but kind and constructive. It is automatically disabled whenever grounding (crisis) mode is active.
 
@@ -100,7 +101,7 @@ User sends → useSessionStream → buildTherapistMessages
 Crisis detection runs in two layers around this flow:
 
 1. **L1 (deterministic floor)** — `sessionOrchestrator.checkCrisisKeywords`: synchronous regex over NFKC-normalized text, runs *before* generation so grounding flows into the prompt.
-2. **L2 (LLM)** — in session mode, the therapist stream opens with a `<<RISK:N>>` preamble that is parsed and stripped client-side; risk 2 arriving before the first token aborts the stream and retries with grounding on. In journal mode, `classifyCrisisRisk` calls `/api/chat` with `task: 'crisis_check'` (gpt-5-nano, strict JSON schema). Both fail open — L1 is the floor.
+2. **L2 (LLM)** — every user-authored turn runs the standalone `classifyCrisisRisk` backstop (`task: 'crisis_check'`, gpt-5-nano, strict JSON schema). Talk also carries an in-band `<<RISK:N>>` preamble; risk 2 before the first token aborts and retries grounded. Both paths fail open — L1 remains the explicit-method floor.
 
 When grounding activates: Real Talk reverts to the standard persona, journal parts are silenced, and crisis resources are shown.
 
@@ -217,6 +218,7 @@ These are public Firebase client config values — security comes from Firestore
 ```bash
 npm run dev          # Dev server at localhost:5173
 npm run build        # Production build to dist/
+npm run build:release # Release build + explicit Sentry source-map upload
 npm run preview      # Preview production build
 npm run lint         # ESLint
 npm run test         # Vitest
@@ -241,17 +243,29 @@ The chat model is pinned server-side in `functions/src/shared/models.ts` (`OPENA
 
 ## Deployment
 
+Before a production release, run the pinned behavioral gate. It writes a
+machine-readable manifest with the git commit, prompt hash, model snapshot,
+suite results, latency, and logs under `.artifacts/model-evals/`. The same gate
+runs weekly and on demand in `.github/workflows/release-evals.yml`.
+
+```bash
+OPENAI_API_KEY=... npm run test:release-evals
+```
+
+Ordinary `npm run build` never contacts Sentry. Use `build:release` only for an
+actual release; it requires `SENTRY_AUTH_TOKEN` and uploads hidden source maps.
+
 ### Deploy everything (most common)
 
 ```bash
-npm run build && cd functions && npx tsc && cd .. && firebase deploy
+npm run build:release && cd functions && npx tsc && cd .. && firebase deploy
 ```
 
 ### Partial deploys
 
 | What changed | Build step | Deploy command |
 |---|---|---|
-| Anything in `src/` | `npm run build` | `firebase deploy --only hosting` |
+| Anything in `src/` | `npm run build:release` | `firebase deploy --only hosting` |
 | Anything in `functions/src/` | `cd functions && npx tsc` | `firebase deploy --only functions` |
 | `firestore.rules` | — | `firebase deploy --only firestore:rules` |
 | Both | Both build steps | `firebase deploy` |
@@ -310,7 +324,7 @@ DNS is managed in Cloudflare (DNS-only mode, proxy OFF for A records). Firebase 
 
 ## Known Gotchas & Further Docs
 
-The authoritative, regularly-updated gotcha list (Firebase/CSP, crisis-safety invariants, HRV signal processing, Polar PMD protocol, build caveats) lives in **`CLAUDE.md`**. Deeper references live in `.claude/docs/` (`key-files.md`, `feature-flags.md`, `admin.md`, `subsystems.md`, `analytics.md`). Current review findings: `APP_REVIEW_TREE_AND_FOREST_2026-05-21.md`, `APP_REVIEW_2026-07-03.md`, `APP_REVIEW_FABLE5_2026-07-03.md`. Active remediation plan: `docs/superpowers/plans/2026-07-03-full-remediation-master.md`.
+The authoritative, regularly-updated gotcha list (Firebase/CSP, crisis-safety invariants, HRV signal processing, Polar PMD protocol, build caveats) lives in **`CLAUDE.md`**. Deeper references live in `.Codex/docs/`. Current review findings include `APP_REVIEW_TREE_AND_FOREST_2026-07-09.md`; the active remediation plan is `docs/superpowers/plans/2026-07-03-full-remediation-master.md`.
 
 ## Infrastructure
 

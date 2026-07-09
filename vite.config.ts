@@ -8,16 +8,23 @@ export default defineConfig(({ mode }) => {
   // Load .env.local so SENTRY_* vars are available via process.env
   const env = loadEnv(mode, process.cwd(), '')
   Object.assign(process.env, env)
+  const uploadSourceMaps = process.env.SENTRY_UPLOAD_SOURCEMAPS === '1'
+  if (uploadSourceMaps && !process.env.SENTRY_AUTH_TOKEN) {
+    throw new Error('SENTRY_UPLOAD_SOURCEMAPS=1 requires SENTRY_AUTH_TOKEN')
+  }
 
   return {
   build: {
-    sourcemap: true,
+    // Ordinary verification builds are local-only. Release builds opt in to
+    // hidden source maps + upload with SENTRY_UPLOAD_SOURCEMAPS=1.
+    sourcemap: uploadSourceMaps ? 'hidden' : false,
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.includes('/node_modules/firebase/') || id.includes('/node_modules/@firebase/')) return 'firebase'
+          if (id.includes('/node_modules/react/') || id.includes('/node_modules/react-dom/') || id.includes('/node_modules/framer-motion/')) return 'react-vendor'
           if (id.includes('@tiptap') || id.includes('prosemirror')) return 'editor'
           if (id.includes('@sentry')) return 'sentry'
-          if (id.includes('/src/engine/')) return 'engines'
         },
       },
     },
@@ -44,11 +51,11 @@ export default defineConfig(({ mode }) => {
         ],
       },
     }),
-    sentryVitePlugin({
+    uploadSourceMaps && sentryVitePlugin({
       org: process.env.SENTRY_ORG,
       project: process.env.SENTRY_PROJECT,
       authToken: process.env.SENTRY_AUTH_TOKEN,
-      disable: !process.env.SENTRY_AUTH_TOKEN,
+      disable: false,
     }),
   ],
 }})

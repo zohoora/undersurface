@@ -15,6 +15,7 @@ import {
   handleUpdateConfig,
 } from './handlers.js'
 import { computeAndCacheAnalytics, handleGetAnalytics } from './analytics.js'
+import { ConfigValidationError } from './configSchema.js'
 
 type AdminAction =
   | 'getOverview'
@@ -123,6 +124,10 @@ export const adminApi = onRequest(
     try {
       await handler(adminEmail, params, res)
     } catch (error) {
+      if (error instanceof ConfigValidationError) {
+        res.status(400).json({ error: error.message })
+        return
+      }
       console.error('Admin API error:', error)
       res.status(500).json({ error: 'Internal error' })
     }

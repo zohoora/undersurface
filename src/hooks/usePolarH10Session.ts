@@ -6,10 +6,12 @@ import {
   type PolarH10ErrorType,
 } from '../engine/polarH10Engine'
 import { HrvTimeline } from '../engine/hrvTimeline'
+import { buildHrvSessionArchive } from '../engine/hrvArchive'
 import { db } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { trackEvent } from '../services/analytics'
-import type { HrvMeasurement, HrvSessionData, HrvConversationEventType } from '../types'
+import { engineLog } from '../services/diagnostics'
+import type { HrvMeasurement, HrvConversationEventType } from '../types'
 
 const POLAR_ERROR_MESSAGES: Record<PolarH10ErrorType, string> = {
   unsupported: 'Bluetooth not available in this browser',
@@ -43,47 +45,32 @@ export function usePolarH10Session(sessionIdRef: React.RefObject<string | null>)
   const startTimeRef = useRef<number>(0)
   const flushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const responseStartedRef = useRef(false)
+  const flushInFlightRef = useRef(false)
 
   const flushData = useCallback(async () => {
     const currentSessionId = sessionIdRef.current
     const timeline = timelineRef.current
-    if (!currentSessionId || timeline.getMeasurements().length === 0) return
-
-    const measurements = timeline.getMeasurements()
-    const shifts = timeline.getRecentShifts(99_999)
-
-    const avgHr = measurements.reduce((s, m) => s + m.hr, 0) / measurements.length
-    const avgRmssd = measurements.reduce((s, m) => s + m.rmssd, 0) / measurements.length
-    const avgConf = measurements.reduce((s, m) => s + m.confidence, 0) / measurements.length
-
-    const stateCounts: Record<string, number> = {}
-    for (const m of measurements) {
-      stateCounts[m.autonomicState] = (stateCounts[m.autonomicState] || 0) + 1
-    }
-    const dominantState = Object.entries(stateCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'transitioning'
-
-    const data: HrvSessionData = {
+    if (!currentSessionId || flushInFlightRef.current) return
+    const data = buildHrvSessionArchive({
       id: currentSessionId,
       startedAt: startTimeRef.current,
       endedAt: Date.now(),
-      calibrationBaseline: timeline.baselineRmssd || 0,
-      measurements,
-      shifts,
-      // No raw signal buffers for the H10 — the device emits RR intervals
-      // directly so there's nothing rPPG-shaped to capture. Reserved for v2
-      // once accelerometer (PMD) data is added.
-      signalDumps: [],
-      summary: {
-        dominantState: dominantState as HrvSessionData['summary']['dominantState'],
-        averageHr: Math.round(avgHr),
-        averageRmssd: Math.round(avgRmssd * 10) / 10,
-        shiftCount: shifts.length,
-        avgConfidence: Math.round(avgConf * 100) / 100,
-      },
+      timeline,
       source: 'polarH10',
-    }
+    })
+    if (!data) return
 
-    await db.hrvSessions.add(data)
+    flushInFlightRef.current = true
+    try {
+      await db.hrvSessions.add(data)
+    } catch {
+      engineLog('error', 'hrv.persistence_failed', 'Could not persist the bounded Polar HRV archive', {
+        sessionId: currentSessionId,
+        extra: { source: 'polarH10', measurements: data.measurements.length },
+      })
+    } finally {
+      flushInFlightRef.current = false
+    }
   }, [sessionIdRef])
 
   const start = useCallback(async () => {

@@ -14,7 +14,7 @@ import { isGroundingActive, activateGrounding } from './useGroundingMode'
 import { getWeatherEngine } from '../store/weatherStore'
 import { useTranslation, getLanguageCode } from '../i18n'
 import type { useTypewriter } from './useTypewriter'
-import type { EnqueueAppend } from './useAppendQueue'
+import type { EnqueueAppend, SessionRuntime } from '../engine/sessionRuntime'
 import type { SessionOrchestrator } from '../engine/sessionOrchestrator'
 import type { Session, SessionMessage, SessionPhase, EmotionalTone, HrvConversationEventType } from '../types'
 
@@ -51,6 +51,7 @@ export interface SessionStreamWiring {
   hrv: BiometricSource
   typewriter: ReturnType<typeof useTypewriter>
   enqueueAppend: EnqueueAppend
+  runtime: SessionRuntime
 }
 
 export interface AppendUserMessageResult {
@@ -67,7 +68,7 @@ export interface AppendUserMessageResult {
 export function useSessionStream(wiring: SessionStreamWiring) {
   const {
     sessionRef, messagesRef, contextRef, orchestratorRef,
-    setSession, setMessages, setIsStreaming, setOpenerError, enqueueAppend,
+    setSession, setMessages, setIsStreaming, setOpenerError, enqueueAppend, runtime,
     hrv, typewriter,
   } = wiring
   const settings = useSettings()
@@ -135,25 +136,6 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     setOpenerError(null)
 
     const orchestrator = orchestratorRef.current
-
-    // Standalone L2 crisis backstop. The in-band <<RISK:N>> preamble is the
-    // primary session-mode signal, but it fails open to 0 on any malformation
-    // or absence — with no independent check, a missed crisis went unnoticed.
-    // Fire an independent classifier ONCE per user turn (not per retry),
-    // parallel to streaming. On risk=2 it activates grounding, which shows the
-    // crisis-resources UI immediately and grounds every subsequent turn (Real
-    // Talk → THERAPIST_CORE). It deliberately does NOT abort the in-flight
-    // stream: that clean pre-first-token abort/retry belongs to the in-band
-    // preamble (synchronous with generation); an out-of-band classifier
-    // aborting mid-stream would make responses vanish and regenerate at
-    // unpredictable moments. Fail-open (returns 0 on error) so it never bricks
-    // a send.
-    const latestUserMessage = [...currentMessages].reverse().find(m => m.speaker === 'user')
-    if (latestUserMessage && !isGroundingActive()) {
-      void classifyCrisisRisk(latestUserMessage.content, getLanguageCode())
-        .then(result => { if (result.risk === 2) activateGrounding('auto') })
-        .catch(() => { /* classifyCrisisRisk already fails open to 0 */ })
-    }
 
     // Per-turn withdrawal/rumination signal classification (flag-gated).
     // Fire-and-forget alongside the crisis backstop — the result lands during
@@ -534,14 +516,16 @@ export function useSessionStream(wiring: SessionStreamWiring) {
 
         hrv.resetResponseStarted()
 
-        const crisisAbortController = new AbortController()
+        const crisisAbortController = runtime.createAbortController()
         let firstTokenArrived = false
         let crisisAborted = false
 
-        await streamChatCompletion(
-          promptMessages,
-          {
+        try {
+          await streamChatCompletion(
+            promptMessages,
+            {
             onToken: (token) => {
+              if (!runtime.isSessionActive(currentSession.id)) return
               firstTokenArrived = true
               typewriter.appendToken(token)
               if (hrv.enabled && hrv.markResponseStarted()) {
@@ -561,6 +545,10 @@ export function useSessionStream(wiring: SessionStreamWiring) {
               }
             },
             onComplete: () => {
+              if (!runtime.isSessionActive(currentSession.id)) {
+                resolveMessages(currentMessages)
+                return
+              }
               typewriter.setOnComplete(finalizeMessage)
               if (hrv.enabled) {
                 hrv.addConversationEvent('ai_response_complete', currentMessages.length)
@@ -568,15 +556,22 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             },
             onError: (error) => {
               if (crisisAborted) return
+              if (!runtime.isSessionActive(currentSession.id)) {
+                resolveMessages(currentMessages)
+                return
+              }
               console.error('Session stream error:', error)
               typewriter.reset()
               resolveMessages(currentMessages)
             },
-          },
-          maxTokens,
-          reasoningForSpeed(settings.responseSpeed),
-          crisisAbortController.signal,
-        )
+            },
+            maxTokens,
+            reasoningForSpeed(settings.responseSpeed),
+            crisisAbortController.signal,
+          )
+        } finally {
+          runtime.releaseAbortController(crisisAbortController)
+        }
 
         if (crisisAborted) continue
 
@@ -585,7 +580,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
       }
 
       if (!crisisLoopResult) {
-        setIsStreaming(false)
+        if (runtime.isSessionActive(currentSession.id)) setIsStreaming(false)
         return currentMessages
       }
 
@@ -602,13 +597,15 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     }
 
     console.error('[chat] all empty-completion retries exhausted')
-    setOpenerError(tr['session.error.therapistUnreachable'])
-    setIsStreaming(false)
+    if (runtime.isSessionActive(currentSession.id)) {
+      setOpenerError(tr['session.error.therapistUnreachable'])
+      setIsStreaming(false)
+    }
     return currentMessages
   }, [
     sessionRef, contextRef, messagesRef, orchestratorRef,
     setSession, setMessages, setIsStreaming, setOpenerError, enqueueAppend,
-    hrv, typewriter, settings.responseSpeed, tr,
+    hrv, typewriter, settings.responseSpeed, tr, runtime,
   ])
 
   // Persist a user-authored message (text or voice) and run the synchronous
@@ -656,15 +653,25 @@ export function useSessionStream(wiring: SessionStreamWiring) {
         firstLine,
       })
 
-      setSession(prev => prev ? { ...prev, messageCount: updatedMessages.length, firstLine } : prev)
-      setMessages(updatedMessages)
-      messagesRef.current = updatedMessages
+      if (runtime.isSessionActive(currentSession.id)) {
+        setSession(prev => prev ? { ...prev, messageCount: updatedMessages.length, firstLine } : prev)
+        setMessages(updatedMessages)
+        messagesRef.current = updatedMessages
+      }
       return { updatedMessages, firstLine, phase }
     })
 
-    // Synchronous crisis keyword check — runs BEFORE any AI response.
-    // Activates grounding mode so isGrounding=true flows into the prompt.
-    orchestratorRef.current.checkCrisisKeywords(trimmed)
+    // L1 runs synchronously before any response. If the narrow hard floor does
+    // not fire, L2 reads context in parallel with the response. Keeping the L2
+    // launch here gives Talk and Speak the same safety path; previously voice
+    // transcripts only received L1 because they do not call
+    // generateTherapistMessage.
+    const hardFloorHit = orchestratorRef.current.checkCrisisKeywords(trimmed)
+    if (!hardFloorHit && !isGroundingActive()) {
+      void classifyCrisisRisk(trimmed, getLanguageCode())
+        .then(result => { if (result.risk === 2) activateGrounding('auto') })
+        .catch(() => { /* classifyCrisisRisk already fails open to 0 */ })
+    }
 
     // Non-blocking: LLM-based emotion check and weather update.
     orchestratorRef.current.checkEmotionAfterMessage(trimmed)
@@ -682,7 +689,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
   }, [
     sessionRef, messagesRef, orchestratorRef,
     setSession, setMessages, enqueueAppend,
-    hrv, weatherEngine,
+    hrv, weatherEngine, runtime,
   ])
 
   return { generateTherapistMessage, appendUserMessage }

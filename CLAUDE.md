@@ -2,7 +2,7 @@
 
 ## What is this project?
 
-A session-first reflective companion app. Opening the app drops the user into a therapist session — an AI companion that talks with them across four surfaces: **Talk** (streamed text conversation), **Journal** (quiet TipTap page where inner-voice "parts" can respond on pause), **Speak** (live voice via OpenAI Realtime), and **Relax** (guided breathwork + soundscapes). The app pivoted from a diary-first product; the diary-entry flow no longer exists, but the journal/parts machinery lives on inside sessions. Live at [undersurface.me](https://undersurface.me).
+A session-first reflective companion app. Opening the app drops the user into a session with an AI companion across five surfaces: **Talk** (streamed text conversation), **Journal** (quiet TipTap page where inner-voice "parts" can respond on pause), **Speak** (live voice via OpenAI Realtime), **Relax** (guided breathwork + soundscapes), and **Drift** (a time-boxed bilateral noticing-and-settling practice). The app pivoted from a diary-first product; the diary-entry flow no longer exists, but the journal/parts machinery lives on inside sessions. Live at [undersurface.me](https://undersurface.me).
 
 ## Current work
 
@@ -21,18 +21,20 @@ Canonical findings list, in order of authority:
 ```bash
 npm run dev              # Dev server → localhost:5173
 npm run build            # Production build → dist/ (tsc -b + vite build)
+npm run build:release    # Release-only build + explicit Sentry source-map upload
 npm run lint             # ESLint (flat config)
 npm run test             # Vitest (npm run test:watch for watch mode)
 npm run preview          # Preview production build locally
 npm run test:indexes     # Run Firestore index tests (requires emulator)
 npm run test:crisis      # Live crisis-classifier eval (RUN_CRISIS_EVAL=1, hits real API)
+npm run test:release-evals # All live prompt evals + auditable artifact
 npm run smoke-test       # Post-deploy smoke test against live site
 npm run cap:ios          # Build + sync + open iOS (Capacitor; cap:android likewise)
 ```
 
 ## CI/CD
 
-`.github/workflows/ci.yml` runs on push/PR to main: type-check (frontend + functions), lint, test, Firestore index tests (emulator + Java 21), build. Uses Node 22 and dummy `VITE_FIREBASE_*` env vars (Firebase config is public, only needed at runtime — never use the dummy values for production deploys).
+`.github/workflows/ci.yml` runs on push/PR to main: type-check (frontend + functions), lint, test, Firestore index tests (emulator + Java 21), build. Uses Node 22 and dummy `VITE_FIREBASE_*` env vars (Firebase config is public, only needed at runtime — never use the dummy values for production deploys). `.github/workflows/release-evals.yml` is the scheduled/manual/reusable behavioral gate and archives its prompt hash, model snapshot, results, latency, and logs for 90 days.
 
 ## Deploying Changes
 
@@ -41,7 +43,8 @@ The app runs on Firebase. Three deployable units:
 ### 1. Frontend (Firebase Hosting + PWA)
 
 ```bash
-npm run build && firebase deploy --only hosting
+OPENAI_API_KEY=... npm run test:release-evals
+npm run build:release && firebase deploy --only hosting
 ```
 
 ### 2. Cloud Functions (Firebase Functions, Node.js 22)
@@ -69,7 +72,8 @@ firebase deploy --only firestore:rules
 ### Deploy everything
 
 ```bash
-npm run build && cd functions && npx tsc && cd .. && firebase deploy
+OPENAI_API_KEY=... npm run test:release-evals
+npm run build:release && cd functions && npx tsc && cd .. && firebase deploy
 ```
 
 ### Post-deploy verification
@@ -84,7 +88,7 @@ npm run smoke-test
 
 | What changed | Build | Deploy |
 |---|---|---|
-| `src/` | `npm run build` | `firebase deploy --only hosting` |
+| `src/` | `npm run build:release` | `firebase deploy --only hosting` |
 | `functions/src/` | `cd functions && npx tsc` | `firebase deploy --only functions` |
 | `firestore.rules` | — | `firebase deploy --only firestore:rules` |
 | Both | Both build steps | `firebase deploy` |
@@ -128,9 +132,7 @@ Account: Settings → accountApi Cloud Function → delete/contact
 
 Detailed file-by-file reference: `.claude/docs/key-files.md`
 
-Core entry points: `src/ai/openrouter.ts` (all /api/chat calls — legacy filename kept, there is no OpenRouter; includes `classifyCrisisRisk` + `<<RISK:N>>` preamble handling), `src/ai/therapistPrompts.ts` (therapist companion prompts — `THERAPIST_CORE` warm + `REAL_TALK_CORE` calling-out + `SAFETY_RULES` + `buildTherapistSystemPrompt`), `src/ai/partPrompts.ts` (7 seeded parts + `SHARED_INSTRUCTIONS` + emergence/reflection/growth prompts), `src/ai/crisisClassifierPrompt.ts` (L2 risk-tier prompt), `src/ai/relaxPrompts.ts` (Relax voice guidance), `src/ai/therapistRecommendationParser.ts` (tappable recommendation segments in therapist messages), `src/engine/sessionOrchestrator.ts` (phase detection + L1 crisis regex + emotion check), `src/engine/partOrchestrator.ts` (part selection + scoring), `src/engine/pauseDetector.ts`, `src/engine/sessionContextLoader.ts` (`loadTherapistContext`), `src/engine/relaxEngine.ts` (breath pacing math), `src/engine/hrvEngine.ts` (webcam HRV), `src/engine/hrvSignalWorker.ts` (CHROM rPPG Web Worker), `src/engine/hrvTimeline.ts`, `src/engine/polarH10Engine.ts` (Polar H10 BLE), `src/hooks/useSessionStream.ts` (therapist message lifecycle + crisis race + `BiometricSource`), `src/hooks/useSessionVoice.ts` + `src/hooks/useVoiceSession.ts` (Realtime voice), `src/components/Editor/useJournalParts.ts` (in-session parts pipeline), `src/hooks/useHrvSession.ts`, `src/hooks/usePolarH10Session.ts`, `src/hooks/useRelaxSession.ts`, `src/components/Session/SessionView.tsx` (session shell: surfaces, mode, biometrics), `src/components/Session/SessionBottomBar.tsx` (surface switcher + Real Talk toggle), `src/components/Session/SessionJournalSurface.tsx` (in-session TipTap journal), `src/components/Session/Relax/` (Relax UI), `src/store/db.ts` (Firestore wrapper + `sessionMessages`). Cloud Functions: `functions/src/{chat,realtime,soundscapeApi,account,mcp}.ts` + `functions/src/admin/` + `functions/src/soundscape/` + `functions/src/shared/`.
-
-Note: `src/ai/sessionPrompts.ts` exists but has no non-test consumers — candidate for removal, see review docs.
+Core entry points: `src/ai/openrouter.ts` (all /api/chat calls — legacy filename kept, there is no OpenRouter; includes `classifyCrisisRisk` + `<<RISK:N>>` preamble handling), `src/ai/therapistPrompts.ts` (companion prompts — `THERAPIST_CORE` warm + `REAL_TALK_CORE` calling-out + `SAFETY_RULES` + `buildTherapistSystemPrompt`), `src/ai/partPrompts.ts` (7 seeded parts + `SHARED_INSTRUCTIONS` + emergence/reflection/growth prompts), `src/ai/crisisClassifierPrompt.ts` (L2 risk-tier prompt), `src/ai/relaxPrompts.ts` (Relax voice guidance), `src/ai/therapistRecommendationParser.ts` (tappable recommendation segments), `src/engine/sessionRuntime.ts` (session epoch, abort set, append queue, send lock), `src/engine/sessionOrchestrator.ts` (phase detection + narrow L1 hard floor + emotion check), `src/engine/partOrchestrator.ts` (part selection + scoring), `src/engine/pauseDetector.ts`, `src/engine/sessionContextLoader.ts` (`loadTherapistContext`), `src/engine/relaxEngine.ts` (breath pacing math), `src/engine/hrvArchive.ts` (bounded persistence), `src/engine/hrvEngine.ts` (webcam HRV), `src/engine/hrvSignalWorker.ts` (CHROM rPPG Web Worker), `src/engine/hrvTimeline.ts`, `src/engine/polarH10Engine.ts` (Polar H10 BLE), `src/hooks/useSessionStream.ts` (message lifecycle + crisis race + `BiometricSource`), `src/hooks/useSessionVoice.ts` + `src/hooks/useVoiceSession.ts` (Realtime voice), `src/components/Editor/useJournalParts.ts` (in-session parts pipeline), `src/hooks/useHrvSession.ts`, `src/hooks/usePolarH10Session.ts`, `src/hooks/useRelaxSession.ts`, `src/components/Session/SessionView.tsx` (session shell: surfaces, mode, biometrics), `src/components/Session/SessionBottomBar.tsx` (surface switcher + Real Talk toggle), `src/components/Session/SessionJournalSurface.tsx` (in-session TipTap journal), `src/components/Session/Relax/` (Relax UI), `src/store/db.ts` (Firestore wrapper + `sessionMessages`). Cloud Functions: `functions/src/{chat,realtime,soundscapeApi,account,mcp}.ts` + `functions/src/admin/` + `functions/src/soundscape/` + `functions/src/shared/`.
 
 ### Data storage
 
@@ -184,8 +186,8 @@ At `/admin` for admins only. Lazy-loaded. 6 tabs (Overview, Users, Analytics, Me
 
 Two layers, both feeding `activateGrounding` → `isGrounding` in the next prompt build:
 
-- **L1 — deterministic floor.** `sessionOrchestrator.checkCrisisKeywords`: synchronous regex over NFKC-normalized text. No LLM, no cooldown, no feature flag. Runs in `useSessionStream` **before** therapist generation so `isGrounding: true` can flow into the prompt.
-- **L2 — LLM classifier.** Two shapes: in session mode it is folded into the therapist stream as a `<<RISK:N>>` preamble (parsed by `streamChatCompletion`'s `onRisk`; risk=2 arriving before the first token aborts the stream and retries grounded). In journal/parts mode, `classifyCrisisRisk` calls `/api/chat` with `task: 'crisis_check'`, routed server-side to `gpt-5-nano` with a strict JSON schema. Both fail open to risk 0 — L1 is the safety floor.
+- **L1 — deterministic hard floor.** `sessionOrchestrator.checkCrisisKeywords`: synchronous NFKC-normalized regexes for explicit first-person methods/plans only. Contextual language such as “want to die,” slang, grief, and historical mentions defers to L2.
+- **L2 — contextual LLM classifier.** Every user-authored path runs `classifyCrisisRisk` (`task: 'crisis_check'`, `gpt-5-nano`, strict JSON schema). Talk additionally folds the signal into the therapist stream as a `<<RISK:N>>` preamble; risk=2 before the first token aborts and retries grounded. Both fail open to risk 0 — L1 remains the narrow hard floor.
 
 Calibration history matters: a previous classifier over-called (grief, metaphor, hyperbole, gallows humor all flagged). Current prompts/thresholds are tuned for precision, not recall — do not "improve" recall without reading the eval set (`crisisClassifier.eval.ts`, `npm run test:crisis`).
 
@@ -271,7 +273,7 @@ Firebase Analytics events, Google Ads conversion tracking, Sentry error monitori
 
 ## Testing
 
-Vitest with jsdom. Tests cover: prompts (`therapistPrompts` incl. Real Talk persona swap + grounding override, `partPrompts`, `relaxPrompts`, `registerTiers`, `promptSafety`, `llmCorrect`, `annotationParser`, `therapistRecommendationParser`, `openrouter` incl. `<<RISK:N>>` handling), engines (`sessionOrchestrator` — phase detection, crisis keywords, emotion check; `realTalkFlow` end-to-end crisis override; `partOrchestrator`, `pauseDetector`, `sessionReflectionEngine`, `sessionContextLoader`, `closingEngine`, `relaxEngine`, `ritualEngine`, `bodyMapEngine`, `weatherEngine`, `partGrowthEngine`, `threadEngine`, `letterEngine`, `echoEngine`, `quoteEngine`, `disagreementEngine`, `quietTracker`, `emergenceEngine`, `voiceFieldColors`), HRV (`hrvSignalWorker`, `hrvEngine`, `hrvTimeline`, `polarH10Engine` — golden bytes, RR conversion, pure math, `feedSampleForTest`/`tickForTest`), components (`SessionView`, `SessionBottomBar`, `SessionJournalSurface`, `useJournalParts`, `useLoginFlow`), hooks via `renderHook` (`useSessionVoice`, `useSessionStream`, `useChatResponse`, `useAutocorrect`, `useGroundingMode`, `useTheme`, `useTypewriter`, `useAppendQueue`, `useModalA11y` — Escape/focus-trap/restore), utils (`contextPacker` token budgeting, `memoryPruner`, `voiceErrors` classifier), stores (`settings` — sparse-override persistence, `globalConfig`, `groundingState`), i18n (`translations` + key parity — every locale has every English key), admin (`isAdmin`, `useAdminQuery`, `useAdminConfig` save round-trip + key allowlist, `useAdminMutation`, `useAdminUser`), services (`diagnostics`), types (`session`). Functions-side: `index.test.ts`, `admin/handlers.test.ts`, `admin/analytics.test.ts`, `account.test.ts` (zero-residue/idempotent/tombstone deletion), `shared/quota.test.ts` (cap resolution, UTC period rollover, reservation decision), `soundscape/normalize.test.ts`, `soundscape/provider.test.ts`, `soundscape/cache.claim.test.ts` (generation-claim dedup). The live crisis eval (`crisisClassifier.live.test.ts`) only runs under `npm run test:crisis`.
+Vitest with jsdom. Tests cover prompts, pure engines, the session runtime and full crisis decision pipeline, bounded HRV archives, components, hooks, stores, i18n key parity, and admin config round trips. Functions-side tests cover routing, admin handlers/analytics, account deletion, quota logic, and soundscape behavior. Live prompt evals remain explicit release/scheduled gates rather than ordinary PR tests.
 
 ```bash
 npm run test             # Run all tests

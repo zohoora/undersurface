@@ -1,5 +1,6 @@
 import { getAuth } from 'firebase-admin/auth'
 import { getFirestore } from 'firebase-admin/firestore'
+import { validateConfigUpdate } from './configSchema.js'
 import { OPENAI_CHAT_MODEL } from '../shared/models.js'
 import {
   countWords,
@@ -318,24 +319,11 @@ export async function handleGetConfig() {
   return { config: snap.exists ? snap.data() : null }
 }
 
-const ALLOWED_CONFIG_KEYS = new Set([
-  'features', 'tuning', 'grounding', 'announcement', 'quota',
-])
-
 export async function handleUpdateConfig(
   partial: Record<string, unknown>,
   adminEmail: string,
 ) {
-  // Strip unknown keys to prevent arbitrary field injection
-  const sanitized: Record<string, unknown> = {}
-  for (const key of Object.keys(partial)) {
-    if (ALLOWED_CONFIG_KEYS.has(key)) {
-      sanitized[key] = partial[key]
-    }
-  }
-  if (Object.keys(sanitized).length === 0) {
-    return { error: 'No valid config keys provided' }
-  }
+  const sanitized = validateConfigUpdate(partial)
 
   const docRef = getFirestore().collection('appConfig').doc('global')
   const merged = {

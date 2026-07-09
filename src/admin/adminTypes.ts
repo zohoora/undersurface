@@ -57,11 +57,11 @@ export interface GlobalConfig {
     polarH10?: boolean
     // Voice (OpenAI Realtime)
     voiceEnabled?: boolean
-    // Relax mode (4th session surface)
+    // Relax session surface
     relaxEnabled?: boolean
     // Custom soundscape generation in Relax mode (text prompt → ElevenLabs)
     customSoundscapesEnabled?: boolean
-    // Drift — bilateral noticing practice, launched from Relax (text + voice)
+    // Drift — bilateral noticing practice (text + voice)
     driftEnabled?: boolean
   }
   announcement: {

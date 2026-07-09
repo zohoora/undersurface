@@ -119,7 +119,7 @@ describe('Real Talk end-to-end flow', () => {
     // crisis detection AND the prompt builder's response to isGrounding=true.
     const session = makeSession('real_talk')
 
-    expect(detectCrisisKeywords('I want to die')).toBe(true)
+    expect(detectCrisisKeywords('I want to kill myself')).toBe(true)
 
     const systemPrompt = buildTherapistSystemPrompt({
       phase: 'deepening',
@@ -235,7 +235,7 @@ describe('Real Talk grounding override — full pipeline', () => {
     expect(isGroundingActive()).toBe(false)
 
     // Simulate the synchronous safety net firing on a user message.
-    const detected = orchestrator.checkCrisisKeywords('I want to die')
+    const detected = orchestrator.checkCrisisKeywords('I want to kill myself')
     expect(detected).toBe(true)
 
     // The orchestrator must have synchronously flipped global state — this is
@@ -278,7 +278,7 @@ describe('Real Talk grounding override — full pipeline', () => {
 
   it('grounding deactivation restores Real Talk persona', () => {
     const orchestrator = new SessionOrchestrator()
-    orchestrator.checkCrisisKeywords('kms')
+    orchestrator.checkCrisisKeywords('I want to kill myself')
     expect(isGroundingActive()).toBe(true)
 
     deactivateGrounding()
@@ -296,10 +296,10 @@ describe('Real Talk grounding override — full pipeline', () => {
 
   it('NFKC normalization defeats fullwidth obfuscation', () => {
     // Fullwidth letters live in a different Unicode block; without NFKC the
-    // regex \bdie\b would not match. Plain ASCII would pass even unnormalized
+    // regex \bkill myself\b would not match. Plain ASCII would pass even unnormalized
     // — this is what the original test checked, accidentally.
     const orchestrator = new SessionOrchestrator()
-    const detected = orchestrator.checkCrisisKeywords('Ｉ ｗａｎｔ ｔｏ ｄｉｅ')
+    const detected = orchestrator.checkCrisisKeywords('Ｉ ｗａｎｔ ｔｏ ｋｉｌｌ ｍｙｓｅｌｆ')
     expect(detected).toBe(true)
     expect(isGroundingActive()).toBe(true)
   })
@@ -309,7 +309,7 @@ describe('Real Talk grounding override — full pipeline', () => {
     // \s+ in the patterns then accepts. (In-word ZWJ would split a word and
     // miss \bword\b — that bypass class is not currently defended against.)
     const orchestrator = new SessionOrchestrator()
-    const detected = orchestrator.checkCrisisKeywords('I want‍to die')
+    const detected = orchestrator.checkCrisisKeywords('I want‍to kill‍myself')
     expect(detected).toBe(true)
     expect(isGroundingActive()).toBe(true)
   })
