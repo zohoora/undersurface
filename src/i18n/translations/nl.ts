@@ -266,6 +266,7 @@ const nl = {
 
   // Session bottom bar
   'session.bottomBar.relax': 'Ontspannen',
+  'session.bottomBar.drift': 'Drift',
 
   // Relax mode — settings
   'relax.settings.title': 'Kom tot rust',
@@ -368,6 +369,31 @@ const nl = {
   'drift.abort.handoff': 'We pauzeren hier even en zorgen eerst voor jou.',
   'drift.closed.settled': 'Dat is genoeg voor vandaag.',
   'drift.closed.eased': 'Je hebt naar jezelf geluisterd. Dat telt.',
+  // Drift v2 — one-screen begin
+  'drift.begin.whats': 'Wat speelt er?',
+  'drift.chip.worry': 'Een zorg',
+  'drift.chip.body': 'Spanning in mijn lichaam',
+  'drift.chip.today': 'Iets van vandaag',
+  'drift.chip.heavy': 'Een zwaar gevoel',
+  'drift.chip.unsettled': 'Gewoon onrustig',
+  'drift.begin.somethingElse': 'Iets anders…',
+  'drift.begin.length': 'Hoe lang?',
+  'drift.length.quick': '2 min',
+  'drift.length.short': '4 min',
+  'drift.length.full': '6 min',
+  'drift.begin.anchorLabel': 'Jouw weg terug:',
+  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
+  'drift.micro.softer1': 'Goed. Laat het verder losser worden.',
+  'drift.micro.softer2': 'Er komt iets tot rust. Blijf er dichtbij.',
+  'drift.micro.softer3': 'Laat die zachtheid zich vanzelf verspreiden.',
+  'drift.micro.same1': 'Dat is oké. Geen haast.',
+  'drift.micro.same2': 'Standhouden telt ook. Laat het ritme het dragen.',
+  'drift.micro.drift1': 'Laat je gewoon meedrijven.',
+  'drift.micro.drift2': 'Niets te doen. Het ritme is genoeg.',
+  // Drift v2 — optional typed word + closure contrast
+  'drift.notice.addWord': 'een woord toevoegen',
+  'drift.closing.softened': 'Er is daarbinnen iets losgekomen. Je gaat een beetje zachter weg.',
+  'drift.closing.steady': 'Je bent erbij gebleven. Dat telt.',
 } as const
 
 export default nl

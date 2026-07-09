@@ -35,7 +35,7 @@
 | `src/engine/polarH10Engine.ts` | Polar H10 via Web Bluetooth — HR Measurement (0x2A37) parser, PMD ACC frame parser (raw + delta), streaming bandpass on accel magnitude → live `breathingScale`, zero-crossing → respiratory rate. Feature-flagged (`polarH10`) |
 | `src/hooks/useHrvSession.ts` | Webcam HRV session lifecycle — consent gate, engine wiring, 10s Firestore flush |
 | `src/hooks/usePolarH10Session.ts` | Polar H10 session lifecycle — mirrors `useHrvSession` surface, exposes `getBreathingScale` stable getter for animation rAF polling |
-| `src/engine/driftEngine.ts` | Drift — pure reducer (`driftReduce`), the single flow authority: monotonic phases (never returns to the starting material), set/session caps, `outcomeForReason()`, deterministic lexical `selectInterweave()` (one-exchange cooldown), `blsPan()` sweep math. No React/Firestore. Feature-flagged (`driftEnabled`) |
+| `src/engine/driftEngine.ts` | Drift — pure reducer (`driftReduce`), the single flow authority: monotonic phases (never returns to the starting material), parameterized lengths (`DRIFT_LENGTHS`: 3/5/7 waves × 12s → `state.limits`), softening counters (`softerStreak`/`softerTotal` → `passMsForSoftening()` BLS pacing), `outcomeForReason()`, deterministic lexical `selectInterweave()` (one-exchange cooldown), `blsPan()` sweep math. No React/Firestore. Feature-flagged (`driftEnabled`) |
 | `src/ai/driftPrompts.ts` | Drift text + voice system prompts — `buildDriftSystemPrompt` / `buildDriftVoiceInstructions`, interweave fragments (rain/defusion/parts/focusing), `DRIFT_DECLINE_LOOP` no-return teaching, `SETTLE_BIAS`. Never names the technique; embeds `SAFETY_RULES` |
 
 ## TipTap Extensions
@@ -97,9 +97,9 @@
 | `src/components/BodyMap/HomunculusSVG.tsx` | SVG homunculus figure with 10 animated body regions (Framer Motion), click-to-select, breathing animation |
 | `src/components/BodyMap/RegionDetail.tsx` | Region detail panel — emotion pills, recent somatic quotes, entry dates |
 | `src/components/Session/SessionView.tsx` | Session/conversation mode UI — therapist companion chat with crisis keyword detection before LLM generation. Accepts `initialMode` prop (`'standard' \| 'real_talk'`) for new sessions, persists `mode` field on the Session doc, threads it into every prompt builder call, and renders a `◆ Real Talk` badge in the header |
-| `src/components/Session/Drift/DriftField.tsx` | Full-screen Drift overlay — renders per engine phase; flow authority stays in the engine. Theme-aware; timers/unmount cleanup keyed on stable handlers, not the `drift` object |
-| `src/components/Session/Drift/BilateralStimulus.tsx` | Bilateral stimulation for Drift — Web Audio panned ticks or a visual sweeping dot, driven by `blsPan()` |
-| `src/components/Session/Drift/DriftExchange.tsx` | Between-set input — prompt + directional pills (softer/same/stronger); no numeric distress scale |
+| `src/components/Session/Drift/DriftField.tsx` | Full-screen Drift overlay (v2) — one begin screen (chips/lengths/anchor), waves with progress dots + warmth layer, scripted micro-lines; mounted from `SessionView` as the `drift` surface. Flow authority stays in the engine. Timers/unmount cleanup keyed on stable handlers, not the `drift` object |
+| `src/components/Session/Drift/BilateralStimulus.tsx` | Bilateral stimulation for Drift — Web Audio panned ticks or a visual sweeping dot, driven by `blsPan()`; sweep slows as the writer softens (`passMsForSoftening`) |
+| `src/components/Session/Drift/DriftExchange.tsx` | v2 check-in — directional pills (softer/same/stronger) submit ON TAP; optional "add a word" input routes the typed path. No numeric distress scale |
 | `src/components/Session/Drift/DriftClosing.tsx` | Drift closure copy per reason (settle/user/stuck/cap/crisis) — fixed i18n strings |
 | `src/components/Sidebar/EntriesList.tsx` | Unified sidebar — entries + sessions in one chronological list with Body Map tab (when `bodyMap` feature flag enabled) |
 | `src/components/Sidebar/SettingsPanel.tsx` | Settings panel — slide-up overlay above gear button |
@@ -124,7 +124,7 @@
 | `src/hooks/useSeasonalPalette.ts` | Seasonal color shifts |
 | `src/hooks/useHandwritingMode.ts` | Handwriting font mode |
 | `src/hooks/useVoiceSession.ts` | Realtime WebRTC session hook (shared by Speak, Relax, Drift) — `start`/`stop`/`speak`/`toggleMute`/`setMicEnabled`/`cancelResponse`; mints a client secret via `/api/realtime-token`, browser↔OpenAI direct |
-| `src/hooks/useDriftSession.ts` | Drives `driftEngine` — 1s tick + timers, streams between-set exchanges via `/api/chat`, two-layer crisis stack (L1 `detectCrisisKeywords` + raced L2 `classifyCrisisRisk`), persists `driftSessions`. Feature-flagged (`driftEnabled`) |
+| `src/hooks/useDriftSession.ts` | Drives `driftEngine` — v2 `begin()` orchestrates the opening phases from one screen (typed focus crisis-checked, chips not), `submitNoticeTap` for instant tap-only check-ins (no LLM), typed `submitNotice` unchanged (eval-verified), 1s tick + timers, two-layer crisis stack, persists `driftSessions`. Feature-flagged (`driftEnabled`) |
 | `src/hooks/useDriftVoice.ts` | Drift voice adapter over `useVoiceSession` — mic gating during BLS sets, one scripted cue per phase (gated on `connected`, retried on connect), transcript crisis floor. Utterances route via `submitNotice(text,'skipped')` |
 
 ## Admin

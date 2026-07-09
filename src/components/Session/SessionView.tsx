@@ -28,6 +28,8 @@ import { trackEvent } from '../../services/analytics'
 import { SessionMessageBubble } from './SessionMessage'
 import { SessionJournalSurface } from './SessionJournalSurface'
 import { RelaxField } from './Relax/RelaxField'
+import { DriftField } from './Drift/DriftField'
+import { useGroundingMode } from '../../hooks/useGroundingMode'
 import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
 import { PolarH10ConsentDialog } from './PolarH10ConsentDialog'
@@ -99,6 +101,11 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const relaxEnabled = getGlobalConfig()?.features?.relaxEnabled === true
 
   const globalConfig = useGlobalConfig()
+  // Drift is its own surface since v2 (2026-07-09). The ENTRY hides while
+  // grounding is active, but a mounted DriftField stays mounted mid-crisis —
+  // its engine owns the scripted crisis closure; unmounting would skip it.
+  const grounding = useGroundingMode()
+  const driftEnabled = globalConfig?.features?.driftEnabled === true
   const [surface, setSurface] = useState<SessionSurface>('talk')
   const [journalDraft, setJournalDraft] = useState<string>('')
 
@@ -716,6 +723,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
           showJournalPartsToggle={globalConfig?.features?.partsEnabled !== false}
           showSpeakSurface={voiceEnabled}
           showRelaxSurface={relaxEnabled}
+          showDriftSurface={driftEnabled && !grounding}
           onSurfaceChange={handleSurfaceChange}
           onRealTalkToggle={handleRealTalkToggle}
           onJournalPartsToggle={handleJournalPartsToggle}
@@ -987,6 +995,20 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
           // of the internal pacer.
           chestScaleGetter: polar.enabled ? polar.getBreathingScale : undefined,
         }}
+      />
+    )}
+
+    {/* Drift overlay — its own surface since v2 (2026-07-09), separated from
+        Relax. hrvContext stays null (deferred, corroborative-only per spec).
+        onClose returns to Talk; the engine's crisis closure runs before close
+        even if grounding activated mid-practice (mount is not grounding-gated
+        for exactly that reason — only the ENTRY pill is). */}
+    {driftEnabled && surface === 'drift' && (
+      <DriftField
+        parentSessionId={session?.id ?? null}
+        hrvContext={null}
+        voiceAvailable={voiceEnabled}
+        onClose={() => handleSurfaceChange('talk')}
       />
     )}
     </>

@@ -61,7 +61,7 @@
 | `features.webcamHrv` | Webcam-based HRV via CHROM rPPG; populates `hrvContext` in therapist prompt |
 | `features.polarH10` | Polar H10 (or any standard BLE HR monitor) over Web Bluetooth; same downstream as webcam path. H10 takes priority when both flags are on and a device is paired. Hidden on browsers without Web Bluetooth (Safari, iOS) |
 | **Relax** | |
-| `features.driftEnabled` | Drift — bilateral noticing practice launched from Relax (text + voice). Engine-owned state machine, no return-to-target invariant, two-layer crisis stack reuse, voice adapter. Default OFF; suppressed under grounding. Spec: `docs/superpowers/specs/2026-07-04-drift-design.md` |
+| `features.driftEnabled` | Drift — bilateral noticing practice as its own session surface (bottom-bar pill; v2 2026-07-09, no longer inside Relax). Tap-first check-ins, 2/4/6-min lengths, engine-owned state machine, no return-to-target invariant, two-layer crisis stack reuse, voice adapter. Default OFF; entry hidden under grounding. Specs: `docs/superpowers/specs/2026-07-04-drift-design.md` (safety) + `2026-07-09-drift-v2-webapp-redesign.md` (experience) |
 
 ## Settings cascade
 

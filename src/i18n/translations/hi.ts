@@ -266,6 +266,7 @@ const hi = {
 
   // Session bottom bar
   'session.bottomBar.relax': 'आराम',
+  'session.bottomBar.drift': 'Drift',
 
   // Relax mode — settings
   'relax.settings.title': 'बैठ जाओ',
@@ -368,6 +369,31 @@ const hi = {
   'drift.abort.handoff': 'हम यहाँ रुक जाएंगे और पहले तुम्हारा ख्याल रखेंगे।',
   'drift.closed.settled': 'आज के लिए इतना काफी है।',
   'drift.closed.eased': 'तुमने खुद को सुना। यह मायने रखता है।',
+  // Drift v2 — one-screen begin
+  'drift.begin.whats': 'मन में क्या हलचल है?',
+  'drift.chip.worry': 'एक चिंता',
+  'drift.chip.body': 'शरीर में तनाव',
+  'drift.chip.today': 'आज की कोई बात',
+  'drift.chip.heavy': 'एक भारी एहसास',
+  'drift.chip.unsettled': 'बस बेचैनी',
+  'drift.begin.somethingElse': 'कुछ और…',
+  'drift.begin.length': 'कितनी देर?',
+  'drift.length.quick': '2 मिनट',
+  'drift.length.short': '4 मिनट',
+  'drift.length.full': '6 मिनट',
+  'drift.begin.anchorLabel': 'तुम्हारा लौटने का रास्ता:',
+  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
+  'drift.micro.softer1': 'अच्छा। इसे और ढीला पड़ने दो।',
+  'drift.micro.softer2': 'कुछ शांत हो रहा है। उसके पास रहो।',
+  'drift.micro.softer3': 'इस नरमी को अपने आप फैलने दो।',
+  'drift.micro.same1': 'यह ठीक है। कोई जल्दी नहीं।',
+  'drift.micro.same2': 'स्थिर बने रहना भी मायने रखता है। लय को इसे ले जाने दो।',
+  'drift.micro.drift1': 'बस इसके साथ बहते रहो।',
+  'drift.micro.drift2': 'कुछ करने की ज़रूरत नहीं। लय ही काफी है।',
+  // Drift v2 — optional typed word + closure contrast
+  'drift.notice.addWord': 'एक शब्द जोड़ो',
+  'drift.closing.softened': 'अंदर कुछ ढीला पड़ा। तुम थोड़ा हल्का होकर जाते हो।',
+  'drift.closing.steady': 'तुम इसके साथ बने रहे। यह मायने रखता है।',
 } as const
 
 export default hi

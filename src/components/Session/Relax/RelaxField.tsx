@@ -1,15 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useRelaxSession, type RelaxHrvInput, type RelaxSettings } from '../../../hooks/useRelaxSession'
 import { getSettings } from '../../../store/settings'
 import { t } from '../../../i18n'
-import { useGlobalConfig } from '../../../store/globalConfig'
-import { useGroundingMode } from '../../../hooks/useGroundingMode'
 import { RelaxSettingsPanel } from './RelaxSettingsPanel'
 import { RelaxBreathCircle } from './RelaxBreathCircle'
 import { RelaxControls } from './RelaxControls'
 import { RelaxClosingSummary } from './RelaxClosingSummary'
 import { BiometricsBar } from '../HrvAmbientBar'
-import { DriftField } from '../Drift/DriftField'
 
 interface Props {
   parentSessionId: string | null
@@ -23,14 +20,6 @@ interface Props {
 export function RelaxField({ parentSessionId, onClose, hrv }: Props) {
   const relax = useRelaxSession(parentSessionId, hrv)
   const hasOpenedRef = useRef(false)
-
-  // Drift entry — gated on the flag AND live grounding (both reactive, so the
-  // card appears/disappears without a remount when either changes).
-  const [driftOpen, setDriftOpen] = useState(false)
-  const config = useGlobalConfig()
-  const grounding = useGroundingMode()
-  const driftAvailable = config?.features?.driftEnabled === true && !grounding
-  const voiceAvailable = config?.features?.voiceEnabled === true
 
   useEffect(() => {
     relax.open()
@@ -51,7 +40,6 @@ export function RelaxField({ parentSessionId, onClose, hrv }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
-      if (driftOpen) return // DriftField owns Escape while open
       if (relax.state === 'guiding') relax.end()
       else if (relax.state === 'settings') {
         relax.cancel()
@@ -60,22 +48,7 @@ export function RelaxField({ parentSessionId, onClose, hrv }: Props) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [relax, onClose, driftOpen])
-
-  // When Drift is open it replaces the relax states entirely (early return after
-  // all hooks). v1 passes hrvContext={null} — HRV corroboration text enters only
-  // when a biometric source is streaming; that mapping is deliberately deferred
-  // (spec: optional, corroborative only).
-  if (driftOpen) {
-    return (
-      <DriftField
-        parentSessionId={parentSessionId}
-        hrvContext={null}
-        voiceAvailable={voiceAvailable}
-        onClose={() => setDriftOpen(false)}
-      />
-    )
-  }
+  }, [relax, onClose])
 
   const initial: RelaxSettings = (() => {
     const s = getSettings()
@@ -192,7 +165,6 @@ export function RelaxField({ parentSessionId, onClose, hrv }: Props) {
           initial={initial}
           onBegin={(s) => { void relax.begin(s) }}
           onCancel={() => { relax.cancel(); onClose() }}
-          onEnterDrift={driftAvailable ? () => setDriftOpen(true) : undefined}
         />
       )}
 

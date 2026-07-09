@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { driftReduce, initialDriftState, selectInterweave, outcomeForReason } from '../engine/driftEngine'
-import type { DriftState, NoticeDirection } from '../engine/driftEngine'
+import type { DriftState, DriftLength, NoticeDirection } from '../engine/driftEngine'
 import { buildDriftSystemPrompt } from '../ai/driftPrompts'
 import { streamChatCompletion, classifyCrisisRisk, reasoningForSpeed } from '../ai/openrouter'
 import type { CrisisRisk } from '../ai/openrouter'
@@ -21,16 +21,33 @@ const PERSIST_DEBOUNCE_MS = 2000
 // Chat message shape accepted by streamChatCompletion.
 type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string }
 
+// v2: the single begin screen collects everything (anchor, length, focus), and
+// begin() drives the verified state machine through its opening phases in one
+// call. A typed focus still runs the full crisis stack before the practice
+// proceeds; chips are app-authored copy and dispatch directly.
+export interface DriftBeginOptions {
+  anchorKind: DriftAnchorKind
+  blsChannel: DriftBlsChannel
+  voice: boolean
+  length: DriftLength
+  // What's stirring — a chip label or the writer's own words. Recorded as the
+  // opening transcript entry so typed exchanges later have this as context.
+  focus: string
+  // True when the writer typed the focus themselves → L1 + L2 crisis checks.
+  focusIsCustom: boolean
+}
+
 export interface DriftApi {
   state: DriftState
   transcript: DriftTranscriptEntry[]
   streamingText: string
-  begin: (anchorKind: DriftAnchorKind, blsChannel: DriftBlsChannel, voice: boolean) => Promise<void>
-  confirmAnchor: () => void
-  submitStartingPoint: (text: string) => Promise<void>
-  submitBaseline: (text: string) => Promise<void>
+  begin: (opts: DriftBeginOptions) => Promise<void>
   completeSet: () => void
+  // Typed check-in — the LLM companion path (unchanged, eval-verified).
   submitNotice: (text: string, direction: NoticeDirection) => Promise<void>
+  // Tap-only check-in — instant, no LLM, no text to classify. The scripted
+  // micro-line is the UI's concern; the engine routes the direction.
+  submitNoticeTap: (direction: NoticeDirection) => void
   settleDone: () => void
   requestClose: () => void
   closureDone: () => Promise<void>
@@ -77,7 +94,8 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
     }).catch(() => { /* classifier fails open to 0 */ })
   }, [])
 
-  const begin = useCallback(async (anchorKind: DriftAnchorKind, blsChannel: DriftBlsChannel, voice: boolean) => {
+  const begin = useCallback(async (opts: DriftBeginOptions) => {
+    const { anchorKind, blsChannel, voice, length, focus, focusIsCustom } = opts
     startRef.current = Date.now()
     setVoiceActive(voice)
     try {
@@ -99,31 +117,35 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
       transcript: [],
       anchorKind,
       blsChannel,
+      length,
       voiceUsed: voice,
       hrvPresent: hrvContext != null,
     }
     try { await db.driftSessions.add(record) } catch { /* persistence is non-fatal */ }
-    dispatch({ type: 'BEGIN' })
-  }, [parentSessionId, hrvContext])
 
-  const confirmAnchor = useCallback(() => { dispatch({ type: 'ANCHOR_CONFIRMED' }) }, [])
-
-  // choose/baseline: crisis-check + store, no LLM call (the next prompt is UI copy).
-  const submitStartingPoint = useCallback(async (text: string) => {
-    appendEntry({ role: 'user', content: text, atMs: Date.now() })
-    if (detectCrisisKeywords(text)) { activateGrounding(); dispatch({ type: 'CRISIS' }); return }
-    raceCrisisAbort(text)
+    // Drive the verified machine through its opening phases — the same events
+    // the v1 UI gated on, dispatched in order. The no-return invariant and the
+    // crisis paths are untouched; the writer just isn't asked to type through
+    // four screens to reach the first wave.
+    dispatch({ type: 'BEGIN', length })
+    dispatch({ type: 'ANCHOR_CONFIRMED' })
+    appendEntry({ role: 'user', content: focus, atMs: Date.now() })
+    if (focusIsCustom) {
+      // The writer's own words → full crisis stack before the practice proceeds.
+      if (detectCrisisKeywords(focus)) { activateGrounding(); dispatch({ type: 'CRISIS' }); return }
+      raceCrisisAbort(focus)
+    }
     dispatch({ type: 'STARTING_POINT' })
-  }, [appendEntry, raceCrisisAbort])
-
-  const submitBaseline = useCallback(async (text: string) => {
-    appendEntry({ role: 'user', content: text, atMs: Date.now() })
-    if (detectCrisisKeywords(text)) { activateGrounding(); dispatch({ type: 'CRISIS' }); return }
-    raceCrisisAbort(text)
     dispatch({ type: 'BASELINE_DONE' })
-  }, [appendEntry, raceCrisisAbort])
+  }, [parentSessionId, hrvContext, appendEntry, raceCrisisAbort])
 
   const completeSet = useCallback(() => { dispatch({ type: 'SET_COMPLETE' }) }, [])
+
+  // Tap-only check-in: nothing typed → nothing to crisis-classify, no LLM turn.
+  // Instant by design — momentum is the default, depth (typing) is opt-in.
+  const submitNoticeTap = useCallback((direction: NoticeDirection) => {
+    dispatch({ type: 'NOTICE', direction, risk: 0, interweave: null })
+  }, [])
 
   const submitNotice = useCallback(async (text: string, direction: NoticeDirection) => {
     appendEntry({ role: 'user', content: text, atMs: Date.now() })
@@ -244,11 +266,9 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
     transcript,
     streamingText,
     begin,
-    confirmAnchor,
-    submitStartingPoint,
-    submitBaseline,
     completeSet,
     submitNotice,
+    submitNoticeTap,
     settleDone,
     requestClose,
     closureDone,

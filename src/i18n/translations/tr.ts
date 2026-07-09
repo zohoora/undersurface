@@ -266,6 +266,7 @@ const tr = {
 
   // Session bottom bar
   'session.bottomBar.relax': 'Gevşe',
+  'session.bottomBar.drift': 'Drift',
 
   // Relax mode — settings
   'relax.settings.title': 'Yerleş',
@@ -368,6 +369,31 @@ const tr = {
   'drift.abort.handoff': 'Burada bir mola verelim ve önce seninle ilgilenelim.',
   'drift.closed.settled': 'Bugünlük bu kadarı yeterli.',
   'drift.closed.eased': 'Kendini dinledin. Bu önemli.',
+  // Drift v2 — one-screen begin
+  'drift.begin.whats': 'İçinde ne kıpırdıyor?',
+  'drift.chip.worry': 'Bir endişe',
+  'drift.chip.body': 'Bedenimde gerginlik',
+  'drift.chip.today': 'Bugünden bir şey',
+  'drift.chip.heavy': 'Ağır bir his',
+  'drift.chip.unsettled': 'Sadece huzursuzluk',
+  'drift.begin.somethingElse': 'Başka bir şey…',
+  'drift.begin.length': 'Ne kadar?',
+  'drift.length.quick': '2 dk',
+  'drift.length.short': '4 dk',
+  'drift.length.full': '6 dk',
+  'drift.begin.anchorLabel': 'Geri dönüş yolun:',
+  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
+  'drift.micro.softer1': 'Güzel. Bırak gevşemeye devam etsin.',
+  'drift.micro.softer2': 'Bir şey yatışıyor. Ona yakın kal.',
+  'drift.micro.softer3': 'Bırak o yumuşaklık kendiliğinden yayılsın.',
+  'drift.micro.same1': 'Sorun değil. Acele yok.',
+  'drift.micro.same2': 'Sabit kalmak da önemli. Bırak ritim onu taşısın.',
+  'drift.micro.drift1': 'Sadece onunla sürüklen.',
+  'drift.micro.drift2': 'Yapman gereken bir şey yok. Ritim yeterli.',
+  // Drift v2 — optional typed word + closure contrast
+  'drift.notice.addWord': 'bir kelime ekle',
+  'drift.closing.softened': 'Orada içeride bir şey gevşedi. Biraz daha yumuşamış olarak ayrılıyorsun.',
+  'drift.closing.steady': 'Onunla kaldın. Bu önemli.',
 } as const
 
 export default tr

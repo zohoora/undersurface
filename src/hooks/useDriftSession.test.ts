@@ -58,11 +58,19 @@ vi.mock('../i18n', () => ({
 import { useDriftSession } from './useDriftSession'
 import type { DriftApi } from './useDriftSession'
 
+// v2: one begin() call drives the machine to the first set; a completed set
+// lands on the first notice. 'full' (7 waves) so multi-notice tests never cap.
 async function toNotice(api: () => DriftApi) {
-  await act(async () => { await api().begin('feet', 'audio', false) })
-  act(() => { api().confirmAnchor() })
-  await act(async () => { await api().submitStartingPoint('the tightness before a call') })
-  await act(async () => { await api().submitBaseline('tight in my chest') })
+  await act(async () => {
+    await api().begin({
+      anchorKind: 'feet',
+      blsChannel: 'audio',
+      voice: false,
+      length: 'full',
+      focus: 'the tightness before a call',
+      focusIsCustom: true,
+    })
+  })
   act(() => { api().completeSet() })
 }
 
@@ -163,5 +171,59 @@ describe('useDriftSession', () => {
     expect(result.current.state.phase).toBe('set')
     // onError appends no companion entry
     expect(result.current.transcript.some(e => e.role === 'companion')).toBe(false)
+  })
+
+  // ── v2: one-screen begin + tap-only check-ins ─────────────────────────────
+
+  it('begin() lands directly in the first set with the chosen length applied', async () => {
+    const { result } = renderHook(() => useDriftSession(null))
+    await act(async () => {
+      await result.current.begin({
+        anchorKind: 'calm_place', blsChannel: 'visual', voice: false,
+        length: 'quick', focus: 'a knot of worry', focusIsCustom: false,
+      })
+    })
+    expect(result.current.state.phase).toBe('set')
+    expect(result.current.state.limits.setTarget).toBe(3)
+    // The focus opens the transcript so later typed exchanges have context.
+    expect(result.current.transcript[0]).toMatchObject({ role: 'user', content: 'a knot of worry' })
+    // A chip is app-authored copy — never crisis-classified.
+    expect(detectCrisisKeywordsMock).not.toHaveBeenCalled()
+    expect(classifyCrisisRiskMock).not.toHaveBeenCalled()
+    expect(driftAddMock).toHaveBeenCalledWith(expect.objectContaining({ length: 'quick' }))
+  })
+
+  it('L1 keyword hit on a TYPED focus aborts to grounding before the first wave', async () => {
+    detectCrisisKeywordsMock.mockReturnValue(true)
+    const { result } = renderHook(() => useDriftSession(null))
+    await act(async () => {
+      await result.current.begin({
+        anchorKind: 'feet', blsChannel: 'audio', voice: false,
+        length: 'short', focus: 'i want to die', focusIsCustom: true,
+      })
+    })
+    expect(activateGroundingMock).toHaveBeenCalled()
+    expect(result.current.state.phase).toBe('closure')
+    expect(result.current.state.closureReason).toBe('crisis')
+    expect(streamMock).not.toHaveBeenCalled()
+  })
+
+  it('a tap-only check-in advances instantly with no LLM call and no classifier', async () => {
+    const { result } = renderHook(() => useDriftSession(null))
+    await toNotice(() => result.current)
+    vi.clearAllMocks()
+    act(() => { result.current.submitNoticeTap('softer') })
+    expect(result.current.state.phase).toBe('set')
+    expect(result.current.state.softerStreak).toBe(1)
+    expect(streamMock).not.toHaveBeenCalled()
+    expect(classifyCrisisRiskMock).not.toHaveBeenCalled()
+  })
+
+  it('a tap-only "stronger" pendulates to settle (engine-owned, no text needed)', async () => {
+    const { result } = renderHook(() => useDriftSession(null))
+    await toNotice(() => result.current)
+    act(() => { result.current.submitNoticeTap('stronger') })
+    expect(result.current.state.phase).toBe('settle')
+    expect(result.current.state.inSettleRecheck).toBe(true)
   })
 })

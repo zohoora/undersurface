@@ -266,6 +266,7 @@ const pt = {
 
   // Session bottom bar
   'session.bottomBar.relax': 'Relaxar',
+  'session.bottomBar.drift': 'Drift',
 
   // Relax mode — settings
   'relax.settings.title': 'Se acomode',
@@ -368,6 +369,31 @@ const pt = {
   'drift.abort.handoff': 'Vamos pausar por aqui e cuidar de você primeiro.',
   'drift.closed.settled': 'Isso já é suficiente por hoje.',
   'drift.closed.eased': 'Você se escutou. Isso conta.',
+  // Drift v2 — one-screen begin
+  'drift.begin.whats': 'O que está se mexendo?',
+  'drift.chip.worry': 'Uma preocupação',
+  'drift.chip.body': 'Tensão no corpo',
+  'drift.chip.today': 'Algo de hoje',
+  'drift.chip.heavy': 'Um sentimento pesado',
+  'drift.chip.unsettled': 'Só inquietação',
+  'drift.begin.somethingElse': 'Outra coisa…',
+  'drift.begin.length': 'Quanto tempo?',
+  'drift.length.quick': '2 min',
+  'drift.length.short': '4 min',
+  'drift.length.full': '6 min',
+  'drift.begin.anchorLabel': 'Seu caminho de volta:',
+  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
+  'drift.micro.softer1': 'Bom. Deixe que continue afrouxando.',
+  'drift.micro.softer2': 'Algo está se acalmando. Fique perto disso.',
+  'drift.micro.softer3': 'Deixe essa suavidade se espalhar sozinha.',
+  'drift.micro.same1': 'Tudo bem. Sem pressa.',
+  'drift.micro.same2': 'Manter-se firme também conta. Deixe o ritmo levar isso.',
+  'drift.micro.drift1': 'Só se deixe levar.',
+  'drift.micro.drift2': 'Nada para fazer. O ritmo basta.',
+  // Drift v2 — optional typed word + closure contrast
+  'drift.notice.addWord': 'adicionar uma palavra',
+  'drift.closing.softened': 'Algo se soltou ali dentro. Você sai um pouco mais suave.',
+  'drift.closing.steady': 'Você ficou com isso. Isso conta.',
 } as const
 
 export default pt

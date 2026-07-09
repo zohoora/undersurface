@@ -6,7 +6,9 @@ import {
   selectInterweave,
   blsPan,
   clampPassMs,
+  passMsForSoftening,
   DRIFT_LIMITS,
+  DRIFT_LENGTHS,
 } from './driftEngine'
 import type { DriftPhase, DriftState, DriftEvent } from './driftEngine'
 
@@ -414,5 +416,125 @@ describe('blsPan / clampPassMs', () => {
     }
     expect(min).toBeLessThan(-0.98)
     expect(max).toBeGreaterThan(0.98)
+  })
+})
+
+// ── v2 additions (2026-07-09 redesign) ───────────────────────────────────────
+// The machine above is untouched; these cover the parameterized lengths and
+// the softening counters that drive pacing + the closure contrast line.
+
+describe('driftReduce — v2 length parameterization', () => {
+  it('defaults to the v1 limits when BEGIN carries no length', () => {
+    const s = driftReduce(initialDriftState(), { type: 'BEGIN' })
+    expect(s.limits).toEqual({
+      setTarget: DRIFT_LIMITS.setTarget,
+      setMs: DRIFT_LIMITS.setMs,
+      maxSessionMs: DRIFT_LIMITS.maxSessionMs,
+    })
+  })
+
+  it('BEGIN with a length fixes the active limits for the session', () => {
+    const s = driftReduce(initialDriftState(), { type: 'BEGIN', length: 'quick' })
+    expect(s.limits).toEqual(DRIFT_LENGTHS.quick)
+  })
+
+  it('a quick drift closes via cap after its 3rd wave', () => {
+    let s = run([
+      { type: 'BEGIN', length: 'quick' },
+      { type: 'ANCHOR_CONFIRMED' },
+      { type: 'STARTING_POINT' },
+      { type: 'BASELINE_DONE' },
+    ])
+    for (let i = 0; i < 3; i++) {
+      s = driftReduce(s, { type: 'SET_COMPLETE' })
+      s = driftReduce(s, { type: 'NOTICE', direction: 'softer', risk: 0, interweave: null })
+    }
+    expect(s.setCount).toBe(3)
+    expect(s.phase).toBe('closure')
+    expect(s.closureReason).toBe('cap')
+    expect(outcomeForReason(s.closureReason)).toBe('settled')
+  })
+
+  it('TICK respects the active maxSessionMs, not the global default', () => {
+    let s = run([
+      { type: 'BEGIN', length: 'quick' },
+      { type: 'ANCHOR_CONFIRMED' },
+      { type: 'STARTING_POINT' },
+      { type: 'BASELINE_DONE' },
+    ])
+    s = driftReduce(s, { type: 'TICK', elapsedMs: DRIFT_LENGTHS.quick.maxSessionMs })
+    expect(s.phase).toBe('closure')
+    expect(s.closureReason).toBe('cap')
+  })
+
+  it('every preset stays at or under the absolute hard cap', () => {
+    for (const preset of Object.values(DRIFT_LENGTHS)) {
+      expect(preset.setTarget).toBeLessThanOrEqual(DRIFT_LIMITS.hardSetCap)
+    }
+  })
+})
+
+describe('driftReduce — v2 softening counters', () => {
+  const notice = (direction: 'softer' | 'same' | 'stronger' | 'skipped'): DriftEvent =>
+    ({ type: 'NOTICE', direction, risk: 0, interweave: null })
+
+  it('softer increments streak and total; same resets streak but keeps total', () => {
+    let s = run(TO_FIRST_NOTICE)
+    s = driftReduce(s, notice('softer'))
+    expect(s.softerStreak).toBe(1)
+    expect(s.softerTotal).toBe(1)
+    s = driftReduce(s, { type: 'SET_COMPLETE' })
+    s = driftReduce(s, notice('same'))
+    expect(s.softerStreak).toBe(0)
+    expect(s.softerTotal).toBe(1)
+  })
+
+  it('skipped is neutral — keeps the streak, does not count as softening', () => {
+    let s = run(TO_FIRST_NOTICE)
+    s = driftReduce(s, notice('softer'))
+    s = driftReduce(s, { type: 'SET_COMPLETE' })
+    s = driftReduce(s, notice('skipped'))
+    expect(s.softerStreak).toBe(1)
+    expect(s.softerTotal).toBe(1)
+  })
+
+  it('stronger (pendulation) resets the streak but keeps the total', () => {
+    let s = run(TO_FIRST_NOTICE)
+    s = driftReduce(s, notice('softer'))
+    s = driftReduce(s, { type: 'SET_COMPLETE' })
+    s = driftReduce(s, notice('stronger'))
+    expect(s.phase).toBe('settle')
+    expect(s.softerStreak).toBe(0)
+    expect(s.softerTotal).toBe(1)
+  })
+
+  it('a final softer that lands on the cap is still recorded (closure contrast)', () => {
+    let s = run([
+      { type: 'BEGIN', length: 'quick' },
+      { type: 'ANCHOR_CONFIRMED' },
+      { type: 'STARTING_POINT' },
+      { type: 'BASELINE_DONE' },
+    ])
+    // softer, skipped, then a softer landing exactly on the wave target —
+    // toSet's cap branch must not drop that last increment. (No two 'same's,
+    // which would close via stuck before the cap is ever reached.)
+    const directions = ['softer', 'skipped', 'softer'] as const
+    for (const d of directions) {
+      s = driftReduce(s, { type: 'SET_COMPLETE' })
+      s = driftReduce(s, notice(d))
+    }
+    expect(s.phase).toBe('closure')
+    expect(s.closureReason).toBe('cap')
+    expect(s.softerTotal).toBe(2) // includes the cap-landing softer
+  })
+})
+
+describe('passMsForSoftening', () => {
+  it('starts at 2000ms and slows 200ms per consecutive softer, clamped at the pass bound', () => {
+    expect(passMsForSoftening(0)).toBe(2000)
+    expect(passMsForSoftening(1)).toBe(2200)
+    expect(passMsForSoftening(2)).toBe(2400)
+    expect(passMsForSoftening(3)).toBe(DRIFT_LIMITS.passMsMax)
+    expect(passMsForSoftening(10)).toBe(DRIFT_LIMITS.passMsMax)
   })
 })

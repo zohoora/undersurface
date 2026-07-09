@@ -9,10 +9,13 @@ const STEP_MS = 6000
 
 interface Props {
   reason: ClosureReason
+  // v2 felt-contrast: did any check-in report softer this session? Drives a
+  // scripted template line — engine counters in, fixed copy out, never a score.
+  softened?: boolean
   onDone: () => void
 }
 
-export function DriftClosing({ reason, onDone }: Props) {
+export function DriftClosing({ reason, softened, onDone }: Props) {
   const isCrisis = reason === 'crisis'
   const [step, setStep] = useState(0)
   const lastStep = STEPS.length - 1
@@ -39,6 +42,11 @@ export function DriftClosing({ reason, onDone }: Props) {
       }}
     >
       <div style={{ fontSize: 17, lineHeight: 1.7, color: 'var(--text-primary)' }}>{line}</div>
+      {atEnd && !isCrisis && (
+        <div style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
+          {t(softened ? 'drift.closing.softened' : 'drift.closing.steady')}
+        </div>
+      )}
       {atEnd && (
         <button
           type="button"

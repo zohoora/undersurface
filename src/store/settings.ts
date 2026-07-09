@@ -43,6 +43,8 @@ export interface AppSettings {
   lastDriftBlsChannel: DriftBlsChannel
   lastDriftAudioVolume: number  // 0..1
   lastDriftVoice: boolean
+  // Literal union (not the engine's DriftLength) so the store stays engine-free.
+  lastDriftLength: 'quick' | 'short' | 'full'
 }
 
 // The device's zone, not a hardcoded one: the timezone defines "today's
@@ -74,6 +76,7 @@ const DEFAULTS: AppSettings = {
   lastDriftBlsChannel: 'audio',
   lastDriftAudioVolume: 0.5,
   lastDriftVoice: false,
+  lastDriftLength: 'short',
 }
 
 const STORAGE_KEY = 'undersurface:settings'

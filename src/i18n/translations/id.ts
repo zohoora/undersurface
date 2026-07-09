@@ -266,6 +266,7 @@ const id = {
 
   // Session bottom bar
   'session.bottomBar.relax': 'Santai',
+  'session.bottomBar.drift': 'Drift',
 
   // Relax mode — settings
   'relax.settings.title': 'Tenangkan diri',
@@ -368,6 +369,31 @@ const id = {
   'drift.abort.handoff': 'Kita akan berhenti sejenak di sini dan merawatmu lebih dulu.',
   'drift.closed.settled': 'Itu sudah cukup untuk hari ini.',
   'drift.closed.eased': 'Kamu telah mendengarkan dirimu sendiri. Itu berarti.',
+  // Drift v2 — one-screen begin
+  'drift.begin.whats': 'Apa yang sedang bergejolak?',
+  'drift.chip.worry': 'Sebuah kekhawatiran',
+  'drift.chip.body': 'Ketegangan di tubuh',
+  'drift.chip.today': 'Sesuatu dari hari ini',
+  'drift.chip.heavy': 'Perasaan yang berat',
+  'drift.chip.unsettled': 'Sekadar gelisah',
+  'drift.begin.somethingElse': 'Sesuatu yang lain…',
+  'drift.begin.length': 'Berapa lama?',
+  'drift.length.quick': '2 mnt',
+  'drift.length.short': '4 mnt',
+  'drift.length.full': '6 mnt',
+  'drift.begin.anchorLabel': 'Jalan kembalimu:',
+  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
+  'drift.micro.softer1': 'Bagus. Biarkan terus mengendur.',
+  'drift.micro.softer2': 'Ada yang mereda. Tetaplah dekat dengannya.',
+  'drift.micro.softer3': 'Biarkan kelembutan itu menyebar dengan sendirinya.',
+  'drift.micro.same1': 'Tidak apa-apa. Tidak perlu terburu-buru.',
+  'drift.micro.same2': 'Bertahan tenang juga berarti. Biarkan irama membawanya.',
+  'drift.micro.drift1': 'Biarkan saja dirimu hanyut mengikutinya.',
+  'drift.micro.drift2': 'Tidak perlu melakukan apa pun. Iramanya sudah cukup.',
+  // Drift v2 — optional typed word + closure contrast
+  'drift.notice.addWord': 'tambahkan sebuah kata',
+  'drift.closing.softened': 'Ada yang mengendur di dalam sana. Kamu pergi sedikit lebih lembut.',
+  'drift.closing.steady': 'Kamu tetap bersamanya. Itu berarti.',
 } as const
 
 export default id

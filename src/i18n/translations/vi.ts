@@ -266,6 +266,7 @@ const vi = {
 
   // Session bottom bar
   'session.bottomBar.relax': 'Thư giãn',
+  'session.bottomBar.drift': 'Drift',
 
   // Relax mode — settings
   'relax.settings.title': 'Ngồi yên',
@@ -368,6 +369,31 @@ const vi = {
   'drift.abort.handoff': 'Chúng ta sẽ tạm dừng ở đây và chăm sóc bạn trước đã.',
   'drift.closed.settled': 'Như vậy là đủ cho hôm nay.',
   'drift.closed.eased': 'Bạn đã lắng nghe chính mình. Điều đó có ý nghĩa.',
+  // Drift v2 — one-screen begin
+  'drift.begin.whats': 'Điều gì đang khẽ động?',
+  'drift.chip.worry': 'Một nỗi lo',
+  'drift.chip.body': 'Sự căng thẳng trong cơ thể',
+  'drift.chip.today': 'Điều gì đó của hôm nay',
+  'drift.chip.heavy': 'Một cảm giác nặng nề',
+  'drift.chip.unsettled': 'Chỉ là bất an',
+  'drift.begin.somethingElse': 'Điều gì khác…',
+  'drift.begin.length': 'Bao lâu?',
+  'drift.length.quick': '2 phút',
+  'drift.length.short': '4 phút',
+  'drift.length.full': '6 phút',
+  'drift.begin.anchorLabel': 'Lối trở về của bạn:',
+  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
+  'drift.micro.softer1': 'Tốt. Cứ để nó tiếp tục nới lỏng.',
+  'drift.micro.softer2': 'Có điều gì đó đang dịu lại. Hãy ở gần nó.',
+  'drift.micro.softer3': 'Hãy để sự dịu dàng ấy tự lan ra.',
+  'drift.micro.same1': 'Không sao cả. Không vội.',
+  'drift.micro.same2': 'Giữ yên cũng có ý nghĩa. Hãy để nhịp điệu mang nó đi.',
+  'drift.micro.drift1': 'Cứ trôi theo nó.',
+  'drift.micro.drift2': 'Không cần làm gì cả. Nhịp điệu là đủ.',
+  // Drift v2 — optional typed word + closure contrast
+  'drift.notice.addWord': 'thêm một từ',
+  'drift.closing.softened': 'Có điều gì đó đã nới lỏng bên trong. Bạn rời đi nhẹ nhõm hơn một chút.',
+  'drift.closing.steady': 'Bạn đã ở lại với nó. Điều đó có ý nghĩa.',
 } as const
 
 export default vi

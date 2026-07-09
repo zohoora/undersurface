@@ -266,6 +266,7 @@ const ko = {
 
   // Session bottom bar
   'session.bottomBar.relax': '이완',
+  'session.bottomBar.drift': 'Drift',
 
   // Relax mode — settings
   'relax.settings.title': '자리를 잡아봐',
@@ -368,6 +369,31 @@ const ko = {
   'drift.abort.handoff': '여기서 잠시 멈추고, 먼저 당신을 돌보겠습니다.',
   'drift.closed.settled': '오늘은 이걸로 충분해.',
   'drift.closed.eased': '스스로의 목소리에 귀 기울였어. 그거면 충분해.',
+  // Drift v2 — one-screen begin
+  'drift.begin.whats': '지금 무엇이 일렁이고 있어?',
+  'drift.chip.worry': '걱정 하나',
+  'drift.chip.body': '몸의 긴장',
+  'drift.chip.today': '오늘 있었던 일',
+  'drift.chip.heavy': '무거운 마음',
+  'drift.chip.unsettled': '그냥 불안정한',
+  'drift.begin.somethingElse': '다른 것…',
+  'drift.begin.length': '얼마나?',
+  'drift.length.quick': '2분',
+  'drift.length.short': '4분',
+  'drift.length.full': '6분',
+  'drift.begin.anchorLabel': '너의 돌아올 길:',
+  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
+  'drift.micro.softer1': '좋아. 계속 풀려가게 둬.',
+  'drift.micro.softer2': '뭔가 누그러지고 있어. 그 곁에 머물러.',
+  'drift.micro.softer3': '그 부드러움이 저절로 번지게 둬.',
+  'drift.micro.same1': '괜찮아. 서두르지 않아도 돼.',
+  'drift.micro.same2': '그대로 있는 것도 의미가 있어. 리듬이 데려가게 둬.',
+  'drift.micro.drift1': '그냥 그 흐름에 떠가.',
+  'drift.micro.drift2': '아무것도 안 해도 돼. 리듬만으로 충분해.',
+  // Drift v2 — optional typed word + closure contrast
+  'drift.notice.addWord': '한마디 덧붙이기',
+  'drift.closing.softened': '그 안에서 뭔가 풀렸어. 조금 더 부드러워져서 돌아가.',
+  'drift.closing.steady': '그것과 함께 있었어. 그거면 충분해.',
 } as const
 
 export default ko

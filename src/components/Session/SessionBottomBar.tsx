@@ -1,6 +1,6 @@
 import { t } from '../../i18n'
 
-export type SessionSurface = 'talk' | 'journal' | 'speak' | 'relax'
+export type SessionSurface = 'talk' | 'journal' | 'speak' | 'relax' | 'drift'
 
 interface Props {
   activeSurface: SessionSurface
@@ -11,6 +11,9 @@ interface Props {
   showJournalPartsToggle: boolean
   showSpeakSurface: boolean
   showRelaxSurface: boolean
+  // Drift's own first-class entry (v2, 2026-07-09 — no longer inside Relax).
+  // The caller also folds grounding in: the entry hides while grounding is active.
+  showDriftSurface?: boolean
   onSurfaceChange: (surface: SessionSurface) => void
   onRealTalkToggle: (next: boolean) => void
   onJournalPartsToggle: (next: boolean) => void
@@ -23,6 +26,7 @@ export function SessionBottomBar({
   showJournalPartsToggle,
   showSpeakSurface,
   showRelaxSurface,
+  showDriftSurface,
   onSurfaceChange,
   onRealTalkToggle,
   onJournalPartsToggle,
@@ -69,6 +73,16 @@ export function SessionBottomBar({
             onClick={() => handleSurfaceClick('relax')}
           >
             {t('session.bottomBar.relax')}
+          </button>
+        )}
+        {showDriftSurface === true && (
+          <button
+            type="button"
+            className="session-bottom-bar__pill"
+            aria-pressed={activeSurface === 'drift'}
+            onClick={() => handleSurfaceClick('drift')}
+          >
+            {t('session.bottomBar.drift')}
           </button>
         )}
       </div>

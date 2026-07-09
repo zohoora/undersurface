@@ -266,6 +266,7 @@ const th = {
 
   // Session bottom bar
   'session.bottomBar.relax': 'พักผ่อน',
+  'session.bottomBar.drift': 'Drift',
 
   // Relax mode — settings
   'relax.settings.title': 'ค่อยๆ ลงตัว',
@@ -368,6 +369,31 @@ const th = {
   'drift.abort.handoff': 'เราจะหยุดตรงนี้ก่อน แล้วดูแลคุณเป็นอันดับแรก',
   'drift.closed.settled': 'วันนี้พอเท่านี้ก่อน',
   'drift.closed.eased': 'คุณรับฟังตัวเอง นั่นมีความหมาย',
+  // Drift v2 — one-screen begin
+  'drift.begin.whats': 'มีอะไรกำลังกระเพื่อมอยู่?',
+  'drift.chip.worry': 'ความกังวล',
+  'drift.chip.body': 'ความตึงในร่างกาย',
+  'drift.chip.today': 'เรื่องของวันนี้',
+  'drift.chip.heavy': 'ความรู้สึกหนักๆ',
+  'drift.chip.unsettled': 'แค่รู้สึกไม่สงบ',
+  'drift.begin.somethingElse': 'อย่างอื่น…',
+  'drift.begin.length': 'นานแค่ไหน?',
+  'drift.length.quick': '2 นาที',
+  'drift.length.short': '4 นาที',
+  'drift.length.full': '6 นาที',
+  'drift.begin.anchorLabel': 'ทางกลับของคุณ:',
+  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
+  'drift.micro.softer1': 'ดีแล้ว ปล่อยให้มันคลายต่อไป',
+  'drift.micro.softer2': 'บางอย่างกำลังผ่อนลง อยู่ใกล้ๆ มันไว้',
+  'drift.micro.softer3': 'ปล่อยให้ความอ่อนโยนนั้นแผ่ออกไปเอง',
+  'drift.micro.same1': 'ไม่เป็นไร ไม่ต้องรีบ',
+  'drift.micro.same2': 'การอยู่นิ่งๆ ก็มีความหมาย ปล่อยให้จังหวะพามันไป',
+  'drift.micro.drift1': 'แค่ล่องไปกับมัน',
+  'drift.micro.drift2': 'ไม่ต้องทำอะไร จังหวะก็เพียงพอแล้ว',
+  // Drift v2 — optional typed word + closure contrast
+  'drift.notice.addWord': 'เพิ่มสักคำ',
+  'drift.closing.softened': 'ข้างในมีบางอย่างคลายลง คุณจากไปอย่างอ่อนโยนขึ้นเล็กน้อย',
+  'drift.closing.steady': 'คุณอยู่กับมัน นั่นมีความหมาย',
 } as const
 
 export default th

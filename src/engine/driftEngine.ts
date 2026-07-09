@@ -24,10 +24,33 @@ export type NoticeDirection = 'softer' | 'same' | 'stronger' | 'skipped'
 export type InterweaveKind = 'rain' | 'defusion' | 'parts' | 'focusing'
 export type ClosureReason = 'stuck' | 'cap' | 'user' | 'settle' | 'crisis' | null
 
+// v2: the practice is time-boxed and chosen upfront. Wave count scales with the
+// chosen length; wave duration is short (frequent titration points). Defaults
+// (no length on BEGIN) remain the v1 values so the machine is back-compatible.
+export type DriftLength = 'quick' | 'short' | 'full'
+
+export interface DriftLimitsActive {
+  setTarget: number
+  setMs: number
+  maxSessionMs: number
+}
+
+export const DRIFT_LENGTHS: Record<DriftLength, DriftLimitsActive> = {
+  quick: { setTarget: 3, setMs: 12_000, maxSessionMs: 240_000 }, // ~2 min
+  short: { setTarget: 5, setMs: 12_000, maxSessionMs: 360_000 }, // ~4 min
+  full: { setTarget: 7, setMs: 12_000, maxSessionMs: 540_000 }, // ~6 min
+}
+
 export interface DriftState {
   phase: DriftPhase
   setCount: number
   sameStreak: number
+  // Consecutive 'softer' notices (reset by same/stronger; 'skipped' is neutral).
+  // Drives passMsForSoftening — the BLS sweep slows as the writer settles.
+  softerStreak: number
+  // Total 'softer' notices this session — the closure screen's felt-contrast
+  // line ("softened" vs "stayed with it") reads this, never a numeric scale.
+  softerTotal: number
   inSettleRecheck: boolean
   elapsedMs: number
   closureReason: ClosureReason
@@ -35,10 +58,13 @@ export interface DriftState {
   // Set by the reducer from NOTICE.interweave; the hook passes state.lastInterweave
   // into selectInterweave.
   lastInterweave: InterweaveKind | null
+  // Active caps for this session, fixed at BEGIN from the chosen length.
+  // Defaults to the v1 constants when BEGIN carries no length.
+  limits: DriftLimitsActive
 }
 
 export type DriftEvent =
-  | { type: 'BEGIN' }
+  | { type: 'BEGIN'; length?: DriftLength }
   | { type: 'ANCHOR_CONFIRMED' }
   | { type: 'STARTING_POINT' }
   | { type: 'BASELINE_DONE' }
@@ -65,11 +91,33 @@ export function initialDriftState(): DriftState {
     phase: 'arrive',
     setCount: 0,
     sameStreak: 0,
+    softerStreak: 0,
+    softerTotal: 0,
     inSettleRecheck: false,
     elapsedMs: 0,
     closureReason: null,
     lastInterweave: null,
+    limits: {
+      setTarget: DRIFT_LIMITS.setTarget,
+      setMs: DRIFT_LIMITS.setMs,
+      maxSessionMs: DRIFT_LIMITS.maxSessionMs,
+    },
   }
+}
+
+// Resolve the active limits for a chosen length, never exceeding the absolute
+// hard cap (belt-and-suspenders — presets are all below it already).
+function limitsForLength(length: DriftLength | undefined, current: DriftLimitsActive): DriftLimitsActive {
+  if (!length) return current
+  const preset = DRIFT_LENGTHS[length]
+  return { ...preset, setTarget: Math.min(preset.setTarget, DRIFT_LIMITS.hardSetCap) }
+}
+
+// The BLS sweep slows as the writer settles — pendulation made visible. Base
+// 2000ms per pass, +200ms per consecutive 'softer', clamped to the existing
+// pass bound. Deterministic; the UI polls it, the engine owns the input.
+export function passMsForSoftening(softerStreak: number): number {
+  return clampPassMs(2000 + softerStreak * 200)
 }
 
 // Move to closure with a reason, honoring two invariants:
@@ -82,11 +130,14 @@ function toClosure(state: DriftState, reason: Exclude<ClosureReason, null>): Dri
 }
 
 // Enter another set — unless the set target is reached, in which case converge
-// to closure by cap. Because setTarget (6) < hardSetCap (8) and this is the ONLY
-// gate into `set` after the first, setCount can never exceed hardSetCap.
+// to closure by cap. Because every setTarget ≤ hardSetCap and this is the ONLY
+// gate into `set` after the first, setCount can never exceed hardSetCap. The
+// changes (streak/counter updates) apply even on the cap branch so the final
+// notice's softening is recorded for the closure contrast line.
 function toSet(state: DriftState, changes: Partial<DriftState>): DriftState {
-  if (state.setCount >= DRIFT_LIMITS.setTarget) return toClosure(state, 'cap')
-  return { ...state, ...changes, phase: 'set' }
+  const s = { ...state, ...changes }
+  if (state.setCount >= state.limits.setTarget) return toClosure(s, 'cap')
+  return { ...s, phase: 'set' }
 }
 
 // "Settle & close" is reachable from anchor onward — never a dead exit — but not
@@ -111,31 +162,40 @@ function reduceNotice(state: DriftState, event: Extract<DriftEvent, { type: 'NOT
   // back to the material — we close (mapped to eased_early).
   if (direction === 'stronger' || risk === 1) {
     if (s.inSettleRecheck) return toClosure(s, 'settle')
-    return { ...s, phase: 'settle', inSettleRecheck: true, sameStreak: 0 }
+    return { ...s, phase: 'settle', inSettleRecheck: true, sameStreak: 0, softerStreak: 0 }
   }
 
   // "same" twice consecutively → stuck → closure. Otherwise another set.
   if (direction === 'same') {
     const sameStreak = s.sameStreak + 1
     if (sameStreak >= 2) return toClosure(s, 'stuck')
-    return toSet(s, { sameStreak, inSettleRecheck: false })
+    return toSet(s, { sameStreak, inSettleRecheck: false, softerStreak: 0 })
   }
 
-  // softer or skipped → neutral continue; the streak and settle re-check clear.
-  return toSet(s, { sameStreak: 0, inSettleRecheck: false })
+  // softer or skipped → continue; the same-streak and settle re-check clear.
+  // 'softer' advances the softening counters; 'skipped' is neutral (keeps them).
+  const softened = direction === 'softer'
+  return toSet(s, {
+    sameStreak: 0,
+    inSettleRecheck: false,
+    softerStreak: softened ? s.softerStreak + 1 : s.softerStreak,
+    softerTotal: softened ? s.softerTotal + 1 : s.softerTotal,
+  })
 }
 
 function reduceTick(state: DriftState, elapsedMs: number): DriftState {
   const next = { ...state, elapsedMs }
   const inActiveLoop = state.phase === 'set' || state.phase === 'notice' || state.phase === 'settle'
-  if (inActiveLoop && elapsedMs >= DRIFT_LIMITS.maxSessionMs) return toClosure(next, 'cap')
+  if (inActiveLoop && elapsedMs >= state.limits.maxSessionMs) return toClosure(next, 'cap')
   return next
 }
 
 export function driftReduce(state: DriftState, event: DriftEvent): DriftState {
   switch (event.type) {
     case 'BEGIN':
-      return state.phase === 'arrive' ? { ...state, phase: 'anchor' } : state
+      return state.phase === 'arrive'
+        ? { ...state, phase: 'anchor', limits: limitsForLength(event.length, state.limits) }
+        : state
     case 'ANCHOR_CONFIRMED':
       return state.phase === 'anchor' ? { ...state, phase: 'choose' } : state
     case 'STARTING_POINT':

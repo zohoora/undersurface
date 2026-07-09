@@ -266,6 +266,7 @@ const fr = {
 
   // Session bottom bar
   'session.bottomBar.relax': 'Détente',
+  'session.bottomBar.drift': 'Drift',
 
   // Relax mode — settings
   'relax.settings.title': 'Installe-toi',
@@ -368,6 +369,31 @@ const fr = {
   'drift.abort.handoff': 'Nous allons faire une pause ici et prendre soin de toi d\'abord.',
   'drift.closed.settled': 'Cela suffit pour aujourd\'hui.',
   'drift.closed.eased': 'Tu as pris le temps de t\'écouter. Ça compte.',
+  // Drift v2 — one-screen begin
+  'drift.begin.whats': 'Qu\'est-ce qui remue ?',
+  'drift.chip.worry': 'Un souci',
+  'drift.chip.body': 'Une tension dans le corps',
+  'drift.chip.today': 'Quelque chose d\'aujourd\'hui',
+  'drift.chip.heavy': 'Un sentiment lourd',
+  'drift.chip.unsettled': 'Juste un malaise',
+  'drift.begin.somethingElse': 'Autre chose…',
+  'drift.begin.length': 'Combien de temps ?',
+  'drift.length.quick': '2 min',
+  'drift.length.short': '4 min',
+  'drift.length.full': '6 min',
+  'drift.begin.anchorLabel': 'Ton chemin de retour :',
+  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
+  'drift.micro.softer1': 'Bien. Laisse-le continuer à se desserrer.',
+  'drift.micro.softer2': 'Quelque chose se détend. Reste tout près.',
+  'drift.micro.softer3': 'Laisse cette douceur se répandre d\'elle-même.',
+  'drift.micro.same1': 'C\'est bien ainsi. Rien ne presse.',
+  'drift.micro.same2': 'Rester stable, ça compte aussi. Laisse le rythme le porter.',
+  'drift.micro.drift1': 'Laisse-toi juste porter.',
+  'drift.micro.drift2': 'Rien à faire. Le rythme suffit.',
+  // Drift v2 — optional typed word + closure contrast
+  'drift.notice.addWord': 'ajouter un mot',
+  'drift.closing.softened': 'Quelque chose s\'est desserré là-dedans. Tu repars un peu plus en douceur.',
+  'drift.closing.steady': 'Tu as tenu bon. Ça compte.',
 } as const
 
 export default fr

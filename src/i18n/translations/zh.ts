@@ -266,6 +266,7 @@ const zh = {
 
   // Session bottom bar
   'session.bottomBar.relax': '放松',
+  'session.bottomBar.drift': 'Drift',
 
   // Relax mode — settings
   'relax.settings.title': '安顿下来',
@@ -368,6 +369,31 @@ const zh = {
   'drift.abort.handoff': '我们先在这里停一下，照顾好你。',
   'drift.closed.settled': '今天到这里就够了。',
   'drift.closed.eased': '你倾听了自己。这很重要。',
+  // Drift v2 — one-screen begin
+  'drift.begin.whats': '心里有什么在动？',
+  'drift.chip.worry': '一件心事',
+  'drift.chip.body': '身体里的紧绷',
+  'drift.chip.today': '今天的某件事',
+  'drift.chip.heavy': '一种沉重的感觉',
+  'drift.chip.unsettled': '只是心神不宁',
+  'drift.begin.somethingElse': '别的事…',
+  'drift.begin.length': '多久？',
+  'drift.length.quick': '2分钟',
+  'drift.length.short': '4分钟',
+  'drift.length.full': '6分钟',
+  'drift.begin.anchorLabel': '你回来的路：',
+  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
+  'drift.micro.softer1': '很好。让它继续松开。',
+  'drift.micro.softer2': '有什么正在缓和。待在它旁边。',
+  'drift.micro.softer3': '让这份柔软自己蔓延开来。',
+  'drift.micro.same1': '这样也没关系。不用急。',
+  'drift.micro.same2': '保持稳定也算数。让节奏带着它走。',
+  'drift.micro.drift1': '就随它漂着。',
+  'drift.micro.drift2': '什么都不用做。节奏就够了。',
+  // Drift v2 — optional typed word + closure contrast
+  'drift.notice.addWord': '加一个词',
+  'drift.closing.softened': '里面有什么松开了。你带着一点柔软离开。',
+  'drift.closing.steady': '你陪着它待了下来。这很重要。',
 } as const
 
 export default zh

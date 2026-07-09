@@ -266,6 +266,7 @@ const ja = {
 
   // Session bottom bar
   'session.bottomBar.relax': 'リラックス',
+  'session.bottomBar.drift': 'Drift',
 
   // Relax mode — settings
   'relax.settings.title': '腰を落ち着けて',
@@ -368,6 +369,31 @@ const ja = {
   'drift.abort.handoff': 'ここでいったん止まり、まずはあなたを大切にします。',
   'drift.closed.settled': '今日はこれで十分。',
   'drift.closed.eased': '自分の声を聴けた。それは大切なこと。',
+  // Drift v2 — one-screen begin
+  'drift.begin.whats': '今、何がざわめいている？',
+  'drift.chip.worry': '心配ごと',
+  'drift.chip.body': '体の緊張',
+  'drift.chip.today': '今日の何か',
+  'drift.chip.heavy': '重い気持ち',
+  'drift.chip.unsettled': 'ただ落ち着かない',
+  'drift.begin.somethingElse': '何か別のこと…',
+  'drift.begin.length': 'どのくらい？',
+  'drift.length.quick': '2分',
+  'drift.length.short': '4分',
+  'drift.length.full': '6分',
+  'drift.begin.anchorLabel': 'あなたの戻り道：',
+  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
+  'drift.micro.softer1': 'いいね。そのままほどけていくままに。',
+  'drift.micro.softer2': '何かがやわらいでいる。その近くにいて。',
+  'drift.micro.softer3': 'そのやわらぎが、ひとりでに広がるままに。',
+  'drift.micro.same1': 'それでいい。急がなくていい。',
+  'drift.micro.same2': 'そのままでいることも大切。リズムに運んでもらって。',
+  'drift.micro.drift1': 'ただ、漂うように。',
+  'drift.micro.drift2': '何もしなくていい。リズムだけで十分。',
+  // Drift v2 — optional typed word + closure contrast
+  'drift.notice.addWord': '言葉を添える',
+  'drift.closing.softened': 'そこで何かがほどけた。少しやわらいで戻っていける。',
+  'drift.closing.steady': 'それと一緒にいられた。それは大切なこと。',
 } as const
 
 export default ja

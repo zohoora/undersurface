@@ -190,3 +190,25 @@ describe('SessionBottomBar', () => {
     })
   })
 })
+
+describe('Drift surface pill (v2 separation from Relax)', () => {
+  it('source: SessionSurface union includes drift', () => {
+    expect(SOURCE).toMatch(/'talk' \| 'journal' \| 'speak' \| 'relax' \| 'drift'/)
+  })
+
+  it('source: the drift pill renders only behind showDriftSurface === true (hidden by default)', () => {
+    expect(SOURCE).toMatch(/showDriftSurface === true &&/)
+    expect(SOURCE).toMatch(/session\.bottomBar\.drift/)
+  })
+
+  it('source: the drift pill routes through the same surface click handler as its peers', () => {
+    expect(SOURCE).toMatch(/handleSurfaceClick\('drift'\)/)
+  })
+
+  it('renders the drift pill when enabled and omits it when the prop is absent', () => {
+    const withDrift = SessionBottomBar(baseProps({ showDriftSurface: true, showRelaxSurface: true }))
+    expect(JSON.stringify(withDrift)).toContain('session.bottomBar.drift')
+    const withoutDrift = SessionBottomBar(baseProps({ showRelaxSurface: true }))
+    expect(JSON.stringify(withoutDrift)).not.toContain('session.bottomBar.drift')
+  })
+})

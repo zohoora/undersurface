@@ -266,6 +266,7 @@ const ru = {
 
   // Session bottom bar
   'session.bottomBar.relax': 'Расслабление',
+  'session.bottomBar.drift': 'Drift',
 
   // Relax mode — settings
   'relax.settings.title': 'Устройся',
@@ -368,6 +369,31 @@ const ru = {
   'drift.abort.handoff': 'Мы остановимся здесь и позаботимся прежде всего о тебе.',
   'drift.closed.settled': 'На сегодня достаточно.',
   'drift.closed.eased': 'Ты услышал(а) себя. Это считается.',
+  // Drift v2 — one-screen begin
+  'drift.begin.whats': 'Что шевелится внутри?',
+  'drift.chip.worry': 'Тревога',
+  'drift.chip.body': 'Напряжение в теле',
+  'drift.chip.today': 'Что-то из сегодня',
+  'drift.chip.heavy': 'Тяжёлое чувство',
+  'drift.chip.unsettled': 'Просто беспокойно',
+  'drift.begin.somethingElse': 'Что-то другое…',
+  'drift.begin.length': 'Сколько времени?',
+  'drift.length.quick': '2 мин',
+  'drift.length.short': '4 мин',
+  'drift.length.full': '6 мин',
+  'drift.begin.anchorLabel': 'Твой путь назад:',
+  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
+  'drift.micro.softer1': 'Хорошо. Пусть отпускает дальше.',
+  'drift.micro.softer2': 'Что-то стихает. Побудь рядом с этим.',
+  'drift.micro.softer3': 'Пусть эта мягкость расходится сама собой.',
+  'drift.micro.same1': 'Это нормально. Не спеши.',
+  'drift.micro.same2': 'Оставаться на месте — тоже важно. Пусть ритм несёт это.',
+  'drift.micro.drift1': 'Просто позволь себе плыть.',
+  'drift.micro.drift2': 'Ничего не нужно делать. Ритма достаточно.',
+  // Drift v2 — optional typed word + closure contrast
+  'drift.notice.addWord': 'добавить слово',
+  'drift.closing.softened': 'Там что-то отпустило. Ты уходишь немного мягче.',
+  'drift.closing.steady': 'Ты остался(ась) с этим. Это считается.',
 } as const
 
 export default ru
