@@ -6,32 +6,13 @@ import { OPENAI_CHAT_MODEL } from './shared/models.js'
 import { openAiKey } from './shared/secrets.js'
 import { verifyAuthWithRole } from './shared/auth.js'
 import { checkAndReserve, reconcile, type QuotaConfig } from './shared/quota.js'
+import { CRISIS_RESPONSE_FORMAT } from './shared/crisisClassifier.js'
 
 // Smaller/faster model for the crisis classifier (task: 'crisis_check'). Sized
 // for a near-binary judgment with minimal latency — the safety path runs in
 // parallel with therapist generation, so cold-start + reasoning slack on the
 // main model is unacceptable here.
 const OPENAI_CRISIS_MODEL = 'gpt-5-nano'
-
-// Structured-output schema for the crisis classifier. Lives server-side so the
-// shape is enforced by the API, not by client-side JSON.parse heuristics. Risk
-// tiers are documented in src/ai/crisisClassifierPrompt.ts and the eval set.
-const CRISIS_RESPONSE_FORMAT = {
-  type: 'json_schema',
-  json_schema: {
-    name: 'crisis_risk',
-    strict: true,
-    schema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        risk: { type: 'integer', enum: [0, 1, 2] },
-        reason: { type: 'string' },
-      },
-      required: ['risk', 'reason'],
-    },
-  },
-} as const
 
 // Structured-output schema for the session signal classifier (task:
 // 'signal_check'). Withdrawal/rumination tiers are documented in

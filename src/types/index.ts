@@ -207,6 +207,20 @@ export interface SessionMessage {
   userInputMode?: InputMode
 }
 
+export interface SmsMessage {
+  id: string
+  channel: 'sms'
+  direction: 'inbound' | 'outbound'
+  body: string
+  mode: 'exchange' | 'deep' | 'capture'
+  createdAt: number
+  status: 'received' | 'captured' | 'processed' | 'sent' | 'failed'
+  risk?: 0 | 1 | 2
+  providerSid?: string
+  replyTo?: string
+  usedFallback?: boolean
+}
+
 export type PauseType =
   | 'short_pause'
   | 'sentence_complete'

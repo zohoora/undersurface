@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { Session, PartMemory, UserProfile, PersonalFacts, RelaxSession, CompanionSignals } from '../types'
+import type { Session, PartMemory, UserProfile, PersonalFacts, RelaxSession, CompanionSignals, SmsMessage } from '../types'
 
 // Per-collection fixtures the tests configure; the db mock pulls from these.
 type State = {
@@ -15,6 +15,7 @@ type State = {
   // Records the limit the loader applied to the sessions query, so tests can
   // assert the scan is bounded.
   sessionsQueryLimit: number | null
+  smsMessages: SmsMessage[]
 }
 
 let state: State
@@ -31,6 +32,7 @@ function freshState(): State {
     companionSignalWrites: [],
     features: {},
     sessionsQueryLimit: null,
+    smsMessages: [],
   }
 }
 
@@ -90,6 +92,17 @@ vi.mock('../store/db', () => ({
       add: async (doc: CompanionSignals) => { state.companionSignalWrites.push(doc) },
       update: async (_id: string, doc: CompanionSignals) => { state.companionSignalWrites.push(doc) },
     },
+    smsMessages: {
+      orderBy: () => ({
+        reverse: () => ({
+          limit: (n: number) => ({
+            toArray: async () => [...state.smsMessages]
+              .sort((a, b) => b.createdAt - a.createdAt)
+              .slice(0, n),
+          }),
+        }),
+      }),
+    },
   },
 }))
 
@@ -137,6 +150,22 @@ describe('loadTherapistContext', () => {
     expect(ctx.userProfile).toBeNull()
     expect(ctx.personalFacts).toBeNull()
     expect(ctx.recentRelaxBreaks).toEqual([])
+    expect(ctx.recentFieldNotes).toEqual([])
+  })
+
+  it('loads only recent inbound SMS fragments as weak field-note context', async () => {
+    const now = Date.now()
+    state.smsMessages = [
+      { id: 'new', channel: 'sms', direction: 'inbound', body: 'Presentation dread', mode: 'capture', createdAt: now - 1000, status: 'captured' },
+      { id: 'reply', channel: 'sms', direction: 'outbound', body: 'Try both feet', mode: 'exchange', createdAt: now - 900, status: 'sent' },
+      { id: 'old', channel: 'sms', direction: 'inbound', body: 'Too old', mode: 'exchange', createdAt: now - 15 * 86_400_000, status: 'processed' },
+    ]
+
+    const ctx = await loadTherapistContext()
+
+    expect(ctx.recentFieldNotes).toEqual([
+      { text: 'Presentation dread', date: now - 1000, mode: 'capture' },
+    ])
   })
 
   it('bounds the sessions query instead of scanning the full collection', async () => {

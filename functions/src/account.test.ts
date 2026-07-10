@@ -22,12 +22,22 @@ function newDoc(fields: Record<string, unknown> = {}): DocNode {
 let users: Map<string, DocNode>
 let contactMessages: Map<string, DocNode>
 let quotas: Map<string, DocNode>
+let smsPhoneLinks: Map<string, DocNode>
+let smsLinkCodes: Map<string, DocNode>
+let smsInbound: Map<string, DocNode>
 let deletedAuthUsers: string[]
 let authThrowsNotFound: boolean
 let setCalls: { id: string; fields: Record<string, unknown> }[]
 
 function makeDocRef(node: DocNode | null, container: Map<string, DocNode>, id: string) {
   return {
+    get: async () => {
+      const current = container.get(id)
+      return {
+        exists: !!current,
+        data: () => current?.fields,
+      }
+    },
     set: async (fields: Record<string, unknown>) => {
       setCalls.push({ id, fields })
       const existing = container.get(id)
@@ -46,7 +56,10 @@ function ensureNode(container: Map<string, DocNode>, id: string): DocNode {
 function makeCollectionRef(parent: DocNode, name: string) {
   if (!parent.subs[name]) parent.subs[name] = new Map()
   const map = parent.subs[name]
-  return makeQuery(map)
+  return {
+    ...makeQuery(map),
+    doc: (id: string) => makeDocRef(map.get(id) ?? null, map, id),
+  }
 }
 function makeQuery(map: Map<string, DocNode>, filter?: (n: DocNode) => boolean) {
   const matching = () => [...map.entries()].filter(([, n]) => !filter || filter(n))
@@ -77,6 +90,9 @@ const firestore = {
     if (name === 'quotas') {
       return { doc: (id: string) => makeDocRef(quotas.get(id) ?? null, quotas, id) }
     }
+    if (name === 'smsPhoneLinks') return makeQuery(smsPhoneLinks)
+    if (name === 'smsLinkCodes') return makeQuery(smsLinkCodes)
+    if (name === 'smsInbound') return makeQuery(smsInbound)
     if (name === 'users') {
       return { doc: (id: string) => makeDocRef(users.get(id) ?? null, users, id) }
     }
@@ -119,6 +135,9 @@ function seedFullAccount(uid: string) {
   contactMessages.set('c1', newDoc({ uid }))
   contactMessages.set('c2', newDoc({ uid: 'someone-else' }))
   quotas.set(uid, newDoc({ period: '2026-07', tokensUsed: 500 }))
+  smsPhoneLinks.set(`phone-${uid}`, newDoc({ uid }))
+  smsLinkCodes.set(`code-${uid}`, newDoc({ uid }))
+  smsInbound.set(`inbound-${uid}`, newDoc({ uid }))
 }
 
 function makeRes() {
@@ -129,6 +148,9 @@ beforeEach(() => {
   users = new Map()
   contactMessages = new Map()
   quotas = new Map()
+  smsPhoneLinks = new Map()
+  smsLinkCodes = new Map()
+  smsInbound = new Map()
   deletedAuthUsers = []
   authThrowsNotFound = false
   setCalls = []
@@ -148,6 +170,9 @@ describe('handleDeleteAccount', () => {
     expect(contactMessages.has('c2')).toBe(true)
     // The top-level quota doc is deleted too (it lives outside users/{uid}).
     expect(quotas.has('u1')).toBe(false)
+    expect([...smsPhoneLinks.values()].some(doc => doc.fields.uid === 'u1')).toBe(false)
+    expect([...smsLinkCodes.values()].some(doc => doc.fields.uid === 'u1')).toBe(false)
+    expect([...smsInbound.values()].some(doc => doc.fields.uid === 'u1')).toBe(false)
     expect(res.json).toHaveBeenCalledWith({ success: true })
   })
 

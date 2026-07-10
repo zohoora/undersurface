@@ -60,6 +60,18 @@ const en = {
   'settings.exportAll': 'Export all data',
   'settings.privacyTerms': 'Privacy & Terms',
   'settings.deleteAccount': 'Delete account',
+  'settings.sms.title': 'SMS field notes',
+  'settings.sms.description': 'Text UnderSurface during the day. Messages can become context for later sessions.',
+  'settings.sms.loading': 'Loading...',
+  'settings.sms.connected': 'Connected to phone ending in {last4}',
+  'settings.sms.commands': 'Text normally for one small response. Use SAVE: to capture without a conversation, DEEP: for more space, or OPEN to continue in the app.',
+  'settings.sms.createCode': 'Link a phone',
+  'settings.sms.creating': 'Creating code...',
+  'settings.sms.linkInstruction': 'Text LINK {code} to {number} within 10 minutes.',
+  'settings.sms.textNow': 'Open Messages',
+  'settings.sms.unlink': 'Disconnect phone',
+  'settings.sms.unlinking': 'Disconnecting...',
+  'settings.sms.error': 'Could not update the SMS connection. Try again.',
 
   // Sidebar
   'sessions.title': 'Sessions',

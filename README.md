@@ -79,7 +79,7 @@ undersurface/
 │   └── App.tsx                    # Auth gate + session-first routing
 ├── functions/                     # Firebase Cloud Functions (Node 22)
 │   └── src/                       # chat, realtime, soundscapeApi (+soundscape/), account,
-│                                  #   admin/, mcp, shared/ (auth, cors, rateLimit, secrets, models)
+│                                  #   admin/, mcp, sms/, shared/ (auth, crisis, secrets, models)
 ├── public/                        # Static assets (PWA manifest, icons, soundscape audio)
 ├── firebase.json                  # Hosting rewrites + CSP/Permissions-Policy headers
 ├── firestore.rules                # Firestore security rules
@@ -120,6 +120,18 @@ useSessionVoice → POST /api/realtime-token → realtimeTokenApi
 
 Relax voice guidance reuses the same stack in `passive` mode (recvonly, no mic prompt).
 
+### SMS field flow
+
+```
+Settings creates link code → user texts LINK <code> to +1 289-778-0589
+  → smsApi validates Twilio signature and maps the phone to a Firebase uid
+  → normal SMS is persisted + queued → smsInboundProcessor
+  → shared L1/L2 crisis stack → bounded OpenAI field reply → Twilio SMS
+  → recent inbound fragments enter later Talk/Speak context as weak field notes
+```
+
+`SAVE:` captures without starting a conversation; `DEEP:` permits a longer reply; `OPEN` hands off to a full session.
+
 ### Admin flow
 
 ```
@@ -141,6 +153,7 @@ Relax voice guidance reuses the same stack in `passive` mode (recvonly, no mic p
 | `/api/mcp` | `mcpApi` |
 | `/api/realtime-token` | `realtimeTokenApi` |
 | `/api/soundscape` | `soundscapeApi` |
+| `/api/sms` | `smsApi` |
 | `**` | `/index.html` (SPA fallback) |
 
 ## Data Model
@@ -165,6 +178,8 @@ Relax voice guidance reuses the same stack in `passive` mode (recvonly, no mic p
 | `diagnostics` | Client diagnostic events |
 | `apiKeys` | Hashed keys for the MCP server |
 | `entries` | **Legacy** diary entries — no writers anymore; read by echo/quote/reflection engines and MCP tools |
+| `smsMessages` | Inbound/outbound SMS field interactions; exported and loaded as weak recent context |
+| `smsSettings` | Server-maintained phone-link status (phone hash + last four only) |
 
 Security rule: users can only read/write their own data (`request.auth.uid == userId`).
 
@@ -228,16 +243,18 @@ npm run smoke-test   # Post-deploy smoke test against the live site
 
 ## Cloud Functions
 
-Six functions in `functions/src/` (shared helpers in `shared/`):
+Eight deployable functions in `functions/src/` (shared helpers in `shared/`):
 
 | Function | File | Purpose | Config |
 |----------|------|---------|--------|
 | `chat` | `chat.ts` | OpenAI proxy — `gpt-5.5` therapist/journal turns, `gpt-5-nano` crisis route, SSE streaming | 512MiB, minInstances 1, 300s |
 | `realtimeTokenApi` | `realtime.ts` | Mints OpenAI Realtime client secrets | 256MiB, minInstances 1, 30s |
 | `soundscapeApi` | `soundscapeApi.ts` + `soundscape/` | ElevenLabs soundscape generation + Firestore cache | 256MiB, 60s |
-| `accountApi` | `account.ts` | Account deletion + contact form | 256MiB, 60s |
+| `accountApi` | `account.ts` | Account deletion, contact form, and SMS phone-link actions | 256MiB, 60s |
 | `adminApi` | `admin/` | Admin dashboard backend (11 actions) | 512MiB, 120s |
 | `mcpApi` | `mcp.ts` | MCP server, 4 read-only tools, API-key auth | 256MiB, 30s |
+| `smsApi` | `sms/index.ts` | Twilio webhook, link commands, capture, queue admission | 256MiB, 30s |
+| `smsInboundProcessor` | `sms/index.ts` | Async crisis classification, field response, Twilio delivery | 256MiB, 120s |
 
 The chat model is pinned server-side in `functions/src/shared/models.ts` (`OPENAI_CHAT_MODEL`); the client never sends a model field. SSE streaming requires `X-Accel-Buffering: no` and `Cache-Control: no-cache, no-transform`.
 
@@ -274,11 +291,13 @@ After deploying, run `npm run smoke-test`. Note `chat`'s `minInstances: 1` requi
 
 ### Managing API keys
 
-Both keys are Firebase secrets (Google Secret Manager), not config files:
+Provider credentials are Firebase secrets (Google Secret Manager), not config files:
 
 ```bash
 echo "sk-..." | firebase functions:secrets:set OPENAI_API_KEY
 echo "..."    | firebase functions:secrets:set ELEVENLABS_API_KEY
+echo "AC..."  | firebase functions:secrets:set TWILIO_ACCOUNT_SID
+echo "..."    | firebase functions:secrets:set TWILIO_AUTH_TOKEN
 cd functions && npx tsc && cd .. && firebase deploy --only functions
 ```
 

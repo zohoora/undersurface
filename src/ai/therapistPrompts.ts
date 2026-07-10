@@ -190,6 +190,7 @@ Hard rules:
 export interface TherapistPromptOptions {
   phase: SessionPhase
   recentSessionNotes?: { note: string; date: number }[]
+  recentFieldNotes?: { text: string; date: number; mode: 'exchange' | 'deep' | 'capture' }[]
   relevantMemories?: PartMemory[]
   profile?: UserProfile | null
   personalFacts?: PersonalFacts | null
@@ -511,6 +512,14 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
       .map(n => `- ${formatShortDate(n.date)}: ${sanitizeForPrompt(n.note)}`)
       .join('\n')
     parts.push(`Notes from recent sessions:\n${notes}`)
+  }
+
+  if (options.recentFieldNotes && options.recentFieldNotes.length > 0) {
+    const notes = options.recentFieldNotes
+      .slice(0, 8)
+      .map(note => `- ${formatShortDate(note.date)} [${note.mode}]: ${wrapUserContent(note.text, 'sms_field_note')}`)
+      .join('\n')
+    parts.push(`Recent field notes sent by this writer between sessions:\n${notes}\nThese are brief, user-authored fragments: context, not conclusions. Use one only when it is naturally relevant. Never infer a stable trait or announce a pattern from these fragments alone.`)
   }
 
   if (options.inSessionRelaxBreaks && options.inSessionRelaxBreaks.length > 0) {

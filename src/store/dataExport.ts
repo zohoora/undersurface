@@ -301,6 +301,21 @@ export function buildMarkdownExport(
     ln()
   }
 
+  const smsMessages = [...(collections.smsMessages ?? [])]
+    .filter(message => typeof message.body === 'string' && typeof message.createdAt === 'number')
+    .sort((a, b) => (a.createdAt as number) - (b.createdAt as number))
+  if (smsMessages.length > 0) {
+    ln(`## ${t('export.conversations')} — SMS`)
+    ln()
+    for (const message of smsMessages) {
+      const who = message.direction === 'inbound' ? t('export.you') : t('export.companion')
+      ln(`**${who} · ${fmtDate(message.createdAt as number)}:**`)
+      ln()
+      ln(String(message.body))
+      ln()
+    }
+  }
+
   return lines.join('\n')
 }
 
@@ -311,6 +326,7 @@ export async function exportAllData() {
     'sessionLog', 'innerWeather', 'consent', 'sessions',
     'hrvSessions', 'relaxSessions', 'driftSessions', 'companionSignals', 'userParts',
     'sessionIntentions', 'stanceProfile', 'userValues', 'companionPromises',
+    'smsMessages',
   ] as const
 
   const results = await Promise.all(
@@ -339,4 +355,3 @@ export async function exportAllData() {
   a.click()
   URL.revokeObjectURL(url)
 }
-

@@ -7,6 +7,11 @@ import type { CollectionReference, Query } from 'firebase-admin/firestore'
 import { ALLOWED_ORIGINS } from './shared/cors.js'
 import { verifyAuth } from './shared/auth.js'
 import { USER_SUBCOLLECTIONS } from './shared/collections.js'
+import {
+  createSmsLinkCode,
+  getSmsStatus,
+  unlinkSms,
+} from './sms/linking.js'
 
 // Delete every doc matched by a collection ref or query, in batches, until the
 // query returns empty. Idempotent: re-running on an already-empty collection is
@@ -26,7 +31,12 @@ async function deleteCollection(uid: string, collName: string) {
   await deleteQuery(getFirestore().collection('users').doc(uid).collection(collName))
 }
 
-type AccountAction = 'deleteAccount' | 'submitContact'
+type AccountAction =
+  | 'deleteAccount'
+  | 'submitContact'
+  | 'getSmsStatus'
+  | 'createSmsLinkCode'
+  | 'unlinkSms'
 
 type AccountHandler = (
   uid: string,
@@ -55,7 +65,14 @@ export async function handleDeleteAccount(uid: string, _params: Record<string, u
     await deleteQuery(sessionDoc.ref.collection('messages'))
   }
 
-  // 3. All user subcollections (single registry, includes apiKeys).
+  // SMS linkage lives partly outside users/{uid}; remove it while smsSettings
+  // still exists, then clean any orphaned mapping/queue docs by uid.
+  await unlinkSms(uid)
+  await deleteQuery(db.collection('smsPhoneLinks').where('uid', '==', uid))
+  await deleteQuery(db.collection('smsLinkCodes').where('uid', '==', uid))
+  await deleteQuery(db.collection('smsInbound').where('uid', '==', uid))
+
+  // 3. All user subcollections (single registry, includes apiKeys + SMS data).
   for (const coll of USER_SUBCOLLECTIONS) {
     await deleteCollection(uid, coll)
   }
@@ -74,6 +91,19 @@ export async function handleDeleteAccount(uid: string, _params: Record<string, u
     if ((error as { code?: string }).code !== 'auth/user-not-found') throw error
   }
 
+  res.json({ success: true })
+}
+
+async function handleGetSmsStatus(uid: string, _params: Record<string, unknown>, res: Response): Promise<void> {
+  res.json(await getSmsStatus(uid))
+}
+
+async function handleCreateSmsLinkCode(uid: string, _params: Record<string, unknown>, res: Response): Promise<void> {
+  res.json(await createSmsLinkCode(uid))
+}
+
+async function handleUnlinkSms(uid: string, _params: Record<string, unknown>, res: Response): Promise<void> {
+  await unlinkSms(uid)
   res.json({ success: true })
 }
 
@@ -101,6 +131,9 @@ async function handleSubmitContact(uid: string, params: Record<string, unknown>,
 const ACCOUNT_HANDLERS: Record<AccountAction, AccountHandler> = {
   deleteAccount: handleDeleteAccount,
   submitContact: handleSubmitContact,
+  getSmsStatus: handleGetSmsStatus,
+  createSmsLinkCode: handleCreateSmsLinkCode,
+  unlinkSms: handleUnlinkSms,
 }
 
 export const accountApi = onRequest(

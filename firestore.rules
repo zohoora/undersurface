@@ -21,5 +21,17 @@ service cloud.firestore {
     match /contactMessages/{msgId} {
       allow read, write: if false;
     }
+
+    // Twilio linkage and delivery queues are server-owned. User-visible SMS
+    // messages live under users/{uid}/smsMessages and inherit the owner rule.
+    match /smsPhoneLinks/{docId} {
+      allow read, write: if false;
+    }
+    match /smsLinkCodes/{docId} {
+      allow read, write: if false;
+    }
+    match /smsInbound/{docId} {
+      allow read, write: if false;
+    }
   }
 }

@@ -303,6 +303,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
         const promptMessages = buildTherapistMessages(currentMessages, {
           phase,
           recentSessionNotes: context?.recentSessionNotes,
+          recentFieldNotes: context?.recentFieldNotes,
           relevantMemories: context?.relevantMemories,
           profile: context?.userProfile,
           personalFacts: context?.personalFacts,

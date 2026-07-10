@@ -2,46 +2,9 @@ import type { SessionMessage, SessionPhase } from '../types'
 import { buildTherapistSessionNotePrompt } from '../ai/therapistPrompts'
 import { chatCompletion, analyzeEmotionAndDistress } from '../ai/openrouter'
 import { activateGrounding } from '../store/groundingState'
+import { detectCrisisKeywords } from '../../functions/src/shared/crisisFloor'
 
-// L1 is deliberately narrower than the contextual L2 classifier. It exists to
-// catch explicit first-person methods/plans and unmistakable farewell-note
-// constructions synchronously, not to interpret distress vocabulary. Phrases
-// such as "want to die", "kms", "overdose", and "can't do this anymore" are
-// common in hyperbole, recovery narratives, grief, and quoted speech; every
-// user-authored path sends those through L2 instead.
-//
-// Keep this list aligned with crisisDecisionPipeline.test.ts. Adding a phrase
-// here changes the user-visible outcome before the model can read its context.
-const HARD_FLOOR_CRISIS_PATTERNS = [
-  /\bwant\s+to\s+kill\s+(myself|me)\b/i,
-  /\bkill\s+myself\b/i,
-  /\bend\s+my\s+life\b/i,
-  /\bcut\s+(myself|my\s+wrists?)\b/i,
-  /\btake\s+(all\s+)?(the\s+)?pills\b/i,
-  /\bswallow\s+(all\s+)?(the\s+)?pills\b/i,
-  /\bhang\s+myself\b/i,
-  /\bshoot\s+myself\b/i,
-  /\bslit\s+(my\s+)?wrists?\b/i,
-  /\bdrown\s+myself\b/i,
-  /\bif\s+(?:anyone|you)\s+(?:ever\s+)?reads?\s+this(?:\s+(?:some\s*day|later))?\b(?=[\s\S]{0,240}\b(?:wasn['’]?t|isn['’]?t)\s+(?:your|their)\s+fault\b)(?=[\s\S]{0,240}\bi\s+(?:made|have\s+made)\s+(?:the|my)\s+(?:choice|decision)\b)/i,
-]
-
-/**
- * Normalizes text for crisis detection: NFKC normalization to defeat
- * Unicode tricks (Cyrillic lookalikes, fullwidth chars), and strips
- * zero-width/non-breaking whitespace.
- */
-function normalizeForCrisisDetection(text: string): string {
-  // ZWJ/ZWNJ inside the class are deliberate: they're an attack class for
-  // crisis-keyword evasion, not a grapheme-joiner we want to preserve.
-  // eslint-disable-next-line no-misleading-character-class
-  return text.normalize('NFKC').replace(/[\u00A0\u200B\u200C\u200D\uFEFF\u2060]/g, ' ')
-}
-
-export function detectCrisisKeywords(text: string): boolean {
-  const normalized = normalizeForCrisisDetection(text)
-  return HARD_FLOOR_CRISIS_PATTERNS.some(p => p.test(normalized))
-}
+export { detectCrisisKeywords } from '../../functions/src/shared/crisisFloor'
 
 export class SessionOrchestrator {
   // Throttle the informational emotion tag to at most once per interval — the

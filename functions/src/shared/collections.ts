@@ -1,6 +1,7 @@
 // Single source of truth for the per-user Firestore subcollections under
-// users/{uid}. Account deletion iterates this list; keep it in sync with the
-// `db` proxy in src/store/db.ts and the export list in src/store/dataExport.ts.
+// users/{uid}. Account deletion iterates this list. User-visible collections
+// should also appear in the client db proxy and export; server support
+// collections such as smsSettings need deletion coverage but not a client API.
 // `sessions` additionally has a `messages` subcollection handled explicitly
 // (subcollections are deleted before their parent docs).
 export const USER_SUBCOLLECTIONS = [
@@ -29,4 +30,6 @@ export const USER_SUBCOLLECTIONS = [
   'stanceProfile',
   'userValues',
   'companionPromises',
+  'smsMessages',
+  'smsSettings',
 ] as const

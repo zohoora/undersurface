@@ -1,4 +1,4 @@
-import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue, CompanionPromise } from '../types'
+import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue, CompanionPromise, SmsMessage } from '../types'
 import { db } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { detectOpenTimeEvidence } from './ruptureDetector'
@@ -47,10 +47,15 @@ export interface TherapistContext {
   promiseSlotsOpen: boolean
   // A pending story arc awaiting consume-once delivery (storyArcs flag).
   storyArc: { text: string } | null
+  // User-authored between-session fragments from SMS. These remain weak,
+  // unconfirmed context and must never become identity claims by themselves.
+  recentFieldNotes: { text: string; date: number; mode: SmsMessage['mode'] }[]
 }
 
 const MEMORY_SOURCE_PARTS = ['open', 'weaver', 'still']
 const RECENT_RELAX_LIMIT = 5
+const RECENT_FIELD_NOTE_LIMIT = 8
+const FIELD_NOTE_MAX_AGE_MS = 14 * 86_400_000
 
 export async function loadTherapistContext(currentSessionId?: string): Promise<TherapistContext> {
   const features = getGlobalConfig()?.features
@@ -63,7 +68,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
   const interiorityOn = features?.companionInteriority === true
   const arcsOn = features?.storyArcs === true
 
-  const [sessions, memories, profiles, facts, relaxBreaks, signals, allUserParts, allIntentions, stanceProfile, allValues, allPromises] = await Promise.all([
+  const [sessions, memories, profiles, facts, relaxBreaks, signals, allUserParts, allIntentions, stanceProfile, allValues, allPromises, smsMessages] = await Promise.all([
     // Bounded: only the 5 newest noted sessions are kept, so scanning the
     // full collection is pure read amplification. 50 newest gives ample
     // margin for closed-without-note gaps.
@@ -82,6 +87,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     stanceOn || interiorityOn ? db.stanceProfile.get('current') : Promise.resolve(undefined as StanceProfile | undefined),
     valuesOn ? db.userValues.toArray() : Promise.resolve([] as UserValue[]),
     interiorityOn ? db.companionPromises.toArray() : Promise.resolve([] as CompanionPromise[]),
+    db.smsMessages.orderBy('createdAt').reverse().limit(24).toArray(),
   ])
 
   // Extract notes from the 5 most recent closed sessions
@@ -187,6 +193,12 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     ? [...(stanceProfile?.rawObservations ?? [])].reverse().find((o) => o.direction === 'hindered')?.observation
     : undefined
 
+  const recentFieldNotes = smsMessages
+    .filter(message => message.direction === 'inbound')
+    .filter(message => Date.now() - message.createdAt <= FIELD_NOTE_MAX_AGE_MS)
+    .slice(0, RECENT_FIELD_NOTE_LIMIT)
+    .map(message => ({ text: message.body, date: message.createdAt, mode: message.mode }))
+
   return {
     recentSessionNotes,
     relevantMemories: allMemories,
@@ -221,6 +233,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     missedPromise: missed ? { id: missed.id, text: missed.text } : null,
     promiseSlotsOpen: interiorityOn && activePromises.length < 2,
     storyArc: arcsOn && signals?.pendingArc?.text ? { text: signals.pendingArc.text } : null,
+    recentFieldNotes,
   }
 }
 

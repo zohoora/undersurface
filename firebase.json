@@ -59,6 +59,10 @@
         "function": "soundscapeApi"
       },
       {
+        "source": "/api/sms",
+        "function": "smsApi"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

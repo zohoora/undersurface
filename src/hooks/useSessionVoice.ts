@@ -108,6 +108,7 @@ export function useSessionVoice({
     return buildTherapistSystemPrompt({
       phase: sessionRef.current?.phase ?? 'opening',
       recentSessionNotes: context.recentSessionNotes,
+      recentFieldNotes: context.recentFieldNotes,
       relevantMemories: context.relevantMemories,
       profile: context.userProfile,
       personalFacts: context.personalFacts,

@@ -62,6 +62,19 @@ describe('buildMarkdownExport — completeness (C-8)', () => {
     expect(md).toContain('camera-hrv')
   })
 
+  it('renders SMS field messages in the portable conversation export', () => {
+    const md = buildMarkdownExport({
+      smsMessages: [
+        { direction: 'inbound', body: 'I expected to freeze.', createdAt: 1_700_000_000_000 },
+        { direction: 'outbound', body: 'What actually happened?', createdAt: 1_700_000_000_100 },
+      ],
+    }, {})
+
+    expect(md).toContain('conversations — SMS')
+    expect(md).toContain('I expected to freeze.')
+    expect(md).toContain('What actually happened?')
+  })
+
   it('omits the conversations section entirely when there are no sessions', () => {
     const md = buildMarkdownExport({ entries: [] }, {})
     expect(md).not.toContain('conversations')

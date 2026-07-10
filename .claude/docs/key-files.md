@@ -5,6 +5,8 @@
 | File | Purpose |
 |------|---------|
 | `src/ai/openrouter.ts` | Client-side API calls to `/api/chat`; `analyzeEmotionAndDistress()` for combined emotion + distress check |
+| `functions/src/shared/crisisClassifier.ts` | Canonical calibrated L2 prompt + structured-output schema shared by browser chat and SMS |
+| `functions/src/shared/crisisFloor.ts` | Canonical narrow L1 explicit-method floor shared by every channel |
 | `src/ai/partPrompts.ts` | System prompts for 7 seeded parts + `SHARED_INSTRUCTIONS` + emergence, reflection, growth, grounding, intention prompts + `languageDirective()` for multilingual AI response directives |
 | `src/ai/sessionPrompts.ts` | Session mode prompts for parts — `SESSION_INSTRUCTIONS`, `buildSessionMessages()`, `buildSessionNotePrompt()` |
 | `src/ai/therapistPrompts.ts` | Therapist companion prompts — `THERAPIST_CORE` (warm), `REAL_TALK_CORE` (calling-out coping patterns), `buildTherapistMessages()`, `buildTherapistSessionNotePrompt()`, `buildSessionReflectionPrompt()`. Mode swap is gated on `mode==='real_talk' && !isGrounding` — grounding always reverts to warm core |
@@ -14,9 +16,9 @@
 | `src/engine/reflectionEngine.ts` | Entry reflection — creates memories, summaries, profile updates on entry switch |
 | `src/engine/partGrowthEngine.ts` | Part evolution — updates prompts, keywords, emotions every 5 entries |
 | `src/ai/llmCorrect.ts` | LLM-based autocorrect — sentence-level spelling/capitalization correction via small model. All languages with sentence-ending punctuation. Exports `shouldTriggerAutocorrect()`, `isCJK()`, `SENTENCE_END_PUNCT`, `CJK_SENTENCE_END` |
-| `src/engine/sessionOrchestrator.ts` | Session phase detection, crisis keyword detection (20 regex patterns, no cooldown), emotion check with grounding activation |
+| `src/engine/sessionOrchestrator.ts` | Session phase detection, shared narrow crisis hard floor, emotion check with grounding activation |
 | `src/engine/sessionReflectionEngine.ts` | Post-session reflection — extracts memories, profile updates, somatic signals, personal facts (people, dates, context, current threads) from session transcripts |
-| `src/engine/sessionContextLoader.ts` | Loads session context (memories, profile, personal facts, recent notes) for therapist prompts |
+| `src/engine/sessionContextLoader.ts` | Loads bounded session context including memories, profile, recent notes, and weak recent SMS field notes |
 | `src/engine/weatherEngine.ts` | Inner weather tracking from emotional tone shifts |
 | `src/engine/ritualEngine.ts` | Session logging for ritual detection (writing habits) |
 | `src/engine/fossilEngine.ts` | Resurfaces old entry commentary. Lazy-loaded on first entry switch |
@@ -52,7 +54,7 @@
 
 | File | Purpose |
 |------|---------|
-| `src/store/db.ts` | Firestore wrapper — 12 collection proxies + translated Markdown data export |
+| `src/store/db.ts` | Firestore wrapper for user collections and nested session messages |
 | `src/store/settings.ts` | User settings in localStorage (3-tier cascade: hardcoded < globalConfig < localStorage) |
 | `src/store/globalConfig.ts` | Real-time listener on `appConfig/global` Firestore doc, `useGlobalConfig()` hook |
 | `src/firebase.ts` | Firebase/Firestore initialization with offline persistence |
@@ -74,7 +76,7 @@
 | `src/auth/authContext.ts` | `AuthContextValue` interface |
 | `src/auth/useAuth.ts` | Hook for consuming auth context |
 | `src/services/analytics.ts` | Firebase Analytics wrapper — lazy-initializes on first `trackEvent()` |
-| `src/api/accountApi.ts` | Client-side account API caller |
+| `src/api/accountApi.ts` | Client-side account API caller, including SMS link/status/unlink actions |
 
 ## Components
 
@@ -103,6 +105,7 @@
 | `src/components/Session/Drift/DriftClosing.tsx` | Drift closure copy per reason (settle/user/stuck/cap/crisis) — fixed i18n strings |
 | `src/components/Sidebar/EntriesList.tsx` | Unified sidebar — entries + sessions in one chronological list with Body Map tab (when `bodyMap` feature flag enabled) |
 | `src/components/Sidebar/SettingsPanel.tsx` | Settings panel — slide-up overlay above gear button |
+| `src/components/Sidebar/SmsSettingsSection.tsx` | Creates expiring link codes, polls link state, opens SMS composer, and disconnects phones |
 | `src/components/Sidebar/ModelSelector.tsx` | LLM model selection dropdown |
 | `src/components/SessionClosing.tsx` | Session closing overlay — The Weaver's closing thought |
 | `src/components/InnerWeather.tsx` | Inner weather display widget |
@@ -143,8 +146,9 @@
 
 | File | Purpose |
 |------|---------|
-| `functions/src/index.ts` | Cloud Functions: `chat` + `accountApi` + `adminApi` |
-| `firebase.json` | Hosting config + rewrites: `/api/chat`, `/api/admin`, `/api/account` |
+| `functions/src/index.ts` | Cloud Function exports, including `smsApi` + `smsInboundProcessor` |
+| `functions/src/sms/` | Twilio webhook, link store, bounded field prompt, crisis pipeline, async delivery processor, and unit tests |
+| `firebase.json` | Hosting config + API rewrites, including `/api/sms` |
 | `firestore.rules` | Security rules |
 | `vite.config.ts` | Vite + React + Tailwind v4 + VitePWA + Sentry source maps; `manualChunks` splits editor + sentry |
 | `vitest.config.ts` | Test config — finds `src/**/*.test.{ts,tsx}` |

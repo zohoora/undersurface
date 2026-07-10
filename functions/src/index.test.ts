@@ -35,6 +35,9 @@ vi.mock('firebase-functions/v2/https', () => ({
   // Strip the Cloud Run wrapper so the handler is directly callable.
   onRequest: (_opts: unknown, handler: unknown) => handler,
 }))
+vi.mock('firebase-functions/v2/firestore', () => ({
+  onDocumentCreated: (_opts: unknown, handler: unknown) => handler,
+}))
 
 const indexModule = await import('./index')
 const chat = indexModule.chat as unknown as (
@@ -467,4 +470,3 @@ describe('adminApi — allowlist', () => {
     expect(res._jsonBody).toEqual({ error: 'Missing uid' })
   })
 })
-
