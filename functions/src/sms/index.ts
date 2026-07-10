@@ -9,6 +9,7 @@ import { makeRateLimiter } from '../shared/rateLimit.js'
 import {
   SMS_CRISIS_RESPONSE,
   SMS_HELP,
+  SMS_MEDIA_UNAVAILABLE_RESPONSE,
   SMS_UNAVAILABLE_RESPONSE,
   TWILIO_PHONE_NUMBER,
   TWILIO_WEBHOOK_URL,
@@ -21,7 +22,17 @@ import {
   linkPhoneByCode,
   unlinkPhone,
 } from './linking.js'
-import { classifySmsCrisis, generateSmsTurn, type SmsHistoryMessage } from './openai.js'
+import {
+  fetchTwilioImages,
+  parseTwilioMedia,
+  type SmsMediaDescriptor,
+} from './media.js'
+import {
+  classifySmsCrisis,
+  generateSmsTurn,
+  type SmsHistoryMessage,
+  type SmsTurnResult,
+} from './openai.js'
 
 const MAX_INBOUND_CHARS = 1600
 const MAX_PROCESSING_ATTEMPTS = 3
@@ -33,6 +44,8 @@ interface SmsInboundQueueDoc {
   from: string
   to: string
   body: string
+  media: SmsMediaDescriptor[]
+  rejectedMediaCount: number
   inboundMessageId: string
   receivedAt: number
   status: 'pending' | 'processing' | 'completed' | 'terminal_failed'
@@ -65,6 +78,18 @@ function validMessageSid(value: string): boolean {
   return /^[A-Za-z0-9_-]{8,64}$/.test(value)
 }
 
+export function resolveGeneratedSmsTurn(
+  baseRisk: 0 | 1,
+  turn: SmsTurnResult,
+): { risk: 0 | 1 | 2; reply: string; fieldNote: string | null } {
+  const risk = Math.max(baseRisk, turn.visualRisk) as 0 | 1 | 2
+  return {
+    risk,
+    reply: risk === 2 ? SMS_CRISIS_RESPONSE : turn.reply,
+    fieldNote: risk === 2 ? null : turn.fieldNote,
+  }
+}
+
 function userSmsMessages(uid: string) {
   return getFirestore().collection('users').doc(uid).collection('smsMessages')
 }
@@ -73,6 +98,8 @@ async function storeInboundMessage(opts: {
   uid: string
   messageSid: string
   body: string
+  mediaCount: number
+  mediaTypes: string[]
   createdAt: number
 }): Promise<void> {
   await userSmsMessages(opts.uid).doc(opts.messageSid).set({
@@ -80,6 +107,8 @@ async function storeInboundMessage(opts: {
     channel: 'sms',
     direction: 'inbound',
     body: opts.body,
+    mediaCount: opts.mediaCount,
+    mediaTypes: opts.mediaTypes,
     mode: 'natural',
     createdAt: opts.createdAt,
     status: 'received',
@@ -93,6 +122,8 @@ async function enqueueInbound(opts: {
   to: string
   messageSid: string
   body: string
+  media: SmsMediaDescriptor[]
+  rejectedMediaCount: number
   receivedAt: number
 }): Promise<void> {
   const queueRef = getFirestore().collection('smsInbound').doc(opts.messageSid)
@@ -102,6 +133,8 @@ async function enqueueInbound(opts: {
       from: opts.from,
       to: opts.to,
       body: opts.body,
+      media: opts.media,
+      rejectedMediaCount: opts.rejectedMediaCount,
       inboundMessageId: opts.messageSid,
       receivedAt: opts.receivedAt,
       status: 'pending',
@@ -145,7 +178,11 @@ export async function handleSmsWebhook(req: Request, res: Response): Promise<voi
     }
 
     const receivedAt = Date.now()
-    const intent = parseSmsBody((params.Body ?? '').slice(0, MAX_INBOUND_CHARS))
+    const body = (params.Body ?? '').slice(0, MAX_INBOUND_CHARS)
+    const media = parseTwilioMedia(params)
+    const intent = body.trim() || media.declaredCount === 0
+      ? parseSmsBody(body)
+      : { kind: 'message' as const, text: '' }
 
     if (intent.kind === 'opt_out') {
       await unlinkPhone(from)
@@ -186,10 +223,16 @@ export async function handleSmsWebhook(req: Request, res: Response): Promise<voi
       sendTwiml(res, SMS_HELP)
       return
     }
+    if (!intent.text && media.images.length === 0) {
+      sendTwiml(res, SMS_MEDIA_UNAVAILABLE_RESPONSE)
+      return
+    }
     await storeInboundMessage({
       uid,
       messageSid,
       body: intent.text,
+      mediaCount: media.declaredCount,
+      mediaTypes: media.images.map(item => item.contentType),
       createdAt: receivedAt,
     })
     await enqueueInbound({
@@ -198,6 +241,8 @@ export async function handleSmsWebhook(req: Request, res: Response): Promise<voi
       to,
       messageSid,
       body: intent.text,
+      media: media.images,
+      rejectedMediaCount: media.rejectedCount,
       receivedAt,
     })
     sendTwiml(res)
@@ -253,7 +298,7 @@ async function recentSmsHistory(uid: string, currentMessageId: string): Promise<
     .reverse()
     .map(data => ({
       direction: data.direction as 'inbound' | 'outbound',
-      body: data.body as string,
+      body: (data.body as string).trim() || (Number(data.mediaCount) > 0 ? '[Image shared]' : ''),
       createdAt: data.createdAt as number,
     }))
 }
@@ -283,7 +328,7 @@ export const smsInboundProcessor = onDocumentCreated(
 
     try {
       let risk: 0 | 1 | 2 = detectCrisisKeywords(queued.body) ? 2 : 0
-      if (risk === 0) {
+      if (risk === 0 && queued.body.trim()) {
         const classified = await classifySmsCrisis(queued.body, openAiKey.value())
         risk = classified.risk
       }
@@ -296,14 +341,29 @@ export const smsInboundProcessor = onDocumentCreated(
       } else {
         const history = await recentSmsHistory(queued.uid, queued.inboundMessageId)
         try {
-          const turn = await generateSmsTurn({
-            text: queued.body,
-            risk,
-            history,
-            apiKey: openAiKey.value(),
+          const fetched = await fetchTwilioImages({
+            media: queued.media ?? [],
+            accountSid: twilioAccountSid.value(),
+            authToken: twilioAuthToken.value(),
+            messageSid: queued.inboundMessageId,
           })
-          reply = turn.reply
-          fieldNote = turn.fieldNote
+          const failedImageCount = (queued.rejectedMediaCount ?? 0) + fetched.failedCount
+          if (!queued.body.trim() && fetched.images.length === 0 && failedImageCount > 0) {
+            reply = SMS_MEDIA_UNAVAILABLE_RESPONSE
+          } else {
+            const turn = await generateSmsTurn({
+              text: queued.body,
+              risk,
+              history,
+              images: fetched.images,
+              failedImageCount,
+              apiKey: openAiKey.value(),
+            })
+            const resolved = resolveGeneratedSmsTurn(risk, turn)
+            risk = resolved.risk
+            reply = resolved.reply
+            fieldNote = resolved.fieldNote
+          }
         } catch (error) {
           usedFallback = true
           console.error(`[sms] reply generation failed category=${errorCategory(error)}`)
@@ -338,12 +398,15 @@ export const smsInboundProcessor = onDocumentCreated(
         carryForward: fieldNote !== null,
         fieldNote,
         fieldNoteSelectedAt: sentAt,
+        mediaProcessed: (queued.media?.length ?? 0) > 0,
         processedAt: sentAt,
       })
       batch.update(ref, {
         status: 'completed',
         risk,
         outboundSid: outbound.sid,
+        media: [],
+        mediaPurgedAt: sentAt,
         completedAt: sentAt,
         updatedAt: sentAt,
       })
@@ -354,6 +417,7 @@ export const smsInboundProcessor = onDocumentCreated(
       const terminal = queued.attempts >= MAX_PROCESSING_ATTEMPTS
       await ref.update({
         status: terminal ? 'terminal_failed' : 'pending',
+        ...(terminal ? { media: [], mediaPurgedAt: Date.now() } : {}),
         lastError: category,
         updatedAt: Date.now(),
       })

@@ -79,10 +79,13 @@ export function sanitizeSmsFieldNote(raw: string): string {
 }
 
 export const SMS_HELP =
-  `Text naturally. I'll respond with the amount of space the moment seems to need, and may carry forward a concise note when it could help a later UnderSurface session. Text UNLINK to disconnect.`
+  `Text naturally or send an image. I'll respond with the amount of space the moment seems to need, and may carry forward a concise note when it could help a later UnderSurface session. Text UNLINK to disconnect.`
 
 export const SMS_CRISIS_RESPONSE =
   `I'm concerned you may be in immediate danger. If you might act now or can't stay safe, call local emergency services now. In Canada or the U.S., call or text 988. If you can, move away from anything you could use to hurt yourself and contact someone who can stay with you.`
 
 export const SMS_UNAVAILABLE_RESPONSE =
   `I couldn't reach the companion just now. Your message is saved. You can continue in UnderSurface: ${UNDERSURFACE_SESSION_URL}`
+
+export const SMS_MEDIA_UNAVAILABLE_RESPONSE =
+  `I couldn't read that image. Please try sending it again as a JPEG, PNG, WEBP, or GIF.`

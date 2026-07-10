@@ -311,7 +311,9 @@ export function buildMarkdownExport(
       const who = message.direction === 'inbound' ? t('export.you') : t('export.companion')
       ln(`**${who} · ${fmtDate(message.createdAt as number)}:**`)
       ln()
-      ln(String(message.body))
+      const body = String(message.body).trim()
+      if (body) ln(body)
+      if (Number(message.mediaCount) > 0) ln(`[${t('settings.sms.imageAttachment')}]`)
       ln()
     }
   }

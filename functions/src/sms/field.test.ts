@@ -38,6 +38,7 @@ describe('SMS field grammar', () => {
 
   it('describes natural SMS behavior without content commands', () => {
     expect(SMS_HELP).toContain('Text naturally')
+    expect(SMS_HELP).toContain('send an image')
     expect(SMS_HELP).not.toMatch(/SAVE:|DEEP:|\bOPEN\b/)
   })
 

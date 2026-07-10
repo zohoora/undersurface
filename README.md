@@ -125,12 +125,13 @@ Relax voice guidance reuses the same stack in `passive` mode (recvonly, no mic p
 ```
 Settings creates link code → user texts LINK <code> to +1 289-778-0589
   → smsApi validates Twilio signature and maps the phone to a Firebase uid
-  → normal SMS is persisted + queued → smsInboundProcessor
-  → shared L1/L2 crisis stack → GPT-5.5 chooses reply length + optional field note
+  → natural SMS/MMS is persisted + queued → smsInboundProcessor
+  → protected Twilio images are fetched, bounded, and encoded as multimodal input
+  → shared crisis stack → GPT-5.5 chooses reply length + optional field note
   → Twilio SMS reply; only selected notes enter later Talk/Speak context
 ```
 
-Writers text naturally—there are no save, depth, or app-handoff content commands. GPT-5.5 is explicitly prompted for the carrier-SMS medium: concise by default, longer only when the moment warrants it, with a hard 1,200-character backstop. It separately returns a structured decision about whether a source-grounded detail is useful enough to carry into a later session.
+Writers text naturally or attach up to four JPEG, PNG, WEBP, or GIF images—there are no save, depth, or app-handoff content commands. GPT-5.5 is explicitly prompted for the carrier-SMS/MMS medium: concise by default, longer only when the moment warrants it, with a hard 1,200-character backstop. It separately returns a structured decision about whether a source-grounded text or image detail is useful enough to carry into a later session. Image bytes are passed ephemerally to the model; the transcript stores attachment metadata, not a second image copy.
 
 ### Admin flow
 
@@ -178,7 +179,7 @@ Writers text naturally—there are no save, depth, or app-handoff content comman
 | `diagnostics` | Client diagnostic events |
 | `apiKeys` | Hashed keys for the MCP server |
 | `entries` | **Legacy** diary entries — no writers anymore; read by echo/quote/reflection engines and MCP tools |
-| `smsMessages` | Inbound/outbound SMS transcript plus model-selected field notes; transcript exported, selected notes loaded as weak recent context |
+| `smsMessages` | Inbound/outbound SMS/MMS transcript, attachment metadata, and model-selected field notes; transcript exported, selected notes loaded as weak recent context |
 | `smsSettings` | Server-maintained phone-link status (phone hash + last four only) |
 
 Security rule: users can only read/write their own data (`request.auth.uid == userId`).
@@ -253,8 +254,8 @@ Eight deployable functions in `functions/src/` (shared helpers in `shared/`):
 | `accountApi` | `account.ts` | Account deletion, contact form, and SMS phone-link actions | 256MiB, 60s |
 | `adminApi` | `admin/` | Admin dashboard backend (11 actions) | 512MiB, 120s |
 | `mcpApi` | `mcp.ts` | MCP server, 4 read-only tools, API-key auth | 256MiB, 30s |
-| `smsApi` | `sms/index.ts` | Twilio webhook, account controls, queue admission | 256MiB, 30s |
-| `smsInboundProcessor` | `sms/index.ts` | Async crisis classification, adaptive response + note selection, Twilio delivery | 256MiB, 120s |
+| `smsApi` | `sms/index.ts` | Twilio SMS/MMS webhook, account controls, media descriptors, queue admission | 256MiB, 30s |
+| `smsInboundProcessor` | `sms/index.ts` | Protected media fetch, multimodal crisis handling, adaptive response + note selection, Twilio delivery | 256MiB, 120s |
 
 The chat model is pinned server-side in `functions/src/shared/models.ts` (`OPENAI_CHAT_MODEL`); the client never sends a model field. SSE streaming requires `X-Accel-Buffering: no` and `Cache-Control: no-cache, no-transform`.
 

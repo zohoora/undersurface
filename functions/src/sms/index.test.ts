@@ -25,7 +25,7 @@ vi.mock('./linking', () => ({
   unlinkPhone: mockUnlinkPhone,
 }))
 
-const { handleSmsWebhook } = await import('./index')
+const { handleSmsWebhook, resolveGeneratedSmsTurn } = await import('./index')
 
 function makeReq(params: Record<string, string>, signature?: string) {
   return {
@@ -48,12 +48,17 @@ function makeRes() {
   return result as unknown as import('express').Response & typeof result
 }
 
-function signedRequest(bodyText: string, sid = 'SM1234567890abcdef1234567890abcdef') {
+function signedRequest(
+  bodyText: string,
+  sid = 'SM1234567890abcdef1234567890abcdef',
+  extra: Record<string, string> = {},
+) {
   const params = {
     From: '+14165550123',
     To: TWILIO_PHONE_NUMBER,
     Body: bodyText,
     MessageSid: sid,
+    ...extra,
   }
   const signature = twilio.getExpectedTwilioSignature(
     TEST_AUTH_TOKEN,
@@ -89,6 +94,34 @@ describe('Twilio webhook envelope', () => {
     expect(mockGetLinkedUid).toHaveBeenCalledWith('+14165550123')
   })
 
+  it('accepts Twilio-signed image-only MMS envelopes', async () => {
+    mockGetLinkedUid.mockResolvedValue(null)
+    const res = makeRes()
+
+    await handleSmsWebhook(signedRequest('', 'MM1234567890abcdef1234567890abcdef', {
+      NumMedia: '1',
+      MediaUrl0: 'https://api.twilio.com/2010-04-01/Accounts/ACtest/Messages/MM1234567890abcdef1234567890abcdef/Media/MEtest',
+      MediaContentType0: 'image/jpeg',
+    }), res)
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toContain('not linked yet')
+  })
+
+  it('explains unsupported image-only media without queueing it', async () => {
+    mockGetLinkedUid.mockResolvedValue('u1')
+    const res = makeRes()
+
+    await handleSmsWebhook(signedRequest('', 'MM1234567890abcdef1234567890abcdee', {
+      NumMedia: '1',
+      MediaUrl0: 'https://api.twilio.com/media/video',
+      MediaContentType0: 'video/mp4',
+    }), res)
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toContain('couldn&apos;t read that image')
+  })
+
   it('completes LINK through the synchronous TwiML path', async () => {
     mockLinkPhoneByCode.mockResolvedValue({ ok: true, uid: 'u1', phoneLast4: '0123' })
     const res = makeRes()
@@ -97,5 +130,31 @@ describe('Twilio webhook envelope', () => {
 
     expect(mockLinkPhoneByCode).toHaveBeenCalledWith('+14165550123', 'AB23XY', expect.any(Number))
     expect(res.body).toContain('UnderSurface is connected')
+  })
+})
+
+describe('multimodal SMS safety resolution', () => {
+  it('replaces a generated reply and drops its note on clear visual danger', () => {
+    const result = resolveGeneratedSmsTurn(0, {
+      reply: 'Generated response',
+      fieldNote: 'Unsafe note',
+      visualRisk: 2,
+    })
+
+    expect(result.risk).toBe(2)
+    expect(result.reply).toContain('immediate danger')
+    expect(result.fieldNote).toBeNull()
+  })
+
+  it('keeps the generated turn for ordinary images', () => {
+    expect(resolveGeneratedSmsTurn(0, {
+      reply: 'That looks like a crowded room.',
+      fieldNote: null,
+      visualRisk: 0,
+    })).toEqual({
+      risk: 0,
+      reply: 'That looks like a crowded room.',
+      fieldNote: null,
+    })
   })
 })

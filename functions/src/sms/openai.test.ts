@@ -39,6 +39,7 @@ describe('SMS OpenAI adapter', () => {
         reply: '**That sounds tight.** What is the smallest next step?',
         save: true,
         field_note: 'Presentation anxiety immediately before speaking.',
+        visual_risk: 0,
       }) } }],
     }))
 
@@ -53,6 +54,7 @@ describe('SMS OpenAI adapter', () => {
     expect(result).toEqual({
       reply: 'That sounds tight. What is the smallest next step?',
       fieldNote: 'Presentation anxiety immediately before speaking.',
+      visualRisk: 0,
     })
     const init = fetchMock.mock.calls[0][1] as RequestInit
     const body = JSON.parse(String(init.body))
@@ -62,9 +64,10 @@ describe('SMS OpenAI adapter', () => {
     expect(body.messages[0].content).toContain('carrier SMS')
     expect(body.messages[0].content).toContain('Decide how much response')
     expect(body.messages[0].content).toContain('FIELD-NOTE DECISION')
+    expect(body.messages[0].content).toContain('MMS IMAGES')
     expect(body.messages[0].content).toContain('not identity evidence')
-    expect(body.messages[1].content).toContain('untrusted_recent_sms_context')
-    expect(body.messages[1].content).toContain('Presentation in ten minutes')
+    expect(body.messages[1].content[0].text).toContain('untrusted_recent_sms_context')
+    expect(body.messages[1].content[0].text).toContain('Presentation in ten minutes')
   })
 
   it('does not carry a note when the model declines to save', async () => {
@@ -73,6 +76,7 @@ describe('SMS OpenAI adapter', () => {
         reply: 'I am here.',
         save: false,
         field_note: null,
+        visual_risk: 0,
       }) } }],
     }))
 
@@ -82,7 +86,40 @@ describe('SMS OpenAI adapter', () => {
       history: [],
       apiKey: 'test-key',
       fetchImpl: fetchMock as typeof fetch,
-    })).resolves.toEqual({ reply: 'I am here.', fieldNote: null })
+    })).resolves.toEqual({ reply: 'I am here.', fieldNote: null, visualRisk: 0 })
+  })
+
+  it('sends image-only MMS as a multimodal content array', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response({
+      choices: [{ message: { content: JSON.stringify({
+        reply: 'That looks like a packed waiting room. What feels most present about being there?',
+        save: false,
+        field_note: null,
+        visual_risk: 0,
+      }) } }],
+    }))
+
+    const result = await generateSmsTurn({
+      text: '',
+      risk: 0,
+      history: [],
+      images: [{ contentType: 'image/jpeg', dataUrl: 'data:image/jpeg;base64,AQID' }],
+      failedImageCount: 1,
+      apiKey: 'test-key',
+      fetchImpl: fetchMock as typeof fetch,
+    })
+
+    expect(result.visualRisk).toBe(0)
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    const body = JSON.parse(String(init.body))
+    expect(body.response_format.json_schema.schema.required).toContain('visual_risk')
+    expect(body.messages[1].content).toHaveLength(2)
+    expect(body.messages[1].content[0].text).toContain('without a caption')
+    expect(body.messages[1].content[0].text).toContain('Images that could not be loaded: 1')
+    expect(body.messages[1].content[1]).toEqual({
+      type: 'image_url',
+      image_url: { url: 'data:image/jpeg;base64,AQID', detail: 'auto' },
+    })
   })
 
   it('rejects malformed structured turn output', async () => {

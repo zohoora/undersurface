@@ -75,6 +75,16 @@ describe('buildMarkdownExport — completeness (C-8)', () => {
     expect(md).toContain('What actually happened?')
   })
 
+  it('marks MMS image attachments without embedding provider media', () => {
+    const md = buildMarkdownExport({
+      smsMessages: [
+        { direction: 'inbound', body: '', mediaCount: 1, createdAt: 1_700_000_000_000 },
+      ],
+    }, {})
+
+    expect(md).toContain('[settings.sms.imageAttachment]')
+  })
+
   it('omits the conversations section entirely when there are no sessions', () => {
     const md = buildMarkdownExport({ entries: [] }, {})
     expect(md).not.toContain('conversations')

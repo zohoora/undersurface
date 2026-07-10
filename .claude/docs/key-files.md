@@ -147,7 +147,7 @@
 | File | Purpose |
 |------|---------|
 | `functions/src/index.ts` | Cloud Function exports, including `smsApi` + `smsInboundProcessor` |
-| `functions/src/sms/` | Twilio webhook, link store, adaptive SMS prompt + structured note decision, crisis pipeline, async delivery processor, and unit tests |
+| `functions/src/sms/` | Twilio SMS/MMS webhook, protected-media fetch/validation, multimodal adaptive prompt + structured note/visual-risk decision, crisis pipeline, async delivery processor, and unit tests |
 | `firebase.json` | Hosting config + API rewrites, including `/api/sms` |
 | `firestore.rules` | Security rules |
 | `vite.config.ts` | Vite + React + Tailwind v4 + VitePWA + Sentry source maps; `manualChunks` splits editor + sentry |

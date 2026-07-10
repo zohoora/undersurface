@@ -4,6 +4,7 @@ import {
   CRISIS_RESPONSE_FORMAT,
 } from '../shared/crisisClassifier.js'
 import { sanitizeSmsFieldNote, sanitizeSmsReply } from './field.js'
+import type { SmsImageInput } from './media.js'
 import { buildSmsSystemPrompt, wrapSmsHistory } from './prompts.js'
 
 const OPENAI_CRISIS_MODEL = 'gpt-5-nano'
@@ -32,8 +33,9 @@ const SMS_TURN_RESPONSE_FORMAT = {
         reply: { type: 'string' },
         save: { type: 'boolean' },
         field_note: { type: ['string', 'null'] },
+        visual_risk: { type: 'integer', enum: [0, 1, 2] },
       },
-      required: ['reply', 'save', 'field_note'],
+      required: ['reply', 'save', 'field_note', 'visual_risk'],
       additionalProperties: false,
     },
   },
@@ -42,6 +44,7 @@ const SMS_TURN_RESPONSE_FORMAT = {
 export interface SmsTurnResult {
   reply: string
   fieldNote: string | null
+  visualRisk: 0 | 1 | 2
 }
 
 export async function classifySmsCrisis(
@@ -89,12 +92,30 @@ export async function generateSmsTurn(opts: {
   text: string
   risk: 0 | 1
   history: SmsHistoryMessage[]
+  images?: SmsImageInput[]
+  failedImageCount?: number
   apiKey: string
   fetchImpl?: FetchLike
 }): Promise<SmsTurnResult> {
   const fetchImpl = opts.fetchImpl ?? fetch
   const historyBlock = wrapSmsHistory(opts.history)
-  const userContent = `${historyBlock ? `${historyBlock}\n\n` : ''}<untrusted_current_sms>\n${opts.text.slice(0, 1600)}\n</untrusted_current_sms>`
+  const currentText = opts.text.trim()
+    ? opts.text.slice(0, 1600)
+    : '[The writer sent image attachment(s) without a caption.]'
+  const mediaNotice = opts.images?.length || opts.failedImageCount
+    ? `\n\n<untrusted_mms_metadata>\nVisible images attached: ${opts.images?.length ?? 0}. Images that could not be loaded: ${opts.failedImageCount ?? 0}.\n</untrusted_mms_metadata>`
+    : ''
+  const userText = `${historyBlock ? `${historyBlock}\n\n` : ''}<untrusted_current_sms>\n${currentText}\n</untrusted_current_sms>${mediaNotice}`
+  const userContent: Array<
+    | { type: 'text'; text: string }
+    | { type: 'image_url'; image_url: { url: string; detail: 'auto' } }
+  > = [
+    { type: 'text', text: userText },
+    ...(opts.images ?? []).map(image => ({
+      type: 'image_url' as const,
+      image_url: { url: image.dataUrl, detail: 'auto' as const },
+    })),
+  ]
 
   const response = await fetchImpl('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -123,7 +144,7 @@ export async function generateSmsTurn(opts: {
   if (typeof content !== 'string' || content.trim().length === 0) {
     throw new Error('openai_empty')
   }
-  let parsed: { reply?: unknown; save?: unknown; field_note?: unknown }
+  let parsed: { reply?: unknown; save?: unknown; field_note?: unknown; visual_risk?: unknown }
   try {
     parsed = JSON.parse(content) as typeof parsed
   } catch {
@@ -133,6 +154,7 @@ export async function generateSmsTurn(opts: {
     typeof parsed.reply !== 'string'
     || typeof parsed.save !== 'boolean'
     || (parsed.field_note !== null && typeof parsed.field_note !== 'string')
+    || (parsed.visual_risk !== 0 && parsed.visual_risk !== 1 && parsed.visual_risk !== 2)
   ) {
     throw new Error('openai_malformed')
   }
@@ -145,5 +167,6 @@ export async function generateSmsTurn(opts: {
   return {
     reply,
     fieldNote: candidate || null,
+    visualRisk: parsed.visual_risk,
   }
 }

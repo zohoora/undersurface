@@ -218,6 +218,9 @@ export interface SmsMessage {
   carryForward?: boolean
   fieldNote?: string | null
   fieldNoteSelectedAt?: number
+  mediaCount?: number
+  mediaTypes?: string[]
+  mediaProcessed?: boolean
   risk?: 0 | 1 | 2
   providerSid?: string
   replyTo?: string
