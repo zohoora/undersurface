@@ -60,8 +60,8 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Test Firestore indexes
-        run: npx firebase emulators:exec --only firestore 'npx vitest run --config vitest.config.integration.ts'
+      - name: Test Firestore and Storage rules
+        run: npx firebase emulators:exec --only firestore,storage 'npx vitest run --config vitest.config.integration.ts'
         env:
           FIRESTORE_EMULATOR_HOST: localhost:8080
 
