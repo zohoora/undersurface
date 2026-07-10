@@ -1,4 +1,5 @@
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useSettings, updateSettings } from '../../store/settings'
 import type { AppSettings } from '../../store/settings'
 import { useGlobalConfig } from '../../store/globalConfig'
@@ -15,6 +16,7 @@ import PolicyModal from '../PolicyModal'
 import { SmsSettingsSection } from './SmsSettingsSection'
 import { CompanionPreferencesSection } from './CompanionPreferencesSection'
 import { timezoneLabel, timezoneOptions } from './timezoneOptions'
+import { useModalA11y } from '../../hooks/useModalA11y'
 
 const DeleteAccountModal = lazy(() => import('../DeleteAccountModal').catch(() => { window.location.reload(); return new Promise(() => {}) }))
 
@@ -72,6 +74,37 @@ function OptionGroup<T extends string>({
 interface SettingsPanelProps {
   isOpen: boolean
   onToggle: () => void
+}
+
+function SettingsSheetShell({
+  title,
+  closeLabel,
+  onClose,
+  children,
+}: {
+  title: string
+  closeLabel: string
+  onClose: () => void
+  children: ReactNode
+}) {
+  const panelRef = useRef<HTMLElement>(null)
+  useModalA11y(panelRef, onClose)
+
+  return (
+    <>
+      <button className="settings-sheet-backdrop" onClick={onClose} aria-label={closeLabel} />
+      <section
+        ref={panelRef}
+        className="settings-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
+      >
+        {children}
+      </section>
+    </>
+  )
 }
 
 export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
@@ -146,22 +179,36 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
   }
 
   return (
-    <div className="settings-panel">
-      <button
-        className={`settings-gear-btn${isOpen ? ' active' : ''}`}
-        onClick={onToggle}
-        aria-label="Toggle settings"
-        aria-expanded={isOpen}
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-          <circle cx="12" cy="12" r="3" />
-        </svg>
-        <span>{t['settings.title']}</span>
-      </button>
+    <>
+      <div className="settings-panel">
+        <button
+          className={`settings-gear-btn${isOpen ? ' active' : ''}`}
+          onClick={onToggle}
+          aria-label={t['settings.open']}
+          aria-expanded={isOpen}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          <span className="rail-copy">{t['settings.title']}</span>
+        </button>
+      </div>
 
-      {isOpen && (
-        <div className="settings-body">
+      {isOpen && createPortal((
+        <SettingsSheetShell
+          title={t['settings.title']}
+          closeLabel={t['settings.close']}
+          onClose={onToggle}
+        >
+            <header className="settings-sheet-header">
+              <div>
+                <div className="settings-sheet-eyebrow">UnderSurface</div>
+                <h2>{t['settings.title']}</h2>
+              </div>
+              <button className="settings-sheet-close" onClick={onToggle} aria-label={t['settings.close']}>×</button>
+            </header>
+            <div className="settings-body settings-sheet-scroll">
           {/* Account */}
           {user && (
             <div className="settings-section">
@@ -524,8 +571,9 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
             {policyOpen && <PolicyModal isOpen={policyOpen} onClose={() => setPolicyOpen(false)} />}
             {deleteOpen && <DeleteAccountModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} />}
           </Suspense>
-        </div>
-      )}
-    </div>
+            </div>
+        </SettingsSheetShell>
+      ), document.body)}
+    </>
   )
 }

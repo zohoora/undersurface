@@ -376,12 +376,7 @@ function App() {
         }
       />
       <EntriesList navigateTo={navigateTo} currentPath={routePath} />
-      <div style={{
-        position: 'fixed',
-        bottom: 20,
-        left: 16,
-        zIndex: 10,
-      }}>
+      <div className="inner-weather-shell">
         <InnerWeather weather={weather} />
       </div>
       <Suspense fallback={null}><CrisisResources visible={isGrounding} /></Suspense>
@@ -394,7 +389,6 @@ function App() {
               window.history.replaceState(null, '', `/session/${id}`)
               setRoutePath(`/session/${id}`)
             }}
-            onBack={() => navigateTo('/session/new')}
           />
         </Suspense>
       )}

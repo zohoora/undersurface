@@ -14,8 +14,7 @@ describe('Onboarding consent gate', () => {
     const onComplete = vi.fn()
     render(<Onboarding onComplete={onComplete} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /how does it work/i }))
-    fireEvent.click(screen.getByRole('button', { name: /one more thing/i }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
 
     const begin = screen.getByRole('button', { name: /begin a session/i })
     const boxes = screen.getAllByRole('checkbox')

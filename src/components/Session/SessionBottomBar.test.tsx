@@ -181,7 +181,7 @@ describe('SessionBottomBar', () => {
     it('source: parts toggle uses aria-checked bound to journalPartsOn', () => {
       const buttonIdx = SOURCE.indexOf('session-bottom-bar__parts')
       expect(buttonIdx).toBeGreaterThan(-1)
-      const nearButton = SOURCE.slice(buttonIdx, buttonIdx + 400)
+      const nearButton = SOURCE.slice(Math.max(0, buttonIdx - 120), buttonIdx + 400)
       expect(nearButton).toContain('aria-checked={journalPartsOn}')
       expect(nearButton).toContain('role="switch"')
     })
@@ -213,16 +213,11 @@ describe('SessionBottomBar', () => {
       }
     })
 
-    it('Inner voices and Real Talk are siblings inside the same toggles container', () => {
-      // The plan calls for the parts toggle "beside Real Talk" — same flex group,
-      // so they sit on the same right side of the bar.
-      const togglesIdx = SOURCE.indexOf('session-bottom-bar__toggles')
-      expect(togglesIdx).toBeGreaterThan(-1)
-      const wrapperEnd = SOURCE.indexOf('</div>', togglesIdx)
-      expect(wrapperEnd).toBeGreaterThan(togglesIdx)
-      const inner = SOURCE.slice(togglesIdx, wrapperEnd)
+    it('Inner voices and Real Talk live together in the session options menu', () => {
+      const optionsIdx = SOURCE.indexOf('session-options-menu')
+      expect(optionsIdx).toBeGreaterThan(-1)
+      const inner = SOURCE.slice(optionsIdx)
       expect(inner).toContain('session-bottom-bar__parts')
-      // Real Talk must sit after the parts toggle in the same wrapper.
       const partsPos = inner.indexOf('session-bottom-bar__parts')
       const realTalkPos = inner.indexOf('session-bottom-bar__realtalk')
       expect(realTalkPos).toBeGreaterThan(partsPos)

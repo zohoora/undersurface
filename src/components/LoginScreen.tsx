@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { useAuth } from '../auth/useAuth'
 import PolicyModal from './PolicyModal'
@@ -28,6 +28,7 @@ const inputStyle = {
   background: 'var(--surface-primary)',
   color: 'var(--text-primary)',
   width: FORM_WIDTH,
+  boxSizing: 'border-box' as const,
   outline: 'none',
 }
 
@@ -42,185 +43,22 @@ const policyLinkStyle = {
   textUnderlineOffset: 3,
 } as const
 
-// --- Demo content ---
-
-interface Demo {
-  text: string
-  partName: string
-  partColor: string
-  thought: string
-}
-
-const DEMOS: Demo[] = [
-  {
-    text: 'I smiled and said it was fine. But driving home, my hands were shaking on the wheel...',
-    partName: 'The Watcher',
-    partColor: '#5A7F94',
-    thought: "You\u2019re noticing the gap between what you showed them and what was actually happening inside.",
-  },
-  {
-    text: 'Every time something good starts, I find a way to ruin it. I did it again last week...',
-    partName: 'The Tender One',
-    partColor: '#B58548',
-    thought: "What if that\u2019s not you ruining things \u2014 but a part of you trying to leave before it gets left?",
-  },
-  {
-    text: 'I drove past her house today. The garden looks different now. Someone painted the door red...',
-    partName: 'The Weaver',
-    partColor: '#7E6BA0',
-    thought: "You\u2019re still mapping the world by where she used to be.",
-  },
-  {
-    text: "I can\u2019t stop running through tomorrow\u2019s conversation in my head. Every version ends badly...",
-    partName: 'The Still',
-    partColor: '#628E66',
-    thought: "You\u2019re not in that room yet. You\u2019re here, writing. Stay a moment.",
-  },
-  {
-    text: 'I keep almost saying it. At dinner, in the car, last night before bed. The words are right there...',
-    partName: 'The Spark',
-    partColor: '#A06A7A',
-    thought: "The words are ready. Maybe you\u2019re not looking for courage \u2014 you\u2019re looking for permission you already have.",
-  },
-]
-
-// --- Typing animation ---
-
-const CHAR_DELAY = 40
-const PAUSE_AFTER_TYPING = 800
-const THOUGHT_HOLD = 4000
-const FADE_DURATION = 600
-const RESET_DELAY = 1000
-
-function useDemoCarousel() {
-  const [demoIndex, setDemoIndex] = useState(0)
-  const [charIndex, setCharIndex] = useState(0)
-  const [phase, setPhase] = useState<'typing' | 'paused' | 'thought' | 'fadeout' | 'reset'>('typing')
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  const demo = DEMOS[demoIndex]
-
-  const cleanup = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    if (intervalRef.current) clearInterval(intervalRef.current)
-  }, [])
-
-  useEffect(() => {
-    cleanup()
-
-    if (phase === 'typing') {
-      intervalRef.current = setInterval(() => {
-        setCharIndex(prev => {
-          if (prev >= demo.text.length) {
-            if (intervalRef.current) clearInterval(intervalRef.current)
-            setPhase('paused')
-            return prev
-          }
-          return prev + 1
-        })
-      }, CHAR_DELAY)
-    } else if (phase === 'paused') {
-      timerRef.current = setTimeout(() => setPhase('thought'), PAUSE_AFTER_TYPING)
-    } else if (phase === 'thought') {
-      timerRef.current = setTimeout(() => setPhase('fadeout'), THOUGHT_HOLD)
-    } else if (phase === 'fadeout') {
-      timerRef.current = setTimeout(() => setPhase('reset'), FADE_DURATION)
-    } else if (phase === 'reset') {
-      timerRef.current = setTimeout(() => {
-        setDemoIndex(prev => (prev + 1) % DEMOS.length)
-        setCharIndex(0)
-        setPhase('typing')
-      }, RESET_DELAY)
-    }
-
-    return cleanup
-  }, [phase, demo.text.length, cleanup])
-
-  useEffect(() => cleanup, [cleanup])
-
-  return {
-    demo,
-    displayText: demo.text.slice(0, charIndex),
-    showCursor: phase === 'typing' || phase === 'paused',
-    showThought: phase === 'thought' || phase === 'fadeout',
-    isFadingOut: phase === 'fadeout' || phase === 'reset',
-  }
-}
-
 function DemoEditor() {
-  const { demo, displayText, showCursor, showThought, isFadingOut } = useDemoCarousel()
+  const t = useTranslation()
 
   return (
-    <div style={{
-      width: '100%',
-      maxWidth: 420,
-      opacity: isFadingOut ? 0 : 1,
-      transition: `opacity ${FADE_DURATION}ms ease`,
-    }}>
-      {/* Simulated editor box */}
-      <div style={{
-        background: 'var(--bg-warm)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 12,
-        padding: '20px 24px',
-        minHeight: 160,
-        position: 'relative',
-      }}>
-        {/* Typed text */}
-        <div style={{
-          fontFamily: "'Spectral', serif",
-          fontSize: 16,
-          lineHeight: 1.7,
-          color: 'var(--text-primary)',
-        }}>
-          {displayText}
-          {showCursor && (
-            <span style={{
-              display: 'inline-block',
-              width: 1.5,
-              height: '1.1em',
-              background: 'var(--text-primary)',
-              marginLeft: 1,
-              verticalAlign: 'text-bottom',
-              animation: 'cursorBlink 1.06s step-end infinite',
-            }} />
-          )}
-        </div>
-
-        {/* Thought bubble */}
-        <div style={{
-          marginTop: 16,
-          borderLeft: `3px solid ${demo.partColor}`,
-          background: `${demo.partColor}15`,
-          borderRadius: '0 8px 8px 0',
-          padding: '12px 16px',
-          opacity: showThought ? 1 : 0,
-          transform: showThought ? 'translateY(0)' : 'translateY(8px)',
-          transition: 'opacity 600ms ease, transform 600ms ease',
-        }}>
-          <div style={{
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 11,
-            fontWeight: 600,
-            textTransform: 'uppercase' as const,
-            letterSpacing: '0.05em',
-            color: demo.partColor,
-            marginBottom: 6,
-          }}>
-            {demo.partName}
-          </div>
-          <div style={{
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 14,
-            lineHeight: 1.6,
-            color: 'var(--text-secondary)',
-          }}>
-            {demo.thought}
-          </div>
-        </div>
+    <div className="landing-session-preview" aria-label={t['landing.previewLabel']}>
+      <div className="landing-preview-toolbar">
+        <span className="active">{t['session.bottomBar.talk']}</span>
+        <span>{t['session.bottomBar.journal']}</span>
+        <span>{t['session.bottomBar.speak']}</span>
+        <span>{t['session.bottomBar.relax']}</span>
       </div>
-    </div>
+      <div className="landing-preview-message landing-preview-message--writer">{t['landing.previewWriter']}</div>
+      <div className="landing-preview-message landing-preview-message--companion">{t['landing.previewCompanion']}</div>
+      <div className="landing-preview-thread"><span aria-hidden="true">↳</span>{t['landing.previewThread']}</div>
+      <div className="landing-preview-composer">{t['landing.previewComposer']}<span aria-hidden="true">↑</span></div>
+      </div>
   )
 }
 
@@ -251,15 +89,7 @@ export function LoginScreen() {
   }
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'var(--bg-primary)',
-      overflow: 'auto',
-      animation: 'landingFadeIn 1s ease-out',
-    }}>
+    <div className="landing-page">
       <style>{`
         @keyframes landingFadeIn { from { opacity: 0 } to { opacity: 1 } }
         @keyframes breathe { 0%, 100% { opacity: 0.15 } 50% { opacity: 0.3 } }
@@ -268,51 +98,17 @@ export function LoginScreen() {
       `}</style>
 
       {/* Subtle breathing circle — shared background */}
-      <div style={{
-        position: 'fixed',
-        width: 300,
-        height: 300,
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, var(--text-ghost) 0%, transparent 70%)',
-        opacity: 0.08,
-        animation: 'breathe 8s ease-in-out infinite',
-        pointerEvents: 'none',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-      }} />
+      <div className="landing-breath" />
 
       {/* ─── HERO SECTION ─── */}
-      <div style={{
-        minHeight: '100dvh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '40px 24px',
-        position: 'relative',
-        zIndex: 1,
-        gap: 32,
-      }}>
+      <div className="landing-hero">
         {/* Title */}
-        <div style={{
-          fontFamily: "'Spectral', serif",
-          fontSize: 42,
-          fontWeight: 400,
-          color: 'var(--text-primary)',
-          letterSpacing: '0.02em',
-        }}>
+        <div className="landing-wordmark">
           UnderSurface
         </div>
 
         {/* Headline */}
-        <div style={{
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 18,
-          color: 'var(--text-secondary)',
-          textAlign: 'center',
-          marginTop: -16,
-        }}>
+        <div className="landing-headline">
           {t['landing.headline']}
         </div>
 
@@ -320,21 +116,9 @@ export function LoginScreen() {
         <DemoEditor />
 
         {/* Feature points */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10,
-          maxWidth: 400,
-        }}>
+        <div className="landing-features">
           {(['landing.feature1', 'landing.feature2', 'landing.feature3'] as const).map(key => (
-            <div key={key} style={{
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 14,
-              lineHeight: 1.5,
-              color: 'var(--text-secondary)',
-              display: 'flex',
-              gap: 10,
-            }}>
+            <div key={key}>
               <span style={{ color: 'var(--text-ghost)', flexShrink: 0 }}>✦</span>
               <span>{t[key]}</span>
             </div>
@@ -343,33 +127,18 @@ export function LoginScreen() {
 
         {/* CTA button */}
         <button
-          onClick={scrollToAuth}
-          style={{
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 16,
-            padding: '14px 36px',
-            border: 'none',
-            borderRadius: 10,
-            background: 'var(--text-primary)',
-            color: 'var(--bg-primary)',
-            cursor: 'pointer',
-            letterSpacing: '0.01em',
-          }}
+          onClick={() => { switchMode('signup'); scrollToAuth() }}
+          className="landing-cta"
         >
           {t['landing.cta']}
         </button>
 
+        <button onClick={() => { switchMode('signin'); scrollToAuth() }} className="landing-signin-link">
+          {t['login.alreadyHaveAccount']}
+        </button>
+
         {/* Scroll hint */}
-        <div style={{
-          position: 'absolute',
-          bottom: 24,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          animation: 'bounceDown 2s ease-in-out infinite',
-          color: 'var(--text-ghost)',
-          fontSize: 20,
-          opacity: 0.5,
-        }}>
+        <div className="landing-scroll-hint">
           ↓
         </div>
       </div>
@@ -378,23 +147,9 @@ export function LoginScreen() {
       <div
         ref={authRef}
         id="auth-section"
-        style={{
-          minHeight: '100dvh',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '40px 20px',
-          position: 'relative',
-          zIndex: 1,
-        }}
+        className="landing-auth"
       >
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 16,
-        }}>
+        <div className="landing-auth-card">
           {/* Title */}
           <div style={{
             fontFamily: "'Spectral', serif",

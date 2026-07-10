@@ -117,31 +117,16 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             <div style={{ ...bodyStyle, maxWidth: 340 }}>
               {t['onboarding.step1.body']}
             </div>
+            <div style={bodyStyle}>
+              {t['onboarding.step2.body1']}
+            </div>
             <button onClick={() => { trackEvent('onboarding_step_completed', { step: 1 }); setStep(2) }} style={primaryButtonStyle}>
-              {t['onboarding.step1.button']}
+              {t['onboarding.continue']}
             </button>
           </>
         )}
 
         {step === 2 && (
-          <>
-            <div style={headingStyle}>{t['onboarding.step2.title']}</div>
-            <div style={bodyStyle}>
-              {t['onboarding.step2.body1']}
-            </div>
-            <div style={bodyStyle}>
-              {t['onboarding.step2.body2']}
-            </div>
-            <button onClick={() => { trackEvent('onboarding_step_completed', { step: 2 }); setStep(3) }} style={primaryButtonStyle}>
-              {t['onboarding.step2.button']}
-            </button>
-            <button onClick={() => setStep(1)} style={backButtonStyle}>
-              {t['onboarding.back']}
-            </button>
-          </>
-        )}
-
-        {step === 3 && (
           <>
             <div style={headingStyle}>{t['onboarding.step3.title']}</div>
             <div style={bodyStyle}>
@@ -206,7 +191,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             >
               {saving ? t['onboarding.step3.starting'] : t['onboarding.step3.begin']}
             </button>
-            <button onClick={() => setStep(2)} style={backButtonStyle}>
+            <button onClick={() => setStep(1)} style={backButtonStyle}>
               {t['onboarding.back']}
             </button>
           </>
@@ -214,7 +199,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
         {/* Step indicator */}
         <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-          {[1, 2, 3].map((s) => (
+          {[1, 2].map((s) => (
             <div
               key={s}
               style={{

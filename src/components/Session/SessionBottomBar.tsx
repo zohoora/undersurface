@@ -45,7 +45,7 @@ export function SessionBottomBar({
 
   return (
     <div className="session-bottom-bar" role="toolbar" aria-label="Session controls">
-      <div className="session-bottom-bar__surfaces">
+      <div className="session-bottom-bar__surfaces" aria-label={t('session.bottomBar.surfaces')}>
         <button
           type="button"
           className="session-bottom-bar__pill"
@@ -75,7 +75,7 @@ export function SessionBottomBar({
         {showRelaxSurface && (
           <button
             type="button"
-            className="session-bottom-bar__pill"
+            className="session-bottom-bar__pill session-bottom-bar__optional-surface"
             aria-pressed={activeSurface === 'relax'}
             onClick={() => handleSurfaceClick('relax')}
           >
@@ -85,7 +85,7 @@ export function SessionBottomBar({
         {showDriftSurface === true && (
           <button
             type="button"
-            className="session-bottom-bar__pill"
+            className="session-bottom-bar__pill session-bottom-bar__optional-surface"
             aria-pressed={activeSurface === 'drift'}
             onClick={() => handleSurfaceClick('drift')}
           >
@@ -93,8 +93,25 @@ export function SessionBottomBar({
           </button>
         )}
       </div>
-      <div className="session-bottom-bar__toggles">
-        {onMemoryApertureChange && (
+      <details className="session-options">
+        <summary className="session-bottom-bar__options" aria-label={t('session.bottomBar.options')}>
+          <span className="session-options-desktop">•••</span>
+          <span className="session-options-mobile">{t('session.bottomBar.more')}</span>
+        </summary>
+        <div className="session-options-menu" role="menu" aria-label={t('session.bottomBar.options')}>
+          <div className="session-options-menu__surfaces">
+            {showRelaxSurface && (
+              <button type="button" aria-pressed={activeSurface === 'relax'} onClick={() => handleSurfaceClick('relax')}>
+                {t('session.bottomBar.relax')}
+              </button>
+            )}
+            {showDriftSurface === true && (
+              <button type="button" aria-pressed={activeSurface === 'drift'} onClick={() => handleSurfaceClick('drift')}>
+                {t('session.bottomBar.drift')}
+              </button>
+            )}
+          </div>
+          {onMemoryApertureChange && (
           <button
             type="button"
             role="switch"
@@ -105,7 +122,8 @@ export function SessionBottomBar({
             disabled={memoryApertureLocked}
             onClick={() => onMemoryApertureChange(memoryAperture === 'fresh' ? 'pattern' : 'fresh')}
           >
-            ◌ {t('session.bottomBar.freshEyes')}
+            <span>◌ {t('session.bottomBar.freshEyes')}</span>
+            <span className="session-option-state">{memoryAperture === 'fresh' ? t('common.on') : t('common.off')}</span>
           </button>
         )}
         {activeSurface === 'journal' && showJournalPartsToggle && (
@@ -117,7 +135,8 @@ export function SessionBottomBar({
             aria-label={t('session.bottomBar.parts')}
             onClick={() => onJournalPartsToggle(!journalPartsOn)}
           >
-            ◉ {t('session.bottomBar.parts')}
+            <span>◉ {t('session.bottomBar.parts')}</span>
+            <span className="session-option-state">{journalPartsOn ? t('common.on') : t('common.off')}</span>
           </button>
         )}
         <button
@@ -129,9 +148,11 @@ export function SessionBottomBar({
           title={t('session.bottomBar.realTalkExplainer')}
           onClick={() => onRealTalkToggle(!realTalkOn)}
         >
-          ◇ {t('session.bottomBar.realTalk')}
+          <span>◇ {t('session.bottomBar.realTalk')}</span>
+          <span className="session-option-state">{realTalkOn ? t('common.on') : t('common.off')}</span>
         </button>
       </div>
+      </details>
     </div>
   )
 }

@@ -44,6 +44,7 @@ export function EntriesList({ navigateTo, currentPath }: Props) {
   const [activeTab, setActiveTab] = useState<'entries' | 'body'>('entries')
   const [searchQuery, setSearchQuery] = useState('')
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(30)
   const [sessions, setSessions] = useState<Session[]>([])
   const isMobile = useIsMobile()
   const t = useTranslation()
@@ -111,17 +112,32 @@ export function EntriesList({ navigateTo, currentPath }: Props) {
     return merged
   }, [sessions, searchQuery, showFavoritesOnly, t])
 
+  const visibleItems = searchQuery || showFavoritesOnly
+    ? sidebarItems
+    : sidebarItems.slice(0, visibleCount)
+
+  const toggleNavigation = useCallback(() => {
+    setIsOpen(value => {
+      if (value) setSettingsOpen(false)
+      return !value
+    })
+  }, [])
+
+  const toggleSettings = useCallback(() => {
+    setSettingsOpen(value => !value)
+    if (isMobile) setIsOpen(false)
+  }, [isMobile])
+
   return (
     <>
-      {isMobile && (
-        <button
-          className="sidebar-toggle"
-          onClick={() => setIsOpen((o) => !o)}
-          aria-label="Toggle entries"
-        >
-          {isOpen ? '✕' : '☰'}
-        </button>
-      )}
+      <button
+        className="sidebar-toggle"
+        onClick={toggleNavigation}
+        aria-label={isOpen ? t['sidebar.closeNavigation'] : t['sidebar.openNavigation']}
+        aria-expanded={isOpen}
+      >
+        {isOpen ? '✕' : '☰'}
+      </button>
 
       {isMobile && (
         <div
@@ -131,10 +147,20 @@ export function EntriesList({ navigateTo, currentPath }: Props) {
       )}
 
       <div
-        className={`entries-sidebar ${isMobile && isOpen ? 'open' : ''}`}
-        onMouseLeave={() => setSettingsOpen(false)}
+        className={`entries-sidebar ${isOpen ? 'open' : ''}`}
+        aria-label={t['sidebar.navigation']}
       >
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', opacity: settingsOpen ? 0.15 : 1, transition: 'opacity 0.25s ease', pointerEvents: settingsOpen ? 'none' : 'auto' }}>
+        <button className="rail-brand" onClick={toggleNavigation} aria-label={isOpen ? t['sidebar.collapse'] : t['sidebar.expand']}>
+          <span className="rail-brand-mark" aria-hidden="true">U</span>
+          <span className="rail-copy">UnderSurface</span>
+        </button>
+
+        <button className="rail-new-session" onClick={handleNewSession}>
+          <span className="rail-icon" aria-hidden="true">＋</span>
+          <span className="rail-copy">{t['sidebar.newSession']}</span>
+        </button>
+
+        <div className="sidebar-expanded-content">
           {showBodyMap ? (
             <div className="sidebar-tab-bar">
               <button
@@ -161,9 +187,7 @@ export function EntriesList({ navigateTo, currentPath }: Props) {
           ) : (
             <>
               <div className="sidebar-new-buttons">
-                <button className="new-entry-btn" onClick={handleNewSession}>
-                  {t['sidebar.newShort']}
-                </button>
+                <div className="sidebar-section-title">{t['sidebar.recent']}</div>
               </div>
 
               <div className="sidebar-search-toolbar">
@@ -202,8 +226,9 @@ export function EntriesList({ navigateTo, currentPath }: Props) {
                 {sidebarItems.length === 0 && (searchQuery || showFavoritesOnly) ? (
                   <div className="sidebar-no-results">{t['sidebar.noResults']}</div>
                 ) : (
-                  sidebarItems.map((item) => (
-                    <div
+                  visibleItems.map((item) => (
+                    <button
+                      type="button"
                       key={item.id}
                       className={`entry-item session-item ${'/session/' + item.id === currentPath ? 'active' : ''}`}
                       onClick={() => handleSelectSession(item.id)}
@@ -224,14 +249,19 @@ export function EntriesList({ navigateTo, currentPath }: Props) {
                         )}
                       </div>
                       <span className="session-item-label">{item.preview}</span>
-                    </div>
+                    </button>
                   ))
                 )}
               </div>
+              {!searchQuery && !showFavoritesOnly && visibleItems.length < sidebarItems.length && (
+                <button className="sidebar-load-older" onClick={() => setVisibleCount(count => count + 30)}>
+                  {t['sidebar.showOlder']}
+                </button>
+              )}
             </>
           )}
         </div>
-        <SettingsPanel isOpen={settingsOpen} onToggle={() => setSettingsOpen((o) => !o)} />
+        <SettingsPanel isOpen={settingsOpen} onToggle={toggleSettings} />
       </div>
     </>
   )
