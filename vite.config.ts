@@ -14,6 +14,17 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
+  server: {
+    // Keep local signed-in E2E on the same relative /api contract as Hosting.
+    // Vite has no Firebase rewrites, so without this proxy every companion,
+    // account, and SMS request fails locally with a 404.
+    proxy: {
+      '/api': {
+        target: 'https://undersurface.me',
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     // Ordinary verification builds are local-only. Release builds opt in to
     // hidden source maps + upload with SENTRY_UPLOAD_SOURCEMAPS=1.

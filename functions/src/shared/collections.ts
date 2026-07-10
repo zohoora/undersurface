@@ -33,6 +33,9 @@ export const USER_SUBCOLLECTIONS = [
   'companionPreferences',
   'fieldMoments',
   'interventionOutcomes',
+  'researchEvents',
+  'personalProtocols',
+  'livingHypotheses',
   'smsMessages',
   'smsSettings',
 ] as const

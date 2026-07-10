@@ -15,6 +15,7 @@ interface SmsSettingsDoc {
 
 interface SmsPhoneLinkDoc {
   uid: string
+  phoneE164?: string
   phoneLast4: string
   linkedAt: number
   enabled: boolean
@@ -124,6 +125,44 @@ export async function getLinkedUid(phone: string): Promise<string | null> {
   return data.enabled === true && typeof data.uid === 'string' ? data.uid : null
 }
 
+export function resolveOutboundPhone(
+  uid: string,
+  settings: SmsSettingsDoc | null,
+  link: SmsPhoneLinkDoc | null,
+): string | null {
+  if (!settings?.enabled || !settings.phoneHash || !link?.enabled || link.uid !== uid) return null
+  return normalizePhone(link.phoneE164 ?? '')
+}
+
+/** Resolve the linked destination without exposing it through a client API. */
+export async function getOutboundPhone(uid: string): Promise<string | null> {
+  const db = getFirestore()
+  const settingsSnap = await smsSettingsRef(uid).get()
+  if (!settingsSnap.exists) return null
+  const settings = settingsSnap.data() as SmsSettingsDoc
+  if (!settings.phoneHash || settings.enabled !== true) return null
+  const linkSnap = await phoneLinkRef(settings.phoneHash).get()
+  const resolved = resolveOutboundPhone(
+    uid,
+    settings,
+    linkSnap.exists ? linkSnap.data() as SmsPhoneLinkDoc : null,
+  )
+  if (resolved) return resolved
+
+  // Links created before proactive windows did not retain a recoverable
+  // destination. Migrate from the existing server-owned inbound envelope;
+  // the hash check prevents a stale queue item from changing the link.
+  const inbound = await db.collection('smsInbound').where('uid', '==', uid).limit(20).get()
+  for (const doc of inbound.docs) {
+    const phone = normalizePhone(doc.data().from)
+    if (phone && hashSmsValue(phone) === settings.phoneHash) {
+      await phoneLinkRef(settings.phoneHash).set({ phoneE164: phone }, { merge: true })
+      return phone
+    }
+  }
+  return null
+}
+
 export async function linkPhoneByCode(
   phone: string,
   code: string,
@@ -169,6 +208,7 @@ export async function linkPhoneByCode(
     const phoneLast4 = normalized.slice(-4)
     transaction.set(incomingLinkRef, {
       uid: codeData.uid,
+      phoneE164: normalized,
       phoneLast4,
       linkedAt: now,
       enabled: true,

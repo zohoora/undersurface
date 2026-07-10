@@ -30,12 +30,17 @@ import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
 import { PolarH10ConsentDialog } from './PolarH10ConsentDialog'
 import { PolarH10ConnectButton } from './PolarH10ConnectButton'
-import type { Session, SessionMessage, SessionMode } from '../../types'
+import type { AllianceRepairReason, Session, SessionMessage, SessionMode, SessionResearchContext } from '../../types'
 import { useTranslation } from '../../i18n'
 import type { MemoryAperture } from '../../types'
 import { FieldMosaic } from './FieldMosaic'
-import { DelayedOutcomePulse, OutcomePulse } from './OutcomePulse'
+import { DelayedOutcomePulse, FieldWindowTimingPulse, OutcomePulse } from './OutcomePulse'
 import { SurfaceArcGuide, SurfaceArcReturn } from './SurfaceArc'
+import { ReceptivityHandshake } from './ReceptivityHandshake'
+import { AllianceRepairFeedback, ResearchMomentNotice } from './ResearchMoment'
+import { repairReasonMessage } from '../../engine/allianceRepair'
+import { assignmentFromEvent, planResearchTurn } from '../../engine/personalScience'
+import { markResearchOverridden, persistResearchAssignment } from '../../store/personalScience'
 
 const VoiceField = lazy(() => import('./VoiceField').then(module => ({ default: module.VoiceField })))
 const RelaxField = lazy(() => import('./Relax/RelaxField'))
@@ -109,7 +114,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const sampledOutcomeMessageIds = useMemo(() => {
     const therapistMessages = messages.filter(message => message.speaker === 'therapist')
     return new Set(therapistMessages
-      .filter((_message, index) => (index + 1) % 4 === 0)
+      .filter((message, index) => (Boolean(message.researchEventId) && message.researchArm !== 'offer_journal_arc') || (index + 1) % 4 === 0)
       .map(message => message.id))
   }, [messages])
 
@@ -255,7 +260,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     [],
   )
 
-  const { generateTherapistMessage, appendUserMessage } = useSessionStream({
+  const { generateTherapistMessage, appendUserMessage, appendDeterministicCompanionMessage } = useSessionStream({
     sessionRef,
     messagesRef,
     contextRef,
@@ -269,6 +274,48 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     enqueueAppend,
     runtime: runtimeRef.current,
   })
+
+  const respondToUserTurn = useCallback(async (
+    updatedMessages: SessionMessage[],
+    currentSession: Session,
+  ): Promise<SessionMessage[]> => {
+    const assignment = grounding
+      ? null
+      : planResearchTurn(currentSession, updatedMessages, contextRef.current?.companionPreferences ?? undefined, {
+          grounding,
+          protocols: contextRef.current?.activePersonalProtocols,
+        })
+    if (!assignment) return generateTherapistMessage(updatedMessages, currentSession)
+
+    try {
+      await persistResearchAssignment(assignment.event)
+    } catch {
+      // Never deliver an experimental arm without its provenance record.
+      return generateTherapistMessage(updatedMessages, currentSession)
+    }
+
+    if (assignment.delivery === 'fixed_silence') {
+      return await appendDeterministicCompanionMessage(
+        tr['ps.fixed.silence'],
+        assignment.event,
+      ) ?? updatedMessages
+    }
+    if (assignment.delivery === 'fixed_journal_offer') {
+      return await appendDeterministicCompanionMessage(
+        `[${tr['ps.fixed.journal']}](#switch:journal-arc).`,
+        assignment.event,
+      ) ?? updatedMessages
+    }
+    if (assignment.delivery === 'fixed_transfer') {
+      const content = assignment.event.transferLevel === 'user_first'
+        ? tr['ps.transfer.fixed.userFirst']
+        : assignment.event.transferLevel === 'minimal_cue'
+          ? tr['ps.transfer.fixed.minimalCue']
+          : tr['ps.transfer.fixed.independent']
+      return await appendDeterministicCompanionMessage(content, assignment.event) ?? updatedMessages
+    }
+    return generateTherapistMessage(updatedMessages, currentSession, assignment)
+  }, [appendDeterministicCompanionMessage, generateTherapistMessage, grounding, tr])
 
   const voice = useSessionVoice({
     sessionRef,
@@ -308,7 +355,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       }
 
       const currentSession = sessionRef.current!
-      await generateTherapistMessage(result.updatedMessages, {
+      await respondToUserTurn(result.updatedMessages, {
         ...currentSession,
         messageCount: result.updatedMessages.length,
         firstLine: result.firstLine,
@@ -316,7 +363,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     } finally {
       runtimeRef.current.releaseSend()
     }
-  }, [isStreaming, generateTherapistMessage, appendUserMessage])
+  }, [isStreaming, respondToUserTurn, appendUserMessage])
 
   const handleMosaicOpen = useCallback(async (moment: { text: string }) => {
     if (isStreaming || !sessionRef.current || !runtimeRef.current.acquireSend()) return
@@ -325,7 +372,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       if (!result) return
       const currentSession = sessionRef.current
       if (!currentSession) return
-      await generateTherapistMessage(result.updatedMessages, {
+      await respondToUserTurn(result.updatedMessages, {
         ...currentSession,
         messageCount: result.updatedMessages.length,
         firstLine: result.firstLine,
@@ -333,7 +380,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     } finally {
       runtimeRef.current.releaseSend()
     }
-  }, [isStreaming, appendUserMessage, generateTherapistMessage])
+  }, [isStreaming, appendUserMessage, respondToUserTurn])
 
   const handleEndSession = useCallback(async () => {
     const currentSession = sessionRef.current
@@ -442,6 +489,37 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     void updateSession({ memoryAperture: next })
   }, [updateSession])
 
+  const handleResearchContext = useCallback((researchContext: SessionResearchContext) => {
+    void updateSession({ researchContext })
+  }, [updateSession])
+
+  const handleResearchOverride = useCallback(async (message: SessionMessage) => {
+    if (!message.researchEventId || isStreaming || !sessionRef.current || !runtimeRef.current.acquireSend()) return
+    try {
+      await markResearchOverridden(message.researchEventId, 'generated_response')
+      await generateTherapistMessage(messagesRef.current, sessionRef.current)
+    } finally {
+      runtimeRef.current.releaseSend()
+    }
+  }, [generateTherapistMessage, isStreaming])
+
+  const handleAllianceRepair = useCallback(async (reason: AllianceRepairReason) => {
+    if (isStreaming || !sessionRef.current || !runtimeRef.current.acquireSend()) return
+    try {
+      const result = await appendUserMessage(repairReasonMessage(reason), 'text', 'talk')
+      if (!result || !sessionRef.current) return
+      // Repair is never an experimental turn. The writer's correction gets a
+      // direct, ordinary response with the alliance constitution still active.
+      await generateTherapistMessage(result.updatedMessages, {
+        ...sessionRef.current,
+        messageCount: result.updatedMessages.length,
+        firstLine: result.firstLine,
+      })
+    } finally {
+      runtimeRef.current.releaseSend()
+    }
+  }, [appendUserMessage, generateTherapistMessage, isStreaming])
+
   const voiceState = voice.state
   const voiceStop = voice.stop
   const voiceHandleStart = voice.handleStart
@@ -472,6 +550,11 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     if (next === 'drift' && !driftEnabled) return
     const outcomeId = generateId()
     const now = Date.now()
+    const sourceMessage = messagesRef.current.at(-1)
+    const existingResearchEventId = sourceMessage?.researchArm === 'offer_journal_arc'
+      ? sourceMessage.researchEventId
+      : undefined
+    const researchEventId = existingResearchEventId ?? `research-arc-${outcomeId}`
     setActiveArc({ surface: next, outcomeId, startedAt: now })
     void db.interventionOutcomes.add({
       id: outcomeId,
@@ -479,9 +562,36 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       sourceId: messagesRef.current.at(-1)?.id ?? session.id,
       sessionId: session.id,
       intervention: 'surface_arc',
+      researchEventId,
       createdAt: now,
       updatedAt: now,
     })
+    if (existingResearchEventId) {
+      void db.researchEvents.update(existingResearchEventId, { outcomeId, updatedAt: now })
+    } else {
+      void db.researchEvents.add({
+        id: researchEventId,
+        protocolId: 'surface-choreography-v1',
+        protocolVersion: 1,
+        assignmentKind: 'observational',
+        status: 'delivered',
+        source: 'talk',
+        sessionId: session.id,
+        sourceId: sourceMessage?.id ?? session.id,
+        eligibilityPoint: 'user-chosen-surface-arc',
+        assignmentSeed: outcomeId,
+        assignedArm: `${next}_arc`,
+        deliveredArm: `${next}_arc`,
+        provider: 'deterministic',
+        deliveryFidelity: 'deterministic',
+        promptVersion: 'personal-science-v1',
+        appVersion: '2026-07-10.1',
+        outcomeId,
+        createdAt: now,
+        deliveredAt: now,
+        updatedAt: now,
+      })
+    }
     handleSurfaceChange(next)
   }, [session, handleSurfaceChange, grounding, voiceEnabled, relaxEnabled, driftEnabled])
 
@@ -555,7 +665,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     content: '',
     editorProps: {
       attributes: {
+        id: 'editor',
         class: 'session-input',
+        role: 'textbox',
+        'aria-label': 'Session message',
         spellcheck: 'false',
       },
       handleKeyDown: (_view, event) => {
@@ -832,7 +945,13 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
                     setOpenerError(null)
                     // Retry with current message context — empty for opener,
                     // populated for an empty-completion mid-session.
-                    await generateTherapistMessage(messagesRef.current, session)
+                    const lastUser = [...messagesRef.current].reverse().find(message => message.speaker === 'user')
+                    const pending = lastUser ? await db.researchEvents.get(`research-${lastUser.id}`) : undefined
+                    await generateTherapistMessage(
+                      messagesRef.current,
+                      session,
+                      pending?.status === 'assigned' ? assignmentFromEvent(pending) : undefined,
+                    )
                   } catch (err) {
                     setOpenerError(err instanceof Error ? err.message : 'Failed to retry')
                   }
@@ -854,6 +973,13 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
           {/* Messages list */}
           {session?.status === 'active' && !grounding && messages.length <= 2 && contextRef.current?.fieldMosaicEnabled !== false && <FieldMosaic sessionId={session.id} disabled={isStreaming} onBringIntoTalk={handleMosaicOpen} />}
+          {session?.status === 'active' && !grounding && messages.length <= 2 && contextRef.current?.personalScienceEnabled && !session.researchContext && (
+            <ReceptivityHandshake
+              onSave={handleResearchContext}
+              onSkip={() => handleResearchContext({ capturedAt: Date.now(), skipped: true })}
+            />
+          )}
+          {session?.status === 'active' && !grounding && messages.length <= 2 && contextRef.current?.outcomeSampling !== 'off' && <FieldWindowTimingPulse sessionId={session.id} />}
           {session?.status === 'active' && !grounding && messages.length <= 2 && contextRef.current?.outcomeSampling !== 'off' && <DelayedOutcomePulse sessionId={session.id} />}
           {!grounding && returnedArc && <SurfaceArcReturn outcomeId={returnedArc.outcomeId} surface={returnedArc.surface} onDone={() => setReturnedArc(null)} />}
           {messages.map((msg) => (
@@ -861,12 +987,19 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
               <SessionMessageBubble
                 message={msg}
                 onRecommendationTap={handleRecommendationTap}
+                prismSessionId={session?.status === 'active' && !grounding ? session.id : null}
                 intentionOfferSessionId={
                   session?.status === 'active' && getGlobalConfig()?.features?.sessionIntentions === true
                     ? session.id
                     : null
                 }
               />
+              {session?.status === 'active' && !grounding && msg.speaker === 'therapist' && (
+                <>
+                  <ResearchMomentNotice message={msg} onOverride={() => void handleResearchOverride(msg)} />
+                  <AllianceRepairFeedback message={msg} sessionId={session.id} onRepair={reason => void handleAllianceRepair(reason)} />
+                </>
+              )}
               {session?.status === 'active' && !grounding && contextRef.current?.outcomeSampling !== 'off' && sampledOutcomeMessageIds.has(msg.id) && (
                 <OutcomePulse message={msg} sessionId={session.id} />
               )}
@@ -943,6 +1076,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       {checkInSessionId && (
         <ClosingCheckIn
           sessionId={checkInSessionId}
+          showNextStep={contextRef.current?.personalScienceEnabled === true && contextRef.current?.antiDependenceCheckIns === true}
           onDone={() => {
             setCheckInSessionId(null)
             checkInAnsweredRef.current = true

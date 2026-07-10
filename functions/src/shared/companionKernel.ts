@@ -108,14 +108,15 @@ Write for a phone notification, not an app chat window. Images may accompany the
 
 export function buildCompanionKernelPrompt(
   channel: CompanionChannel,
-  options: { memoryAperture?: MemoryAperture; grounding?: boolean } = {},
+  options: { memoryAperture?: MemoryAperture; grounding?: boolean; alliancePreferences?: SharedAlliancePreferences } = {},
 ): string {
   return [
     SHARED_COMPANION_PRINCIPLES,
     buildCompanionChannelBlock(channel),
     buildMemoryApertureBlock(options.memoryAperture ?? 'pattern'),
     buildCompanionExperienceBlock(channel, options.grounding === true),
-  ].join('\n\n')
+    buildAlliancePreferencesBlock(options.alliancePreferences, options.grounding === true),
+  ].filter(Boolean).join('\n\n')
 }
 
 export interface SharedMemory {
@@ -140,10 +141,33 @@ export interface SharedPersonalFacts {
   currentThreads?: Array<{ topic: string }>
 }
 
+export interface SharedAlliancePreferences {
+  comfortBeforeChallenge?: boolean
+  askBeforeInterpretation?: boolean
+  directness?: 'gentle' | 'balanced' | 'direct'
+  questionFrequency?: 'fewer' | 'balanced'
+  ambiguityStyle?: 'adaptive' | 'single' | 'prism'
+  avoidPhrases?: string[]
+}
+
+export interface SharedLivingHypothesis {
+  text: string
+  status: 'confirmed' | 'contested'
+}
+
 export interface SharedCompanionContext {
   memoryAperture?: MemoryAperture
   fieldMosaicEnabled?: boolean
   outcomeSampling?: 'off' | 'light'
+  alliancePreferences?: SharedAlliancePreferences
+  activePersonalProtocols?: Array<{
+    title: string
+    preferredArm: string
+    context?: { state?: string; capacity?: string; need?: string }
+    transferStatus?: 'not_started' | 'learning' | 'paused' | 'graduated'
+    transferLevel?: 'companion_led' | 'user_first' | 'minimal_cue' | 'independent'
+  }>
+  livingHypotheses?: SharedLivingHypothesis[]
   outcomeContext?: string[]
   recentSessionNotes?: Array<{ note: string; date: number }>
   recentFieldNotes?: Array<{ text: string; date: number }>
@@ -180,6 +204,8 @@ export function applyMemoryAperture(
   const preferences = {
     fieldMosaicEnabled: context.fieldMosaicEnabled,
     outcomeSampling: context.outcomeSampling,
+    alliancePreferences: context.alliancePreferences,
+    activePersonalProtocols: context.activePersonalProtocols,
   }
   if (aperture === 'fresh') return { memoryAperture: aperture, ...preferences }
   if (aperture === 'light') {
@@ -196,6 +222,7 @@ export function applyMemoryAperture(
       outcomeContext: context.outcomeContext,
       duePromises: context.duePromises,
       missedPromise: context.missedPromise,
+      livingHypotheses: context.livingHypotheses,
     }
   }
   return { ...context, memoryAperture: aperture }
@@ -216,6 +243,29 @@ Longitudinal context is available, but your job is to resist narrative foreclosu
       return `MEMORY APERTURE: full continuity.
 Longitudinal context is available. Use it sparingly and tentatively; the current moment outranks history, and remembered patterns never become identity claims.`
   }
+}
+
+export function buildAlliancePreferencesBlock(
+  preferences?: SharedAlliancePreferences,
+  grounding = false,
+): string {
+  if (!preferences) return ''
+  const lines: string[] = []
+  if (preferences.comfortBeforeChallenge) lines.push('- Establish warmth and understanding before offering challenge or directness.')
+  if (preferences.askBeforeInterpretation) lines.push('- Ask permission before offering an interpretation about motives, patterns, or meaning.')
+  if (preferences.directness === 'gentle') lines.push('- Keep directness gentle and invitational.')
+  if (preferences.directness === 'direct' && !grounding) lines.push('- The writer welcomes plain, respectful directness when it is useful.')
+  if (preferences.questionFrequency === 'fewer') lines.push('- Ask fewer questions. Prefer a useful statement, pause, or ending unless a question is necessary.')
+  if (!grounding && preferences.ambiguityStyle === 'single') lines.push('- When offering an interpretation, offer one bounded, tentative hypothesis at a time and leave room for correction.')
+  if (!grounding && preferences.ambiguityStyle === 'prism') lines.push('- When meaning is genuinely ambiguous, prefer two or three short, nonexclusive possibilities and explicitly allow that none may fit. In SMS, keep this to at most two possibilities. Never diagnose or select a winner.')
+  const avoided = (preferences.avoidPhrases ?? [])
+    .filter(phrase => typeof phrase === 'string' && phrase.trim())
+    .slice(0, 12)
+    .map(phrase => wrapSharedUserContent(phrase.trim().slice(0, 80), 'avoid-phrase'))
+  if (avoided.length > 0) lines.push(`- Do not use these writer-specified phrases: ${avoided.join(', ')}.`)
+  if (grounding) lines.push('- Grounding overrides any preference for challenge or directness. Stay warm, plain, and safety-led.')
+  if (lines.length === 0) return ''
+  return `ALLIANCE CONSTITUTION — instructions the writer chose for how the companion should work with them:\n${lines.join('\n')}\nThese are behavior preferences, not facts about the writer. Follow them across channels without announcing them.`
 }
 
 export function buildCompanionExperienceBlock(
@@ -385,6 +435,22 @@ ${lines}
 When you actually deliver one, wrap the delivering phrase in this marker so it is recorded: [<your delivering phrase>](#kept-promise:<id>). Deliver like a person keeping their word — brief, warm, no ceremony about the mechanism. If the moment never comes this session, simply don't; it stays with you.`
 }
 
+function formatLivingHypothesesBlock(
+  hypotheses: NonNullable<SharedCompanionContext['livingHypotheses']>,
+): string {
+  const confirmed = hypotheses.filter(item => item.status === 'confirmed').slice(0, 6)
+  const contested = hypotheses.filter(item => item.status === 'contested').slice(0, 6)
+  const sections: string[] = []
+  if (confirmed.length > 0) {
+    sections.push(`Possibilities the writer has said fit at least partly:\n${confirmed.map(item => `- ${wrapSharedUserContent(item.text, 'confirmed-hypothesis')}`).join('\n')}`)
+  }
+  if (contested.length > 0) {
+    sections.push(`Interpretations the writer has contested — do not repeat these frames as explanations:\n${contested.map(item => `- ${wrapSharedUserContent(item.text, 'contested-hypothesis')}`).join('\n')}`)
+  }
+  if (sections.length === 0) return ''
+  return `LIVING HYPOTHESES — writer-reviewed possibilities, never facts or diagnoses:\n${sections.join('\n\n')}\nCurrent words and corrections outrank every item here. A confirmed hypothesis may be context-bound or outdated; offer it tentatively only when relevant.`
+}
+
 /**
  * Render the stable, longitudinal context that every companion channel sees.
  * Interaction mechanics (proposals, recommendations, presence, session
@@ -432,6 +498,21 @@ export function buildSharedContinuityBlocks(
     blocks.push(`What the writer's own check-ins say about prior companion moves:
 ${visible.outcomeContext.slice(0, 8).map(entry => `- ${sanitizeSharedPromptText(entry)}`).join('\n')}
 Use these as weak, evolving evidence. Avoid repeating moves that were unwanted or made things worse; do not turn a few taps into a fixed rule about the writer.`)
+  }
+  if (visible.activePersonalProtocols?.length) {
+    blocks.push(`Writer-approved personal protocols (their reviewed conclusions, not model inference):
+${visible.activePersonalProtocols.slice(0, 6).map(protocol => {
+  const conditions = [protocol.context?.state, protocol.context?.capacity, protocol.context?.need].filter(Boolean).join(', ')
+  const transfer = protocol.transferStatus === 'graduated'
+    ? '; transfer: writer-owned — prefer the lightest useful cue and do not automatically perform this move for them'
+    : ''
+  return `- ${wrapSharedUserContent(protocol.title, 'personal-protocol')} — preferred move: ${sanitizeSharedPromptText(protocol.preferredArm)}${conditions ? `; when: ${sanitizeSharedPromptText(conditions)}` : ''}${transfer}`
+}).join('\n')}
+Use a protocol only when the current moment genuinely matches its conditions. It is a writer-approved option, never a permanent rule. For a writer-owned graduated protocol, offer at most a minimal cue unless they ask for more help. Current requests and corrections outrank it.`)
+  }
+  if (visible.livingHypotheses?.length) {
+    const block = formatLivingHypothesesBlock(visible.livingHypotheses)
+    if (block) blocks.push(block)
   }
   if (visible.activeValues?.length) {
     blocks.push(`What matters to this writer (values they named themselves):\n${visible.activeValues.map(value => `- ${wrapSharedUserContent(value.name, 'value-name')} — ${wrapSharedUserContent(value.description, 'value-description')}`).join('\n')}\nRules: these are THEIR words for what they care about — never moralize with them, never weaponize them, never invent new values in conversation. Let them quietly orient your sense of what is at stake for this writer.`)

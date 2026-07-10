@@ -6,7 +6,6 @@ const REQUIRED = [
   'onboarding.step1.body',
   'onboarding.step2.title',
   'onboarding.step3.body',
-  'onboarding.step3.adult',
   'onboarding.step3.begin',
   'app.subtitle',
   'landing.headline',
@@ -24,6 +23,16 @@ const REQUIRED = [
   'biometric.notNow',
   'biometric.enable',
   'biometric.connect',
+  'ps.handshake.title',
+  'ps.notice',
+  'ps.missed',
+  'ps.settings.title',
+  'ps.alliance.title',
+  'ps.atlas.title',
+  'ps.closing.next',
+  'ps.transfer.start',
+  'ps.transfer.graduate',
+  'ps.outcome.agency.prompt',
 ] as const
 
 describe('session-first and biometric copy', () => {

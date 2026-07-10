@@ -38,6 +38,7 @@ import type { InnerWeather as InnerWeatherType } from './types'
 
 import { isAdmin } from './admin/isAdmin'
 import { hasRequiredConsent } from './auth/consentGate'
+import { getAuth } from 'firebase/auth'
 
 function EditorSkeleton() {
   return (
@@ -202,7 +203,11 @@ function App() {
     return () => {
       // No content available post-LivingEditor; log as a 0-word session.
       // RitualEngine still tracks the session boundary which is what matters.
-      ritualEngineRef.current?.logSession(0).catch(console.error)
+      // Account deletion signs out before this cleanup runs. Do not attempt a
+      // Firestore write after auth has disappeared.
+      if (getAuth().currentUser) {
+        ritualEngineRef.current?.logSession(0).catch(console.error)
+      }
     }
   }, [isReady])
 

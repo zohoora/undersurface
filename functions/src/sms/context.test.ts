@@ -37,6 +37,16 @@ function documents(): SmsContextDocuments {
       { id: 'next', status: 'active', text: 'ask about the interview', dueKind: 'next_session' },
       { id: 'missed', status: 'active', text: 'remember the anniversary', dueKind: 'date', dueDate: '2026-06-01' },
     ],
+    personalProtocols: [{
+      id: 'p1', status: 'active', title: 'Find the first concrete step',
+      preferredArm: 'make_concrete', context: { state: 'looping' },
+      transferStatus: 'graduated', transferLevel: 'independent', updatedAt: NOW,
+    }],
+    livingHypotheses: [
+      { status: 'confirmed', text: 'I may be buying time because it matters.', updatedAt: NOW },
+      { status: 'candidate', text: 'Do not load candidates.', updatedAt: NOW },
+      { status: 'contested', text: 'It is not simply indecision.', updatedAt: NOW },
+    ],
   }
 }
 
@@ -63,6 +73,13 @@ describe('SMS shared context derivation', () => {
     expect(result.activeValues?.[0]?.name).toBe('friendship')
     expect(result.duePromises?.map(item => item.id)).toEqual(['next'])
     expect(result.missedPromise?.id).toBe('missed')
+    expect(result.activePersonalProtocols?.[0]).toMatchObject({
+      title: 'Find the first concrete step', transferStatus: 'graduated', transferLevel: 'independent',
+    })
+    expect(result.livingHypotheses).toEqual([
+      { text: 'I may be buying time because it matters.', status: 'confirmed' },
+      { text: 'It is not simply indecision.', status: 'contested' },
+    ])
   })
 
   it('keeps foundational memory while feature-gating optional companion programs', () => {

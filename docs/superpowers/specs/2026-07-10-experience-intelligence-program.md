@@ -130,4 +130,4 @@ Primary outcomes: clarity, agency, activation direction, delayed residue, real-w
 - Firestore index/rules and Storage rules emulator suites under Java 21
 - Mobile-width rendered smoke pass and browser console check
 
-Authenticated browser coverage of the new settings and session controls is represented by component integration tests because the disposable browser account stopped at the mandatory age-attestation gate; automation did not attest to age on the user's behalf. The disposable account was deleted through the production account API.
+Authenticated browser coverage now includes a fully automated disposable-account journey through account creation, the two remaining onboarding acknowledgements, live companion responses, persisted preferences, the personal-science handshake, closing outcomes, account deletion, and rejection of the deleted credentials. The former age attestation was removed by product direction.

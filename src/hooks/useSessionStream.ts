@@ -9,6 +9,9 @@ import { extractPromiseMarkers } from '../ai/promiseParser'
 import { generateId as genId } from '../store/db'
 import { loadInSessionRelaxBreaks } from '../engine/sessionContextLoader'
 import { SignalTracker } from '../engine/signalTracker'
+import { validateResearchDelivery, type ResearchAssignment } from '../engine/personalScience'
+import { markResearchDelivered } from '../store/personalScience'
+import { markResearchCancelled } from '../store/personalScience'
 import type { TherapistContext } from '../engine/sessionContextLoader'
 import { isGroundingActive, activateGrounding } from './useGroundingMode'
 import { getWeatherEngine } from '../store/weatherStore'
@@ -16,7 +19,7 @@ import { useTranslation, getLanguageCode } from '../i18n'
 import type { useTypewriter } from './useTypewriter'
 import type { EnqueueAppend, SessionRuntime } from '../engine/sessionRuntime'
 import type { SessionOrchestrator } from '../engine/sessionOrchestrator'
-import type { Session, SessionMessage, SessionPhase, EmotionalTone, HrvConversationEventType } from '../types'
+import type { Session, SessionMessage, SessionPhase, EmotionalTone, HrvConversationEventType, ResearchEvent } from '../types'
 
 /**
  * Minimal interface the stream needs from a biometric session — either the
@@ -131,6 +134,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
   const generateTherapistMessage = useCallback(async (
     currentMessages: SessionMessage[],
     currentSession: Session,
+    researchAssignment?: ResearchAssignment,
   ): Promise<SessionMessage[]> => {
     setIsStreaming(true)
     setOpenerError(null)
@@ -186,6 +190,11 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           ? await loadInSessionRelaxBreaks(currentSession.id)
           : []
         const isFirstTurn = isFirstTherapistTurn(currentMessages)
+        // A Personal Science turn compares one interaction form at a time.
+        // Do not stack proposals, pivots, presence, humor, or surface markers
+        // onto the assigned form; that would make both the experience and the
+        // evidence uninterpretable.
+        const exclusiveResearchTurn = Boolean(researchAssignment)
 
         // Rupture repair: opener-only, consume-once (cleared after the opener
         // that used it finalizes). Pivot: a live tracker arm wins; otherwise
@@ -198,7 +207,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
         if (repairContext) repairIncludedRef.current = true
 
         let pivotDirective: { theme?: string } | undefined
-        if (pivotFlagOn && !isFirstTurn) {
+        if (pivotFlagOn && !isFirstTurn && !exclusiveResearchTurn) {
           if (pendingPivotRef.current) {
             pivotDirective = pendingPivotRef.current
             pendingPivotRef.current = null
@@ -221,6 +230,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           : undefined
         const partProposal =
           partsFlagOn &&
+          !exclusiveResearchTurn &&
           !isFirstTurn &&
           !pivotDirective &&
           !softenRef.current &&
@@ -238,6 +248,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           : undefined
         const namePatternFor =
           intentionsFlagOn &&
+          !exclusiveResearchTurn &&
           !isFirstTurn &&
           !pivotDirective &&
           !softenRef.current &&
@@ -247,7 +258,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             ? { text: context.intentionPatternToName.text }
             : undefined
         const intentionOffer =
-          intentionsFlagOn && !intentionOfferedRef.current && context?.intentionSlotsOpen === true
+          intentionsFlagOn && !exclusiveResearchTurn && !intentionOfferedRef.current && context?.intentionSlotsOpen === true
             ? true
             : undefined
 
@@ -275,13 +286,13 @@ export function useSessionStream(wiring: SessionStreamWiring) {
 
         // Story arc: delivered once on a non-opener turn, then cleared.
         const storyArc =
-          signalFeatures?.storyArcs === true && !isFirstTurn && !arcDeliveredRef.current && context?.storyArc
+          !exclusiveResearchTurn && signalFeatures?.storyArcs === true && !isFirstTurn && !arcDeliveredRef.current && context?.storyArc
             ? context.storyArc
             : undefined
 
         // Presence + humor: register-level permissions, prompt-gated.
-        const allowPresence = signalFeatures?.companionPresence === true ? true : undefined
-        const allowHumor = signalFeatures?.earnedHumor === true ? true : undefined
+        const allowPresence = !exclusiveResearchTurn && signalFeatures?.companionPresence === true ? true : undefined
+        const allowHumor = !exclusiveResearchTurn && signalFeatures?.earnedHumor === true ? true : undefined
 
         // Values: context every turn; the value proposal shares the single
         // per-session proposal slot with part proposals (parts win).
@@ -291,6 +302,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           : undefined
         const valueProposal =
           valuesFlagOn &&
+          !exclusiveResearchTurn &&
           !isFirstTurn &&
           !pivotDirective &&
           !softenRef.current &&
@@ -312,7 +324,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           isGrounding: isGroundingActive(),
           hrvContext,
           mode: currentSession.mode ?? 'standard',
-          allowRecommendations: true,
+          allowRecommendations: !exclusiveResearchTurn,
           availableSurfaceArcs: [
             'journal',
             ...(signalFeatures?.voiceEnabled === true ? ['speak' as const] : []),
@@ -324,7 +336,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           recentRelaxBreaks: context?.recentRelaxBreaks,
           repairContext,
           pivotDirective,
-          softenStance: repairFlagOn && softenRef.current ? true : undefined,
+          softenStance: repairFlagOn && softenRef.current && !exclusiveResearchTurn ? true : undefined,
           activeUserParts,
           lexicon,
           partProposal,
@@ -333,6 +345,10 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           intentionOffer,
           stanceContext,
           outcomeContext: context?.outcomeContext,
+          alliancePreferences: context?.alliancePreferences,
+          experimentDirective: researchAssignment?.directive,
+          personalProtocols: context?.activePersonalProtocols,
+          livingHypotheses: context?.livingHypotheses,
           activeValues,
           valueProposal,
           carriedNoticing,
@@ -363,6 +379,10 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           }
 
           const msgId = generateId()
+          const deliveryValidation = researchAssignment
+            ? validateResearchDelivery(researchAssignment, fullText)
+            : null
+          const deliveredAssignment = deliveryValidation?.delivered === false ? null : researchAssignment
           const newMessage: SessionMessage = {
             id: msgId,
             speaker: 'therapist',
@@ -373,6 +393,11 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             phase,
             isEmergence: false,
             surface: 'talk',
+            ...(deliveredAssignment ? {
+              responseMode: deliveredAssignment.responseMode,
+              researchEventId: deliveredAssignment.event.id,
+              researchArm: deliveredAssignment.event.assignedArm,
+            } : {}),
           }
 
           // Serialized append: read the base list fresh INSIDE the queue so a
@@ -392,6 +417,14 @@ export function useSessionStream(wiring: SessionStreamWiring) {
               firstLine,
               phase,
             })
+
+            if (deliveryValidation?.delivered === false && researchAssignment) {
+              await markResearchCancelled(researchAssignment.event.id, deliveryValidation.reason)
+                .catch(() => { /* response persistence outranks research telemetry */ })
+            } else if (deliveredAssignment) {
+              await markResearchDelivered(deliveredAssignment.event, msgId)
+                .catch(() => { /* response persistence outranks research telemetry */ })
+            }
 
             // Guard React-state writes against a mid-reveal session switch: if the
             // active session is no longer the one this message belongs to, applying
@@ -619,6 +652,53 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     hrv, typewriter, settings.responseSpeed, tr, runtime,
   ])
 
+  // Fixed, transparent research interventions use the same serialized append
+  // path as model responses. This makes designed silence and a Journal offer
+  // real delivered arms without pretending the model generated them.
+  const appendDeterministicCompanionMessage = useCallback(async (
+    content: string,
+    event: ResearchEvent,
+  ): Promise<SessionMessage[] | null> => {
+    const currentSession = sessionRef.current
+    if (!currentSession || currentSession.status !== 'active') return null
+    const trimmed = content.trim()
+    if (!trimmed) return null
+
+    return enqueueAppend(async () => {
+      const phase = orchestratorRef.current.detectPhase(messagesRef.current)
+      const message: SessionMessage = {
+        id: generateId(),
+        speaker: 'therapist',
+        partId: null,
+        partName: null,
+        content: trimmed,
+        timestamp: Date.now(),
+        phase,
+        isEmergence: false,
+        surface: 'talk',
+        responseMode: event.responseMode,
+        researchEventId: event.id,
+        researchArm: event.assignedArm,
+      }
+      await sessionMessagesDb.add(currentSession.id, message)
+      const updatedMessages = [...messagesRef.current, message]
+      const firstLine = currentSession.firstLine || trimmed.slice(0, 100)
+      await db.sessions.update(currentSession.id, {
+        messageCount: updatedMessages.length,
+        firstLine,
+        phase,
+      })
+      await markResearchDelivered(event, message.id)
+        .catch(() => { /* companion delivery must not fail on telemetry */ })
+      if (runtime.isSessionActive(currentSession.id)) {
+        setSession(previous => previous ? { ...previous, messageCount: updatedMessages.length, firstLine, phase } : previous)
+        setMessages(updatedMessages)
+        messagesRef.current = updatedMessages
+      }
+      return updatedMessages
+    })
+  }, [enqueueAppend, messagesRef, orchestratorRef, runtime, sessionRef, setMessages, setSession])
+
   // Persist a user-authored message (text or voice) and run the synchronous
   // side effects: HRV event, crisis-keyword check, async emotion/weather update.
   // Returns the updated message list + computed firstLine so callers can chain
@@ -705,5 +785,5 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     hrv, weatherEngine, runtime,
   ])
 
-  return { generateTherapistMessage, appendUserMessage }
+  return { generateTherapistMessage, appendUserMessage, appendDeterministicCompanionMessage }
 }

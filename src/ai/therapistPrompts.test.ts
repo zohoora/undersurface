@@ -1041,3 +1041,47 @@ describe('buildTherapistSystemPrompt — second-order injection red team', () =>
     expect(prompt).not.toMatch(/^system:/im)
   })
 })
+
+describe('buildTherapistSystemPrompt — personal science and alliance', () => {
+  it('includes an opted-in experiment directive and alliance constitution on an ordinary turn', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'exploration',
+      experimentDirective: 'PERSONAL SCIENCE TURN: use make_concrete.',
+      alliancePreferences: {
+        comfortBeforeChallenge: true,
+        askBeforeInterpretation: true,
+        directness: 'balanced',
+        questionFrequency: 'fewer',
+        avoidPhrases: ['everything happens for a reason'],
+      },
+    })
+    expect(prompt).toContain('PERSONAL SCIENCE TURN: use make_concrete.')
+    expect(prompt).toContain('ALLIANCE CONSTITUTION')
+    expect(prompt).toContain('Ask permission before offering an interpretation')
+    expect(prompt).toContain('Ask fewer questions')
+  })
+
+  it('suppresses the experiment under grounding while retaining safe alliance preferences', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'exploration',
+      isGrounding: true,
+      experimentDirective: 'PERSONAL SCIENCE TURN: use make_concrete.',
+      alliancePreferences: { directness: 'direct' },
+    })
+    expect(prompt).not.toContain('PERSONAL SCIENCE TURN: use make_concrete.')
+    expect(prompt).toContain('Grounding overrides any preference for challenge')
+    expect(prompt).not.toContain('welcomes plain, respectful directness')
+  })
+
+  it('treats a graduated protocol as writer-owned across channels and suppresses it under grounding', () => {
+    const personalProtocols = [{
+      title: 'Find the first concrete step', preferredArm: 'make_concrete',
+      context: { state: 'looping' }, transferStatus: 'graduated' as const,
+      transferLevel: 'independent' as const,
+    }]
+    const prompt = buildTherapistSystemPrompt({ phase: 'exploration', personalProtocols })
+    expect(prompt).toContain('writer-owned')
+    expect(prompt).toContain('offer at most a minimal cue')
+    expect(buildTherapistSystemPrompt({ phase: 'exploration', personalProtocols, isGrounding: true })).not.toContain('writer-owned')
+  })
+})

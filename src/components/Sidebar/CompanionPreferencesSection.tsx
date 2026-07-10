@@ -1,12 +1,26 @@
 import { useEffect, useState } from 'react'
 import { db } from '../../store/db'
-import type { CompanionPreferences, MemoryAperture, PartMemory, PersonalFacts, Session, UserProfile } from '../../types'
+import type { AlliancePreferences, CompanionPreferences, MemoryAperture, PartMemory, PersonalFacts, Session, UserProfile } from '../../types'
+import { useTranslation } from '../../i18n'
+
+const DEFAULT_ALLIANCE: AlliancePreferences = {
+  comfortBeforeChallenge: true,
+  askBeforeInterpretation: false,
+  directness: 'balanced',
+  questionFrequency: 'balanced',
+  ambiguityStyle: 'adaptive',
+  avoidPhrases: [],
+}
 
 const DEFAULTS: CompanionPreferences = {
   id: 'current',
   defaultMemoryAperture: 'pattern',
   fieldMosaicEnabled: true,
   outcomeSampling: 'light',
+  personalScienceEnabled: false,
+  antiDependenceCheckIns: true,
+  protocolPolicy: 'balanced',
+  alliance: DEFAULT_ALLIANCE,
   updatedAt: 0,
 }
 
@@ -158,6 +172,7 @@ function MemoryLedger() {
 }
 
 export function CompanionPreferencesSection({ isOpen }: { isOpen: boolean }) {
+  const tr = useTranslation()
   const [preferences, setPreferences] = useState(DEFAULTS)
   const [exists, setExists] = useState(false)
 
@@ -166,7 +181,7 @@ export function CompanionPreferencesSection({ isOpen }: { isOpen: boolean }) {
     void db.companionPreferences.get('current').then(value => {
       if (value) {
         setExists(true)
-        setPreferences({ ...DEFAULTS, ...value })
+        setPreferences({ ...DEFAULTS, ...value, alliance: { ...DEFAULT_ALLIANCE, ...value.alliance } })
       }
     })
   }, [isOpen])
@@ -175,6 +190,21 @@ export function CompanionPreferencesSection({ isOpen }: { isOpen: boolean }) {
     const next = withPreference(preferences, key, value)
     setPreferences(next)
     void savePreferences(next, exists).then(() => setExists(true))
+  }
+
+  const changeScience = (enabled: boolean) => {
+    const next: CompanionPreferences = {
+      ...preferences,
+      personalScienceEnabled: enabled,
+      ...(enabled && !preferences.personalScienceConsentAt ? { personalScienceConsentAt: Date.now() } : {}),
+      updatedAt: Date.now(),
+    }
+    setPreferences(next)
+    void savePreferences(next, exists).then(() => setExists(true))
+  }
+
+  const changeAlliance = <K extends keyof AlliancePreferences>(key: K, value: AlliancePreferences[K]) => {
+    change('alliance', { ...(preferences.alliance ?? DEFAULT_ALLIANCE), [key]: value })
   }
 
   const apertures: Array<{ value: MemoryAperture; label: string }> = [
@@ -200,6 +230,66 @@ export function CompanionPreferencesSection({ isOpen }: { isOpen: boolean }) {
         <input type="checkbox" checked={preferences.outcomeSampling === 'light'} onChange={event => change('outcomeSampling', event.target.checked ? 'light' : 'off')} />
       </label>
       <MemoryLedger />
+      <div style={{ borderTop: '1px solid var(--border-light)', marginTop: 12, paddingTop: 11 }}>
+        <div style={{ color: 'var(--text-primary)', fontSize: 11, marginBottom: 4 }}>{tr['ps.settings.title']}</div>
+        <div style={{ color: 'var(--text-ghost)', fontSize: 10, lineHeight: 1.45 }}>{tr['ps.settings.description']}</div>
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 8, color: 'var(--text-secondary)', fontSize: 11 }}>
+          {tr['ps.settings.learn']}
+          <input type="checkbox" checked={preferences.personalScienceEnabled === true} onChange={event => changeScience(event.target.checked)} />
+        </label>
+        {preferences.personalScienceEnabled === true && (
+          <>
+            <label style={{ display: 'grid', gap: 4, marginTop: 9, color: 'var(--text-secondary)', fontSize: 10 }}>
+              {tr['ps.settings.policy']}
+              <select value={preferences.protocolPolicy ?? 'balanced'} onChange={event => change('protocolPolicy', event.target.value as NonNullable<CompanionPreferences['protocolPolicy']>)} style={{ width: '100%', padding: '5px 7px', border: '1px solid var(--border-subtle)', borderRadius: 4, background: 'var(--surface-primary)', color: 'var(--text-primary)', fontSize: 11 }}>
+                <option value="use_what_helped">{tr['ps.settings.useHelped']}</option>
+                <option value="balanced">{tr['ps.settings.balanced']}</option>
+                <option value="explore">{tr['ps.settings.explore']}</option>
+              </select>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 8, color: 'var(--text-secondary)', fontSize: 11 }}>
+              {tr['ps.settings.after']}
+              <input type="checkbox" checked={preferences.antiDependenceCheckIns !== false} onChange={event => change('antiDependenceCheckIns', event.target.checked)} />
+            </label>
+          </>
+        )}
+      </div>
+      <div style={{ borderTop: '1px solid var(--border-light)', marginTop: 12, paddingTop: 11 }}>
+        <div style={{ color: 'var(--text-primary)', fontSize: 11, marginBottom: 4 }}>{tr['ps.alliance.title']}</div>
+        <div style={{ color: 'var(--text-ghost)', fontSize: 10, lineHeight: 1.45 }}>{tr['ps.alliance.description']}</div>
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 8, color: 'var(--text-secondary)', fontSize: 11 }}>
+          {tr['ps.alliance.comfort']}
+          <input type="checkbox" checked={preferences.alliance?.comfortBeforeChallenge !== false} onChange={event => changeAlliance('comfortBeforeChallenge', event.target.checked)} />
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 8, color: 'var(--text-secondary)', fontSize: 11 }}>
+          {tr['ps.alliance.ask']}
+          <input type="checkbox" checked={preferences.alliance?.askBeforeInterpretation === true} onChange={event => changeAlliance('askBeforeInterpretation', event.target.checked)} />
+        </label>
+        <label style={{ display: 'grid', gap: 4, marginTop: 9, color: 'var(--text-secondary)', fontSize: 10 }}>
+          {tr['ps.alliance.ambiguity']}
+          <select value={preferences.alliance?.ambiguityStyle ?? 'adaptive'} onChange={event => changeAlliance('ambiguityStyle', event.target.value as AlliancePreferences['ambiguityStyle'])} style={{ width: '100%', padding: '5px 7px', border: '1px solid var(--border-subtle)', borderRadius: 4, background: 'var(--surface-primary)', color: 'var(--text-primary)', fontSize: 11 }}>
+            <option value="adaptive">{tr['ps.alliance.ambiguityAdaptive']}</option>
+            <option value="single">{tr['ps.alliance.ambiguitySingle']}</option>
+            <option value="prism">{tr['ps.alliance.ambiguityPrism']}</option>
+          </select>
+        </label>
+        <label style={{ display: 'grid', gap: 4, marginTop: 9, color: 'var(--text-secondary)', fontSize: 10 }}>
+          {tr['ps.alliance.directness']}
+          <select value={preferences.alliance?.directness ?? 'balanced'} onChange={event => changeAlliance('directness', event.target.value as AlliancePreferences['directness'])} style={{ width: '100%', padding: '5px 7px', border: '1px solid var(--border-subtle)', borderRadius: 4, background: 'var(--surface-primary)', color: 'var(--text-primary)', fontSize: 11 }}>
+            <option value="gentle">{tr['ps.alliance.gentle']}</option>
+            <option value="balanced">{tr['ps.alliance.balanced']}</option>
+            <option value="direct">{tr['ps.alliance.direct']}</option>
+          </select>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 8, color: 'var(--text-secondary)', fontSize: 11 }}>
+          {tr['ps.alliance.fewerQuestions']}
+          <input type="checkbox" checked={preferences.alliance?.questionFrequency === 'fewer'} onChange={event => changeAlliance('questionFrequency', event.target.checked ? 'fewer' : 'balanced')} />
+        </label>
+        <label style={{ display: 'grid', gap: 4, marginTop: 9, color: 'var(--text-secondary)', fontSize: 10 }}>
+          {tr['ps.alliance.avoid']}
+          <input value={(preferences.alliance?.avoidPhrases ?? []).join(', ')} onChange={event => changeAlliance('avoidPhrases', event.target.value.split(',').map(value => value.trim()).filter(Boolean).slice(0, 12))} style={{ width: '100%', boxSizing: 'border-box', padding: '5px 7px', border: '1px solid var(--border-subtle)', borderRadius: 4, background: 'var(--surface-primary)', color: 'var(--text-primary)', fontSize: 11 }} />
+        </label>
+      </div>
     </div>
   )
 }

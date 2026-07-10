@@ -72,6 +72,7 @@ export async function handleDeleteAccount(uid: string, _params: Record<string, u
   await deleteQuery(db.collection('smsPhoneLinks').where('uid', '==', uid))
   await deleteQuery(db.collection('smsLinkCodes').where('uid', '==', uid))
   await deleteQuery(db.collection('smsInbound').where('uid', '==', uid))
+  await deleteQuery(db.collection('fieldWindowDispatches').where('uid', '==', uid))
 
   // 3. All user subcollections (single registry, includes apiKeys + SMS data).
   for (const coll of USER_SUBCOLLECTIONS) {

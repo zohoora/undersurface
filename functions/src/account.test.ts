@@ -25,6 +25,7 @@ let quotas: Map<string, DocNode>
 let smsPhoneLinks: Map<string, DocNode>
 let smsLinkCodes: Map<string, DocNode>
 let smsInbound: Map<string, DocNode>
+let fieldWindowDispatches: Map<string, DocNode>
 let deletedAuthUsers: string[]
 let authThrowsNotFound: boolean
 let setCalls: { id: string; fields: Record<string, unknown> }[]
@@ -94,6 +95,7 @@ const firestore = {
     if (name === 'smsPhoneLinks') return makeQuery(smsPhoneLinks)
     if (name === 'smsLinkCodes') return makeQuery(smsLinkCodes)
     if (name === 'smsInbound') return makeQuery(smsInbound)
+    if (name === 'fieldWindowDispatches') return makeQuery(fieldWindowDispatches)
     if (name === 'users') {
       return { doc: (id: string) => makeDocRef(users.get(id) ?? null, users, id) }
     }
@@ -146,6 +148,7 @@ function seedFullAccount(uid: string) {
   smsPhoneLinks.set(`phone-${uid}`, newDoc({ uid }))
   smsLinkCodes.set(`code-${uid}`, newDoc({ uid }))
   smsInbound.set(`inbound-${uid}`, newDoc({ uid }))
+  fieldWindowDispatches.set(`dispatch-${uid}`, newDoc({ uid }))
 }
 
 function makeRes() {
@@ -159,6 +162,7 @@ beforeEach(() => {
   smsPhoneLinks = new Map()
   smsLinkCodes = new Map()
   smsInbound = new Map()
+  fieldWindowDispatches = new Map()
   deletedAuthUsers = []
   authThrowsNotFound = false
   setCalls = []
@@ -182,6 +186,7 @@ describe('handleDeleteAccount', () => {
     expect([...smsPhoneLinks.values()].some(doc => doc.fields.uid === 'u1')).toBe(false)
     expect([...smsLinkCodes.values()].some(doc => doc.fields.uid === 'u1')).toBe(false)
     expect([...smsInbound.values()].some(doc => doc.fields.uid === 'u1')).toBe(false)
+    expect([...fieldWindowDispatches.values()].some(doc => doc.fields.uid === 'u1')).toBe(false)
     expect(deletedStoragePrefixes).toEqual(['field-moments/u1/'])
     expect(res.json).toHaveBeenCalledWith({ success: true })
   })

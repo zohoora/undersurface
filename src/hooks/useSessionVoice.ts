@@ -150,6 +150,9 @@ export function useSessionVoice({
         ? context.stanceEntries
         : undefined,
       outcomeContext: context.outcomeContext,
+      alliancePreferences: context.alliancePreferences,
+      personalProtocols: context.activePersonalProtocols,
+      livingHypotheses: context.livingHypotheses,
       activeValues: getGlobalConfig()?.features?.userValues === true && context.activeValues.length > 0
         ? context.activeValues
         : undefined,

@@ -49,6 +49,7 @@ const sessionUpdateMock = vi.fn(async () => {})
 const companionSignalsUpdateMock = vi.fn(async () => {})
 const userPartsUpdateMock = vi.fn(async () => {})
 const intentionUpdateMock = vi.fn(async () => {})
+const markResearchDeliveredMock = vi.fn(async () => {})
 let idCounter = 0
 vi.mock('../store/db', () => ({
   db: {
@@ -60,6 +61,9 @@ vi.mock('../store/db', () => ({
   },
   sessionMessages: { add: (...a: unknown[]) => sessionMessageAddMock(...a) },
   generateId: () => `msg-${++idCounter}`,
+}))
+vi.mock('../store/personalScience', () => ({
+  markResearchDelivered: (...args: unknown[]) => markResearchDeliveredMock(...args),
 }))
 
 const weatherRecordMock = vi.fn()
@@ -236,6 +240,7 @@ beforeEach(() => {
   companionSignalsUpdateMock.mockClear()
   userPartsUpdateMock.mockClear()
   intentionUpdateMock.mockClear()
+  markResearchDeliveredMock.mockClear()
   featuresMock = {}
   isGroundingMock.mockReturnValue(false)
   idCounter = 0
@@ -311,6 +316,32 @@ describe('useSessionStream — cross-session finalize guard', () => {
 })
 
 // ─── Tests: serialized appends (no lost messages) ─────────────
+
+describe('useSessionStream — deterministic research delivery', () => {
+  it('persists a fixed arm with research metadata through the serialized companion path', async () => {
+    const wiring = makeWiring({ messages: [makeUserMsg('I need room.')] })
+    const { result } = renderHook(() => useSessionStream(wiring))
+    const event = {
+      id: 'r1', protocolId: 'subtraction-v1', protocolVersion: 1, assignmentKind: 'randomized',
+      status: 'assigned', source: 'talk', sessionId: 'sess-1', eligibilityPoint: 'user-turn-2',
+      assignmentSeed: 'seed', assignedArm: 'designed_silence', responseMode: 'offer_quiet',
+      provider: 'deterministic', promptVersion: 'personal-science-v1', appVersion: 'test',
+      createdAt: 1, updatedAt: 1,
+    } as const
+
+    await act(async () => {
+      await result.current.appendDeterministicCompanionMessage('Take the space.', event)
+    })
+
+    expect(sessionMessageAddMock).toHaveBeenCalledWith('sess-1', expect.objectContaining({
+      content: 'Take the space.',
+      responseMode: 'offer_quiet',
+      researchEventId: 'r1',
+      researchArm: 'designed_silence',
+    }))
+    expect(markResearchDeliveredMock).toHaveBeenCalledWith(event, 'msg-1')
+  })
+})
 
 describe('useSessionStream — appendUserMessage serialization', () => {
   it('two concurrent appends both land — neither clobbers the other (N → N+2)', async () => {

@@ -67,7 +67,6 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState(1)
   const [disclaimerChecked, setDisclaimerChecked] = useState(false)
   const [privacyChecked, setPrivacyChecked] = useState(false)
-  const [adultChecked, setAdultChecked] = useState(false)
   const [policyOpen, setPolicyOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -75,7 +74,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     trackEvent('onboarding_step_viewed', { step })
   }, [step])
 
-  const canFinish = disclaimerChecked && privacyChecked && adultChecked
+  const canFinish = disclaimerChecked && privacyChecked
 
   const handleComplete = async () => {
     if (!canFinish || saving) return
@@ -87,7 +86,6 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         acceptedVersion: CURRENT_CONSENT_VERSION,
         disclaimerAccepted: true,
         privacyAccepted: true,
-        adultOnlyAcknowledged: true,
       })
       onComplete()
     } catch (err) {
@@ -157,15 +155,6 @@ export function Onboarding({ onComplete }: OnboardingProps) {
               gap: 12,
               padding: '4px 0',
             }}>
-              <label style={checkboxLabelStyle}>
-                <input
-                  type="checkbox"
-                  checked={adultChecked}
-                  onChange={(e) => setAdultChecked(e.target.checked)}
-                  style={checkboxStyle}
-                />
-                {t['onboarding.step3.adult']}
-              </label>
               <label style={checkboxLabelStyle}>
                 <input
                   type="checkbox"

@@ -8,6 +8,8 @@ import { extractPartProposal, extractValueProposal, extractPresence } from '../.
 import { extractIntentionOffer } from '../../ai/intentionOfferParser'
 import { extractPromiseMarkers } from '../../ai/promiseParser'
 import { scrubLeakedRiskMarker } from '../../ai/openrouter'
+import { extractAmbiguityPrism } from '../../ai/ambiguityPrismParser'
+import { AmbiguityPrism } from './AmbiguityPrism'
 
 interface Props {
   message: SessionMessageType
@@ -15,12 +17,14 @@ interface Props {
   // Set only for the ACTIVE session with the sessionIntentions flag on —
   // history and closed sessions never grow offer cards.
   intentionOfferSessionId?: string | null
+  prismSessionId?: string | null
 }
 
 export const SessionMessageBubble = memo(function SessionMessageBubble({
   message,
   onRecommendationTap,
   intentionOfferSessionId,
+  prismSessionId,
 }: Props) {
   const isUser = message.speaker === 'user'
   // Therapist messages persisted while older parsers were live can carry a
@@ -28,15 +32,23 @@ export const SessionMessageBubble = memo(function SessionMessageBubble({
   const scrubbed = isUser ? message.content : scrubLeakedRiskMarker(message.content)
   // Part-proposal / intention-offer markers: phrases render as plain text; the
   // consent cards render beneath.
-  const { content, proposal, offer, valueProposal, presence } = useMemo(() => {
-    if (isUser) return { content: scrubbed, proposal: null, offer: null, valueProposal: null, presence: false }
+  const { content, proposal, offer, valueProposal, presence, prism } = useMemo(() => {
+    if (isUser) return { content: scrubbed, proposal: null, offer: null, valueProposal: null, presence: false, prism: null }
     const partPass = extractPartProposal(scrubbed)
     const valuePass = extractValueProposal(partPass.cleanText)
     const offerPass = extractIntentionOffer(valuePass.cleanText)
     const promisePass = extractPromiseMarkers(offerPass.cleanText)
     const presencePass = extractPresence(promisePass.cleanText)
-    return { content: presencePass.cleanText, proposal: partPass.proposal, offer: offerPass.offer, valueProposal: valuePass.proposal, presence: presencePass.presence }
-  }, [isUser, scrubbed])
+    const prismPass = extractAmbiguityPrism(presencePass.cleanText)
+    return {
+      content: prismPass.cleanText,
+      proposal: partPass.proposal,
+      offer: offerPass.offer,
+      valueProposal: valuePass.proposal,
+      presence: presencePass.presence,
+      prism: message.researchArm === 'ambiguity_prism' && prismPass.valid ? prismPass.hypotheses : null,
+    }
+  }, [isUser, message.researchArm, scrubbed])
   const showRecommendations =
     !isUser && typeof message.content === 'string' && onRecommendationTap
 
@@ -90,6 +102,9 @@ export const SessionMessageBubble = memo(function SessionMessageBubble({
         {valueProposal && <ValueProposalCard valueId={valueProposal.valueId} />}
         {offer && intentionOfferSessionId && (
           <IntentionCard phrase={offer.phrase} sessionId={intentionOfferSessionId} />
+        )}
+        {prism && prismSessionId && (
+          <AmbiguityPrism message={message} sessionId={prismSessionId} hypotheses={prism} />
         )}
       </div>
     </>

@@ -7,6 +7,7 @@ import {
   type SmsStatus,
 } from '../../api/accountApi'
 import { useTranslation } from '../../i18n'
+import { FieldWindowSettings } from './FieldWindowSettings'
 
 const buttonStyle = {
   fontSize: 11,
@@ -114,6 +115,7 @@ export function SmsSettingsSection({ isOpen }: { isOpen: boolean }) {
           <div style={{ fontSize: 10, color: 'var(--text-ghost)', lineHeight: 1.5 }}>
             {t['settings.sms.guidance']}
           </div>
+          <FieldWindowSettings isOpen={isOpen} />
           <button
             type="button"
             onClick={() => void handleUnlink()}

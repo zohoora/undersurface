@@ -85,6 +85,51 @@ describe('buildMarkdownExport — completeness (C-8)', () => {
     expect(md).toContain('[settings.sms.imageAttachment]')
   })
 
+  it('exports personal-science provenance and writer-reviewed protocols', () => {
+    const md = buildMarkdownExport({
+      researchEvents: [{
+        protocolId: 'subtraction-v1', status: 'delivered', assignedArm: 'designed_silence',
+        deliveredArm: 'designed_silence', outcomeId: 'o1', createdAt: 1_700_000_000_000,
+      }],
+      personalProtocols: [{
+        title: 'Quiet first when I am looping', status: 'active', confidence: 'early',
+        transferStatus: 'graduated', transferLevel: 'independent',
+        createdAt: 1_700_000_000_000,
+      }],
+      interventionOutcomes: [{
+        source: 'talk', intervention: 'user_first', immediate: 'helped', agency: 'more',
+        horizonOutcomes: [{ horizon: 'next_day', outcome: 'used', reportedAt: 1_700_086_400_000 }],
+        prismFeedback: { hypotheses: [{ id: 'h1', text: 'Maybe tired.', fit: 'fits' }], noneFit: false, correctionEffort: 'easy', submittedAt: 1_700_000_000_001 },
+        createdAt: 1_700_000_000_000,
+      }],
+      companionPreferences: [{
+        id: 'current',
+        fieldWindows: {
+          enabled: true, timezone: 'America/Toronto', maxPerWeek: 2,
+          windows: [{ label: 'After work', days: [1, 2, 3, 4, 5], startMinute: 1020, endMinute: 1140, purpose: 'settle', enabled: true }],
+        },
+      }],
+      livingHypotheses: [{
+        text: 'I may be buying time because this matters.', status: 'confirmed', source: 'writer_rewrite',
+        createdAt: 1_700_000_000_000,
+      }],
+    }, {})
+
+    expect(md).toContain('Personal science events')
+    expect(md).toContain('subtraction-v1')
+    expect(md).toContain('assigned designed_silence → delivered designed_silence → outcome o1')
+    expect(md).toContain('Personal protocols')
+    expect(md).toContain('Quiet first when I am looping')
+    expect(md).toContain('transfer graduated at independent')
+    expect(md).toContain('agency:more')
+    expect(md).toContain('next_day:used')
+    expect(md).toContain('Field window preferences')
+    expect(md).toContain('After work')
+    expect(md).toContain('prism:1 reviewed, effort:easy')
+    expect(md).toContain('Living hypotheses')
+    expect(md).toContain('buying time because this matters')
+  })
+
   it('omits the conversations section entirely when there are no sessions', () => {
     const md = buildMarkdownExport({ entries: [] }, {})
     expect(md).not.toContain('conversations')

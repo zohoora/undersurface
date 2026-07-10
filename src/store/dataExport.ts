@@ -341,8 +341,71 @@ export function buildMarkdownExport(
     ln(`## Intervention outcomes`)
     ln()
     for (const outcome of outcomes) {
-      const result = [outcome.immediate, outcome.delayed].filter(Boolean).join(' → ') || 'not rated'
+      const horizons = Array.isArray(outcome.horizonOutcomes)
+        ? outcome.horizonOutcomes.map((row: Record<string, unknown>) => `${String(row.horizon)}:${String(row.outcome)}`)
+        : []
+      const prism = outcome.prismFeedback && typeof outcome.prismFeedback === 'object'
+        ? `prism:${Array.isArray(outcome.prismFeedback.hypotheses) ? outcome.prismFeedback.hypotheses.length : 0} reviewed${outcome.prismFeedback.noneFit === true ? ', none fit' : ''}${outcome.prismFeedback.correctionEffort ? `, effort:${String(outcome.prismFeedback.correctionEffort)}` : ''}`
+        : ''
+      const result = [outcome.immediate, outcome.delayed, ...horizons, prism, outcome.agency ? `agency:${String(outcome.agency)}` : '', outcome.nextStep ? `next:${String(outcome.nextStep)}` : ''].filter(Boolean).join(' → ') || 'not rated'
       ln(`- **${fmtDate(outcome.createdAt as number)} · ${String(outcome.source)} · ${String(outcome.intervention)}:** ${result}`)
+    }
+    ln()
+  }
+
+  const companionPreferences = collections.companionPreferences?.find(item => item.id === 'current')
+  const fieldWindows = companionPreferences?.fieldWindows as Record<string, unknown> | undefined
+  if (fieldWindows) {
+    ln(`## Field window preferences`)
+    ln()
+    ln(`- **Status:** ${fieldWindows.enabled === true ? 'enabled' : 'disabled'}`)
+    ln(`- **Timezone:** ${String(fieldWindows.timezone ?? 'not set')}`)
+    ln(`- **Maximum proactive messages per week:** ${String(fieldWindows.maxPerWeek ?? 'not set')}`)
+    const windows = Array.isArray(fieldWindows.windows) ? fieldWindows.windows as Array<Record<string, unknown>> : []
+    for (const window of windows) {
+      ln(`- **${String(window.label ?? 'Field window')}:** days ${Array.isArray(window.days) ? window.days.join(',') : ''} · minutes ${String(window.startMinute)}–${String(window.endMinute)} · ${String(window.purpose)} · ${window.enabled === false ? 'disabled' : 'enabled'}`)
+    }
+    ln()
+  }
+
+  const researchEvents = [...(collections.researchEvents ?? [])]
+    .filter(event => typeof event.createdAt === 'number')
+    .sort((a, b) => (a.createdAt as number) - (b.createdAt as number))
+  if (researchEvents.length > 0) {
+    ln(`## Personal science events`)
+    ln()
+    for (const event of researchEvents) {
+      const delivery = event.deliveredArm ? ` → delivered ${String(event.deliveredArm)}` : ''
+      const outcome = event.outcomeId ? ` → outcome ${String(event.outcomeId)}` : ''
+      const fidelity = event.deliveryFidelity ? ` · ${String(event.deliveryFidelity)}` : ''
+      ln(`- **${fmtDate(event.createdAt as number)} · ${String(event.protocolId)} · ${String(event.status)}${fidelity}:** assigned ${String(event.assignedArm)}${delivery}${outcome}`)
+    }
+    ln()
+  }
+
+  const personalProtocols = [...(collections.personalProtocols ?? [])]
+    .filter(protocol => typeof protocol.title === 'string' && typeof protocol.createdAt === 'number')
+    .sort((a, b) => (a.createdAt as number) - (b.createdAt as number))
+  if (personalProtocols.length > 0) {
+    ln(`## Personal protocols`)
+    ln()
+    for (const protocol of personalProtocols) {
+      const transfer = protocol.transferStatus
+        ? ` · transfer ${String(protocol.transferStatus)}${protocol.transferLevel ? ` at ${String(protocol.transferLevel)}` : ''}`
+        : ''
+      ln(`- **${String(protocol.status)} · ${String(protocol.confidence)}${transfer}:** ${String(protocol.title)}`)
+    }
+    ln()
+  }
+
+  const livingHypotheses = [...(collections.livingHypotheses ?? [])]
+    .filter(item => typeof item.text === 'string' && typeof item.createdAt === 'number')
+    .sort((a, b) => (a.createdAt as number) - (b.createdAt as number))
+  if (livingHypotheses.length > 0) {
+    ln(`## Living hypotheses`)
+    ln()
+    for (const item of livingHypotheses) {
+      ln(`- **${String(item.status)} · ${String(item.source)}:** ${String(item.text)}`)
     }
     ln()
   }
@@ -358,6 +421,7 @@ export async function exportAllData() {
     'hrvSessions', 'relaxSessions', 'driftSessions', 'companionSignals', 'userParts',
     'sessionIntentions', 'stanceProfile', 'userValues', 'companionPromises',
     'companionPreferences', 'fieldMoments', 'interventionOutcomes', 'smsMessages',
+    'researchEvents', 'personalProtocols', 'livingHypotheses',
   ] as const
 
   const results = await Promise.all(

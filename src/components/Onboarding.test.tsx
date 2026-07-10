@@ -9,8 +9,8 @@ vi.mock('./PolicyModal', () => ({ default: () => null }))
 
 const { Onboarding } = await import('./Onboarding')
 
-describe('Onboarding adult audience gate', () => {
-  it('requires the adult, service, and policy acknowledgements before starting', async () => {
+describe('Onboarding consent gate', () => {
+  it('requires the service and policy acknowledgements before starting', async () => {
     const onComplete = vi.fn()
     render(<Onboarding onComplete={onComplete} />)
 
@@ -19,17 +19,21 @@ describe('Onboarding adult audience gate', () => {
 
     const begin = screen.getByRole('button', { name: /begin a session/i })
     const boxes = screen.getAllByRole('checkbox')
-    expect(boxes).toHaveLength(3)
+    expect(boxes).toHaveLength(2)
     expect(begin).toBeDisabled()
 
     fireEvent.click(boxes[0])
-    fireEvent.click(boxes[1])
     expect(begin).toBeDisabled()
-    fireEvent.click(boxes[2])
+    fireEvent.click(boxes[1])
     expect(begin).toBeEnabled()
 
     fireEvent.click(begin)
     await waitFor(() => expect(onComplete).toHaveBeenCalledOnce())
-    expect(consentAdd).toHaveBeenCalledWith(expect.objectContaining({ adultOnlyAcknowledged: true }))
+    expect(consentAdd).toHaveBeenCalledWith(expect.objectContaining({
+      acceptedVersion: '1.0',
+      disclaimerAccepted: true,
+      privacyAccepted: true,
+    }))
+    expect(consentAdd).not.toHaveBeenCalledWith(expect.objectContaining({ adultOnlyAcknowledged: expect.anything() }))
   })
 })

@@ -5,12 +5,14 @@ import { REGISTER_TIERS, renderRegisterBlock, applyGroundingCap } from './regist
 import {
   buildCompanionChannelBlock,
   buildCompanionExperienceBlock,
+  buildAlliancePreferencesBlock,
   buildMemoryApertureBlock,
   buildSharedContinuityBlocks,
   COMPANION_CHANNEL_CAPABILITIES,
   SHARED_COMPANION_PRINCIPLES,
   type CompanionChannel,
   type MemoryAperture,
+  type SharedAlliancePreferences,
 } from '../../functions/src/shared/companionKernel'
 
 // Risk-classification preamble. The therapist emits exactly one of
@@ -274,6 +276,18 @@ export interface TherapistPromptOptions {
   // Sparse user-rated immediate and delayed outcomes from prior companion
   // moves. User report outranks the model's guess about what helped.
   outcomeContext?: string[]
+  alliancePreferences?: SharedAlliancePreferences
+  // One writer-opted-in, versioned response-form assignment. It never
+  // overrides grounding, safety, or an explicit request from the writer.
+  experimentDirective?: string
+  personalProtocols?: Array<{
+    title: string
+    preferredArm: string
+    context?: { state?: string; capacity?: string; need?: string }
+    transferStatus?: 'not_started' | 'learning' | 'paused' | 'graduated'
+    transferLevel?: 'companion_led' | 'user_first' | 'minimal_cue' | 'independent'
+  }>
+  livingHypotheses?: Array<{ text: string; status: 'confirmed' | 'contested' }>
   // What matters to this writer, in their words (confirmed values).
   activeValues?: { name: string; description: string }[]
   // One candidate value to offer (shares the single proposal slot with parts).
@@ -411,6 +425,8 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   parts.push(buildCompanionChannelBlock(channel))
   parts.push(buildMemoryApertureBlock(options.memoryAperture ?? 'pattern'))
   parts.push(buildCompanionExperienceBlock(channel, options.isGrounding === true))
+  const allianceBlock = buildAlliancePreferencesBlock(options.alliancePreferences, options.isGrounding === true)
+  if (allianceBlock) parts.push(allianceBlock)
   parts.push(PHASE_HINTS[useRealTalk ? 'real_talk' : 'standard'][options.phase])
 
   // Grounding caps literate/scholarly down to conversational — distress is not
@@ -431,6 +447,8 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
     openIntentions: options.openIntentions,
     stanceContext: options.stanceContext,
     outcomeContext: options.outcomeContext,
+    activePersonalProtocols: options.personalProtocols,
+    livingHypotheses: options.livingHypotheses,
     activeValues: options.activeValues,
     duePromises: options.duePromises,
     missedPromise: options.missedPromise,
@@ -535,6 +553,10 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   }
   if (!options.isGrounding && durableContextEnabled && options.allowHumor) {
     parts.push(HUMOR_BLOCK)
+  }
+
+  if (!options.isGrounding && options.experimentDirective) {
+    parts.push(options.experimentDirective)
   }
 
   // Allow inline recommendation phrases only when:

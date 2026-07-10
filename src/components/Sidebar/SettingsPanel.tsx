@@ -14,39 +14,8 @@ import { db } from '../../store/db'
 import PolicyModal from '../PolicyModal'
 import { SmsSettingsSection } from './SmsSettingsSection'
 import { CompanionPreferencesSection } from './CompanionPreferencesSection'
-
-const TIMEZONE_VALUES = [
-  'Pacific/Honolulu',
-  'America/Anchorage',
-  'America/Los_Angeles',
-  'America/Denver',
-  'America/Chicago',
-  'America/New_York',
-  'America/Halifax',
-  'America/Sao_Paulo',
-  'Europe/London',
-  'Europe/Paris',
-  'Europe/Helsinki',
-  'Asia/Dubai',
-  'Asia/Kolkata',
-  'Asia/Shanghai',
-  'Asia/Tokyo',
-  'Asia/Seoul',
-  'Australia/Sydney',
-  'Pacific/Auckland',
-] as const
-
-function getTimezoneName(iana: string, locale: string): string {
-  try {
-    const parts = new Intl.DateTimeFormat(locale, {
-      timeZone: iana,
-      timeZoneName: 'long',
-    }).formatToParts(new Date())
-    return parts.find(p => p.type === 'timeZoneName')?.value ?? iana
-  } catch {
-    return iana
-  }
-}
+import { WhatHelpsMeSection } from './WhatHelpsMeSection'
+import { timezoneLabel, timezoneOptions } from './timezoneOptions'
 
 const DeleteAccountModal = lazy(() => import('../DeleteAccountModal').catch(() => { window.location.reload(); return new Promise(() => {}) }))
 
@@ -232,6 +201,8 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
 
           {user && <CompanionPreferencesSection isOpen={isOpen} />}
 
+          {user && <WhatHelpsMeSection isOpen={isOpen} />}
+
           {/* Parts of you (userParts flag; renders nothing when off/empty) */}
           <UserPartsSection isOpen={isOpen} />
 
@@ -283,8 +254,8 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
                   outline: 'none',
                 }}
               >
-                {TIMEZONE_VALUES.map((tz) => (
-                  <option key={tz} value={tz}>{getTimezoneName(tz, getLanguageCode())}</option>
+                {timezoneOptions(settings.timezone).map((tz) => (
+                  <option key={tz} value={tz}>{timezoneLabel(tz, getLanguageCode())}</option>
                 ))}
               </select>
             </SettingRow>

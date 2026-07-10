@@ -37,6 +37,7 @@ import { loadSmsCompanionContext } from './context.js'
 import type { CompanionResponseMode, SharedCompanionContext } from '../shared/companionKernel.js'
 import type { SmsImageInput } from './media.js'
 import { persistSmsMomentMedia } from './moments.js'
+import { buildSmsResearchEvent } from './research.js'
 
 const MAX_INBOUND_CHARS = 1600
 const MAX_PROCESSING_ATTEMPTS = 3
@@ -106,6 +107,8 @@ async function storeInboundMessage(opts: {
   mediaCount: number
   mediaTypes: string[]
   createdAt: number
+  replyTo?: string
+  fieldWindowEventId?: string
 }): Promise<void> {
   await userSmsMessages(opts.uid).doc(opts.messageSid).set({
     id: opts.messageSid,
@@ -118,7 +121,27 @@ async function storeInboundMessage(opts: {
     createdAt: opts.createdAt,
     status: 'received',
     carryForward: false,
+    ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
+    ...(opts.fieldWindowEventId ? { fieldWindowEventId: opts.fieldWindowEventId } : {}),
   })
+}
+
+async function recentFieldWindowOrigin(
+  uid: string,
+  receivedAt: number,
+): Promise<{ messageId: string; eventId: string } | null> {
+  const snap = await userSmsMessages(uid).orderBy('createdAt', 'desc').limit(12).get()
+  const origin = snap.docs.map(doc => doc.data()).find(data => (
+    data.direction === 'outbound'
+    && data.mode === 'field_window'
+    && typeof data.createdAt === 'number'
+    && receivedAt >= data.createdAt
+    && receivedAt - data.createdAt <= 6 * 60 * 60_000
+    && typeof data.researchEventId === 'string'
+  ))
+  return origin
+    ? { messageId: String(origin.id), eventId: String(origin.researchEventId) }
+    : null
 }
 
 async function enqueueInbound(opts: {
@@ -232,6 +255,7 @@ export async function handleSmsWebhook(req: Request, res: Response): Promise<voi
       sendTwiml(res, SMS_MEDIA_UNAVAILABLE_RESPONSE)
       return
     }
+    const fieldWindowOrigin = await recentFieldWindowOrigin(uid, receivedAt).catch(() => null)
     await storeInboundMessage({
       uid,
       messageSid,
@@ -239,6 +263,10 @@ export async function handleSmsWebhook(req: Request, res: Response): Promise<voi
       mediaCount: media.declaredCount,
       mediaTypes: media.images.map(item => item.contentType),
       createdAt: receivedAt,
+      ...(fieldWindowOrigin ? {
+        replyTo: fieldWindowOrigin.messageId,
+        fieldWindowEventId: fieldWindowOrigin.eventId,
+      } : {}),
     })
     await enqueueInbound({
       uid,
@@ -400,6 +428,9 @@ export const smsInboundProcessor = onDocumentCreated(
       })
       const sentAt = Date.now()
       const momentId = queued.inboundMessageId
+      const researchEventId = responseMode && !usedFallback && risk < 2
+        ? `research-sms-${queued.inboundMessageId}`
+        : null
       const shouldCreateMoment = fieldNote !== null && companionContext.fieldMosaicEnabled !== false
       const mediaPaths = shouldCreateMoment && momentImages.length > 0
         ? await persistSmsMomentMedia(queued.uid, momentId, momentImages)
@@ -418,6 +449,7 @@ export const smsInboundProcessor = onDocumentCreated(
         usedFallback,
         replyTo: queued.inboundMessageId,
         ...(responseMode ? { responseMode } : {}),
+        ...(researchEventId ? { researchEventId } : {}),
       })
       batch.update(userSmsMessages(queued.uid).doc(queued.inboundMessageId), {
         status: 'processed',
@@ -428,6 +460,7 @@ export const smsInboundProcessor = onDocumentCreated(
         mediaProcessed: (queued.media?.length ?? 0) > 0,
         processedAt: sentAt,
         ...(responseMode ? { responseMode } : {}),
+        ...(researchEventId ? { researchEventId } : {}),
       })
       if (shouldCreateMoment) {
         batch.set(
@@ -441,7 +474,20 @@ export const smsInboundProcessor = onDocumentCreated(
             mediaPaths,
             status: 'unreviewed',
             ...(responseMode ? { responseMode } : {}),
+            ...(researchEventId ? { researchEventId } : {}),
           },
+        )
+      }
+      if (researchEventId && responseMode) {
+        const researchEvent = buildSmsResearchEvent(
+          queued.inboundMessageId,
+          outbound.sid,
+          responseMode,
+          sentAt,
+        )
+        batch.set(
+          getFirestore().collection('users').doc(queued.uid).collection('researchEvents').doc(researchEventId),
+          researchEvent,
         )
       }
       batch.update(ref, {

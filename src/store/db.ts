@@ -24,6 +24,7 @@ import type {
   InnerWeather, ConsentRecord, Session, SessionMessage, ApiKey, RelaxSession, DriftSession,
   CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue, CompanionPromise,
   SmsMessage, CompanionPreferences, FieldMoment, InterventionOutcome,
+  ResearchEvent, PersonalProtocol, LivingHypothesis,
 } from '../types'
 import type { HrvSessionData, CameraHrvConsent, PolarH10Consent } from '../types/hrv'
 import type { DiagnosticEvent } from '../services/diagnostics'
@@ -170,6 +171,9 @@ export const db = {
   companionPreferences: createCollectionProxy<CompanionPreferences>('companionPreferences'),
   fieldMoments: createCollectionProxy<FieldMoment>('fieldMoments'),
   interventionOutcomes: createCollectionProxy<InterventionOutcome>('interventionOutcomes'),
+  researchEvents: createCollectionProxy<ResearchEvent>('researchEvents'),
+  personalProtocols: createCollectionProxy<PersonalProtocol>('personalProtocols'),
+  livingHypotheses: createCollectionProxy<LivingHypothesis>('livingHypotheses'),
   smsMessages: createCollectionProxy<SmsMessage>('smsMessages'),
 }
 

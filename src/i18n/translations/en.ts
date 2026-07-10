@@ -1,4 +1,6 @@
-const en = {
+import { sessionCopy } from './sessionCopy'
+
+const enBase = {
   // Login screen
   'login.tagline': 'A private reflection session\nfor whatever is here —\ntalk it through, write quietly,\nor take a moment to settle.',
   'login.email': 'Email',
@@ -29,7 +31,6 @@ const en = {
   'onboarding.step3.disclaimer': 'I understand this is not a therapeutic service',
   'onboarding.step3.privacy': 'I\'ve read and accept the',
   'onboarding.step3.privacyLink': 'Privacy Policy',
-  'onboarding.step3.adult': 'I confirm that I am 18 or older',
   'onboarding.step3.begin': 'Begin a session',
   'onboarding.step3.starting': 'Starting...',
   'onboarding.back': 'Back',
@@ -405,6 +406,8 @@ const en = {
   'values.card.hint': 'Does this matter to you? Name it in your own words',
   'values.settings.title': 'What matters to you',
 } as const
+
+const en = { ...enBase, ...sessionCopy.en } as const
 
 export type TranslationKey = keyof typeof en
 export type TranslationStrings = typeof en

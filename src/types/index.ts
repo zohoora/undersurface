@@ -194,6 +194,10 @@ export interface Session {
   // How much durable autobiographical context the companion may use in this
   // session. Optional records inherit the user's current preference.
   memoryAperture?: MemoryAperture
+  // Optional, writer-authored context for transparent personal-science
+  // comparisons. A skipped handshake is recorded so it is not repeatedly
+  // shown during the same session. These labels are never diagnoses.
+  researchContext?: SessionResearchContext
 }
 
 export type MemoryAperture = 'fresh' | 'light' | 'pattern' | 'counterstory'
@@ -225,6 +229,8 @@ export interface SessionMessage {
   userInputMode?: InputMode
   surface?: SessionSurface
   responseMode?: CompanionResponseMode
+  researchEventId?: string
+  researchArm?: ResearchArm
 }
 
 export interface SmsMessage {
@@ -246,6 +252,83 @@ export interface SmsMessage {
   replyTo?: string
   usedFallback?: boolean
   responseMode?: CompanionResponseMode
+  researchEventId?: string
+  fieldWindowEventId?: string
+}
+
+export type PersonalScienceState = 'stirred' | 'flat' | 'looping' | 'open'
+export type PersonalScienceCapacity = 'brief' | 'few_minutes' | 'stay'
+export type PersonalScienceNeed = 'witness' | 'settle' | 'perspective' | 'action'
+
+export interface SessionResearchContext {
+  state?: PersonalScienceState
+  capacity?: PersonalScienceCapacity
+  need?: PersonalScienceNeed
+  capturedAt: number
+  skipped?: boolean
+}
+
+export interface AlliancePreferences {
+  comfortBeforeChallenge: boolean
+  askBeforeInterpretation: boolean
+  directness: 'gentle' | 'balanced' | 'direct'
+  questionFrequency: 'fewer' | 'balanced'
+  ambiguityStyle: 'adaptive' | 'single' | 'prism'
+  avoidPhrases: string[]
+}
+
+export type PrismHypothesisFit = 'fits' | 'maybe' | 'not_this'
+export type PrismCorrectionEffort = 'easy' | 'some_work' | 'more_work'
+
+export interface PrismHypothesisFeedback {
+  id: string
+  text: string
+  fit: PrismHypothesisFit
+}
+
+export interface AmbiguityPrismFeedback {
+  hypotheses: PrismHypothesisFeedback[]
+  noneFit: boolean
+  betterFrame?: string
+  correctionEffort?: PrismCorrectionEffort
+  submittedAt: number
+}
+
+export type LivingHypothesisStatus = 'candidate' | 'confirmed' | 'contested' | 'dormant'
+
+export interface LivingHypothesis {
+  id: string
+  text: string
+  status: LivingHypothesisStatus
+  source: 'prism' | 'writer_rewrite'
+  sourceMessageId: string
+  sourceSessionId: string
+  researchEventId?: string
+  context?: Omit<SessionResearchContext, 'capturedAt' | 'skipped'>
+  createdAt: number
+  updatedAt: number
+}
+
+export type FieldWindowPurpose = 'notice' | 'settle' | 'act'
+export type FieldWindowDay = 0 | 1 | 2 | 3 | 4 | 5 | 6
+
+export interface FieldWindow {
+  id: string
+  label: string
+  days: FieldWindowDay[]
+  startMinute: number
+  endMinute: number
+  purpose: FieldWindowPurpose
+  enabled: boolean
+}
+
+export interface FieldWindowPreferences {
+  enabled: boolean
+  timezone: string
+  maxPerWeek: 1 | 2 | 3
+  consentAt?: number
+  windows: FieldWindow[]
+  updatedAt: number
 }
 
 export interface CompanionPreferences {
@@ -253,6 +336,12 @@ export interface CompanionPreferences {
   defaultMemoryAperture: MemoryAperture
   fieldMosaicEnabled: boolean
   outcomeSampling: 'off' | 'light'
+  personalScienceEnabled?: boolean
+  personalScienceConsentAt?: number
+  antiDependenceCheckIns?: boolean
+  protocolPolicy?: 'use_what_helped' | 'balanced' | 'explore'
+  alliance?: AlliancePreferences
+  fieldWindows?: FieldWindowPreferences
   updatedAt: number
 }
 
@@ -270,21 +359,126 @@ export interface FieldMoment {
   reviewedInSessionId?: string | null
   connectedTo?: string | null
   responseMode?: CompanionResponseMode
+  researchEventId?: string
 }
 
 export type ImmediateOutcome = 'helped' | 'nothing' | 'worse' | 'not_wanted'
 export type DelayedOutcome = 'stayed' | 'used' | 'nothing' | 'regret' | 'changed_mind'
+export type OutcomeHorizon = 'later_today' | 'next_day'
+
+export interface HorizonOutcome {
+  horizon: OutcomeHorizon
+  outcome: DelayedOutcome
+  reportedAt: number
+}
 
 export interface InterventionOutcome {
   id: string
   source: 'sms' | SessionSurface | 'session'
   sourceId: string
   sessionId?: string
-  intervention: CompanionResponseMode | 'surface_arc' | 'session'
+  intervention: CompanionResponseMode | 'surface_arc' | 'session' | 'field_window'
   immediate?: ImmediateOutcome
   delayed?: DelayedOutcome
   delayedAskedAt?: number
   note?: string
+  researchEventId?: string
+  repairReason?: AllianceRepairReason
+  agency?: 'more' | 'same' | 'less'
+  nextStep?: 'done' | 'offline_action' | 'human_contact' | 'rest' | 'more_support'
+  horizonOutcomes?: HorizonOutcome[]
+  horizonAskedAt?: Partial<Record<OutcomeHorizon, number>>
+  fieldWindowArm?: 'field_check_in' | 'field_no_contact'
+  windowLabel?: string
+  timingAskedAt?: number
+  prismFeedback?: AmbiguityPrismFeedback
+  createdAt: number
+  updatedAt: number
+}
+
+export type AllianceRepairReason =
+  | 'too_fast'
+  | 'too_certain'
+  | 'too_much_advice'
+  | 'wrong_direction'
+  | 'too_many_questions'
+  | 'other'
+
+export type ResearchProtocolId =
+  | 'response-grammar-v1'
+  | 'subtraction-v1'
+  | 'surface-choreography-v1'
+  | 'transfer-ladder-v1'
+  | 'field-window-timing-v1'
+  | 'ambiguity-prism-v1'
+  | 'naturalistic-sms-v1'
+
+export type TransferLevel = 'companion_led' | 'user_first' | 'minimal_cue' | 'independent'
+export type TransferStatus = 'not_started' | 'learning' | 'paused' | 'graduated'
+
+export type ResearchArm =
+  | CompanionResponseMode
+  | 'generated_response'
+  | 'designed_silence'
+  | 'continue_talk'
+  | 'offer_journal_arc'
+  | 'journal_arc'
+  | 'speak_arc'
+  | 'relax_arc'
+  | 'drift_arc'
+  | 'transfer_companion_led'
+  | 'transfer_user_first'
+  | 'transfer_minimal_cue'
+  | 'transfer_independent'
+  | 'field_check_in'
+  | 'field_no_contact'
+  | 'single_hypothesis'
+  | 'ambiguity_prism'
+
+export interface ResearchEvent {
+  id: string
+  protocolId: ResearchProtocolId
+  protocolVersion: number
+  assignmentKind: 'randomized' | 'observational' | 'personalized'
+  status: 'assigned' | 'delivered' | 'overridden' | 'cancelled'
+  source: 'sms' | SessionSurface
+  sessionId?: string
+  sourceId?: string
+  eligibilityPoint: string
+  assignmentSeed: string
+  assignedArm: ResearchArm
+  deliveredArm?: ResearchArm
+  overrideArm?: ResearchArm
+  responseMode?: CompanionResponseMode
+  personalProtocolId?: string
+  transferLevel?: TransferLevel
+  context?: Omit<SessionResearchContext, 'capturedAt' | 'skipped'>
+  provider: 'openai' | 'deterministic'
+  deliveryFidelity?: 'deterministic' | 'prompt_assigned' | 'model_reported'
+  modelVersion?: string
+  promptVersion: string
+  appVersion: string
+  outcomeId?: string
+  createdAt: number
+  deliveredAt?: number
+  cancelReason?: string
+  updatedAt: number
+}
+
+export interface PersonalProtocol {
+  id: string
+  findingKey: string
+  title: string
+  protocolId: ResearchProtocolId
+  preferredArm: ResearchArm
+  context?: Omit<SessionResearchContext, 'capturedAt' | 'skipped'>
+  evidenceEventIds: string[]
+  confidence: 'early' | 'emerging' | 'repeated'
+  status: 'active' | 'rejected' | 'retired'
+  transferStatus?: TransferStatus
+  transferLevel?: TransferLevel
+  transferStartedAt?: number
+  transferUpdatedAt?: number
   createdAt: number
   updatedAt: number
 }
@@ -571,7 +765,6 @@ export interface ConsentRecord {
   acceptedVersion: string
   disclaimerAccepted: boolean
   privacyAccepted: boolean
-  adultOnlyAcknowledged?: boolean
 }
 
 export interface ApiKey {

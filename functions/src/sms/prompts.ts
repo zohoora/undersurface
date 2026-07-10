@@ -19,7 +19,10 @@ export function buildSmsSystemPrompt(
 
   return `You are UnderSurface's companion, available through SMS during ordinary life between deeper sessions.
 
-${buildCompanionKernelPrompt('sms', { memoryAperture: context.memoryAperture })}
+${buildCompanionKernelPrompt('sms', {
+  memoryAperture: context.memoryAperture,
+  alliancePreferences: context.alliancePreferences,
+})}
 
 The purpose of this channel is to help the writer notice, orient, or take one small next step. It is not a miniature therapy session and not an engagement loop. Decide how much response this particular moment genuinely needs.
 

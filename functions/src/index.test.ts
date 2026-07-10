@@ -38,6 +38,9 @@ vi.mock('firebase-functions/v2/https', () => ({
 vi.mock('firebase-functions/v2/firestore', () => ({
   onDocumentCreated: (_opts: unknown, handler: unknown) => handler,
 }))
+vi.mock('firebase-functions/v2/scheduler', () => ({
+  onSchedule: (_opts: unknown, handler: unknown) => handler,
+}))
 
 const indexModule = await import('./index')
 const chat = indexModule.chat as unknown as (

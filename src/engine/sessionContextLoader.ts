@@ -1,4 +1,4 @@
-import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue, CompanionPromise, MemoryAperture, InterventionOutcome } from '../types'
+import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue, CompanionPromise, MemoryAperture, InterventionOutcome, AlliancePreferences, CompanionPreferences, PersonalProtocol, LivingHypothesis } from '../types'
 import { db } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { detectOpenTimeEvidence } from './ruptureDetector'
@@ -12,6 +12,12 @@ export interface TherapistContext {
   fieldMosaicEnabled: boolean
   outcomeSampling: 'off' | 'light'
   outcomeContext: string[]
+  companionPreferences: CompanionPreferences | null
+  alliancePreferences?: AlliancePreferences
+  personalScienceEnabled: boolean
+  antiDependenceCheckIns: boolean
+  activePersonalProtocols: PersonalProtocol[]
+  livingHypotheses: Array<{ text: string; status: 'confirmed' | 'contested' }>
   recentSessionNotes: { note: string; date: number }[]
   relevantMemories: PartMemory[]
   userProfile: UserProfile | null
@@ -72,7 +78,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
   const interiorityOn = features?.companionInteriority === true
   const arcsOn = features?.storyArcs === true
 
-  const [sessions, memories, profiles, facts, relaxBreaks, signals, allUserParts, allIntentions, stanceProfile, allValues, allPromises, fieldMoments, smsMessages, preferences, outcomes] = await Promise.all([
+  const [sessions, memories, profiles, facts, relaxBreaks, signals, allUserParts, allIntentions, stanceProfile, allValues, allPromises, fieldMoments, smsMessages, preferences, outcomes, personalProtocols, livingHypotheses] = await Promise.all([
     // Bounded: only the 5 newest noted sessions are kept, so scanning the
     // full collection is pure read amplification. 50 newest gives ample
     // margin for closed-without-note gaps.
@@ -95,6 +101,8 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     db.smsMessages.orderBy('createdAt').reverse().limit(24).toArray(),
     db.companionPreferences?.get('current') ?? Promise.resolve(undefined),
     db.interventionOutcomes?.orderBy('createdAt').reverse().limit(20).toArray() ?? Promise.resolve([] as InterventionOutcome[]),
+    db.personalProtocols?.where('status').equals('active').toArray() ?? Promise.resolve([] as PersonalProtocol[]),
+    db.livingHypotheses?.orderBy('updatedAt').reverse().limit(16).toArray() ?? Promise.resolve([] as LivingHypothesis[]),
   ])
 
   // Extract notes from the 5 most recent closed sessions
@@ -235,10 +243,18 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     memoryAperture: preferences?.defaultMemoryAperture ?? 'pattern',
     fieldMosaicEnabled: preferences?.fieldMosaicEnabled !== false,
     outcomeSampling: preferences?.outcomeSampling === 'off' ? 'off' : 'light',
+    companionPreferences: preferences ?? null,
+    alliancePreferences: preferences?.alliance,
+    personalScienceEnabled: preferences?.personalScienceEnabled === true && Boolean(preferences.personalScienceConsentAt),
+    antiDependenceCheckIns: preferences?.antiDependenceCheckIns === true,
+    activePersonalProtocols: personalProtocols,
+    livingHypotheses: livingHypotheses
+      .filter(item => item.status === 'confirmed' || item.status === 'contested')
+      .map(item => ({ text: item.text, status: item.status as 'confirmed' | 'contested' })),
     outcomeContext: outcomes
       .filter(outcome => outcome.immediate || outcome.delayed)
       .slice(0, 8)
-      .map(outcome => `${outcome.source} ${outcome.intervention}: immediate ${outcome.immediate ?? 'not rated'}${outcome.delayed ? `; later ${outcome.delayed}` : ''}`),
+      .map(outcome => `${outcome.source} ${outcome.intervention}: immediate ${outcome.immediate ?? 'not rated'}${outcome.delayed ? `; later ${outcome.delayed}` : ''}${outcome.agency ? `; agency ${outcome.agency}` : ''}`),
     recentSessionNotes,
     relevantMemories: allMemories,
     userProfile,

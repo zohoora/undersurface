@@ -23,6 +23,8 @@ export interface SmsContextDocuments {
   promises: DocumentData[]
   preferences?: DocumentData | null
   outcomes?: DocumentData[]
+  personalProtocols?: DocumentData[]
+  livingHypotheses?: DocumentData[]
 }
 
 function strings(value: unknown): string[] {
@@ -203,10 +205,35 @@ export function deriveSmsCompanionContext(
     memoryAperture: normalizeMemoryAperture(docs.preferences?.defaultMemoryAperture),
     fieldMosaicEnabled: docs.preferences?.fieldMosaicEnabled !== false,
     outcomeSampling: docs.preferences?.outcomeSampling === 'off' ? 'off' : 'light',
+    alliancePreferences: docs.preferences?.alliance && typeof docs.preferences.alliance === 'object'
+      ? docs.preferences.alliance
+      : undefined,
     outcomeContext: (docs.outcomes ?? [])
       .filter(outcome => outcome.immediate || outcome.delayed)
       .slice(0, 8)
-      .map(outcome => `${String(outcome.source ?? 'unknown')} ${String(outcome.intervention ?? 'move')}: immediate ${String(outcome.immediate ?? 'not rated')}${outcome.delayed ? `; later ${String(outcome.delayed)}` : ''}`),
+      .map(outcome => `${String(outcome.source ?? 'unknown')} ${String(outcome.intervention ?? 'move')}: immediate ${String(outcome.immediate ?? 'not rated')}${outcome.delayed ? `; later ${String(outcome.delayed)}` : ''}${outcome.agency ? `; agency ${String(outcome.agency)}` : ''}`),
+    activePersonalProtocols: (docs.personalProtocols ?? [])
+      .filter(protocol => protocol.status === 'active' && typeof protocol.title === 'string' && typeof protocol.preferredArm === 'string')
+      .slice(0, 6)
+      .map(protocol => ({
+        title: protocol.title as string,
+        preferredArm: protocol.preferredArm as string,
+        context: protocol.context && typeof protocol.context === 'object'
+          ? protocol.context as { state?: string; capacity?: string; need?: string }
+          : undefined,
+        transferStatus: protocol.transferStatus === 'graduated'
+          ? 'graduated' as const
+          : protocol.transferStatus === 'learning' || protocol.transferStatus === 'paused' || protocol.transferStatus === 'not_started'
+            ? protocol.transferStatus
+            : undefined,
+        transferLevel: protocol.transferLevel === 'companion_led' || protocol.transferLevel === 'user_first' || protocol.transferLevel === 'minimal_cue' || protocol.transferLevel === 'independent'
+          ? protocol.transferLevel
+          : undefined,
+      })),
+    livingHypotheses: (docs.livingHypotheses ?? [])
+      .filter(item => (item.status === 'confirmed' || item.status === 'contested') && typeof item.text === 'string')
+      .slice(0, 12)
+      .map(item => ({ text: item.text as string, status: item.status as 'confirmed' | 'contested' })),
     recentSessionNotes,
     relevantMemories,
     profile: profileFrom(docs.profile),
@@ -263,7 +290,7 @@ export async function loadSmsCompanionContext(
   const valuesOn = features.userValues === true
   const interiorityOn = features.companionInteriority === true
 
-  const [sessions, memories, profile, personalFacts, smsMessages, userParts, intentions, stanceProfile, values, promises, preferences, outcomes] = await Promise.all([
+  const [sessions, memories, profile, personalFacts, smsMessages, userParts, intentions, stanceProfile, values, promises, preferences, outcomes, personalProtocols, livingHypotheses] = await Promise.all([
     collectionData(db, uid, 'sessions', 50, 'startedAt'),
     collectionData(db, uid, 'memories', 60, 'timestamp'),
     documentData(db, uid, 'userProfile'),
@@ -276,6 +303,8 @@ export async function loadSmsCompanionContext(
     interiorityOn ? collectionData(db, uid, 'companionPromises', 10) : Promise.resolve([]),
     documentData(db, uid, 'companionPreferences'),
     collectionData(db, uid, 'interventionOutcomes', 20, 'createdAt'),
+    collectionData(db, uid, 'personalProtocols', 20, 'updatedAt'),
+    collectionData(db, uid, 'livingHypotheses', 16, 'updatedAt'),
   ])
 
   return deriveSmsCompanionContext({
@@ -291,5 +320,7 @@ export async function loadSmsCompanionContext(
     promises,
     preferences,
     outcomes,
+    personalProtocols,
+    livingHypotheses,
   }, features)
 }
