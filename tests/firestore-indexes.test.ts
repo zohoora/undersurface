@@ -81,6 +81,10 @@ beforeAll(async () => {
     message: 'Hello',
     createdAt: FieldValue.serverTimestamp(),
   })
+
+  await db.doc(`users/${TEST_UID}/companionPreferences/current`).set({
+    fieldWindows: { enabled: true },
+  })
 })
 
 afterAll(async () => {
@@ -96,6 +100,16 @@ describe('Firestore index validation', () => {
       .collectionGroup('entries')
       .orderBy('updatedAt', 'desc')
       .limit(10)
+      .get()
+    expect(snap.empty).toBe(false)
+  })
+
+  it('collectionGroup companionPreferences filters enabled field windows', async () => {
+    // Source: functions/src/sms/fieldWindows.ts scheduleFieldWindows
+    const snap = await db
+      .collectionGroup('companionPreferences')
+      .where('fieldWindows.enabled', '==', true)
+      .limit(500)
       .get()
     expect(snap.empty).toBe(false)
   })
