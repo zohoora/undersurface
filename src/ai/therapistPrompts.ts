@@ -15,10 +15,8 @@ import {
   type SharedAlliancePreferences,
 } from '../../functions/src/shared/companionKernel'
 
-// Risk-classification preamble. The therapist emits exactly one of
-// `<<RISK:0>>`, `<<RISK:1>>`, or `<<RISK:2>>` as the first line of every
-// response; the stream parser in openrouter.ts consumes it before forwarding
-// tokens to the UI. This replaces the parallel L2 classifier call — the
+// Hidden risk + ambient-fit preamble. The stream parser in openrouter.ts
+// consumes it before forwarding tokens to the UI. This replaces the parallel L2 classifier call — the
 // therapist has full conversation context, so the pronoun/referent
 // disambiguation that the isolated classifier failed on ("planning the
 // process to finalize it" → "it" = taxes vs. "it" = life) is structurally
@@ -36,13 +34,22 @@ import {
 // what NOT to flag. False alarms erode trust in the safety UI, which makes a
 // real crisis harder to catch later. When in doubt, return 0.
 export const RISK_PREAMBLE_INSTRUCTIONS = `OUTPUT FORMAT — STRICT, NO EXCEPTIONS:
-Your very first line is exactly ONE of these three lines, character-for-character, with nothing before it:
+Your very first line is one hidden metadata marker in exactly this field order, with nothing before it:
 
-<<RISK:0>>
-<<RISK:1>>
-<<RISK:2>>
+<<RISK:0;FIT:unclear;MOVE:unclear;AGENCY:unclear;CONF:low;STATE:open;CAP:few_minutes;NEED:witness>>
 
-Then a blank line. Then your therapist response. The risk line is parsed by the safety system and never shown to the writer; emitting anything else (a different number, the literal letter "N", omitting the line, wrapping it in markdown, or adding any prefix) breaks the safety system. Pick exactly one of the three lines above based on the classification below.
+Then a blank line. Then your therapist response. Replace every field value with one allowed value below. The marker is parsed and never shown to the writer. RISK must be exactly 0, 1, or 2 according to the crisis classification below.
+
+AMBIENT FIT — assess the immediately preceding companion response by the writer message that followed it. This is observable conversational fit, never a mental-health verdict. If there is no completed companion→writer pair, use unclear/unclear/unclear/low.
+- FIT: landed | partial | missed | unclear
+- MOVE: deepened | clarified | settled | mobilized | stayed | withdrew | unclear
+- AGENCY: more | same | less | unclear
+- CONF: low | medium | high
+- STATE describes the writer's CURRENT turn: stirred | flat | looping | open | unclear
+- CAP describes apparent room for engagement: brief | few_minutes | stay | unclear
+- NEED describes the response form their CURRENT turn appears to invite: witness | settle | perspective | action | unclear
+
+Do not reward agreement, verbosity, continued conversation, or emotional disclosure. Brevity, silence, correction, topic change, and ending are ambiguous unless the writer's words make their meaning clear. Prefer unclear and low confidence over guessing.
 
 CLASSIFICATION — precision over recall, default 0. False alarms train the writer to dismiss the safety UI:
 
@@ -74,6 +81,13 @@ CLASSIFICATION — precision over recall, default 0. False alarms train the writ
 - Coded finality tied to writer's own near-future ("I'll be with God soon, sooner than I thought," "I won't see another sunrise")
 
 DISAMBIGUATION — you have the full conversation, USE IT. Pronouns ("it," "this," "that") refer to the most recent topic discussed. If the writer says "planning out the process to finalize it" after turns about taxes, "it" = taxes and the message is 0. Surface form matching crisis vocabulary in mundane contexts (work, finance, code, errands) is not crisis.`
+
+export const RISK_ONLY_PREAMBLE_INSTRUCTIONS = `OUTPUT FORMAT — STRICT, NO EXCEPTIONS:
+Your very first line is exactly ONE of these three lines, with nothing before it:
+<<RISK:0>>
+<<RISK:1>>
+<<RISK:2>>
+Then a blank line, then your therapist response. Heavy feelings, grief, metaphor, hyperbole, and ordinary distress are RISK:0. Clear first-person ideation, method, timing, or intent are RISK:2. Genuinely ambiguous life-cessation framing is RISK:1.`
 
 // Therapist safety rules — must be included verbatim in any therapist
 // prompt that responds to the writer. Do not paraphrase.
@@ -232,6 +246,8 @@ export interface TherapistPromptOptions {
   // emit a marker it would speak aloud or leak into transcripts. SAFETY_RULES
   // are unaffected; only the output-format block is omitted.
   includeRiskPreamble?: boolean
+  // Fresh eyes retains crisis classification but opts out of ambient science.
+  includeAmbientAssessment?: boolean
   // True only on the very first response in a session. Suppresses recommendations on
   // turn 1; do not pivot before establishing connection.
   isFirstTurn?: boolean
@@ -588,7 +604,7 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   // starts — the very first tokens the model emits must be the risk marker.
   // Omitted for transports with no preamble parser (voice).
   if (capabilities.riskPreamble && options.includeRiskPreamble !== false) {
-    parts.push(RISK_PREAMBLE_INSTRUCTIONS)
+    parts.push(options.includeAmbientAssessment === false ? RISK_ONLY_PREAMBLE_INSTRUCTIONS : RISK_PREAMBLE_INSTRUCTIONS)
   }
 
   return parts.join('\n\n')
@@ -969,6 +985,24 @@ STANCE OBSERVATION — rules:
 - One observation at most; omit the field entirely when nothing stands out.`
     : ''
 
+  const ambientAssessmentSchema = `,
+  "ambientAssessment": {
+    "flow": "deepening|oscillating|stalled|repairing|settling|mixed|unclear",
+    "overallFit": "landed|partial|missed|unclear",
+    "agencyTrajectory": "more|same|less|unclear",
+    "ending": "resolved|open|ruptured|abrupt|unclear",
+    "confidence": "low|medium|high",
+    "synthesis": "one evidence-grounded sentence about the conversation's ebb and flow"
+  }`
+  const ambientAssessmentRules = `
+
+AMBIENT SESSION ASSESSMENT — rules:
+- Evaluate the conversation as a whole, including changes across turns that a single-turn view misses. This is observational conversational fit, NOT mental-health benefit and never a diagnosis.
+- Do not reward agreement, verbosity, disclosure, continued conversation, duration, or a tidy ending. A short or abruptly ended session is ambiguous unless the transcript shows rupture or resolution.
+- overallFit=landed requires visible uptake, useful correction, settling, clarification, or writer-owned movement. Politeness alone is unclear. missed requires observable correction, withdrawal, repeated non-uptake, or explicit mismatch. Prefer unclear.
+- agencyTrajectory=more only when the writer increasingly authors meaning, choice, boundaries, or next steps. Companion dependence, compliance, or asking for more responses is not more agency.
+- synthesis must name observable flow without quoting private content and without claiming how the writer truly felt.`
+
   return [
     {
       role: 'system',
@@ -1012,14 +1046,14 @@ Respond with valid JSON only:
     "present": false,
     "theme": "",
     "newInformation": true
-  }${partObservationSchema}${valueSchema}${intentionSchema}${stanceSchema}${carryingSchema}${fieldMomentSchema}
+  }${partObservationSchema}${valueSchema}${intentionSchema}${stanceSchema}${carryingSchema}${fieldMomentSchema}${ambientAssessmentSchema}
 }
 
 LOOP SIGNAL — rules:
 - "present" is true ONLY when this session substantially re-treads ground already visible in the recent entry summaries — same worry or grievance in nearly the same terms. Compare against the summaries above, not just within this session.
 - "newInformation" is true when this session added anything the summaries don't show: a new detail, a new feeling, a decision, a shift in perspective. When present=false, set newInformation=true.
 - "theme": when present=true, a neutral 3-8 word label for the re-trodden topic. Otherwise "".
-- Retelling a painful event, grief, and processing that is MOVING are not loops. When unsure, present=false.${partObservationRules}${valueRules}${intentionRules}${stanceRules}${carryingRules}${fieldMomentRules}
+- Retelling a painful event, grief, and processing that is MOVING are not loops. When unsure, present=false.${partObservationRules}${valueRules}${intentionRules}${stanceRules}${carryingRules}${fieldMomentRules}${ambientAssessmentRules}
 
 PERSONAL FACTS — extraction rules:
 - Return the FULL updated object (existing facts + new mentions, consolidated). Not a delta.

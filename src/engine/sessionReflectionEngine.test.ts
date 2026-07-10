@@ -33,7 +33,10 @@ vi.mock('../store/db', () => ({
     userParts: { toArray: vi.fn(async () => []), add: vi.fn(), update: vi.fn() },
     sessionIntentions: { toArray: vi.fn(async () => []), add: vi.fn(), update: vi.fn() },
     stanceProfile: { get: vi.fn(async () => undefined), add: vi.fn(), update: vi.fn() },
-    sessions: { get: vi.fn(async () => undefined) },
+    sessions: {
+      get: vi.fn(async (id: string) => ({ id, memoryAperture: 'pattern' } as Session)),
+      update: vi.fn(),
+    },
     companionPreferences: { get: vi.fn(async () => ({ id: 'current', fieldMosaicEnabled: true })) },
     fieldMoments: { add: vi.fn() },
   },
@@ -128,6 +131,10 @@ describe('reflectOnSession', () => {
         recurringThemes: ['childhood'],
         innerLandscape: 'A landscape of excavated memories',
       },
+      ambientAssessment: {
+        flow: 'deepening', overallFit: 'landed', agencyTrajectory: 'more',
+        ending: 'open', confidence: 'medium', synthesis: 'The writer increasingly authored the direction.',
+      },
     }))
 
     const parts = [makePart({ id: 'open' }), makePart({ id: 'weaver', name: 'The Weaver', ifsRole: 'manager' })]
@@ -143,6 +150,11 @@ describe('reflectOnSession', () => {
       content: 'Writer is exploring childhood patterns with openness',
       source: 'session',
       sessionId: 'session-1',
+    }))
+    expect(db.sessions.update).toHaveBeenCalledWith('session-1', expect.objectContaining({
+      ambientAssessment: expect.objectContaining({ flow: 'deepening', overallFit: 'landed' }),
+      reflectionStatus: 'complete',
+      reflectedAt: expect.any(Number),
     }))
   })
 

@@ -50,6 +50,7 @@ const companionSignalsUpdateMock = vi.fn(async () => {})
 const userPartsUpdateMock = vi.fn(async () => {})
 const intentionUpdateMock = vi.fn(async () => {})
 const markResearchDeliveredMock = vi.fn(async () => {})
+const writeAmbientTurnOutcomeMock = vi.fn(async () => {})
 let idCounter = 0
 vi.mock('../store/db', () => ({
   db: {
@@ -64,6 +65,9 @@ vi.mock('../store/db', () => ({
 }))
 vi.mock('../store/personalScience', () => ({
   markResearchDelivered: (...args: unknown[]) => markResearchDeliveredMock(...args),
+}))
+vi.mock('../store/interventionOutcomes', () => ({
+  writeAmbientTurnOutcome: (...args: unknown[]) => writeAmbientTurnOutcomeMock(...args),
 }))
 
 const weatherRecordMock = vi.fn()
@@ -241,6 +245,7 @@ beforeEach(() => {
   userPartsUpdateMock.mockClear()
   intentionUpdateMock.mockClear()
   markResearchDeliveredMock.mockClear()
+  writeAmbientTurnOutcomeMock.mockClear()
   featuresMock = {}
   isGroundingMock.mockReturnValue(false)
   idCounter = 0
@@ -281,6 +286,73 @@ describe('useSessionStream — generateTherapistMessage (happy path)', () => {
     expect((msg as SessionMessage).content).toBe('Hello writer.')
     expect(returnedMessages).toHaveLength(1)
     expect(wiring.setIsStreaming).toHaveBeenCalledWith(false)
+  })
+
+  it('stores the prior companion-to-writer fit and updates ambient context', async () => {
+    const priorCompanion = { ...makeUserMsg('A companion reflection.'), id: 'a1', speaker: 'therapist' as const }
+    const latestWriter = { ...makeUserMsg('That gets closer.'), id: 'u2' }
+    const messages = [priorCompanion, latestWriter]
+    streamMock.mockImplementation(async (_p, callbacks: {
+      onToken: (t: string) => void
+      onAmbientAssessment?: (value: unknown) => void
+      onComplete: () => void
+    }) => {
+      callbacks.onAmbientAssessment?.({
+        fit: 'partial', movement: 'clarified', agency: 'more', confidence: 'medium',
+        state: 'open', capacity: 'stay', need: 'perspective',
+      })
+      callbacks.onToken('A reply.')
+      callbacks.onComplete()
+    })
+    const wiring = makeWiring({ messages })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    await act(async () => {
+      const pending = result.current.generateTherapistMessage(messages, wiring.sessionRef.current!)
+      await Promise.resolve()
+      await (wiring.typewriter as unknown as TypewriterMock).pendingComplete?.('A reply.')
+      await pending
+      await Promise.resolve()
+    })
+
+    expect(buildOptionsSpy.mock.calls[0][0].includeAmbientAssessment).toBe(true)
+    expect(writeAmbientTurnOutcomeMock).toHaveBeenCalledWith(
+      priorCompanion,
+      latestWriter,
+      'sess-1',
+      expect.objectContaining({ fit: 'partial', confidence: 'medium' }),
+    )
+    expect(sessionUpdateMock).toHaveBeenCalledWith('sess-1', expect.objectContaining({
+      researchContext: expect.objectContaining({ state: 'open', capacity: 'stay', need: 'perspective' }),
+    }))
+  })
+
+  it('uses risk-only streaming and records no ambient evidence in Fresh eyes', async () => {
+    const messages = [
+      { ...makeUserMsg('A companion reflection.'), id: 'a1', speaker: 'therapist' as const },
+      { ...makeUserMsg('Keep this private.'), id: 'u2' },
+    ]
+    streamMock.mockImplementation(async (_p, callbacks: {
+      onToken: (t: string) => void
+      onAmbientAssessment?: (value: unknown) => void
+      onComplete: () => void
+    }) => {
+      expect(callbacks.onAmbientAssessment).toBeUndefined()
+      callbacks.onToken('A private reply.')
+      callbacks.onComplete()
+    })
+    const wiring = makeWiring({ session: makeSession({ memoryAperture: 'fresh' }), messages })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    await act(async () => {
+      const pending = result.current.generateTherapistMessage(messages, wiring.sessionRef.current!)
+      await Promise.resolve()
+      await (wiring.typewriter as unknown as TypewriterMock).pendingComplete?.('A private reply.')
+      await pending
+    })
+
+    expect(buildOptionsSpy.mock.calls[0][0].includeAmbientAssessment).toBe(false)
+    expect(writeAmbientTurnOutcomeMock).not.toHaveBeenCalled()
   })
 })
 

@@ -18,7 +18,6 @@ import { useSessionStream } from '../../hooks/useSessionStream'
 import { loadTherapistContext } from '../../engine/sessionContextLoader'
 import { maybeBackfillUserParts } from '../../engine/userPartsBackfill'
 import { maybeGenerateStoryArc } from '../../engine/storyArc'
-import { ClosingCheckIn } from './ClosingCheckIn'
 import type { TherapistContext } from '../../engine/sessionContextLoader'
 import { reflectOnSession } from '../../engine/sessionReflectionEngine'
 import { getWeatherEngine } from '../../store/weatherStore'
@@ -30,18 +29,15 @@ import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
 import { PolarH10ConsentDialog } from './PolarH10ConsentDialog'
 import { PolarH10ConnectButton } from './PolarH10ConnectButton'
-import type { AllianceRepairReason, Session, SessionMessage, SessionMode, SessionResearchContext } from '../../types'
+import type { Session, SessionMessage, SessionMode } from '../../types'
 import { useTranslation } from '../../i18n'
 import type { MemoryAperture } from '../../types'
 import { FieldMosaic } from './FieldMosaic'
-import { DelayedOutcomePulse, FieldWindowTimingPulse, OutcomePulse } from './OutcomePulse'
 import { SurfaceArcGuide, SurfaceArcReturn } from './SurfaceArc'
-import { ReceptivityHandshake } from './ReceptivityHandshake'
-import { AllianceRepairFeedback, ResearchMomentNotice } from './ResearchMoment'
-import { repairReasonMessage } from '../../engine/allianceRepair'
 import { assignmentFromEvent, planResearchTurn } from '../../engine/personalScience'
-import { markResearchOverridden, persistResearchAssignment } from '../../store/personalScience'
+import { persistResearchAssignment } from '../../store/personalScience'
 import { isFreshEyesSession, normalizeSessionMemoryAperture } from '../../engine/freshEyes'
+import { finalizePreviousActiveSessions } from '../../engine/sessionFinalizer'
 
 const VoiceField = lazy(() => import('./VoiceField').then(module => ({ default: module.VoiceField })))
 const RelaxField = lazy(() => import('./Relax/RelaxField'))
@@ -89,14 +85,6 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const sessionRef = useRef<Session | null>(null)
   const messagesRef = useRef<SessionMessage[]>([])
   const runtimeRef = useRef(new SessionRuntime())
-  // Stance check-in: shown after end-session; reflection defers on it (30s cap).
-  const [checkInSessionId, setCheckInSessionId] = useState<string | null>(null)
-  const reflectionFiredRef = useRef(false)
-  const pendingReflectionRef = useRef<(() => void) | null>(null)
-  // The check-in now shows on tap, before the closing message finishes, so its
-  // answer can land before reflection is even set up. This records that, so
-  // whichever finishes last (closing message vs. answer) triggers reflection.
-  const checkInAnsweredRef = useRef(false)
   const handleSendRef = useRef<() => void>(() => {})
 
   const voiceEnabled = getGlobalConfig()?.features?.voiceEnabled === true
@@ -112,13 +100,6 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const [journalDraft, setJournalDraft] = useState<string>('')
   const [activeArc, setActiveArc] = useState<{ surface: SessionSurface; outcomeId: string; startedAt: number } | null>(null)
   const [returnedArc, setReturnedArc] = useState<{ surface: SessionSurface; outcomeId: string } | null>(null)
-  const sampledOutcomeMessageIds = useMemo(() => {
-    const therapistMessages = messages.filter(message => message.speaker === 'therapist')
-    return new Set(therapistMessages
-      .filter((message, index) => (Boolean(message.researchEventId) && message.researchArm !== 'offer_journal_arc') || (index + 1) % 4 === 0)
-      .map(message => message.id))
-  }, [messages])
-
   const handleAutocorrect = useAutocorrect({
     autocorrect: settings.autocorrect,
     autoCapitalize: settings.autoCapitalize ?? true,
@@ -133,7 +114,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   // the anchor into view keeps the check-in visible where the person is looking.
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, typewriter.displayedContent, checkInSessionId])
+  }, [messages, typewriter.displayedContent])
 
   // Reveal the session note (under "session closed", below the conversation
   // anchor) once, on the close transition. Guarded so it fires only for a
@@ -213,6 +194,8 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   }, [sessionId])
 
   const startNewSession = useCallback(async (ticket: SessionTicket) => {
+    await finalizePreviousActiveSessions()
+    if (!runtimeRef.current.isCurrent(ticket)) return
     const id = generateId()
 
     const newSession: Session = {
@@ -302,11 +285,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       return generateTherapistMessage(updatedMessages, currentSession)
     }
 
+    // Designed silence is retired. Old persisted assignments can still carry
+    // its legacy delivery value, so degrade them to an ordinary model turn.
     if (assignment.delivery === 'fixed_silence') {
-      return await appendDeterministicCompanionMessage(
-        tr['ps.fixed.silence'],
-        assignment.event,
-      ) ?? updatedMessages
+      return generateTherapistMessage(updatedMessages, currentSession)
     }
     if (assignment.delivery === 'fixed_journal_offer') {
       return await appendDeterministicCompanionMessage(
@@ -396,15 +378,6 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     if (!currentSession || currentSession.status === 'closed' || isStreaming) return
     const freshEyes = isFreshEyesSession(currentSession)
 
-    // Show the stance check-in immediately on tap — before the (multi-second)
-    // closing message + note generation — so it lands at the bottom in view,
-    // where the person already is. Reflection is coordinated with it below.
-    const stanceOn = getGlobalConfig()?.features?.stanceAdaptation === true
-    const outcomeCheckInOn = !grounding && contextRef.current?.outcomeSampling !== 'off'
-    reflectionFiredRef.current = false
-    checkInAnsweredRef.current = false
-    if (!freshEyes && (stanceOn || outcomeCheckInOn)) setCheckInSessionId(currentSession.id)
-
     // Generate closing therapist message — returns updated messages array
     const finalMessages = await generateTherapistMessage(currentMessages, currentSession)
 
@@ -429,6 +402,8 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       endedAt,
       sessionNote,
       phase: 'closing',
+      reflectionStatus: freshEyes ? 'complete' : 'pending',
+      ...(freshEyes ? { reflectedAt: Date.now() } : {}),
     })
 
     justClosedRef.current = true
@@ -438,33 +413,16 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       endedAt,
       sessionNote,
       phase: 'closing',
+      reflectionStatus: freshEyes ? 'complete' : 'pending',
+      ...(freshEyes ? { reflectedAt: Date.now() } : {}),
     } : prev)
 
-    // Non-blocking: run full reflection pipeline. When the stance check-in is
-    // active, reflection must not read the session doc until the one-tap "how
-    // are you leaving?" answer lands on it. The closing message and the answer
-    // can finish in either order now that the check-in shows on tap; whichever
-    // is last triggers the run. If the answer already arrived, go immediately;
-    // otherwise wait for it, capped at 30s so an unanswered check-in never
-    // strands reflection. The check-in never blocks closing.
-    const runReflection = () => {
-      if (reflectionFiredRef.current) return
-      reflectionFiredRef.current = true
+    // Whole-session ambient assessment is coupled to the existing reflection
+    // call, so scientific evaluation adds no separate LLM request.
+    if (!freshEyes) {
       db.parts.toArray()
         .then(parts => reflectOnSession(currentSession.id, finalMessages, parts))
         .catch(error => console.error('Session reflection error:', error))
-    }
-    if (freshEyes) {
-      reflectionFiredRef.current = true
-    } else if (stanceOn) {
-      if (checkInAnsweredRef.current) {
-        runReflection()
-      } else {
-        pendingReflectionRef.current = runReflection
-        window.setTimeout(runReflection, 30_000)
-      }
-    } else {
-      runReflection()
     }
 
     // Persist weather
@@ -478,7 +436,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       message_count: finalMessages.length,
       duration_ms: endedAt - currentSession.startedAt,
     })
-  }, [isStreaming, generateTherapistMessage, stopAndFlushBiometrics, weatherEngine, grounding])
+  }, [isStreaming, generateTherapistMessage, stopAndFlushBiometrics, weatherEngine])
 
   const updateSession = useCallback(async (patch: Partial<Session>) => {
     if (!session?.id) return
@@ -530,37 +488,6 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       }
     }
   }, [generateTherapistMessage, isStreaming])
-
-  const handleResearchContext = useCallback((researchContext: SessionResearchContext) => {
-    void updateSession({ researchContext })
-  }, [updateSession])
-
-  const handleResearchOverride = useCallback(async (message: SessionMessage) => {
-    if (!message.researchEventId || isStreaming || !sessionRef.current || !runtimeRef.current.acquireSend()) return
-    try {
-      await markResearchOverridden(message.researchEventId, 'generated_response')
-      await generateTherapistMessage(messagesRef.current, sessionRef.current)
-    } finally {
-      runtimeRef.current.releaseSend()
-    }
-  }, [generateTherapistMessage, isStreaming])
-
-  const handleAllianceRepair = useCallback(async (reason: AllianceRepairReason) => {
-    if (isStreaming || !sessionRef.current || !runtimeRef.current.acquireSend()) return
-    try {
-      const result = await appendUserMessage(repairReasonMessage(reason), 'text', 'talk')
-      if (!result || !sessionRef.current) return
-      // Repair is never an experimental turn. The writer's correction gets a
-      // direct, ordinary response with the alliance constitution still active.
-      await generateTherapistMessage(result.updatedMessages, {
-        ...sessionRef.current,
-        messageCount: result.updatedMessages.length,
-        firstLine: result.firstLine,
-      })
-    } finally {
-      runtimeRef.current.releaseSend()
-    }
-  }, [appendUserMessage, generateTherapistMessage, isStreaming])
 
   const voiceState = voice.state
   const voiceStop = voice.stop
@@ -1017,14 +944,6 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
           {/* Messages list */}
           {session?.status === 'active' && !freshEyes && !grounding && messages.length <= 2 && contextRef.current?.fieldMosaicEnabled !== false && <FieldMosaic sessionId={session.id} disabled={isStreaming} onBringIntoTalk={handleMosaicOpen} />}
-          {session?.status === 'active' && !freshEyes && !grounding && messages.length <= 2 && contextRef.current?.personalScienceEnabled && !session.researchContext && (
-            <ReceptivityHandshake
-              onSave={handleResearchContext}
-              onSkip={() => handleResearchContext({ capturedAt: Date.now(), skipped: true })}
-            />
-          )}
-          {session?.status === 'active' && !freshEyes && !grounding && messages.length <= 2 && contextRef.current?.outcomeSampling !== 'off' && <FieldWindowTimingPulse sessionId={session.id} />}
-          {session?.status === 'active' && !freshEyes && !grounding && messages.length <= 2 && contextRef.current?.outcomeSampling !== 'off' && <DelayedOutcomePulse sessionId={session.id} />}
           {!freshEyes && !grounding && returnedArc && <SurfaceArcReturn outcomeId={returnedArc.outcomeId} surface={returnedArc.surface} onDone={() => setReturnedArc(null)} />}
           {messages.map((msg) => (
             <div key={msg.id}>
@@ -1038,15 +957,6 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
                     : null
                 }
               />
-              {session?.status === 'active' && !freshEyes && !grounding && msg.speaker === 'therapist' && (
-                <>
-                  <ResearchMomentNotice message={msg} onOverride={() => void handleResearchOverride(msg)} />
-                  <AllianceRepairFeedback message={msg} sessionId={session.id} onRepair={reason => void handleAllianceRepair(reason)} />
-                </>
-              )}
-              {session?.status === 'active' && !freshEyes && !grounding && contextRef.current?.outcomeSampling !== 'off' && sampledOutcomeMessageIds.has(msg.id) && (
-                <OutcomePulse message={msg} sessionId={session.id} />
-              )}
             </div>
           ))}
 
@@ -1111,23 +1021,6 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
             </div>
           )}
         </>
-      )}
-
-      {/* One-tap closing check-in — mounts at the bottom, directly beneath the
-          conversation/closing message, the instant "end session" is tapped
-          (stanceAdaptation flag). Deferred reflection fires on tap/skip or after
-          30s, whichever comes first; coordination lives in handleEndSession. */}
-      {checkInSessionId && (
-        <ClosingCheckIn
-          sessionId={checkInSessionId}
-          showNextStep={contextRef.current?.personalScienceEnabled === true && contextRef.current?.antiDependenceCheckIns === true}
-          onDone={() => {
-            setCheckInSessionId(null)
-            checkInAnsweredRef.current = true
-            pendingReflectionRef.current?.()
-            pendingReflectionRef.current = null
-          }}
-        />
       )}
 
       <div ref={messagesEndRef} />

@@ -355,6 +355,36 @@ describe('streamChatCompletion — risk preamble parsing', () => {
     expect(tokens.join('')).toBe('Please reach out for help.')
   })
 
+  it('parses the combined ambient marker without exposing assessment metadata', async () => {
+    mockStream([
+      sse('<<RISK:0;FIT:partial;MOVE:clarified;AGENCY:more;CONF:medium;STATE:looping;CAP:few_minutes;NEED:perspective>>\n\nThat distinction seems important.'),
+      'data: [DONE]\n\n',
+    ])
+    const stream = await loadStream()
+
+    let risk: number | null = null
+    let assessment: unknown
+    const tokens: string[] = []
+    await stream(
+      [{ role: 'user', content: 'I think I see the difference now.' }],
+      {
+        onToken: token => tokens.push(token),
+        onRisk: value => { risk = value },
+        onAmbientAssessment: value => { assessment = value },
+        onComplete: () => {},
+        onError: () => {},
+      },
+    )
+
+    expect(risk).toBe(0)
+    expect(assessment).toEqual({
+      fit: 'partial', movement: 'clarified', agency: 'more', confidence: 'medium',
+      state: 'looping', capacity: 'few_minutes', need: 'perspective',
+    })
+    expect(tokens.join('')).toBe('That distinction seems important.')
+    expect(tokens.join('')).not.toContain('FIT:')
+  })
+
   it('handles preamble split across multiple stream chunks', async () => {
     mockStream([
       sse('<<RIS'),
@@ -752,4 +782,3 @@ describe('streamChatCompletion — risk preamble parsing', () => {
     expect(warnCalls.length).toBeGreaterThanOrEqual(1)
   })
 })
-

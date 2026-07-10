@@ -11,12 +11,9 @@ import { isFreshEyesSession } from './freshEyes'
 export interface TherapistContext {
   memoryAperture: MemoryAperture
   fieldMosaicEnabled: boolean
-  outcomeSampling: 'off' | 'light'
   outcomeContext: string[]
   companionPreferences: CompanionPreferences | null
   alliancePreferences?: AlliancePreferences
-  personalScienceEnabled: boolean
-  antiDependenceCheckIns: boolean
   activePersonalProtocols: PersonalProtocol[]
   livingHypotheses: Array<{ text: string; status: 'confirmed' | 'contested' }>
   recentSessionNotes: { note: string; date: number }[]
@@ -253,11 +250,8 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     // that session only.
     memoryAperture: 'pattern',
     fieldMosaicEnabled: preferences?.fieldMosaicEnabled !== false,
-    outcomeSampling: preferences?.outcomeSampling === 'off' ? 'off' : 'light',
     companionPreferences: preferences ?? null,
     alliancePreferences: preferences?.alliance,
-    personalScienceEnabled: preferences?.personalScienceEnabled === true && Boolean(preferences.personalScienceConsentAt),
-    antiDependenceCheckIns: preferences?.antiDependenceCheckIns === true,
     activePersonalProtocols: personalProtocols,
     livingHypotheses: livingHypotheses
       .filter(item => !item.sourceSessionId || !freshSessionIds.has(item.sourceSessionId))

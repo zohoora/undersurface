@@ -1,4 +1,4 @@
-import type { Part, EntrySummary, UserProfile, PersonalFacts, SessionMessage, CompanionSignals, UserPart, SessionIntention, StanceProfile, Session, UserValue } from '../types'
+import type { AmbientSessionAssessment, Part, EntrySummary, UserProfile, PersonalFacts, SessionMessage, CompanionSignals, UserPart, SessionIntention, StanceProfile, Session, UserValue } from '../types'
 import { buildSessionReflectionPrompt, buildBoundedTranscript, buildStanceConsolidationPrompt } from '../ai/therapistPrompts'
 import { createIntention, applyIntentionOutcomes, openIntentions } from './intentionTracker'
 import { chatCompletion } from '../ai/openrouter'
@@ -24,6 +24,7 @@ export async function reflectOnSession(
   messages: SessionMessage[],
   parts: Part[],
 ): Promise<void> {
+  let reflectionClaimed = false
   try {
     // 1. Build transcript (wrap user messages for injection defense; bound length to fit
     // backend's 8000-char user-message cap)
@@ -37,14 +38,17 @@ export async function reflectOnSession(
       })
     }
 
-    // 2. Skip short sessions
-    if (transcriptText.length < 100) return
-
     // Fresh eyes is a write boundary, not only a prompt preference. Keep the
     // operational transcript/session record, but never derive longitudinal
     // memory or learning artifacts from it.
     const memorySession = await db.sessions.get(sessionId)
-    if (memorySession?.memoryAperture === 'fresh') return
+    if (!memorySession || memorySession.reflectedAt) return
+    if (memorySession.memoryAperture === 'fresh' || transcriptText.length < 100) {
+      await db.sessions.update(sessionId, { reflectionStatus: 'complete', reflectedAt: Date.now() })
+      return
+    }
+    await db.sessions.update(sessionId, { reflectionStatus: 'pending' })
+    reflectionClaimed = true
 
     // 3. Load profile + recent summaries + existing personal facts (+ the
     // writer's mapped parts, when the userParts flag is on)
@@ -107,6 +111,12 @@ export async function reflectOnSession(
       response = await chatCompletion(promptMessages, 240000, 2000, 'none')
     } catch (err) {
       console.error('[reflect] chat failed', { sessionId, ms: Date.now() - reflStart, err: err instanceof Error ? err.message : String(err) })
+      try {
+        await db.sessions.update(sessionId, { reflectionStatus: 'failed' })
+      } catch {
+        // Reflection is best-effort; a status write must not turn failure
+        // handling into an unhandled rejection.
+      }
       return
     }
     console.log('[reflect] response received', { sessionId, ms: Date.now() - reflStart, len: response.length, head: response.slice(0, 120), tail: response.slice(-120) })
@@ -120,6 +130,11 @@ export async function reflectOnSession(
           sessionId,
           extra: { len: response.length },
         })
+      }
+      try {
+        await db.sessions.update(sessionId, { reflectionStatus: 'failed' })
+      } catch {
+        // See the chat-failure path above.
       }
       return
     }
@@ -375,9 +390,23 @@ export async function reflectOnSession(
     // and self-contained — never lets a prune failure affect the reflection.
     void pruneGrowthCollections()
 
+    const ambientAssessment = parseAmbientSessionAssessment(parsed.ambientAssessment)
+    await db.sessions.update(sessionId, {
+      ...(ambientAssessment ? { ambientAssessment } : {}),
+      reflectionStatus: 'complete',
+      reflectedAt: Date.now(),
+    })
+
     console.log('[reflect] complete', { sessionId, totalMs: Date.now() - reflStart })
   } catch (error) {
     console.error('[reflect] error', { sessionId, err: error instanceof Error ? error.message : String(error) })
+    if (reflectionClaimed) {
+      try {
+        await db.sessions.update(sessionId, { reflectionStatus: 'failed' })
+      } catch {
+        // Preserve the original reflection failure.
+      }
+    }
   }
 }
 
@@ -408,6 +437,7 @@ function parseReflectionResponse(response: string): {
   valueObservations?: unknown
   carriedNoticing?: { present?: unknown; text?: unknown }
   fieldMoments?: Array<{ quote?: unknown; source?: unknown }>
+  ambientAssessment?: unknown
 } | null {
   try {
     const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, response]
@@ -415,6 +445,28 @@ function parseReflectionResponse(response: string): {
   } catch {
     console.error('Failed to parse session reflection response:', response.slice(0, 200))
     return null
+  }
+}
+
+function parseAmbientSessionAssessment(value: unknown): AmbientSessionAssessment | null {
+  if (!value || typeof value !== 'object') return null
+  const row = value as Record<string, unknown>
+  if (!['deepening', 'oscillating', 'stalled', 'repairing', 'settling', 'mixed', 'unclear'].includes(String(row.flow))) return null
+  if (!['landed', 'partial', 'missed', 'unclear'].includes(String(row.overallFit))) return null
+  if (!['more', 'same', 'less', 'unclear'].includes(String(row.agencyTrajectory))) return null
+  if (!['resolved', 'open', 'ruptured', 'abrupt', 'unclear'].includes(String(row.ending))) return null
+  if (!['low', 'medium', 'high'].includes(String(row.confidence))) return null
+  const synthesis = typeof row.synthesis === 'string' ? row.synthesis.trim().slice(0, 240) : ''
+  return {
+    flow: row.flow as AmbientSessionAssessment['flow'],
+    overallFit: row.overallFit as AmbientSessionAssessment['overallFit'],
+    agencyTrajectory: row.agencyTrajectory as AmbientSessionAssessment['agencyTrajectory'],
+    ending: row.ending as AmbientSessionAssessment['ending'],
+    confidence: row.confidence as AmbientSessionAssessment['confidence'],
+    synthesis,
+    evaluatorModel: 'gpt-5.5',
+    evaluatorPromptVersion: 'ambient-session-v1',
+    assessedAt: Date.now(),
   }
 }
 

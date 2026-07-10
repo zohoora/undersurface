@@ -144,22 +144,22 @@ export function buildExperimentDirective(arm: ResearchArm, preferredArm?: Resear
     return `TRANSFER LADDER TURN (writer explicitly enrolled this protocol): perform ${move} as the single primary move. Do not ask the writer to generate it first and do not mention the ladder, assignment, or protocol. Persona, safety, grounding, and the writer's explicit request still outrank this structural assignment.`
   }
   if (arm === 'generated_response') {
-    return `PERSONAL SCIENCE TURN (writer opted in): respond naturally using the shared response grammar. Do not mention the experiment, assignment, or internal mode. The interface explains that a comparison occurred.`
+    return `AMBIENT RESPONSE-FORM TURN: respond naturally using the shared response grammar. Never mention internal comparison, assignment, or mode.`
   }
   if (arm === 'continue_talk') {
-    return `PERSONAL SCIENCE TURN (writer opted in): remain in Talk for this response. Do not offer or emit a surface-switch marker. Choose the most fitting ordinary response move. Do not mention the experiment or assignment.`
+    return `AMBIENT RESPONSE-FORM TURN: remain in Talk for this response. Do not offer or emit a surface-switch marker. Choose the most fitting ordinary response move. Never mention internal comparison or assignment.`
   }
   if (arm === 'single_hypothesis') {
-    return `AMBIGUITY STUDY TURN (writer opted in): offer ONE bounded, tentative interpretation of the current situation. Use possibility language and leave room for correction. Do not stack alternatives, diagnose, mention the study, or emit prism/rich-action markers.`
+    return `AMBIENT AMBIGUITY TURN: offer ONE bounded, tentative interpretation of the current situation. Use possibility language and leave room for correction. Do not stack alternatives, diagnose, mention internal comparison, or emit prism/rich-action markers.`
   }
   if (arm === 'ambiguity_prism') {
-    return `AMBIGUITY PRISM TURN (writer opted in): briefly say that several possibilities may coexist, then emit EXACTLY three distinct, nonexclusive hypotheses on separate lines using these exact wrappers:
+    return `AMBIENT AMBIGUITY PRISM TURN: briefly say that several possibilities may coexist, then emit EXACTLY three distinct, nonexclusive hypotheses on separate lines using these exact wrappers:
 [<first short possibility>](#prism:h1)
 [<second short possibility>](#prism:h2)
 [<third short possibility>](#prism:h3)
-At least one must be an ordinary state or situational explanation such as fatigue, timing, or overload. Do not diagnose, imply hidden trauma, repeat one idea three ways, select a winner, ask a follow-up question, mention the study, or emit any other marker.`
+At least one must be an ordinary state or situational explanation such as fatigue, timing, or overload. Do not diagnose, imply hidden trauma, repeat one idea three ways, select a winner, ask a follow-up question, mention internal comparison, or emit any other marker.`
   }
-  return `PERSONAL SCIENCE TURN (writer opted in): use ${arm} as the single primary response move for this turn. Follow that move faithfully without naming it, the experiment, or the assignment. Persona, safety, grounding, and the writer's explicit request still outrank this structural assignment.`
+  return `AMBIENT RESPONSE-FORM TURN: use ${arm} as the single primary response move for this turn. Follow that move faithfully without naming internal comparison or assignment. Persona, safety, grounding, and the writer's explicit request still outrank this structural assignment.`
 }
 
 export function assignmentFromEvent(event: ResearchEvent): ResearchAssignment {
@@ -186,8 +186,10 @@ export function planResearchTurn(
 ): ResearchAssignment | null {
   if (options.grounding) return null
   if (session.memoryAperture === 'fresh') return null
-  if (preferences?.personalScienceEnabled !== true || !preferences.personalScienceConsentAt) return null
-  if (session.status !== 'active' || !completeContext(session.researchContext)) return null
+  if (session.status !== 'active') return null
+  const researchContext = completeContext(session.researchContext)
+    ? session.researchContext
+    : { state: 'open' as const, capacity: 'few_minutes' as const, need: 'witness' as const, capturedAt: options.now ?? Date.now() }
 
   const userMessages = messages.filter(message => message.speaker === 'user')
   const therapistMessages = messages.filter(message => message.speaker === 'therapist')
@@ -208,7 +210,7 @@ export function planResearchTurn(
       && protocol.transferStatus === 'learning'
       && Boolean(protocol.transferLevel)
       && isTransferableArm(protocol.preferredArm)
-      && contextMatches(protocol, session.researchContext!),
+      && contextMatches(protocol, researchContext),
   )
 
   if (transferProtocol?.transferLevel) {
@@ -240,9 +242,9 @@ export function planResearchTurn(
         personalProtocolId: transferProtocol.id,
         transferLevel: level,
         context: {
-          state: session.researchContext.state,
-          capacity: session.researchContext.capacity,
-          need: session.researchContext.need,
+          state: researchContext.state,
+          capacity: researchContext.capacity,
+          need: researchContext.need,
         },
         provider: delivery === 'model' ? 'openai' : 'deterministic',
         deliveryFidelity: delivery === 'model' ? 'prompt_assigned' : 'deterministic',
@@ -261,7 +263,7 @@ export function planResearchTurn(
     }
   }
 
-  const protocolCount = session.researchContext.need === 'perspective' ? 4 : 3
+  const protocolCount = researchContext.need === 'perspective' ? 3 : 2
   const protocolIndex = Math.floor(seed / 2) % protocolCount
   let protocolId: ResearchEvent['protocolId']
   let assignedArm: ResearchArm
@@ -269,9 +271,11 @@ export function planResearchTurn(
   const matchingProtocol = (options.protocols ?? []).find(protocol =>
     protocol.status === 'active'
       && protocol.transferStatus !== 'graduated'
-      && contextMatches(protocol, session.researchContext!),
+      && protocol.preferredArm !== 'designed_silence'
+      && protocol.protocolId !== 'subtraction-v1'
+      && contextMatches(protocol, researchContext),
   )
-  const policy = preferences.protocolPolicy ?? 'balanced'
+  const policy = preferences?.protocolPolicy ?? 'balanced'
   const usePersonalized = Boolean(matchingProtocol)
     && (policy === 'use_what_helped' || (policy === 'balanced' && seed % 3 !== 0))
 
@@ -281,11 +285,8 @@ export function planResearchTurn(
     assignmentKind = 'personalized'
   } else if (protocolIndex === 0) {
     protocolId = 'response-grammar-v1'
-    assignedArm = armForResponseGrammar(seed, session.researchContext.need)
+    assignedArm = armForResponseGrammar(seed, researchContext.need)
   } else if (protocolIndex === 1) {
-    protocolId = 'subtraction-v1'
-    assignedArm = seed % 4 < 2 ? 'generated_response' : 'designed_silence'
-  } else if (protocolIndex === 2) {
     protocolId = 'surface-choreography-v1'
     assignedArm = seed % 4 < 2 ? 'continue_talk' : 'offer_journal_arc'
   } else {
@@ -309,9 +310,9 @@ export function planResearchTurn(
     assignedArm,
     responseMode,
     context: {
-      state: session.researchContext.state,
-      capacity: session.researchContext.capacity,
-      need: session.researchContext.need,
+      state: researchContext.state,
+      capacity: researchContext.capacity,
+      need: researchContext.need,
     },
     provider: deliveryForArm(assignedArm) === 'model' ? 'openai' : 'deterministic',
     deliveryFidelity: deliveryForArm(assignedArm) === 'model' ? 'prompt_assigned' : 'deterministic',
@@ -357,7 +358,11 @@ export function deriveResearchFindings(
   reviewedProtocols: PersonalProtocol[] = [],
 ): ResearchFinding[] {
   const outcomesByEvent = new Map(
-    outcomes.filter(outcome => outcome.researchEventId).map(outcome => [outcome.researchEventId!, outcome]),
+    outcomes
+      .filter(outcome => outcome.researchEventId
+        && outcome.immediate
+        && (outcome.assessmentSource !== 'ambient_turn' || outcome.ambientConfidence !== 'low'))
+      .map(outcome => [outcome.researchEventId!, outcome]),
   )
   const reviewedKeys = new Set(reviewedProtocols.map(protocol => protocol.findingKey))
   const groups = new Map<string, ResearchEvent[]>()
@@ -452,7 +457,11 @@ export function deriveTransferEvidence(
     }
   }
   const outcomesByEvent = new Map(
-    outcomes.filter(outcome => outcome.researchEventId).map(outcome => [outcome.researchEventId!, outcome]),
+    outcomes
+      .filter(outcome => outcome.researchEventId
+        && outcome.immediate
+        && (outcome.assessmentSource !== 'ambient_turn' || outcome.ambientConfidence !== 'low'))
+      .map(outcome => [outcome.researchEventId!, outcome]),
   )
   const relevant = events.filter(event =>
     event.protocolId === 'transfer-ladder-v1'

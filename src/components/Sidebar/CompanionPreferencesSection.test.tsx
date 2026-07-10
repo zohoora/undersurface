@@ -43,4 +43,12 @@ describe('CompanionPreferencesSection continuity control', () => {
     expect(screen.queryByRole('checkbox', { name: 'Start new sessions with Fresh eyes' })).toBeNull()
     expect(screen.getByRole('checkbox', { name: 'Field mosaic' })).toBeInTheDocument()
   })
+
+  it('does not expose ambient science controls or outcome questionnaires', async () => {
+    render(<CompanionPreferencesSection isOpen />)
+
+    expect(screen.queryByText('ps.settings.title')).toBeNull()
+    expect(screen.queryByText('ps.settings.outcomes')).toBeNull()
+    expect(screen.queryByText('ps.atlas.title')).toBeNull()
+  })
 })

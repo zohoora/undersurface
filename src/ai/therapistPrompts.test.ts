@@ -37,7 +37,14 @@ describe('buildTherapistSystemPrompt', () => {
 
   it('includes the risk preamble instructions by default', () => {
     const prompt = buildTherapistSystemPrompt({ phase: 'opening' })
+    expect(prompt).toContain('<<RISK:0;FIT:')
+    expect(prompt).toContain('observable conversational fit')
+  })
+
+  it('keeps only crisis metadata in Fresh eyes', () => {
+    const prompt = buildTherapistSystemPrompt({ phase: 'opening', includeAmbientAssessment: false })
     expect(prompt).toContain('<<RISK:0>>')
+    expect(prompt).not.toContain(';FIT:')
   })
 
   it('omits the risk preamble instructions when includeRiskPreamble is false (voice path)', () => {

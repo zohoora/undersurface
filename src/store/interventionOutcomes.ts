@@ -1,6 +1,53 @@
 import { db } from './db'
-import type { DelayedOutcome, FieldMoment, ImmediateOutcome, OutcomeHorizon, SessionMessage } from '../types'
+import type { AmbientTurnAssessment, DelayedOutcome, FieldMoment, ImmediateOutcome, OutcomeHorizon, SessionMessage } from '../types'
 import { linkResearchOutcome } from './personalScience'
+
+export const AMBIENT_EVALUATOR_PROMPT_VERSION = 'ambient-turn-v1'
+
+export async function writeAmbientTurnOutcome(
+  companionMessage: SessionMessage,
+  userMessage: SessionMessage,
+  sessionId: string,
+  assessment: AmbientTurnAssessment,
+): Promise<void> {
+  const now = Date.now()
+  const id = `ambient-${companionMessage.id}-${userMessage.id}`
+  const existing = await db.interventionOutcomes.get(id)
+  const immediate = assessment.fit === 'landed'
+    ? 'helped'
+    : assessment.fit === 'missed'
+      ? 'not_wanted'
+      : assessment.fit === 'partial'
+        ? 'nothing'
+        : undefined
+  const record = {
+    ...(immediate ? { immediate: immediate as ImmediateOutcome } : {}),
+    assessmentSource: 'ambient_turn' as const,
+    assessedUserMessageId: userMessage.id,
+    ambientFit: assessment.fit,
+    ambientMovement: assessment.movement,
+    ambientAgency: assessment.agency,
+    ambientConfidence: assessment.confidence,
+    ...(assessment.agency !== 'unclear' ? { agency: assessment.agency } : {}),
+    evaluatorModel: 'gpt-5.5',
+    evaluatorPromptVersion: AMBIENT_EVALUATOR_PROMPT_VERSION,
+    updatedAt: now,
+  }
+  if (existing) await db.interventionOutcomes.update(id, record)
+  else await db.interventionOutcomes.add({
+    id,
+    source: companionMessage.surface ?? 'talk',
+    sourceId: companionMessage.id,
+    sessionId,
+    intervention: companionMessage.responseMode ?? 'reflect',
+    ...(companionMessage.researchEventId ? { researchEventId: companionMessage.researchEventId } : {}),
+    ...record,
+    createdAt: now,
+  })
+  if (companionMessage.researchEventId) {
+    await linkResearchOutcome(companionMessage.researchEventId, id).catch(() => {})
+  }
+}
 
 export async function writeImmediateMessageOutcome(
   id: string,

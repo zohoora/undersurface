@@ -152,6 +152,14 @@ describe('SessionView — unified mode bar (only path)', () => {
     expect(src.default).toContain('SessionBottomBar')
   })
 
+  it('keeps ambient science invisible in the conversation flow', async () => {
+    const src = await import('./SessionView?raw')
+    expect(src.default).not.toContain('ResearchMomentNotice')
+    expect(src.default).not.toContain('OutcomePulse')
+    expect(src.default).not.toContain('ReceptivityHandshake')
+    expect(src.default).not.toContain('ClosingCheckIn')
+  })
+
   it('SessionView no longer renders the legacy session-mode-badge', async () => {
     // Real Talk now lives only as a switch in the mode bar; the legacy
     // standalone badge in the header is gone.

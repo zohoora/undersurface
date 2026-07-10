@@ -16,9 +16,6 @@ const DEFAULTS: CompanionPreferences = {
   id: 'current',
   fieldMosaicEnabled: true,
   outcomeSampling: 'light',
-  personalScienceEnabled: false,
-  antiDependenceCheckIns: true,
-  protocolPolicy: 'balanced',
   alliance: DEFAULT_ALLIANCE,
   updatedAt: 0,
 }
@@ -191,17 +188,6 @@ export function CompanionPreferencesSection({ isOpen }: { isOpen: boolean }) {
     void savePreferences(next, exists).then(() => setExists(true))
   }
 
-  const changeScience = (enabled: boolean) => {
-    const next: CompanionPreferences = {
-      ...preferences,
-      personalScienceEnabled: enabled,
-      ...(enabled && !preferences.personalScienceConsentAt ? { personalScienceConsentAt: Date.now() } : {}),
-      updatedAt: Date.now(),
-    }
-    setPreferences(next)
-    void savePreferences(next, exists).then(() => setExists(true))
-  }
-
   const changeAlliance = <K extends keyof AlliancePreferences>(key: K, value: AlliancePreferences[K]) => {
     change('alliance', { ...(preferences.alliance ?? DEFAULT_ALLIANCE), [key]: value })
   }
@@ -213,35 +199,7 @@ export function CompanionPreferencesSection({ isOpen }: { isOpen: boolean }) {
         Field mosaic
         <input type="checkbox" checked={preferences.fieldMosaicEnabled} onChange={event => change('fieldMosaicEnabled', event.target.checked)} />
       </label>
-      <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 8, color: 'var(--text-secondary)', fontSize: 11 }}>
-        Occasional outcome check-ins
-        <input type="checkbox" checked={preferences.outcomeSampling === 'light'} onChange={event => change('outcomeSampling', event.target.checked ? 'light' : 'off')} />
-      </label>
       <MemoryLedger />
-      <div style={{ borderTop: '1px solid var(--border-light)', marginTop: 12, paddingTop: 11 }}>
-        <div style={{ color: 'var(--text-primary)', fontSize: 11, marginBottom: 4 }}>{tr['ps.settings.title']}</div>
-        <div style={{ color: 'var(--text-ghost)', fontSize: 10, lineHeight: 1.45 }}>{tr['ps.settings.description']}</div>
-        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 8, color: 'var(--text-secondary)', fontSize: 11 }}>
-          {tr['ps.settings.learn']}
-          <input type="checkbox" checked={preferences.personalScienceEnabled === true} onChange={event => changeScience(event.target.checked)} />
-        </label>
-        {preferences.personalScienceEnabled === true && (
-          <>
-            <label style={{ display: 'grid', gap: 4, marginTop: 9, color: 'var(--text-secondary)', fontSize: 10 }}>
-              {tr['ps.settings.policy']}
-              <select value={preferences.protocolPolicy ?? 'balanced'} onChange={event => change('protocolPolicy', event.target.value as NonNullable<CompanionPreferences['protocolPolicy']>)} style={{ width: '100%', padding: '5px 7px', border: '1px solid var(--border-subtle)', borderRadius: 4, background: 'var(--surface-primary)', color: 'var(--text-primary)', fontSize: 11 }}>
-                <option value="use_what_helped">{tr['ps.settings.useHelped']}</option>
-                <option value="balanced">{tr['ps.settings.balanced']}</option>
-                <option value="explore">{tr['ps.settings.explore']}</option>
-              </select>
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 8, color: 'var(--text-secondary)', fontSize: 11 }}>
-              {tr['ps.settings.after']}
-              <input type="checkbox" checked={preferences.antiDependenceCheckIns !== false} onChange={event => change('antiDependenceCheckIns', event.target.checked)} />
-            </label>
-          </>
-        )}
-      </div>
       <div style={{ borderTop: '1px solid var(--border-light)', marginTop: 12, paddingTop: 11 }}>
         <div style={{ color: 'var(--text-primary)', fontSize: 11, marginBottom: 4 }}>{tr['ps.alliance.title']}</div>
         <div style={{ color: 'var(--text-ghost)', fontSize: 10, lineHeight: 1.45 }}>{tr['ps.alliance.description']}</div>

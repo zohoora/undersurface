@@ -39,11 +39,11 @@ describe('personal science assignment', () => {
     expect(JSON.stringify(first)).not.toContain('again')
   })
 
-  it('never assigns during grounding, Fresh eyes, without opt-in, after a skipped handshake, or on consecutive research turns', () => {
+  it('assigns universally but never during grounding, Fresh eyes, or consecutive research turns', () => {
     expect(planResearchTurn(session, messages, preferences, { forceEligible: true, grounding: true })).toBeNull()
     expect(planResearchTurn({ ...session, memoryAperture: 'fresh' }, messages, preferences, { forceEligible: true })).toBeNull()
-    expect(planResearchTurn(session, messages, { ...preferences, personalScienceEnabled: false }, { forceEligible: true })).toBeNull()
-    expect(planResearchTurn({ ...session, researchContext: { capturedAt: 1, skipped: true } }, messages, preferences, { forceEligible: true })).toBeNull()
+    expect(planResearchTurn(session, messages, { ...preferences, personalScienceEnabled: false }, { forceEligible: true })).not.toBeNull()
+    expect(planResearchTurn({ ...session, researchContext: { capturedAt: 1, skipped: true } }, messages, preferences, { forceEligible: true })).not.toBeNull()
     expect(planResearchTurn(session, [
       ...messages.slice(0, -1),
       { ...messages[1], id: 'a-research', researchEventId: 'r1' },
@@ -53,11 +53,11 @@ describe('personal science assignment', () => {
 
   it('builds a bounded directive without exposing it to the writer', () => {
     expect(buildExperimentDirective('make_concrete')).toContain('single primary response move')
-    expect(buildExperimentDirective('make_concrete')).toContain('without naming it')
+    expect(buildExperimentDirective('make_concrete')).toContain('without naming internal comparison')
     expect(buildExperimentDirective('designed_silence')).toBeUndefined()
   })
 
-  it('reuses a writer-approved matching protocol without calling it randomized evidence', () => {
+  it('never revives a legacy designed-silence protocol', () => {
     const assignment = planResearchTurn(session, messages, {
       ...preferences,
       protocolPolicy: 'use_what_helped',
@@ -70,8 +70,8 @@ describe('personal science assignment', () => {
         evidenceEventIds: ['old'], confidence: 'early', status: 'active', createdAt: 1, updatedAt: 1,
       }],
     })
-    expect(assignment?.event.assignmentKind).toBe('personalized')
-    expect(assignment?.event.assignedArm).toBe('designed_silence')
+    expect(assignment?.event.assignmentKind).toBe('randomized')
+    expect(assignment?.event.assignedArm).not.toBe('designed_silence')
   })
 
   it('prioritizes an explicitly enrolled transfer ladder and compares only adjacent rungs', () => {

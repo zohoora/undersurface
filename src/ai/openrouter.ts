@@ -3,6 +3,7 @@ import { getAuthToken } from '../api/authedFetch'
 import { CRISIS_CLASSIFIER_PROMPT } from './crisisClassifierPrompt'
 import { SIGNAL_CLASSIFIER_PROMPT } from './signalClassifierPrompt'
 import { engineLog } from '../services/diagnostics'
+import type { AmbientTurnAssessment } from '../types'
 
 export type CrisisRisk = 0 | 1 | 2
 
@@ -38,6 +39,7 @@ interface StreamCallbacks {
   onError: (error: Error) => void
   // Fires at most once per call. Missing preamble → risk=0 (fail-open).
   onRisk?: (risk: CrisisRisk) => void
+  onAmbientAssessment?: (assessment: AmbientTurnAssessment) => void
 }
 
 // Anchored — a stray `<<RISK:2>>` quoted later in the response does not
@@ -54,7 +56,7 @@ interface StreamCallbacks {
 // sessionOrchestrator is the deterministic safety floor, so falling open
 // here doesn't disable safety. Malformations go to engineLog so model
 // misbehavior is observable.
-const RISK_PREAMBLE_PATTERN = /^<<RISK:([^>]{1,8})>>[ \t]*\n*/
+const RISK_PREAMBLE_PATTERN = /^<<RISK:([^;>]{1,8})(?:;FIT:([^;>]{1,16});MOVE:([^;>]{1,16});AGENCY:([^;>]{1,16});CONF:([^;>]{1,12});STATE:([^;>]{1,16});CAP:([^;>]{1,16});NEED:([^;>]{1,16}))?>>[ \t]*\n*/
 // Last-resort scrub, applied only to the buffered stream prefix at
 // fail-open flush time (never to later content, so quoted markers
 // mid-response are untouched). Broader than the anchored pattern: tolerates
@@ -62,8 +64,8 @@ const RISK_PREAMBLE_PATTERN = /^<<RISK:([^>]{1,8})>>[ \t]*\n*/
 // marker never reaches the chat window. A cleanly parseable digit still
 // fires as the real risk — discarding a crisis signal the model actually
 // produced would be worse than the formatting noise.
-const RISK_MARKER_SCRUB = /^[\s`*_]{0,8}<<RISK:([^>]{1,24})>>[`*_]{0,8}[ \t]*\n*/
-const PREAMBLE_FAIL_OPEN_CHARS = 80
+const RISK_MARKER_SCRUB = /^[\s`*_]{0,8}<<RISK:([^>]{1,240})>>[`*_]{0,8}[ \t]*\n*/
+const PREAMBLE_FAIL_OPEN_CHARS = 320
 // Abort a stream only after this long with no incoming data. Re-armed on every
 // chunk, so it caps idle time (a stalled connection), not total duration.
 const STREAM_IDLE_MS = 30000
@@ -218,9 +220,21 @@ export async function streamChatCompletion(
     }
 
     const parseRiskPayload = (captured: string): CrisisRisk | null =>
-      captured === '0' || captured === '1' || captured === '2'
-        ? parseInt(captured, 10) as CrisisRisk
+      captured.split(';')[0] === '0' || captured.split(';')[0] === '1' || captured.split(';')[0] === '2'
+        ? parseInt(captured.split(';')[0], 10) as CrisisRisk
         : null
+
+    const parseAmbientAssessment = (values: string[]): AmbientTurnAssessment | null => {
+      const [fit, movement, agency, confidence, state, capacity, need] = values
+      if (!['landed', 'partial', 'missed', 'unclear'].includes(fit)) return null
+      if (!['deepened', 'clarified', 'settled', 'mobilized', 'stayed', 'withdrew', 'unclear'].includes(movement)) return null
+      if (!['more', 'same', 'less', 'unclear'].includes(agency)) return null
+      if (!['low', 'medium', 'high'].includes(confidence)) return null
+      if (!['stirred', 'flat', 'looping', 'open', 'unclear'].includes(state)) return null
+      if (!['brief', 'few_minutes', 'stay', 'unclear'].includes(capacity)) return null
+      if (!['witness', 'settle', 'perspective', 'action', 'unclear'].includes(need)) return null
+      return { fit, movement, agency, confidence, state, capacity, need } as AmbientTurnAssessment
+    }
 
     // Categorize rather than log raw bytes — EngineLogContext.extra
     // contract forbids model output. Categories are enough to triage:
@@ -281,6 +295,11 @@ export async function streamChatCompletion(
       if (match) {
         const risk = parseRiskPayload(match[1])
         if (risk === null) logMalformed(match[1])
+        if (match[2]) {
+          const assessment = parseAmbientAssessment(match.slice(2, 9))
+          if (assessment) callbacks.onAmbientAssessment?.(assessment)
+          else engineLog('warn', 'stream.preamble_malformed', 'ambient preamble had unexpected enum values; ignoring assessment', { extra: { category: 'ambient_enum' } })
+        }
         fireRisk(risk ?? 0)
         if (controller.signal.aborted) return
         const remainder = preambleBuffer.slice(match[0].length)

@@ -12,6 +12,7 @@ import { SignalTracker } from '../engine/signalTracker'
 import { validateResearchDelivery, type ResearchAssignment } from '../engine/personalScience'
 import { markResearchDelivered } from '../store/personalScience'
 import { markResearchCancelled } from '../store/personalScience'
+import { writeAmbientTurnOutcome } from '../store/interventionOutcomes'
 import type { TherapistContext } from '../engine/sessionContextLoader'
 import { isGroundingActive, activateGrounding } from './useGroundingMode'
 import { getWeatherEngine } from '../store/weatherStore'
@@ -142,6 +143,17 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     const activeResearchAssignment = !durableContextEnabled
       ? undefined
       : researchAssignment
+    let latestUserIndex = -1
+    for (let index = currentMessages.length - 1; index >= 0; index--) {
+      if (currentMessages[index].speaker === 'user') {
+        latestUserIndex = index
+        break
+      }
+    }
+    const assessedUserMessage = latestUserIndex >= 0 ? currentMessages[latestUserIndex] : undefined
+    const assessedCompanionMessage = latestUserIndex > 0
+      ? [...currentMessages.slice(0, latestUserIndex)].reverse().find(message => message.speaker === 'therapist')
+      : undefined
 
     const orchestrator = orchestratorRef.current
 
@@ -328,6 +340,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           isGrounding: isGroundingActive(),
           hrvContext,
           mode: currentSession.mode ?? 'standard',
+          includeAmbientAssessment: durableContextEnabled,
           allowRecommendations: !exclusiveResearchTurn,
           availableSurfaceArcs: durableContextEnabled
             ? [
@@ -594,6 +607,25 @@ export function useSessionStream(wiring: SessionStreamWiring) {
                 crisisAbortController.abort()
               }
             },
+            onAmbientAssessment: durableContextEnabled ? (assessment) => {
+              if (assessment.state !== 'unclear' && assessment.capacity !== 'unclear' && assessment.need !== 'unclear') {
+                const researchContext = {
+                  state: assessment.state,
+                  capacity: assessment.capacity,
+                  need: assessment.need,
+                  capturedAt: Date.now(),
+                }
+                currentSession.researchContext = researchContext
+                if (sessionRef.current?.id === currentSession.id) {
+                  sessionRef.current = { ...sessionRef.current, researchContext }
+                  setSession(previous => previous?.id === currentSession.id ? { ...previous, researchContext } : previous)
+                }
+                void db.sessions.update(currentSession.id, { researchContext }).catch(() => {})
+              }
+              if (assessedCompanionMessage && assessedUserMessage) {
+                void writeAmbientTurnOutcome(assessedCompanionMessage, assessedUserMessage, currentSession.id, assessment).catch(() => {})
+              }
+            } : undefined,
             onComplete: () => {
               if (!runtime.isSessionActive(currentSession.id)) {
                 resolveMessages(currentMessages)

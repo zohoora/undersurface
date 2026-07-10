@@ -199,6 +199,11 @@ export interface Session {
   // comparisons. A skipped handshake is recorded so it is not repeatedly
   // shown during the same session. These labels are never diagnoses.
   researchContext?: SessionResearchContext
+  // Ambient scientific assessment is model-derived observational evidence,
+  // never a diagnosis or a user-reported outcome.
+  ambientAssessment?: AmbientSessionAssessment
+  reflectionStatus?: 'pending' | 'complete' | 'failed'
+  reflectedAt?: number
 }
 
 export type MemoryAperture = 'fresh' | 'pattern'
@@ -395,8 +400,43 @@ export interface InterventionOutcome {
   windowLabel?: string
   timingAskedAt?: number
   prismFeedback?: AmbiguityPrismFeedback
+  assessmentSource?: 'ambient_turn'
+  assessedUserMessageId?: string
+  ambientFit?: AmbientFit
+  ambientMovement?: AmbientMovement
+  ambientAgency?: AmbientAgency
+  ambientConfidence?: AmbientConfidence
+  evaluatorModel?: string
+  evaluatorPromptVersion?: string
   createdAt: number
   updatedAt: number
+}
+
+export type AmbientFit = 'landed' | 'partial' | 'missed' | 'unclear'
+export type AmbientMovement = 'deepened' | 'clarified' | 'settled' | 'mobilized' | 'stayed' | 'withdrew' | 'unclear'
+export type AmbientAgency = 'more' | 'same' | 'less' | 'unclear'
+export type AmbientConfidence = 'low' | 'medium' | 'high'
+
+export interface AmbientTurnAssessment {
+  fit: AmbientFit
+  movement: AmbientMovement
+  agency: AmbientAgency
+  confidence: AmbientConfidence
+  state: PersonalScienceState | 'unclear'
+  capacity: PersonalScienceCapacity | 'unclear'
+  need: PersonalScienceNeed | 'unclear'
+}
+
+export interface AmbientSessionAssessment {
+  flow: 'deepening' | 'oscillating' | 'stalled' | 'repairing' | 'settling' | 'mixed' | 'unclear'
+  overallFit: AmbientFit
+  agencyTrajectory: AmbientAgency
+  ending: 'resolved' | 'open' | 'ruptured' | 'abrupt' | 'unclear'
+  confidence: AmbientConfidence
+  synthesis: string
+  evaluatorModel: string
+  evaluatorPromptVersion: string
+  assessedAt: number
 }
 
 export type AllianceRepairReason =
