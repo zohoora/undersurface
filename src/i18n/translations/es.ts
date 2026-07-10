@@ -83,6 +83,8 @@ const esBase = {
   'session.bottomBar.speak': 'Decir en voz alta',
   'session.bottomBar.realTalk': 'Real Talk',
   'session.bottomBar.realTalkExplainer': 'Nombra los mecanismos de defensa en tu escritura — evitación, minimización, pensamiento de todo o nada. Directo, pero amable.',
+  'session.bottomBar.freshEyes': 'Mirada nueva',
+  'session.bottomBar.freshEyesExplainer': 'Sin contexto previo. Esta sesión no actualizará la memoria del acompañante; la transcripción seguirá en el historial y la exportación.',
   'voice.error.micDenied': 'El acceso al micrófono está bloqueado. Permítelo en la configuración del navegador e inténtalo de nuevo.',
   'voice.error.micMissing': 'No se encontró ningún micrófono. Conecta uno e inténtalo de nuevo.',
   'voice.error.service': 'No se pudo conectar con el servicio de voz. Comprueba tu conexión e inténtalo de nuevo.',

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { Part, SessionMessage } from '../types'
+import type { Part, Session, SessionMessage } from '../types'
 
 vi.mock('../ai/openrouter', () => ({
   chatCompletion: vi.fn(),
@@ -87,6 +87,18 @@ function makePart(overrides: Partial<Part> = {}): Part {
 describe('reflectOnSession', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('does not derive or write memory from a Fresh eyes session', async () => {
+    vi.mocked(db.sessions.get).mockResolvedValueOnce({ memoryAperture: 'fresh' } as Session)
+    await reflectOnSession('fresh-session', [
+      makeMessage({ content: 'I am writing enough detail for the reflection threshold to be crossed without ambiguity.' }),
+      makeMessage({ id: 'msg-2', content: 'This second sentence makes the synthetic transcript comfortably longer than one hundred characters.' }),
+    ], [makePart()])
+    expect(mockChatCompletion).not.toHaveBeenCalled()
+    expect(db.entrySummaries.add).not.toHaveBeenCalled()
+    expect(db.memories.add).not.toHaveBeenCalled()
+    expect(db.fieldMoments.add).not.toHaveBeenCalled()
   })
 
   it('skips short transcripts (< 100 chars)', async () => {

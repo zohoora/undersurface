@@ -199,6 +199,21 @@ describe('loadTherapistContext', () => {
     expect(ctx.recentSessionNotes.map(n => n.note)).toEqual(['note-5', 'note-4', 'note-3', 'note-2', 'note-1'])
   })
 
+  it('excludes Fresh eyes session notes and their parent Relax history', async () => {
+    state.sessions = [
+      makeSession({ id: 'fresh', startedAt: 200, endedAt: 210, sessionNote: 'private learning boundary', memoryAperture: 'fresh' }),
+      makeSession({ id: 'normal', startedAt: 100, endedAt: 110, sessionNote: 'continuity note', memoryAperture: 'pattern' }),
+    ]
+    state.relaxSessions = [
+      makeRelax({ id: 'fresh-relax', parentSessionId: 'fresh', startedAt: 300, endedAt: 310 }),
+      makeRelax({ id: 'normal-relax', parentSessionId: 'normal', startedAt: 200, endedAt: 210 }),
+    ]
+
+    const ctx = await loadTherapistContext()
+    expect(ctx.recentSessionNotes.map(note => note.note)).toEqual(['continuity note'])
+    expect(ctx.recentRelaxBreaks.map(relax => relax.id)).toEqual(['normal-relax'])
+  })
+
   it('uses endedAt as the date when present, falling back to startedAt', async () => {
     state.sessions = [
       makeSession({ id: 's1', startedAt: 100, endedAt: 999, status: 'closed', sessionNote: 'ended' }),
@@ -342,6 +357,16 @@ describe('loadTherapistContext — rupture evidence + rumination watch', () => {
     const ctx = await loadTherapistContext('current-one')
 
     expect(ctx.repairContext).toEqual({ evidence: 'atypical_gap' })
+  })
+
+  it('does not use Fresh eyes sessions as rupture or cadence evidence', async () => {
+    state.features = { ruptureRepair: true }
+    seedGapHistory()
+    state.sessions = state.sessions.map(session => ({ ...session, memoryAperture: 'fresh' as const }))
+
+    const ctx = await loadTherapistContext()
+    expect(ctx.repairContext).toBeNull()
+    expect(state.companionSignalWrites).toHaveLength(0)
   })
 
   it('falls back to stored pendingRepair (terse ending from reflection) when nothing fires at open', async () => {

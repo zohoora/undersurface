@@ -7,6 +7,7 @@ function documents(): SmsContextDocuments {
   return {
     sessions: [
       { status: 'closed', sessionNote: 'The job decision remains open.', startedAt: NOW - 3_000, endedAt: NOW - 2_000 },
+      { status: 'closed', sessionNote: 'Do not include Fresh eyes.', memoryAperture: 'fresh', startedAt: NOW - 2_500, endedAt: NOW - 1_500 },
       { status: 'active', sessionNote: 'Do not include active.', startedAt: NOW - 1_000 },
     ],
     memories: [

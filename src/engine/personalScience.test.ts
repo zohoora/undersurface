@@ -40,8 +40,9 @@ describe('personal science assignment', () => {
     expect(JSON.stringify(first)).not.toContain('again')
   })
 
-  it('never assigns during grounding, without opt-in, after a skipped handshake, or on consecutive research turns', () => {
+  it('never assigns during grounding, Fresh eyes, without opt-in, after a skipped handshake, or on consecutive research turns', () => {
     expect(planResearchTurn(session, messages, preferences, { forceEligible: true, grounding: true })).toBeNull()
+    expect(planResearchTurn({ ...session, memoryAperture: 'fresh' }, messages, preferences, { forceEligible: true })).toBeNull()
     expect(planResearchTurn(session, messages, { ...preferences, personalScienceEnabled: false }, { forceEligible: true })).toBeNull()
     expect(planResearchTurn({ ...session, researchContext: { capturedAt: 1, skipped: true } }, messages, preferences, { forceEligible: true })).toBeNull()
     expect(planResearchTurn(session, [

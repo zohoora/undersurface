@@ -83,6 +83,8 @@ const nlBase = {
   'session.bottomBar.speak': 'Hardop zeggen',
   'session.bottomBar.realTalk': 'Real Talk',
   'session.bottomBar.realTalkExplainer': 'Benoemt de coping-patronen in je schrijven — vermijding, bagatelliseren, alles-of-niets-denken. Direct, maar vriendelijk.',
+  'session.bottomBar.freshEyes': 'Frisse blik',
+  'session.bottomBar.freshEyesExplainer': 'Geen eerdere context. Deze sessie werkt het geheugen van de begeleider niet bij; het transcript blijft in geschiedenis en export.',
   'voice.error.micDenied': 'Microfoontoegang is geblokkeerd. Sta het toe in je browserinstellingen en probeer het opnieuw.',
   'voice.error.micMissing': 'Geen microfoon gevonden. Sluit er een aan en probeer het opnieuw.',
   'voice.error.service': 'Kan de spraakdienst niet bereiken. Controleer je verbinding en probeer het opnieuw.',

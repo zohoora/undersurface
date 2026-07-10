@@ -83,6 +83,8 @@ const plBase = {
   'session.bottomBar.speak': 'Powiedz na głos',
   'session.bottomBar.realTalk': 'Real Talk',
   'session.bottomBar.realTalkExplainer': 'Nazywa mechanizmy obronne w twoim pisaniu — unikanie, umniejszanie, myślenie zero-jedynkowe. Bezpośrednio, ale życzliwie.',
+  'session.bottomBar.freshEyes': 'Świeże spojrzenie',
+  'session.bottomBar.freshEyesExplainer': 'Bez wcześniejszego kontekstu. Ta sesja nie zaktualizuje pamięci towarzysza; zapis pozostanie w historii i eksporcie.',
   'voice.error.micDenied': 'Dostęp do mikrofonu jest zablokowany. Zezwól na niego w ustawieniach przeglądarki i spróbuj ponownie.',
   'voice.error.micMissing': 'Nie znaleziono mikrofonu. Podłącz go i spróbuj ponownie.',
   'voice.error.service': 'Nie można połączyć się z usługą głosową. Sprawdź połączenie i spróbuj ponownie.',

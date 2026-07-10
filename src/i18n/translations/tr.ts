@@ -83,6 +83,8 @@ const trBase = {
   'session.bottomBar.speak': 'Yüksek sesle söyle',
   'session.bottomBar.realTalk': 'Real Talk',
   'session.bottomBar.realTalkExplainer': 'Yazındaki başa çıkma kalıplarını adlandırır — kaçınma, küçümseme, ya hep ya hiç düşüncesi. Doğrudan ama nazikçe.',
+  'session.bottomBar.freshEyes': 'Yeni bir bakış',
+  'session.bottomBar.freshEyesExplainer': 'Geçmiş bağlam kullanılmaz. Bu oturum eşlikçinin hafızasını güncellemez; döküm geçmişte ve dışa aktarmada kalır.',
   'voice.error.micDenied': 'Mikrofon erişimi engellendi. Tarayıcı ayarlarından izin verip tekrar deneyin.',
   'voice.error.micMissing': 'Mikrofon bulunamadı. Bir tane bağlayıp tekrar deneyin.',
   'voice.error.service': 'Ses hizmetine ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.',

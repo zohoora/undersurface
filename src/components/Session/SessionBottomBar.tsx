@@ -19,6 +19,7 @@ interface Props {
   onRealTalkToggle: (next: boolean) => void
   onJournalPartsToggle: (next: boolean) => void
   memoryAperture?: MemoryAperture
+  memoryApertureLocked?: boolean
   onMemoryApertureChange?: (next: MemoryAperture) => void
 }
 
@@ -34,6 +35,7 @@ export function SessionBottomBar({
   onRealTalkToggle,
   onJournalPartsToggle,
   memoryAperture = 'pattern',
+  memoryApertureLocked = false,
   onMemoryApertureChange,
 }: Props) {
   const handleSurfaceClick = (surface: SessionSurface) => {
@@ -93,18 +95,18 @@ export function SessionBottomBar({
       </div>
       <div className="session-bottom-bar__toggles">
         {onMemoryApertureChange && (
-          <select
-            aria-label="Memory aperture"
-            title="How much past context the companion may use in this session"
-            value={memoryAperture}
-            onChange={event => onMemoryApertureChange(event.target.value as MemoryAperture)}
-            style={{ border: 0, background: 'transparent', color: 'var(--text-secondary)', fontSize: 10, cursor: 'pointer' }}
+          <button
+            type="button"
+            role="switch"
+            className="session-bottom-bar__fresh-eyes"
+            aria-checked={memoryAperture === 'fresh'}
+            aria-label={`${t('session.bottomBar.freshEyes')} — ${t('session.bottomBar.freshEyesExplainer')}`}
+            title={t('session.bottomBar.freshEyesExplainer')}
+            disabled={memoryApertureLocked}
+            onClick={() => onMemoryApertureChange(memoryAperture === 'fresh' ? 'pattern' : 'fresh')}
           >
-            <option value="fresh">fresh eyes</option>
-            <option value="light">light memory</option>
-            <option value="pattern">patterns</option>
-            <option value="counterstory">counterstory</option>
-          </select>
+            ◌ {t('session.bottomBar.freshEyes')}
+          </button>
         )}
         {activeSurface === 'journal' && showJournalPartsToggle && (
           <button

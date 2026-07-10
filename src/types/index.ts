@@ -191,8 +191,9 @@ export interface Session {
   // One-tap closing check-in ("How are you leaving?"), skippable — absent
   // when skipped or when the stanceAdaptation flag is off.
   leavingFeeling?: 'heavier' | 'same' | 'shade_lighter' | 'lighter' | 'much_lighter'
-  // How much durable autobiographical context the companion may use in this
-  // session. Optional records inherit the user's current preference.
+  // Whether this session is a normal continuity session or a Fresh eyes
+  // session. Fresh eyes neither reads nor teaches durable companion memory.
+  // Optional records inherit the user's current preference.
   memoryAperture?: MemoryAperture
   // Optional, writer-authored context for transparent personal-science
   // comparisons. A skipped handshake is recorded so it is not repeatedly
@@ -200,7 +201,7 @@ export interface Session {
   researchContext?: SessionResearchContext
 }
 
-export type MemoryAperture = 'fresh' | 'light' | 'pattern' | 'counterstory'
+export type MemoryAperture = 'fresh' | 'pattern'
 
 export type CompanionResponseMode =
   | 'witness'

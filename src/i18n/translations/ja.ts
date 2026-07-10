@@ -83,6 +83,8 @@ const jaBase = {
   'session.bottomBar.speak': '声に出す',
   'session.bottomBar.realTalk': 'Real Talk',
   'session.bottomBar.realTalkExplainer': 'あなたの書いたものの中の対処パターンに名前をつけます — 回避、過小評価、白黒思考。率直だが、優しく。',
+  'session.bottomBar.freshEyes': 'まっさらな目',
+  'session.bottomBar.freshEyesExplainer': '過去の文脈を使いません。このセッションはコンパニオンの記憶を更新しませんが、記録は履歴とエクスポートに残ります。',
   'voice.error.micDenied': 'マイクへのアクセスがブロックされています。ブラウザの設定で許可してから、もう一度お試しください。',
   'voice.error.micMissing': 'マイクが見つかりません。接続してから、もう一度お試しください。',
   'voice.error.service': '音声サービスに接続できませんでした。接続を確認して、もう一度お試しください。',

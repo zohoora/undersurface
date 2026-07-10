@@ -1,3 +1,5 @@
+import React from 'react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -17,6 +19,8 @@ vi.mock('../../i18n', () => ({
       'session.bottomBar.journal': 'Journal',
       'session.bottomBar.speak': 'Speak',
       'session.bottomBar.realTalk': 'Real Talk',
+      'session.bottomBar.freshEyes': 'Fresh eyes',
+      'session.bottomBar.freshEyesExplainer': 'No past context and no memory learning.',
       'session.bottomBar.parts': 'Inner voices',
       'session.bottomBar.journalDisabled': 'Coming soon',
       'session.bottomBar.speakDisabled': 'Coming soon',
@@ -32,6 +36,7 @@ const baseProps = (overrides: Partial<Parameters<typeof SessionBottomBar>[0]> = 
   journalPartsOn: true,
   showJournalPartsToggle: true,
   showSpeakSurface: true,
+  showRelaxSurface: false,
   onSurfaceChange: vi.fn(),
   onRealTalkToggle: vi.fn(),
   onJournalPartsToggle: vi.fn(),
@@ -114,6 +119,40 @@ describe('SessionBottomBar', () => {
       }
       expect(() => SessionBottomBar(props)).not.toThrow()
     }
+  })
+
+  it('offers one binary Fresh eyes switch instead of a memory-aperture menu', () => {
+    const onMemoryApertureChange = vi.fn()
+    const { rerender } = render(<SessionBottomBar {...baseProps({
+      memoryAperture: 'pattern',
+      onMemoryApertureChange,
+    })} />)
+    const control = screen.getByRole('switch', { name: 'Fresh eyes — No past context and no memory learning.' })
+    expect(control).toHaveAttribute('aria-checked', 'false')
+    expect(screen.queryByRole('combobox', { name: 'Memory aperture' })).toBeNull()
+    fireEvent.click(control)
+    expect(onMemoryApertureChange).toHaveBeenCalledWith('fresh')
+
+    rerender(<SessionBottomBar {...baseProps({
+      memoryAperture: 'fresh',
+      onMemoryApertureChange,
+    })} />)
+    fireEvent.click(screen.getByRole('switch', { name: 'Fresh eyes — No past context and no memory learning.' }))
+    expect(onMemoryApertureChange).toHaveBeenLastCalledWith('pattern')
+  })
+
+  it('locks the session-level choice once the conversation has started', () => {
+    const onMemoryApertureChange = vi.fn()
+    const view = render(<SessionBottomBar {...baseProps({
+      memoryAperture: 'pattern',
+      memoryApertureLocked: true,
+      onMemoryApertureChange,
+    })} />)
+
+    const freshEyes = view.container.querySelector('.session-bottom-bar__fresh-eyes') as HTMLButtonElement
+    expect(freshEyes).toBeDisabled()
+    fireEvent.click(freshEyes)
+    expect(onMemoryApertureChange).not.toHaveBeenCalled()
   })
 
   it('Journal button has onClick and no disabled attribute', () => {

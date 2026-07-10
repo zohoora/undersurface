@@ -6,6 +6,7 @@ import { RUMINATION_WATCH_ARM_STREAK } from './signalTracker'
 import { selectProposalCandidate } from './userPartTracker'
 import { orderForFollowUp, selectPatternToName } from './intentionTracker'
 import { selectValueProposal } from './userValueTracker'
+import { isFreshEyesSession, normalizeSessionMemoryAperture } from './freshEyes'
 
 export interface TherapistContext {
   memoryAperture: MemoryAperture
@@ -105,8 +106,13 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     db.livingHypotheses?.orderBy('updatedAt').reverse().limit(16).toArray() ?? Promise.resolve([] as LivingHypothesis[]),
   ])
 
+  const continuitySessions = sessions.filter(session => !isFreshEyesSession(session))
+  const freshSessionIds = new Set(
+    sessions.filter(isFreshEyesSession).map(session => session.id),
+  )
+
   // Extract notes from the 5 most recent closed sessions
-  const recentSessionNotes = sessions
+  const recentSessionNotes = continuitySessions
     .filter(s => s.status === 'closed' && s.sessionNote)
     .slice(0, 5)
     .map(s => ({ note: s.sessionNote!, date: s.endedAt ?? s.startedAt }))
@@ -118,6 +124,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
   const seenContent = new Set<string>()
   const allMemories = memories
     .flat()
+    .filter(memory => !memory.sessionId || !freshSessionIds.has(memory.sessionId))
     .sort((a, b) => b.timestamp - a.timestamp)
     .filter(m => {
       const key = m.content.trim().toLowerCase()
@@ -133,6 +140,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
   // by startedAt; sort by endedAt for display ordering when both fields exist.
   const recentRelaxBreaks = relaxBreaks
     .filter(r => r.endedAt !== null)
+    .filter(r => !r.parentSessionId || !freshSessionIds.has(r.parentSessionId))
     .slice(0, RECENT_RELAX_LIMIT)
 
   // Rupture evidence: open-time markers (abandoned / atypical gap) computed
@@ -142,7 +150,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
   // reflection pass stored (terse ending).
   let repairContext: { evidence: RuptureEvidence } | null = null
   if (repairOn) {
-    const prior = sessions.filter(s => s.id !== currentSessionId)
+    const prior = continuitySessions.filter(s => s.id !== currentSessionId)
     const openEvidence = detectOpenTimeEvidence(prior, Date.now())
     if (openEvidence) {
       repairContext = { evidence: openEvidence }
@@ -240,7 +248,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     .slice(0, RECENT_FIELD_NOTE_LIMIT)
 
   return {
-    memoryAperture: preferences?.defaultMemoryAperture ?? 'pattern',
+    memoryAperture: normalizeSessionMemoryAperture(preferences?.defaultMemoryAperture),
     fieldMosaicEnabled: preferences?.fieldMosaicEnabled !== false,
     outcomeSampling: preferences?.outcomeSampling === 'off' ? 'off' : 'light',
     companionPreferences: preferences ?? null,
@@ -249,9 +257,11 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     antiDependenceCheckIns: preferences?.antiDependenceCheckIns === true,
     activePersonalProtocols: personalProtocols,
     livingHypotheses: livingHypotheses
+      .filter(item => !item.sourceSessionId || !freshSessionIds.has(item.sourceSessionId))
       .filter(item => item.status === 'confirmed' || item.status === 'contested')
       .map(item => ({ text: item.text, status: item.status as 'confirmed' | 'contested' })),
     outcomeContext: outcomes
+      .filter(outcome => !outcome.sessionId || !freshSessionIds.has(outcome.sessionId))
       .filter(outcome => outcome.immediate || outcome.delayed)
       .slice(0, 8)
       .map(outcome => `${outcome.source} ${outcome.intervention}: immediate ${outcome.immediate ?? 'not rated'}${outcome.delayed ? `; later ${outcome.delayed}` : ''}${outcome.agency ? `; agency ${outcome.agency}` : ''}`),

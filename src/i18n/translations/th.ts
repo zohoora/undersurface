@@ -83,6 +83,8 @@ const thBase = {
   'session.bottomBar.speak': 'พูดออกมา',
   'session.bottomBar.realTalk': 'Real Talk',
   'session.bottomBar.realTalkExplainer': 'ระบุรูปแบบการรับมือในงานเขียนของคุณ — การหลีกเลี่ยง การมองข้าม การคิดแบบสุดขั้ว ตรงไปตรงมา แต่ด้วยความหวังดี',
+  'session.bottomBar.freshEyes': 'มองใหม่',
+  'session.bottomBar.freshEyesExplainer': 'ไม่ใช้บริบทที่ผ่านมา เซสชันนี้จะไม่อัปเดตความจำของเพื่อนร่วมทาง แต่บันทึกยังอยู่ในประวัติและไฟล์ส่งออก',
   'voice.error.micDenied': 'การเข้าถึงไมโครโฟนถูกบล็อก อนุญาตในการตั้งค่าเบราว์เซอร์แล้วลองอีกครั้ง',
   'voice.error.micMissing': 'ไม่พบไมโครโฟน เชื่อมต่อแล้วลองอีกครั้ง',
   'voice.error.service': 'ไม่สามารถเชื่อมต่อบริการเสียงได้ ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง',

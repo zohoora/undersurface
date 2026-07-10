@@ -185,6 +185,7 @@ export function planResearchTurn(
   options: { now?: number; forceEligible?: boolean; grounding?: boolean; protocols?: PersonalProtocol[] } = {},
 ): ResearchAssignment | null {
   if (options.grounding) return null
+  if (session.memoryAperture === 'fresh') return null
   if (preferences?.personalScienceEnabled !== true || !preferences.personalScienceConsentAt) return null
   if (session.status !== 'active' || !completeContext(session.researchContext)) return null
 

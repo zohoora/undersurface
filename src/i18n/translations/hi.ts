@@ -83,6 +83,8 @@ const hiBase = {
   'session.bottomBar.speak': 'बोलकर कहें',
   'session.bottomBar.realTalk': 'Real Talk',
   'session.bottomBar.realTalkExplainer': 'आपके लेखन में बचाव के तरीकों को नाम देता है — टालमटोल, कम आँकना, सब-या-कुछ नहीं सोच। सीधा, पर दयालु।',
+  'session.bottomBar.freshEyes': 'नई नज़र',
+  'session.bottomBar.freshEyesExplainer': 'पिछला संदर्भ इस्तेमाल नहीं होगा। यह सत्र साथी की याद को अपडेट नहीं करेगा; प्रतिलिपि इतिहास और निर्यात में रहेगी।',
   'voice.error.micDenied': 'माइक्रोफ़ोन एक्सेस अवरुद्ध है। इसे अपने ब्राउज़र सेटिंग्स में अनुमति दें, फिर पुनः प्रयास करें।',
   'voice.error.micMissing': 'कोई माइक्रोफ़ोन नहीं मिला। एक कनेक्ट करें और पुनः प्रयास करें।',
   'voice.error.service': 'वॉइस सेवा तक नहीं पहुँच सके। अपना कनेक्शन जाँचें और पुनः प्रयास करें।',

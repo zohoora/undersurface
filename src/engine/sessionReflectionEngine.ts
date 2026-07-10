@@ -40,6 +40,12 @@ export async function reflectOnSession(
     // 2. Skip short sessions
     if (transcriptText.length < 100) return
 
+    // Fresh eyes is a write boundary, not only a prompt preference. Keep the
+    // operational transcript/session record, but never derive longitudinal
+    // memory or learning artifacts from it.
+    const memorySession = await db.sessions.get(sessionId)
+    if (memorySession?.memoryAperture === 'fresh') return
+
     // 3. Load profile + recent summaries + existing personal facts (+ the
     // writer's mapped parts, when the userParts flag is on)
     const features = getGlobalConfig()?.features
@@ -54,7 +60,7 @@ export async function reflectOnSession(
       db.personalFacts.get('current'),
       userPartsOn ? db.userParts.toArray() : Promise.resolve([] as UserPart[]),
       intentionsOn ? db.sessionIntentions.toArray() : Promise.resolve([] as SessionIntention[]),
-      stanceOn ? db.sessions.get(sessionId) : Promise.resolve(undefined as Session | undefined),
+      stanceOn ? Promise.resolve(memorySession) : Promise.resolve(undefined as Session | undefined),
       valuesOn ? db.userValues.toArray() : Promise.resolve([] as UserValue[]),
       db.companionPreferences?.get('current') ?? Promise.resolve(undefined),
     ])

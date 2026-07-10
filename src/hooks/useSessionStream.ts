@@ -138,6 +138,10 @@ export function useSessionStream(wiring: SessionStreamWiring) {
   ): Promise<SessionMessage[]> => {
     setIsStreaming(true)
     setOpenerError(null)
+    const durableContextEnabled = currentSession.memoryAperture !== 'fresh'
+    const activeResearchAssignment = !durableContextEnabled
+      ? undefined
+      : researchAssignment
 
     const orchestrator = orchestratorRef.current
 
@@ -147,8 +151,8 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     // from user turn 3 (trends need history) and never during grounding.
     resetSignalsForSession(currentSession.id)
     const signalFeatures = getGlobalConfig()?.features
-    const repairFlagOn = signalFeatures?.ruptureRepair === true
-    const pivotFlagOn = signalFeatures?.ruminationPivot === true
+    const repairFlagOn = durableContextEnabled && signalFeatures?.ruptureRepair === true
+    const pivotFlagOn = durableContextEnabled && signalFeatures?.ruminationPivot === true
     const userMessages = currentMessages.filter(m => m.speaker === 'user')
     if ((repairFlagOn || pivotFlagOn) && userMessages.length >= 3 && !isGroundingActive()) {
       void classifySessionSignals(userMessages.slice(-6).map(m => m.content))
@@ -194,7 +198,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
         // Do not stack proposals, pivots, presence, humor, or surface markers
         // onto the assigned form; that would make both the experience and the
         // evidence uninterpretable.
-        const exclusiveResearchTurn = Boolean(researchAssignment)
+        const exclusiveResearchTurn = Boolean(activeResearchAssignment)
 
         // Rupture repair: opener-only, consume-once (cleared after the opener
         // that used it finalizes). Pivot: a live tracker arm wins; otherwise
@@ -221,7 +225,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
         // available across turns (the model waits for a natural moment) until
         // a finalized message actually carries the marker; it never shares a
         // build with a pivot or softening — one intervention at a time.
-        const partsFlagOn = signalFeatures?.userParts === true
+        const partsFlagOn = durableContextEnabled && signalFeatures?.userParts === true
         const activeUserParts = partsFlagOn && context?.activeUserParts?.length
           ? context.activeUserParts
           : undefined
@@ -242,7 +246,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
         // The thread: follow-up context every turn; a once-ever pattern nudge
         // for a slipping intention (never stacked with another intervention);
         // the closing offer while slots remain and none was made yet.
-        const intentionsFlagOn = signalFeatures?.sessionIntentions === true
+        const intentionsFlagOn = durableContextEnabled && signalFeatures?.sessionIntentions === true
         const openIntentions = intentionsFlagOn && context?.openIntentions?.length
           ? context.openIntentions
           : undefined
@@ -263,13 +267,13 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             : undefined
 
         const stanceContext =
-          signalFeatures?.stanceAdaptation === true && context?.stanceEntries?.length
+          durableContextEnabled && signalFeatures?.stanceAdaptation === true && context?.stanceEntries?.length
             ? context.stanceEntries
             : undefined
 
         // Interiority bundle: carried noticing rides the opener (consume-once);
         // disclosure/promise context every turn; missed acknowledgment once.
-        const interiorityFlagOn = signalFeatures?.companionInteriority === true
+        const interiorityFlagOn = durableContextEnabled && signalFeatures?.companionInteriority === true
         const carriedNoticing = interiorityFlagOn && isFirstTurn && !carriedConsumedRef.current && context?.carriedNoticing
           ? context.carriedNoticing
           : undefined
@@ -286,7 +290,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
 
         // Story arc: delivered once on a non-opener turn, then cleared.
         const storyArc =
-          !exclusiveResearchTurn && signalFeatures?.storyArcs === true && !isFirstTurn && !arcDeliveredRef.current && context?.storyArc
+          durableContextEnabled && !exclusiveResearchTurn && signalFeatures?.storyArcs === true && !isFirstTurn && !arcDeliveredRef.current && context?.storyArc
             ? context.storyArc
             : undefined
 
@@ -296,7 +300,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
 
         // Values: context every turn; the value proposal shares the single
         // per-session proposal slot with part proposals (parts win).
-        const valuesFlagOn = signalFeatures?.userValues === true
+        const valuesFlagOn = durableContextEnabled && signalFeatures?.userValues === true
         const activeValues = valuesFlagOn && context?.activeValues?.length
           ? context.activeValues
           : undefined
@@ -325,12 +329,14 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           hrvContext,
           mode: currentSession.mode ?? 'standard',
           allowRecommendations: !exclusiveResearchTurn,
-          availableSurfaceArcs: [
-            'journal',
-            ...(signalFeatures?.voiceEnabled === true ? ['speak' as const] : []),
-            ...(signalFeatures?.relaxEnabled === true ? ['relax' as const] : []),
-            ...(signalFeatures?.driftEnabled === true ? ['drift' as const] : []),
-          ],
+          availableSurfaceArcs: durableContextEnabled
+            ? [
+                'journal',
+                ...(signalFeatures?.voiceEnabled === true ? ['speak' as const] : []),
+                ...(signalFeatures?.relaxEnabled === true ? ['relax' as const] : []),
+                ...(signalFeatures?.driftEnabled === true ? ['drift' as const] : []),
+              ]
+            : [],
           isFirstTurn,
           inSessionRelaxBreaks,
           recentRelaxBreaks: context?.recentRelaxBreaks,
@@ -346,7 +352,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           stanceContext,
           outcomeContext: context?.outcomeContext,
           alliancePreferences: context?.alliancePreferences,
-          experimentDirective: researchAssignment?.directive,
+          experimentDirective: activeResearchAssignment?.directive,
           personalProtocols: context?.activePersonalProtocols,
           livingHypotheses: context?.livingHypotheses,
           activeValues,
@@ -379,10 +385,10 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           }
 
           const msgId = generateId()
-          const deliveryValidation = researchAssignment
-            ? validateResearchDelivery(researchAssignment, fullText)
+          const deliveryValidation = activeResearchAssignment
+            ? validateResearchDelivery(activeResearchAssignment, fullText)
             : null
-          const deliveredAssignment = deliveryValidation?.delivered === false ? null : researchAssignment
+          const deliveredAssignment = deliveryValidation?.delivered === false ? null : activeResearchAssignment
           const newMessage: SessionMessage = {
             id: msgId,
             speaker: 'therapist',
@@ -418,8 +424,8 @@ export function useSessionStream(wiring: SessionStreamWiring) {
               phase,
             })
 
-            if (deliveryValidation?.delivered === false && researchAssignment) {
-              await markResearchCancelled(researchAssignment.event.id, deliveryValidation.reason)
+            if (deliveryValidation?.delivered === false && activeResearchAssignment) {
+              await markResearchCancelled(activeResearchAssignment.event.id, deliveryValidation.reason)
                 .catch(() => { /* response persistence outranks research telemetry */ })
             } else if (deliveredAssignment) {
               await markResearchDelivered(deliveredAssignment.event, msgId)

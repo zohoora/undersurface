@@ -5,7 +5,6 @@ import type {
   SharedPersonalFacts,
   SharedProfile,
 } from '../shared/companionKernel.js'
-import { normalizeMemoryAperture } from '../shared/companionKernel.js'
 
 const MEMORY_SOURCE_PARTS = new Set(['open', 'weaver', 'still'])
 const FIELD_NOTE_MAX_AGE_MS = 14 * 86_400_000
@@ -92,6 +91,7 @@ export function deriveSmsCompanionContext(
   now = Date.now(),
 ): SharedCompanionContext {
   const recentSessionNotes = docs.sessions
+    .filter(session => session.memoryAperture !== 'fresh')
     .filter(session => session.status === 'closed' && typeof session.sessionNote === 'string' && session.sessionNote.trim())
     .sort((a, b) => (number(b.endedAt) || number(b.startedAt)) - (number(a.endedAt) || number(a.startedAt)))
     .slice(0, 5)
@@ -202,7 +202,9 @@ export function deriveSmsCompanionContext(
   })
 
   return {
-    memoryAperture: normalizeMemoryAperture(docs.preferences?.defaultMemoryAperture),
+    // Fresh eyes is a session-surface boundary. SMS keeps ordinary shared
+    // continuity and excludes any notes derived from Fresh eyes sessions.
+    memoryAperture: 'pattern',
     fieldMosaicEnabled: docs.preferences?.fieldMosaicEnabled !== false,
     outcomeSampling: docs.preferences?.outcomeSampling === 'off' ? 'off' : 'light',
     alliancePreferences: docs.preferences?.alliance && typeof docs.preferences.alliance === 'object'

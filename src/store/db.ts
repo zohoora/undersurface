@@ -190,6 +190,11 @@ export const sessionMessages = {
     return snap.docs.map(d => d.data() as SessionMessage)
   },
 
+  async delete(sessionId: string, messageId: string) {
+    const ref = doc(firestore, 'users', getUid(), 'sessions', sessionId, 'messages', messageId)
+    await deleteDoc(ref)
+  },
+
   subscribe(sessionId: string, callback: (messages: SessionMessage[]) => void) {
     const colRef = collection(firestore, 'users', getUid(), 'sessions', sessionId, 'messages')
     const q = query(colRef, orderBy('timestamp', 'asc'))

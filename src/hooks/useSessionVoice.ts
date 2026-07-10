@@ -93,9 +93,11 @@ export function useSessionVoice({
     if (!context) return null
 
     const isFirstTurn = (messagesRef.current ?? []).every(m => m.speaker !== 'therapist')
-    const sessionId = sessionRef.current?.id
+    const currentSession = sessionRef.current
+    const sessionId = currentSession?.id
+    const durableContextEnabled = currentSession?.memoryAperture !== 'fresh'
     const inSessionRelaxBreaks = sessionId ? await loadInSessionRelaxBreaks(sessionId) : []
-    const repairContext = getGlobalConfig()?.features?.ruptureRepair === true && isFirstTurn && !grounded
+    const repairContext = durableContextEnabled && getGlobalConfig()?.features?.ruptureRepair === true && isFirstTurn && !grounded
       ? context.repairContext ?? undefined
       : undefined
     // Consume-once, mirroring the text stream: a repair delivered by voice
@@ -108,7 +110,7 @@ export function useSessionVoice({
     }
     return buildTherapistSystemPrompt({
       channel: 'voice',
-      memoryAperture: sessionRef.current?.memoryAperture ?? context.memoryAperture,
+      memoryAperture: currentSession?.memoryAperture ?? context.memoryAperture,
       phase: sessionRef.current?.phase ?? 'opening',
       recentSessionNotes: context.recentSessionNotes,
       recentFieldNotes: context.recentFieldNotes,
@@ -135,31 +137,31 @@ export function useSessionVoice({
       repairContext,
       // The writer's mapped parts + shared language, read-only on voice.
       // Proposals are text-surface-only (no consent card exists in voice).
-      activeUserParts: getGlobalConfig()?.features?.userParts === true && context.activeUserParts.length > 0
+      activeUserParts: durableContextEnabled && getGlobalConfig()?.features?.userParts === true && context.activeUserParts.length > 0
         ? context.activeUserParts
         : undefined,
-      lexicon: getGlobalConfig()?.features?.userParts === true && context.personalFacts?.lexicon?.length
+      lexicon: durableContextEnabled && getGlobalConfig()?.features?.userParts === true && context.personalFacts?.lexicon?.length
         ? context.personalFacts.lexicon
         : undefined,
       // Thread follow-up + stance tendencies, read-only on voice. Offers and
       // pattern nudges are text-surface-only in v1.
-      openIntentions: getGlobalConfig()?.features?.sessionIntentions === true && context.openIntentions.length > 0
+      openIntentions: durableContextEnabled && getGlobalConfig()?.features?.sessionIntentions === true && context.openIntentions.length > 0
         ? context.openIntentions
         : undefined,
-      stanceContext: getGlobalConfig()?.features?.stanceAdaptation === true && context.stanceEntries.length > 0
+      stanceContext: durableContextEnabled && getGlobalConfig()?.features?.stanceAdaptation === true && context.stanceEntries.length > 0
         ? context.stanceEntries
         : undefined,
       outcomeContext: context.outcomeContext,
       alliancePreferences: context.alliancePreferences,
       personalProtocols: context.activePersonalProtocols,
       livingHypotheses: context.livingHypotheses,
-      activeValues: getGlobalConfig()?.features?.userValues === true && context.activeValues.length > 0
+      activeValues: durableContextEnabled && getGlobalConfig()?.features?.userValues === true && context.activeValues.length > 0
         ? context.activeValues
         : undefined,
       // Voice can remember the substance of a commitment but cannot emit the
       // web marker that records delivery. The shared renderer makes this
       // read-only for non-web channels.
-      duePromises: getGlobalConfig()?.features?.companionInteriority === true && context.duePromises.length > 0
+      duePromises: durableContextEnabled && getGlobalConfig()?.features?.companionInteriority === true && context.duePromises.length > 0
         ? context.duePromises
         : undefined,
     })

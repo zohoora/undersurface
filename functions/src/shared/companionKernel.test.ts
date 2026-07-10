@@ -86,19 +86,12 @@ describe('shared companion kernel', () => {
     expect(clean).not.toMatch(/system:|ignore previous instructions|you are now|act as an/i)
   })
 
-  it('enforces each memory aperture instead of merely naming it', () => {
+  it('makes Fresh eyes a zero-continuity boundary', () => {
     const fresh = buildSharedContinuityBlocks({ ...context, memoryAperture: 'fresh' }, { channel: 'web' }).join('\n')
-    const light = buildSharedContinuityBlocks({ ...context, memoryAperture: 'light' }, { channel: 'web' }).join('\n')
-    const counterstory = buildMemoryApertureBlock('counterstory')
-    expect(fresh).toContain('Concrete first when looping')
     expect(fresh).not.toContain('Work conflict')
     expect(fresh).not.toContain('buying time')
-    expect(light).toContain('Sam')
-    expect(light).toContain('immediate worse')
-    expect(light).toContain('buying time')
-    expect(light).not.toContain('belonging')
-    expect(light).not.toContain('Direct questions help')
-    expect(counterstory).toContain('do not invent')
+    expect(fresh).not.toContain('Concrete first when looping')
+    expect(buildMemoryApertureBlock('fresh')).toContain('excluded from later companion learning')
   })
 
   it('shares the response grammar while grounding disables experiments', () => {

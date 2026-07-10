@@ -41,6 +41,7 @@ import { AllianceRepairFeedback, ResearchMomentNotice } from './ResearchMoment'
 import { repairReasonMessage } from '../../engine/allianceRepair'
 import { assignmentFromEvent, planResearchTurn } from '../../engine/personalScience'
 import { markResearchOverridden, persistResearchAssignment } from '../../store/personalScience'
+import { isFreshEyesSession, normalizeSessionMemoryAperture } from '../../engine/freshEyes'
 
 const VoiceField = lazy(() => import('./VoiceField').then(module => ({ default: module.VoiceField })))
 const RelaxField = lazy(() => import('./Relax/RelaxField'))
@@ -177,8 +178,15 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
           return
         }
 
-        setSession(existingSession)
-        sessionRef.current = existingSession
+        const normalizedSession = {
+          ...existingSession,
+          memoryAperture: normalizeSessionMemoryAperture(existingSession.memoryAperture),
+        }
+        if (normalizedSession.memoryAperture !== existingSession.memoryAperture) {
+          void db.sessions.update(existingSession.id, { memoryAperture: normalizedSession.memoryAperture })
+        }
+        setSession(normalizedSession)
+        sessionRef.current = normalizedSession
 
         const existingMessages = await sessionMessagesDb.getAll(sessionId)
         if (!runtime.isCurrent(ticket)) return
@@ -222,7 +230,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       favorited: false,
       mode: initialMode ?? settings.lastSessionMode,
       journalPartsEnabled: true,
-      memoryAperture: contextRef.current?.memoryAperture ?? 'pattern',
+      memoryAperture: normalizeSessionMemoryAperture(contextRef.current?.memoryAperture),
     }
 
     await db.sessions.add(newSession)
@@ -386,6 +394,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     const currentSession = sessionRef.current
     const currentMessages = messagesRef.current
     if (!currentSession || currentSession.status === 'closed' || isStreaming) return
+    const freshEyes = isFreshEyesSession(currentSession)
 
     // Show the stance check-in immediately on tap — before the (multi-second)
     // closing message + note generation — so it lands at the bottom in view,
@@ -394,7 +403,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     const outcomeCheckInOn = !grounding && contextRef.current?.outcomeSampling !== 'off'
     reflectionFiredRef.current = false
     checkInAnsweredRef.current = false
-    if (stanceOn || outcomeCheckInOn) setCheckInSessionId(currentSession.id)
+    if (!freshEyes && (stanceOn || outcomeCheckInOn)) setCheckInSessionId(currentSession.id)
 
     // Generate closing therapist message — returns updated messages array
     const finalMessages = await generateTherapistMessage(currentMessages, currentSession)
@@ -402,13 +411,15 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     // Generate session note — failure must not block session closure or HRV flush.
     // Note can be regenerated; losing the closed-state and HRV data cannot.
     const orchestrator = orchestratorRef.current
-    let sessionNote = ''
-    try {
-      sessionNote = await orchestrator.generateSessionNote(finalMessages)
-      trackEvent('session_note_generated', { session_id: currentSession.id })
-    } catch (error) {
-      console.error('Session note generation failed; closing session without note:', error)
-      trackEvent('session_note_failed', { session_id: currentSession.id })
+    let sessionNote: string | null = null
+    if (!freshEyes) {
+      try {
+        sessionNote = await orchestrator.generateSessionNote(finalMessages)
+        trackEvent('session_note_generated', { session_id: currentSession.id })
+      } catch (error) {
+        console.error('Session note generation failed; closing session without note:', error)
+        trackEvent('session_note_failed', { session_id: currentSession.id })
+      }
     }
 
     // Update session as closed
@@ -443,7 +454,9 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         .then(parts => reflectOnSession(currentSession.id, finalMessages, parts))
         .catch(error => console.error('Session reflection error:', error))
     }
-    if (stanceOn) {
+    if (freshEyes) {
+      reflectionFiredRef.current = true
+    } else if (stanceOn) {
       if (checkInAnsweredRef.current) {
         runReflection()
       } else {
@@ -455,7 +468,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     }
 
     // Persist weather
-    weatherEngine.persist().catch(console.error)
+    if (!freshEyes) weatherEngine.persist().catch(console.error)
 
     // Save HRV data and stop engines (whichever is active)
     await stopAndFlushBiometrics()
@@ -485,9 +498,38 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     [updateSession],
   )
 
-  const handleMemoryApertureChange = useCallback((next: MemoryAperture) => {
-    void updateSession({ memoryAperture: next })
-  }, [updateSession])
+  const handleMemoryApertureChange = useCallback(async (next: MemoryAperture) => {
+    const currentSession = sessionRef.current
+    const currentMessages = messagesRef.current
+    if (!currentSession || isStreaming || currentMessages.some(message => message.speaker === 'user')) return
+
+    const memoryAperture = normalizeSessionMemoryAperture(next)
+    if (memoryAperture === currentSession.memoryAperture) return
+    const nextSession = { ...currentSession, memoryAperture }
+
+    // The automatic opener was built before the person could reach this
+    // switch. Replace it when the mode changes so Fresh eyes is true from the
+    // first visible companion word, rather than only from the next turn.
+    const openerMessages = currentMessages.filter(message => message.speaker === 'therapist')
+    await Promise.all(openerMessages.map(message => sessionMessagesDb.delete(currentSession.id, message.id)))
+    await db.sessions.update(currentSession.id, {
+      memoryAperture,
+      messageCount: 0,
+      firstLine: '',
+    })
+    sessionRef.current = { ...nextSession, messageCount: 0, firstLine: '' }
+    messagesRef.current = []
+    setSession(sessionRef.current)
+    setMessages([])
+
+    if (openerMessages.length > 0 && currentSession.openingMethod !== 'open_invitation') {
+      try {
+        await generateTherapistMessage([], sessionRef.current)
+      } catch (error) {
+        setOpenerError(error instanceof Error ? error.message : 'Failed to refresh the opening')
+      }
+    }
+  }, [generateTherapistMessage, isStreaming])
 
   const handleResearchContext = useCallback((researchContext: SessionResearchContext) => {
     void updateSession({ researchContext })
@@ -544,7 +586,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   }, [surface, journalDraft, appendUserMessage, voiceHandleStart, voiceState, voiceStop, activeArc])
 
   const startSurfaceArc = useCallback((next: Exclude<SessionSurface, 'talk'>) => {
-    if (!session || grounding) return
+    if (!session || grounding || isFreshEyesSession(session)) return
     if (next === 'speak' && !voiceEnabled) return
     if (next === 'relax' && !relaxEnabled) return
     if (next === 'drift' && !driftEnabled) return
@@ -748,7 +790,8 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     opacity: 0.6,
   }), [biometricsEnabled])
 
-  const journalPartsOn = session?.journalPartsEnabled !== false
+  const freshEyes = isFreshEyesSession(session)
+  const journalPartsOn = session?.journalPartsEnabled !== false && !freshEyes
 
   return (
     <>
@@ -899,7 +942,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
           activeSurface={surface}
           realTalkOn={session?.mode === 'real_talk'}
           journalPartsOn={journalPartsOn}
-          showJournalPartsToggle={globalConfig?.features?.partsEnabled !== false}
+          showJournalPartsToggle={!freshEyes && globalConfig?.features?.partsEnabled !== false}
           showSpeakSurface={voiceEnabled}
           showRelaxSurface={relaxEnabled}
           showDriftSurface={driftEnabled && !grounding}
@@ -907,6 +950,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
           onRealTalkToggle={handleRealTalkToggle}
           onJournalPartsToggle={handleJournalPartsToggle}
           memoryAperture={session?.memoryAperture ?? contextRef.current?.memoryAperture ?? 'pattern'}
+          memoryApertureLocked={isStreaming || messages.some(message => message.speaker === 'user')}
           onMemoryApertureChange={handleMemoryApertureChange}
         />
       )}
@@ -972,35 +1016,35 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
           )}
 
           {/* Messages list */}
-          {session?.status === 'active' && !grounding && messages.length <= 2 && contextRef.current?.fieldMosaicEnabled !== false && <FieldMosaic sessionId={session.id} disabled={isStreaming} onBringIntoTalk={handleMosaicOpen} />}
-          {session?.status === 'active' && !grounding && messages.length <= 2 && contextRef.current?.personalScienceEnabled && !session.researchContext && (
+          {session?.status === 'active' && !freshEyes && !grounding && messages.length <= 2 && contextRef.current?.fieldMosaicEnabled !== false && <FieldMosaic sessionId={session.id} disabled={isStreaming} onBringIntoTalk={handleMosaicOpen} />}
+          {session?.status === 'active' && !freshEyes && !grounding && messages.length <= 2 && contextRef.current?.personalScienceEnabled && !session.researchContext && (
             <ReceptivityHandshake
               onSave={handleResearchContext}
               onSkip={() => handleResearchContext({ capturedAt: Date.now(), skipped: true })}
             />
           )}
-          {session?.status === 'active' && !grounding && messages.length <= 2 && contextRef.current?.outcomeSampling !== 'off' && <FieldWindowTimingPulse sessionId={session.id} />}
-          {session?.status === 'active' && !grounding && messages.length <= 2 && contextRef.current?.outcomeSampling !== 'off' && <DelayedOutcomePulse sessionId={session.id} />}
-          {!grounding && returnedArc && <SurfaceArcReturn outcomeId={returnedArc.outcomeId} surface={returnedArc.surface} onDone={() => setReturnedArc(null)} />}
+          {session?.status === 'active' && !freshEyes && !grounding && messages.length <= 2 && contextRef.current?.outcomeSampling !== 'off' && <FieldWindowTimingPulse sessionId={session.id} />}
+          {session?.status === 'active' && !freshEyes && !grounding && messages.length <= 2 && contextRef.current?.outcomeSampling !== 'off' && <DelayedOutcomePulse sessionId={session.id} />}
+          {!freshEyes && !grounding && returnedArc && <SurfaceArcReturn outcomeId={returnedArc.outcomeId} surface={returnedArc.surface} onDone={() => setReturnedArc(null)} />}
           {messages.map((msg) => (
             <div key={msg.id}>
               <SessionMessageBubble
                 message={msg}
                 onRecommendationTap={handleRecommendationTap}
-                prismSessionId={session?.status === 'active' && !grounding ? session.id : null}
+                prismSessionId={session?.status === 'active' && !freshEyes && !grounding ? session.id : null}
                 intentionOfferSessionId={
-                  session?.status === 'active' && getGlobalConfig()?.features?.sessionIntentions === true
+                  session?.status === 'active' && !freshEyes && getGlobalConfig()?.features?.sessionIntentions === true
                     ? session.id
                     : null
                 }
               />
-              {session?.status === 'active' && !grounding && msg.speaker === 'therapist' && (
+              {session?.status === 'active' && !freshEyes && !grounding && msg.speaker === 'therapist' && (
                 <>
                   <ResearchMomentNotice message={msg} onOverride={() => void handleResearchOverride(msg)} />
                   <AllianceRepairFeedback message={msg} sessionId={session.id} onRepair={reason => void handleAllianceRepair(reason)} />
                 </>
               )}
-              {session?.status === 'active' && !grounding && contextRef.current?.outcomeSampling !== 'off' && sampledOutcomeMessageIds.has(msg.id) && (
+              {session?.status === 'active' && !freshEyes && !grounding && contextRef.current?.outcomeSampling !== 'off' && sampledOutcomeMessageIds.has(msg.id) && (
                 <OutcomePulse message={msg} sessionId={session.id} />
               )}
             </div>

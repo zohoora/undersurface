@@ -83,6 +83,8 @@ const zhBase = {
   'session.bottomBar.speak': '说出来',
   'session.bottomBar.realTalk': 'Real Talk',
   'session.bottomBar.realTalkExplainer': '指出你文字中的应对模式——回避、淡化、非黑即白的思维。直接，但善意。',
+  'session.bottomBar.freshEyes': '全新视角',
+  'session.bottomBar.freshEyesExplainer': '不使用过去的背景。这次会话不会更新陪伴者的记忆；记录仍会保留在历史和导出中。',
   'voice.error.micDenied': '麦克风访问被阻止。请在浏览器设置中允许，然后重试。',
   'voice.error.micMissing': '未找到麦克风。请连接一个后重试。',
   'voice.error.service': '无法连接语音服务。请检查网络连接后重试。',

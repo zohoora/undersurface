@@ -83,6 +83,8 @@ const viBase = {
   'session.bottomBar.speak': 'Nói thành tiếng',
   'session.bottomBar.realTalk': 'Real Talk',
   'session.bottomBar.realTalkExplainer': 'Gọi tên những cách né tránh trong bài viết của bạn — lảng tránh, xem nhẹ, suy nghĩ được ăn cả ngã về không. Thẳng thắn nhưng tử tế.',
+  'session.bottomBar.freshEyes': 'Góc nhìn mới',
+  'session.bottomBar.freshEyesExplainer': 'Không dùng bối cảnh trước đây. Phiên này sẽ không cập nhật trí nhớ của người đồng hành; bản ghi vẫn còn trong lịch sử và bản xuất.',
   'voice.error.micDenied': 'Quyền truy cập micrô bị chặn. Hãy cho phép trong cài đặt trình duyệt rồi thử lại.',
   'voice.error.micMissing': 'Không tìm thấy micrô. Hãy kết nối một chiếc rồi thử lại.',
   'voice.error.service': 'Không thể kết nối dịch vụ giọng nói. Hãy kiểm tra kết nối và thử lại.',

@@ -83,6 +83,8 @@ const idBase = {
   'session.bottomBar.speak': 'Ucapkan dengan suara',
   'session.bottomBar.realTalk': 'Real Talk',
   'session.bottomBar.realTalkExplainer': 'Menamai pola menghindar dalam tulisanmu — penghindaran, meremehkan, berpikir hitam-putih. Langsung, tapi baik.',
+  'session.bottomBar.freshEyes': 'Pandangan baru',
+  'session.bottomBar.freshEyesExplainer': 'Tanpa konteks sebelumnya. Sesi ini tidak memperbarui ingatan pendamping; transkrip tetap ada di riwayat dan ekspor.',
   'voice.error.micDenied': 'Akses mikrofon diblokir. Izinkan di pengaturan browser, lalu coba lagi.',
   'voice.error.micMissing': 'Mikrofon tidak ditemukan. Sambungkan satu dan coba lagi.',
   'voice.error.service': 'Tidak dapat menjangkau layanan suara. Periksa koneksimu dan coba lagi.',

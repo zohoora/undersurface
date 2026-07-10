@@ -1905,7 +1905,8 @@ body {
 }
 
 .session-bottom-bar__realtalk,
-.session-bottom-bar__parts {
+.session-bottom-bar__parts,
+.session-bottom-bar__fresh-eyes {
   border: none;
   background: none;
   cursor: pointer;
@@ -1915,7 +1916,8 @@ body {
 }
 
 .session-bottom-bar__realtalk[aria-checked="true"],
-.session-bottom-bar__parts[aria-checked="true"] {
+.session-bottom-bar__parts[aria-checked="true"],
+.session-bottom-bar__fresh-eyes[aria-checked="true"] {
   font-weight: 500;
 }
 
@@ -1927,6 +1929,15 @@ body {
    Talk's warm-amber active state when both toggles are on. */
 .session-bottom-bar__parts[aria-checked="true"] {
   color: var(--text-primary);
+}
+
+.session-bottom-bar__fresh-eyes[aria-checked="true"] {
+  color: var(--text-primary);
+}
+
+.session-bottom-bar__fresh-eyes:disabled {
+  cursor: default;
+  opacity: 0.45;
 }
 
 @keyframes blink {

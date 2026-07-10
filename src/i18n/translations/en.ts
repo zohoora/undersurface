@@ -111,6 +111,8 @@ const enBase = {
   'session.bottomBar.drift': 'Drift',
   'session.bottomBar.realTalk': 'Real Talk',
   'session.bottomBar.realTalkExplainer': 'Names the coping moves in your writing — avoidance, minimizing, all-or-nothing thinking. Direct, but kind.',
+  'session.bottomBar.freshEyes': 'Fresh eyes',
+  'session.bottomBar.freshEyesExplainer': 'No past context. This session will not update companion memory; its transcript stays in history and export.',
   'voice.error.micDenied': 'Microphone access is blocked. Allow it in your browser settings, then try again.',
   'voice.error.micMissing': 'No microphone found. Connect one and try again.',
   'voice.error.service': 'Couldn’t reach the voice service. Check your connection and try again.',

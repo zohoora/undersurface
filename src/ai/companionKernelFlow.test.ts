@@ -53,6 +53,7 @@ describe('companion kernel channel flow', () => {
       repairContext: { evidence: 'abandoned' },
       partProposal: { id: 'p', tentativeName: 'planner', description: 'plans', quote: 'I plan' },
       storyArc: { text: 'A remembered arc.' },
+      personalProtocols: [{ title: 'Remembered protocol', preferredArm: 'make_concrete' }],
       allowPresence: true,
     })
     expect(prompt).toContain('MEMORY APERTURE: fresh eyes')
@@ -60,6 +61,7 @@ describe('companion kernel channel flow', () => {
     expect(prompt).not.toContain('Recent relax sessions')
     expect(prompt).not.toContain('#propose-part')
     expect(prompt).not.toContain('A remembered arc')
+    expect(prompt).not.toContain('Remembered protocol')
     expect(prompt).toContain('#presence')
   })
 })

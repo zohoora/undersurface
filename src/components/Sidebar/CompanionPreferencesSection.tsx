@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { db } from '../../store/db'
-import type { AlliancePreferences, CompanionPreferences, MemoryAperture, PartMemory, PersonalFacts, Session, UserProfile } from '../../types'
+import type { AlliancePreferences, CompanionPreferences, PartMemory, PersonalFacts, Session, UserProfile } from '../../types'
 import { useTranslation } from '../../i18n'
+import { normalizeSessionMemoryAperture } from '../../engine/freshEyes'
 
 const DEFAULT_ALLIANCE: AlliancePreferences = {
   comfortBeforeChallenge: true,
@@ -181,7 +182,11 @@ export function CompanionPreferencesSection({ isOpen }: { isOpen: boolean }) {
     void db.companionPreferences.get('current').then(value => {
       if (value) {
         setExists(true)
-        setPreferences({ ...DEFAULTS, ...value, alliance: { ...DEFAULT_ALLIANCE, ...value.alliance } })
+        const defaultMemoryAperture = normalizeSessionMemoryAperture(value.defaultMemoryAperture)
+        setPreferences({ ...DEFAULTS, ...value, defaultMemoryAperture, alliance: { ...DEFAULT_ALLIANCE, ...value.alliance } })
+        if (defaultMemoryAperture !== value.defaultMemoryAperture) {
+          void db.companionPreferences.update('current', { defaultMemoryAperture, updatedAt: Date.now() })
+        }
       }
     })
   }, [isOpen])
@@ -207,20 +212,14 @@ export function CompanionPreferencesSection({ isOpen }: { isOpen: boolean }) {
     change('alliance', { ...(preferences.alliance ?? DEFAULT_ALLIANCE), [key]: value })
   }
 
-  const apertures: Array<{ value: MemoryAperture; label: string }> = [
-    { value: 'fresh', label: 'Fresh eyes' },
-    { value: 'light', label: 'Light' },
-    { value: 'pattern', label: 'Patterns' },
-    { value: 'counterstory', label: 'Counterstory' },
-  ]
-
   return (
     <div className="settings-section">
-      <div className="settings-section-label">Companion memory</div>
-      <div style={{ color: 'var(--text-ghost)', fontSize: 10, lineHeight: 1.45, marginBottom: 8 }}>Choose how much history enters new Talk, Speak, and SMS conversations.</div>
-      <select value={preferences.defaultMemoryAperture} onChange={event => change('defaultMemoryAperture', event.target.value as MemoryAperture)} style={{ width: '100%', padding: '5px 7px', border: '1px solid var(--border-subtle)', borderRadius: 4, background: 'var(--surface-primary)', color: 'var(--text-primary)', fontSize: 11 }}>
-        {apertures.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
+      <div className="settings-section-label">Companion continuity</div>
+      <div style={{ color: 'var(--text-ghost)', fontSize: 10, lineHeight: 1.45, marginBottom: 8 }}>Normal sessions can use and update companion memory. Fresh eyes uses only that session and does not teach the companion. The transcript still stays in history and export.</div>
+      <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, color: 'var(--text-secondary)', fontSize: 11 }}>
+        Start new sessions with Fresh eyes
+        <input type="checkbox" checked={preferences.defaultMemoryAperture === 'fresh'} onChange={event => change('defaultMemoryAperture', event.target.checked ? 'fresh' : 'pattern')} />
+      </label>
       <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 10, color: 'var(--text-secondary)', fontSize: 11 }}>
         Field mosaic
         <input type="checkbox" checked={preferences.fieldMosaicEnabled} onChange={event => change('fieldMosaicEnabled', event.target.checked)} />

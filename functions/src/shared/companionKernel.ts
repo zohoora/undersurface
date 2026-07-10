@@ -7,7 +7,7 @@
  */
 
 export type CompanionChannel = 'web' | 'voice' | 'sms'
-export type MemoryAperture = 'fresh' | 'light' | 'pattern' | 'counterstory'
+export type MemoryAperture = 'fresh' | 'pattern'
 export type CompanionResponseMode =
   | 'witness'
   | 'reflect'
@@ -192,9 +192,7 @@ export interface SharedContinuityRenderOptions {
 const MEMORY_TOKEN_BUDGET = 160
 
 export function normalizeMemoryAperture(value: unknown): MemoryAperture {
-  return value === 'fresh' || value === 'light' || value === 'counterstory'
-    ? value
-    : 'pattern'
+  return value === 'fresh' ? 'fresh' : 'pattern'
 }
 
 export function applyMemoryAperture(
@@ -205,40 +203,20 @@ export function applyMemoryAperture(
     fieldMosaicEnabled: context.fieldMosaicEnabled,
     outcomeSampling: context.outcomeSampling,
     alliancePreferences: context.alliancePreferences,
-    activePersonalProtocols: context.activePersonalProtocols,
   }
   if (aperture === 'fresh') return { memoryAperture: aperture, ...preferences }
-  if (aperture === 'light') {
-    return {
-      memoryAperture: aperture,
-      ...preferences,
-      personalFacts: context.personalFacts,
-      recentSessionNotes: context.recentSessionNotes,
-      recentFieldNotes: context.recentFieldNotes,
-      activeUserParts: context.activeUserParts,
-      lexicon: context.lexicon,
-      openIntentions: context.openIntentions,
-      activeValues: context.activeValues,
-      outcomeContext: context.outcomeContext,
-      duePromises: context.duePromises,
-      missedPromise: context.missedPromise,
-      livingHypotheses: context.livingHypotheses,
-    }
+  const continuityPreferences = {
+    ...preferences,
+    activePersonalProtocols: context.activePersonalProtocols,
   }
-  return { ...context, memoryAperture: aperture }
+  return { ...context, ...continuityPreferences, memoryAperture: aperture }
 }
 
 export function buildMemoryApertureBlock(aperture: MemoryAperture): string {
   switch (aperture) {
     case 'fresh':
       return `MEMORY APERTURE: fresh eyes.
-Do not use autobiographical memory, inferred patterns, prior-session notes, or saved personal context. Work only with the current exchange. Never announce that memory is off unless the writer asks.`
-    case 'light':
-      return `MEMORY APERTURE: light continuity.
-Use only confirmed facts, current threads, writer-confirmed parts/values/intentions, promises, and recent source-grounded notes. Do not make longitudinal pattern claims or characterize the writer from this context.`
-    case 'counterstory':
-      return `MEMORY APERTURE: counterstory.
-Longitudinal context is available, but your job is to resist narrative foreclosure. When the writer makes an identity-level or always/never claim, look for a real exception, limiting case, changed condition, or contradictory memory in the supplied context. Offer it tentatively and only when genuinely relevant. If no counterexample is present, do not invent one.`
+Do not use autobiographical memory, inferred patterns, prior-session notes, saved protocols, or saved personal context. Work only with the current exchange. This session is also excluded from later companion learning by the application. Never announce that memory is off unless the writer asks.`
     case 'pattern':
       return `MEMORY APERTURE: full continuity.
 Longitudinal context is available. Use it sparingly and tentatively; the current moment outranks history, and remembered patterns never become identity claims.`

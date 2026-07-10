@@ -83,6 +83,8 @@ const koBase = {
   'session.bottomBar.speak': '소리 내어 말하기',
   'session.bottomBar.realTalk': 'Real Talk',
   'session.bottomBar.realTalkExplainer': '당신의 글 속 대처 방식에 이름을 붙입니다 — 회피, 축소, 흑백 사고. 직설적이지만 다정하게.',
+  'session.bottomBar.freshEyes': '새로운 시선',
+  'session.bottomBar.freshEyesExplainer': '과거 맥락을 사용하지 않습니다. 이 세션은 동반자의 기억을 업데이트하지 않지만 기록은 내역과 내보내기에 남습니다.',
   'voice.error.micDenied': '마이크 접근이 차단되었습니다. 브라우저 설정에서 허용한 뒤 다시 시도하세요.',
   'voice.error.micMissing': '마이크를 찾을 수 없습니다. 연결한 뒤 다시 시도하세요.',
   'voice.error.service': '음성 서비스에 연결할 수 없습니다. 연결을 확인하고 다시 시도하세요.',

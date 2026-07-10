@@ -158,6 +158,13 @@ describe('SessionView — unified mode bar (only path)', () => {
     const src = await import('./SessionView?raw')
     expect(src.default).not.toContain('session-mode-badge')
   })
+
+  it('rebuilds the automatic opener when Fresh eyes changes before the first user turn', async () => {
+    const src = await import('./SessionView?raw')
+    expect(src.default).toContain('sessionMessagesDb.delete(currentSession.id, message.id)')
+    expect(src.default).toContain('generateTherapistMessage([], sessionRef.current)')
+    expect(src.default).toContain("messages.some(message => message.speaker === 'user')")
+  })
 })
 
 describe('SessionView — recommendation rendering integration', () => {

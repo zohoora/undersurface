@@ -83,6 +83,8 @@ const deBase = {
   'session.bottomBar.speak': 'Aussprechen',
   'session.bottomBar.realTalk': 'Real Talk',
   'session.bottomBar.realTalkExplainer': 'Benennt die Bewältigungsmuster in deinem Schreiben — Vermeidung, Verharmlosung, Schwarz-Weiß-Denken. Direkt, aber freundlich.',
+  'session.bottomBar.freshEyes': 'Frischer Blick',
+  'session.bottomBar.freshEyesExplainer': 'Kein früherer Kontext. Diese Sitzung aktualisiert das Begleitgedächtnis nicht; das Transkript bleibt im Verlauf und Export.',
   'voice.error.micDenied': 'Mikrofonzugriff ist blockiert. Erlaube ihn in den Browser-Einstellungen und versuche es erneut.',
   'voice.error.micMissing': 'Kein Mikrofon gefunden. Schließe eines an und versuche es erneut.',
   'voice.error.service': 'Der Sprachdienst ist nicht erreichbar. Prüfe deine Verbindung und versuche es erneut.',
