@@ -1,7 +1,7 @@
 # SMS Field Bridge
 
 **Date:** 2026-07-09  
-**Status:** SMS and multimodal MMS implemented, deployed, and verified on a live handset; shared cross-channel companion kernel implemented, verification and deployment pending
+**Status:** SMS, multimodal MMS, and the shared cross-channel companion kernel are implemented, deployed, and verified on a live handset, including a signed production continuity probe
 
 ## Goal
 
