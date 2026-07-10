@@ -376,7 +376,7 @@
   z-index: 2;
   max-width: 640px;
   margin: 0 auto;
-  padding: 80px 24px 160px;
+  padding: 80px 24px 80px;
   min-height: 100vh;
 }
 
@@ -396,22 +396,9 @@
 }
 
 .session-input-row {
-  position: fixed;
-  z-index: 12;
-  left: 50%;
-  bottom: 24px;
-  width: min(592px, calc(100vw - 160px));
-  transform: translateX(-50%);
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--bg-primary) 96%, transparent);
-  box-shadow: 0 10px 32px var(--overlay-medium);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
 }
 
 .session-input-row > :first-child {
@@ -420,10 +407,10 @@
 }
 
 .session-send-btn {
-  display: flex;
+  display: none;
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   border: none;
   background: var(--text-tertiary, #666);
@@ -2165,7 +2152,6 @@ body {
   position: sticky;
   top: 0;
   z-index: 10;
-  border-radius: 14px;
 }
 
 .session-bottom-bar__surfaces {
@@ -2174,8 +2160,7 @@ body {
 }
 
 .session-bottom-bar__pill {
-  min-height: 40px;
-  padding: 7px 12px;
+  padding: 4px 10px;
   border: 1px solid var(--border-subtle);
   border-radius: 999px;
   background: var(--surface-primary);
@@ -2218,8 +2203,8 @@ body {
 .session-bottom-bar__fresh-eyes:hover { background: var(--overlay-subtle); }
 
 .session-bottom-bar__options {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border: none;
   border-radius: 10px;
   background: transparent;

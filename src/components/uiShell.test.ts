@@ -36,8 +36,14 @@ describe('Quiet Room responsive shell', () => {
   })
 
   it('moves secondary session modes into an options menu and anchors mobile controls', () => {
+    const conversationStart = css.indexOf('Session conversation layout')
+    const mobileStart = css.indexOf('@media (max-width: 768px)', conversationStart)
+    const desktopConversation = css.slice(conversationStart, mobileStart)
+    const desktopInputRule = desktopConversation.match(/\.session-input-row\s*\{([^}]*)\}/)?.[1] ?? ''
+
     expect(sessionBar).toContain('session-options-menu')
     expect(sessionBar).toContain('session-options-mobile')
+    expect(desktopInputRule).not.toContain('position: fixed')
     expect(css).toMatch(/@media \(max-width: 768px\)[\s\S]*\.session-bottom-bar \{[\s\S]*position: fixed/)
     expect(css).toMatch(/\.session-input-row \{[\s\S]*position: fixed/)
   })
