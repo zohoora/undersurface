@@ -56,8 +56,8 @@ Eight deployable functions split across `functions/src/`:
 - **`accountApi`** (`functions/src/account.ts`) — account deletion, contact form, and SMS phone-link actions, table-driven dispatch (256MiB, 60s)
 - **`adminApi`** (`functions/src/admin/`) — admin dashboard backend, table-driven action dispatch; handler map in `admin/index.ts`, handlers in `admin/handlers.ts`, analytics in `admin/analytics.ts` (512MiB, 120s)
 - **`mcpApi`** (`functions/src/mcp.ts`) — MCP server with 4 read-only tools: `list-entries`, `get-entry`, `list-conversations`, `get-conversation` (256MiB, 30s)
-- **`smsApi`** (`functions/src/sms/`) — public Twilio webhook: signature verification, account-link commands, capture-only notes, and async queue admission (256MiB, 30s)
-- **`smsInboundProcessor`** (`functions/src/sms/`) — Firestore-triggered SMS processor using the shared L1/L2 crisis stack, bounded field-companion generation, and Twilio delivery (256MiB, 120s)
+- **`smsApi`** (`functions/src/sms/`) — public Twilio webhook: signature verification, account-link controls, and async queue admission (256MiB, 30s)
+- **`smsInboundProcessor`** (`functions/src/sms/`) — Firestore-triggered SMS processor using the shared L1/L2 crisis stack, GPT-5.5 adaptive-length replies + structured field-note selection, and Twilio delivery (256MiB, 120s)
 
 Shared cross-handler code in `functions/src/shared/`: `init.ts` (initializeApp), `auth.ts` (verifyAuth/`verifyAuthWithRole`/verifyAdmin + `ADMIN_EMAILS`), `cors.ts` (`ALLOWED_ORIGINS`), `rateLimit.ts` (`makeRateLimiter`), `secrets.ts` (`OPENAI_API_KEY`, `ELEVENLABS_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`), `models.ts` (`OPENAI_CHAT_MODEL`, pinned), `crisisClassifier.ts` + `crisisFloor.ts` (shared cross-channel safety contract), `collections.ts` (`USER_SUBCOLLECTIONS`), `quota.ts` (durable token quota — `checkAndReserve`/`reconcile`/`resolveCap`/`periodKey`). `functions/src/index.ts` is a slim re-export so deploy targets are unchanged.
 
@@ -133,8 +133,9 @@ SMS field channel:
   Settings → accountApi creates 10-minute code → user texts LINK <code>
     → smsApi validates Twilio signature + maps phone hash to uid
     → users/{uid}/smsMessages + smsInbound queue
-    → smsInboundProcessor → shared L1/L2 crisis stack → OpenAI → Twilio reply
-    → recent inbound fragments enter later Talk/Speak prompts as weak context
+    → smsInboundProcessor → shared L1/L2 crisis stack → GPT-5.5 structured turn
+    → adaptive-length Twilio reply + optional source-grounded field note
+    → only selected notes enter later Talk/Speak prompts as weak context
 ```
 
 ### Key files

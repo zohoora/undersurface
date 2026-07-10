@@ -59,7 +59,7 @@ const hiBase = {
   'settings.sms.description': 'दिन में UnderSurface को संदेश भेजें। ये संदेश बाद के सत्रों के लिए संदर्भ बन सकते हैं।',
   'settings.sms.loading': 'लोड हो रहा है...',
   'settings.sms.connected': '{last4} पर समाप्त होने वाले फ़ोन से जुड़ा है',
-  'settings.sms.commands': 'एक छोटे उत्तर के लिए सामान्य संदेश भेजें। बिना बातचीत सहेजने के लिए SAVE:, अधिक जगह के लिए DEEP:, या ऐप खोलने के लिए OPEN लिखें।',
+  'settings.sms.guidance': 'स्वाभाविक रूप से संदेश भेजें। जवाब उस पल के अनुसार ढलते हैं, और केवल उपयोगी बातें ही बाद के सत्रों में ले जाई जाती हैं।',
   'settings.sms.createCode': 'फ़ोन जोड़ें',
   'settings.sms.creating': 'कोड बन रहा है...',
   'settings.sms.linkInstruction': '10 मिनट के भीतर {number} पर LINK {code} भेजें।',

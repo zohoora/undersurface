@@ -3,7 +3,7 @@ import {
   CRISIS_CLASSIFIER_PROMPT,
   CRISIS_RESPONSE_FORMAT,
 } from '../shared/crisisClassifier.js'
-import { sanitizeSmsReply, type SmsMode } from './field.js'
+import { sanitizeSmsFieldNote, sanitizeSmsReply } from './field.js'
 import { buildSmsSystemPrompt, wrapSmsHistory } from './prompts.js'
 
 const OPENAI_CRISIS_MODEL = 'gpt-5-nano'
@@ -20,6 +20,29 @@ export interface CrisisResult {
 }
 
 type FetchLike = typeof fetch
+
+const SMS_TURN_RESPONSE_FORMAT = {
+  type: 'json_schema' as const,
+  json_schema: {
+    name: 'sms_turn',
+    strict: true,
+    schema: {
+      type: 'object',
+      properties: {
+        reply: { type: 'string' },
+        save: { type: 'boolean' },
+        field_note: { type: ['string', 'null'] },
+      },
+      required: ['reply', 'save', 'field_note'],
+      additionalProperties: false,
+    },
+  },
+}
+
+export interface SmsTurnResult {
+  reply: string
+  fieldNote: string | null
+}
 
 export async function classifySmsCrisis(
   text: string,
@@ -62,14 +85,13 @@ export async function classifySmsCrisis(
   }
 }
 
-export async function generateSmsReply(opts: {
+export async function generateSmsTurn(opts: {
   text: string
-  mode: Exclude<SmsMode, 'capture'>
   risk: 0 | 1
   history: SmsHistoryMessage[]
   apiKey: string
   fetchImpl?: FetchLike
-}): Promise<string> {
+}): Promise<SmsTurnResult> {
   const fetchImpl = opts.fetchImpl ?? fetch
   const historyBlock = wrapSmsHistory(opts.history)
   const userContent = `${historyBlock ? `${historyBlock}\n\n` : ''}<untrusted_current_sms>\n${opts.text.slice(0, 1600)}\n</untrusted_current_sms>`
@@ -84,11 +106,12 @@ export async function generateSmsReply(opts: {
     body: JSON.stringify({
       model: OPENAI_CHAT_MODEL,
       messages: [
-        { role: 'system', content: buildSmsSystemPrompt(opts.mode, opts.risk) },
+        { role: 'system', content: buildSmsSystemPrompt(opts.risk) },
         { role: 'user', content: userContent },
       ],
-      max_completion_tokens: opts.mode === 'deep' ? 1400 : 700,
+      max_completion_tokens: 1600,
       reasoning_effort: 'none',
+      response_format: SMS_TURN_RESPONSE_FORMAT,
     }),
   })
 
@@ -100,5 +123,27 @@ export async function generateSmsReply(opts: {
   if (typeof content !== 'string' || content.trim().length === 0) {
     throw new Error('openai_empty')
   }
-  return sanitizeSmsReply(content, opts.mode)
+  let parsed: { reply?: unknown; save?: unknown; field_note?: unknown }
+  try {
+    parsed = JSON.parse(content) as typeof parsed
+  } catch {
+    throw new Error('openai_malformed')
+  }
+  if (
+    typeof parsed.reply !== 'string'
+    || typeof parsed.save !== 'boolean'
+    || (parsed.field_note !== null && typeof parsed.field_note !== 'string')
+  ) {
+    throw new Error('openai_malformed')
+  }
+  const reply = sanitizeSmsReply(parsed.reply)
+  if (!reply) throw new Error('openai_empty')
+
+  const candidate = parsed.save && typeof parsed.field_note === 'string'
+    ? sanitizeSmsFieldNote(parsed.field_note)
+    : ''
+  return {
+    reply,
+    fieldNote: candidate || null,
+  }
 }

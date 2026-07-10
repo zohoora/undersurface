@@ -59,7 +59,7 @@ const viBase = {
   'settings.sms.description': 'Nhắn cho UnderSurface trong ngày. Tin nhắn có thể làm ngữ cảnh cho các phiên sau.',
   'settings.sms.loading': 'Đang tải...',
   'settings.sms.connected': 'Đã kết nối với số điện thoại kết thúc bằng {last4}',
-  'settings.sms.commands': 'Nhắn bình thường để nhận một phản hồi ngắn. Dùng SAVE: để chỉ lưu, DEEP: để có thêm không gian, hoặc OPEN để tiếp tục trong ứng dụng.',
+  'settings.sms.guidance': 'Hãy nhắn tin tự nhiên. Phản hồi sẽ phù hợp với từng khoảnh khắc và chỉ những chi tiết hữu ích mới được chuyển sang các phiên sau.',
   'settings.sms.createCode': 'Kết nối điện thoại',
   'settings.sms.creating': 'Đang tạo mã...',
   'settings.sms.linkInstruction': 'Trong 10 phút, hãy gửi LINK {code} đến {number}.',

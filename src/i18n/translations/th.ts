@@ -59,7 +59,7 @@ const thBase = {
   'settings.sms.description': 'ส่งข้อความถึง UnderSurface ระหว่างวัน ข้อความสามารถเป็นบริบทให้เซสชันครั้งถัดไปได้',
   'settings.sms.loading': 'กำลังโหลด...',
   'settings.sms.connected': 'เชื่อมต่อกับโทรศัพท์ที่ลงท้ายด้วย {last4}',
-  'settings.sms.commands': 'ส่งข้อความตามปกติเพื่อรับคำตอบสั้น ๆ ใช้ SAVE: เพื่อบันทึกโดยไม่สนทนา DEEP: เพื่อพื้นที่มากขึ้น หรือ OPEN เพื่อไปต่อในแอป',
+  'settings.sms.guidance': 'ส่งข้อความได้ตามธรรมชาติ คำตอบจะปรับตามช่วงเวลานั้น และจะนำเฉพาะรายละเอียดที่เป็นประโยชน์ไปใช้ในเซสชันถัดไป',
   'settings.sms.createCode': 'เชื่อมต่อโทรศัพท์',
   'settings.sms.creating': 'กำลังสร้างรหัส...',
   'settings.sms.linkInstruction': 'ส่ง LINK {code} ไปที่ {number} ภายใน 10 นาที',

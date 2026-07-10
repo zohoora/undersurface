@@ -12,7 +12,6 @@ import {
   SMS_UNAVAILABLE_RESPONSE,
   TWILIO_PHONE_NUMBER,
   TWILIO_WEBHOOK_URL,
-  UNDERSURFACE_SESSION_URL,
   normalizePhone,
   parseSmsBody,
   renderTwiml,
@@ -22,7 +21,7 @@ import {
   linkPhoneByCode,
   unlinkPhone,
 } from './linking.js'
-import { classifySmsCrisis, generateSmsReply, type SmsHistoryMessage } from './openai.js'
+import { classifySmsCrisis, generateSmsTurn, type SmsHistoryMessage } from './openai.js'
 
 const MAX_INBOUND_CHARS = 1600
 const MAX_PROCESSING_ATTEMPTS = 3
@@ -34,7 +33,6 @@ interface SmsInboundQueueDoc {
   from: string
   to: string
   body: string
-  mode: 'exchange' | 'deep'
   inboundMessageId: string
   receivedAt: number
   status: 'pending' | 'processing' | 'completed' | 'terminal_failed'
@@ -75,7 +73,6 @@ async function storeInboundMessage(opts: {
   uid: string
   messageSid: string
   body: string
-  mode: 'exchange' | 'deep' | 'capture'
   createdAt: number
 }): Promise<void> {
   await userSmsMessages(opts.uid).doc(opts.messageSid).set({
@@ -83,9 +80,10 @@ async function storeInboundMessage(opts: {
     channel: 'sms',
     direction: 'inbound',
     body: opts.body,
-    mode: opts.mode,
+    mode: 'natural',
     createdAt: opts.createdAt,
-    status: opts.mode === 'capture' ? 'captured' : 'received',
+    status: 'received',
+    carryForward: false,
   })
 }
 
@@ -95,7 +93,6 @@ async function enqueueInbound(opts: {
   to: string
   messageSid: string
   body: string
-  mode: 'exchange' | 'deep'
   receivedAt: number
 }): Promise<void> {
   const queueRef = getFirestore().collection('smsInbound').doc(opts.messageSid)
@@ -105,7 +102,6 @@ async function enqueueInbound(opts: {
       from: opts.from,
       to: opts.to,
       body: opts.body,
-      mode: opts.mode,
       inboundMessageId: opts.messageSid,
       receivedAt: opts.receivedAt,
       status: 'pending',
@@ -190,28 +186,10 @@ export async function handleSmsWebhook(req: Request, res: Response): Promise<voi
       sendTwiml(res, SMS_HELP)
       return
     }
-    if (intent.kind === 'open') {
-      sendTwiml(res, `Continue in UnderSurface: ${UNDERSURFACE_SESSION_URL}`)
-      return
-    }
-
-    if (intent.kind === 'capture') {
-      await storeInboundMessage({
-        uid,
-        messageSid,
-        body: intent.text,
-        mode: 'capture',
-        createdAt: receivedAt,
-      })
-      sendTwiml(res, 'Saved as a field note. I will leave it there unless you bring it into a session.')
-      return
-    }
-
     await storeInboundMessage({
       uid,
       messageSid,
       body: intent.text,
-      mode: intent.mode,
       createdAt: receivedAt,
     })
     await enqueueInbound({
@@ -220,7 +198,6 @@ export async function handleSmsWebhook(req: Request, res: Response): Promise<voi
       to,
       messageSid,
       body: intent.text,
-      mode: intent.mode,
       receivedAt,
     })
     sendTwiml(res)
@@ -283,7 +260,7 @@ async function recentSmsHistory(uid: string, currentMessageId: string): Promise<
 
 function errorCategory(error: unknown): string {
   if (error instanceof Error && /^openai_\d+$/.test(error.message)) return error.message
-  if (error instanceof Error && error.message === 'openai_empty') return error.message
+  if (error instanceof Error && (error.message === 'openai_empty' || error.message === 'openai_malformed')) return error.message
   const code = (error as { code?: unknown })?.code
   if (typeof code === 'number' || typeof code === 'string') return `provider_${String(code).slice(0, 40)}`
   return 'unknown'
@@ -312,19 +289,21 @@ export const smsInboundProcessor = onDocumentCreated(
       }
 
       let reply: string
+      let fieldNote: string | null = null
       let usedFallback = false
       if (risk === 2) {
         reply = SMS_CRISIS_RESPONSE
       } else {
         const history = await recentSmsHistory(queued.uid, queued.inboundMessageId)
         try {
-          reply = await generateSmsReply({
+          const turn = await generateSmsTurn({
             text: queued.body,
-            mode: queued.mode,
             risk,
             history,
             apiKey: openAiKey.value(),
           })
+          reply = turn.reply
+          fieldNote = turn.fieldNote
         } catch (error) {
           usedFallback = true
           console.error(`[sms] reply generation failed category=${errorCategory(error)}`)
@@ -346,7 +325,7 @@ export const smsInboundProcessor = onDocumentCreated(
         channel: 'sms',
         direction: 'outbound',
         body: reply,
-        mode: queued.mode,
+        mode: 'natural',
         createdAt: sentAt,
         status: 'sent',
         risk,
@@ -356,6 +335,9 @@ export const smsInboundProcessor = onDocumentCreated(
       batch.update(userSmsMessages(queued.uid).doc(queued.inboundMessageId), {
         status: 'processed',
         risk,
+        carryForward: fieldNote !== null,
+        fieldNote,
+        fieldNoteSelectedAt: sentAt,
         processedAt: sentAt,
       })
       batch.update(ref, {

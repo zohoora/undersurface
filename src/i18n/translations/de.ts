@@ -59,7 +59,7 @@ const deBase = {
   'settings.sms.description': 'Schreibe UnderSurface tagsüber per SMS. Nachrichten können späteren Sitzungen Kontext geben.',
   'settings.sms.loading': 'Wird geladen...',
   'settings.sms.connected': 'Verbunden mit der Telefonnummer, die auf {last4} endet',
-  'settings.sms.commands': 'Schreibe normal für eine kurze Antwort. Nutze SAVE: zum stillen Speichern, DEEP: für mehr Raum oder OPEN für die App.',
+  'settings.sms.guidance': 'Schreibe ganz natürlich. Die Antwort passt sich dem Moment an, und nur hilfreiche Details werden in spätere Sitzungen übernommen.',
   'settings.sms.createCode': 'Telefon verbinden',
   'settings.sms.creating': 'Code wird erstellt...',
   'settings.sms.linkInstruction': 'Sende innerhalb von 10 Minuten LINK {code} an {number}.',

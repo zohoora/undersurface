@@ -59,7 +59,7 @@ const trBase = {
   'settings.sms.description': 'Gün içinde UnderSurface’a mesaj gönderin. Mesajlar sonraki oturumlara bağlam sağlayabilir.',
   'settings.sms.loading': 'Yükleniyor...',
   'settings.sms.connected': 'Sonu {last4} olan telefona bağlı',
-  'settings.sms.commands': 'Kısa bir yanıt için normal mesaj yazın. Konuşmadan kaydetmek için SAVE:, daha fazla alan için DEEP: veya uygulamaya geçmek için OPEN kullanın.',
+  'settings.sms.guidance': 'Doğal biçimde mesaj yazın. Yanıtlar ana uyum sağlar ve yalnızca yararlı ayrıntılar sonraki oturumlara taşınır.',
   'settings.sms.createCode': 'Telefon bağla',
   'settings.sms.creating': 'Kod oluşturuluyor...',
   'settings.sms.linkInstruction': '10 dakika içinde {number} numarasına LINK {code} gönderin.',

@@ -18,7 +18,7 @@
 | `src/ai/llmCorrect.ts` | LLM-based autocorrect — sentence-level spelling/capitalization correction via small model. All languages with sentence-ending punctuation. Exports `shouldTriggerAutocorrect()`, `isCJK()`, `SENTENCE_END_PUNCT`, `CJK_SENTENCE_END` |
 | `src/engine/sessionOrchestrator.ts` | Session phase detection, shared narrow crisis hard floor, emotion check with grounding activation |
 | `src/engine/sessionReflectionEngine.ts` | Post-session reflection — extracts memories, profile updates, somatic signals, personal facts (people, dates, context, current threads) from session transcripts |
-| `src/engine/sessionContextLoader.ts` | Loads bounded session context including memories, profile, recent notes, and weak recent SMS field notes |
+| `src/engine/sessionContextLoader.ts` | Loads bounded session context including memories, profile, recent notes, and model-selected weak SMS field notes |
 | `src/engine/weatherEngine.ts` | Inner weather tracking from emotional tone shifts |
 | `src/engine/ritualEngine.ts` | Session logging for ritual detection (writing habits) |
 | `src/engine/fossilEngine.ts` | Resurfaces old entry commentary. Lazy-loaded on first entry switch |
@@ -147,7 +147,7 @@
 | File | Purpose |
 |------|---------|
 | `functions/src/index.ts` | Cloud Function exports, including `smsApi` + `smsInboundProcessor` |
-| `functions/src/sms/` | Twilio webhook, link store, bounded field prompt, crisis pipeline, async delivery processor, and unit tests |
+| `functions/src/sms/` | Twilio webhook, link store, adaptive SMS prompt + structured note decision, crisis pipeline, async delivery processor, and unit tests |
 | `firebase.json` | Hosting config + API rewrites, including `/api/sms` |
 | `firestore.rules` | Security rules |
 | `vite.config.ts` | Vite + React + Tailwind v4 + VitePWA + Sentry source maps; `manualChunks` splits editor + sentry |

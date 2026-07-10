@@ -212,9 +212,12 @@ export interface SmsMessage {
   channel: 'sms'
   direction: 'inbound' | 'outbound'
   body: string
-  mode: 'exchange' | 'deep' | 'capture'
+  mode: 'natural' | 'exchange' | 'deep' | 'capture'
   createdAt: number
   status: 'received' | 'captured' | 'processed' | 'sent' | 'failed'
+  carryForward?: boolean
+  fieldNote?: string | null
+  fieldNoteSelectedAt?: number
   risk?: 0 | 1 | 2
   providerSid?: string
   replyTo?: string

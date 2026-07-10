@@ -59,7 +59,7 @@ const jaBase = {
   'settings.sms.description': '日中にUnderSurfaceへメッセージを送れます。後のセッションの文脈として使えます。',
   'settings.sms.loading': '読み込み中...',
   'settings.sms.connected': '末尾{last4}の電話に接続済み',
-  'settings.sms.commands': '通常のメッセージには短く返答します。会話せず保存するにはSAVE:、詳しく話すにはDEEP:、アプリを開くにはOPENを使います。',
+  'settings.sms.guidance': '自然にメッセージを送ってください。返信はその時の状況に合わせ、後のセッションに役立つ内容だけが引き継がれます。',
   'settings.sms.createCode': '電話を接続',
   'settings.sms.creating': 'コードを作成中...',
   'settings.sms.linkInstruction': '10分以内に{number}へLINK {code}と送信してください。',

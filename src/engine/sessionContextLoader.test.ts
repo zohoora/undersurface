@@ -153,18 +153,21 @@ describe('loadTherapistContext', () => {
     expect(ctx.recentFieldNotes).toEqual([])
   })
 
-  it('loads only recent inbound SMS fragments as weak field-note context', async () => {
+  it('loads only recent model-selected SMS notes as weak field-note context', async () => {
     const now = Date.now()
     state.smsMessages = [
-      { id: 'new', channel: 'sms', direction: 'inbound', body: 'Presentation dread', mode: 'capture', createdAt: now - 1000, status: 'captured' },
-      { id: 'reply', channel: 'sms', direction: 'outbound', body: 'Try both feet', mode: 'exchange', createdAt: now - 900, status: 'sent' },
-      { id: 'old', channel: 'sms', direction: 'inbound', body: 'Too old', mode: 'exchange', createdAt: now - 15 * 86_400_000, status: 'processed' },
+      { id: 'selected', channel: 'sms', direction: 'inbound', body: 'The presentation is tomorrow and I am dreading it', mode: 'natural', createdAt: now - 1000, status: 'processed', carryForward: true, fieldNote: 'Presentation tomorrow is causing dread.' },
+      { id: 'unsaved', channel: 'sms', direction: 'inbound', body: 'Hi there', mode: 'natural', createdAt: now - 950, status: 'processed', carryForward: false, fieldNote: null },
+      { id: 'reply', channel: 'sms', direction: 'outbound', body: 'Try both feet', mode: 'natural', createdAt: now - 900, status: 'sent' },
+      { id: 'old', channel: 'sms', direction: 'inbound', body: 'Too old', mode: 'natural', createdAt: now - 15 * 86_400_000, status: 'processed', carryForward: true, fieldNote: 'Old note' },
+      { id: 'legacy', channel: 'sms', direction: 'inbound', body: 'Legacy explicit capture', mode: 'capture', createdAt: now - 800, status: 'captured' },
     ]
 
     const ctx = await loadTherapistContext()
 
     expect(ctx.recentFieldNotes).toEqual([
-      { text: 'Presentation dread', date: now - 1000, mode: 'capture' },
+      { text: 'Legacy explicit capture', date: now - 800 },
+      { text: 'Presentation tomorrow is causing dread.', date: now - 1000 },
     ])
   })
 

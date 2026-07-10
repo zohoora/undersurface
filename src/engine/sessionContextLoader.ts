@@ -1,4 +1,4 @@
-import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue, CompanionPromise, SmsMessage } from '../types'
+import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue, CompanionPromise } from '../types'
 import { db } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { detectOpenTimeEvidence } from './ruptureDetector'
@@ -47,9 +47,9 @@ export interface TherapistContext {
   promiseSlotsOpen: boolean
   // A pending story arc awaiting consume-once delivery (storyArcs flag).
   storyArc: { text: string } | null
-  // User-authored between-session fragments from SMS. These remain weak,
-  // unconfirmed context and must never become identity claims by themselves.
-  recentFieldNotes: { text: string; date: number; mode: SmsMessage['mode'] }[]
+  // Model-selected, source-grounded notes from between-session SMS. These
+  // remain weak context and must never become identity claims by themselves.
+  recentFieldNotes: { text: string; date: number }[]
 }
 
 const MEMORY_SOURCE_PARTS = ['open', 'weaver', 'still']
@@ -196,8 +196,18 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
   const recentFieldNotes = smsMessages
     .filter(message => message.direction === 'inbound')
     .filter(message => Date.now() - message.createdAt <= FIELD_NOTE_MAX_AGE_MS)
+    .map(message => {
+      if (message.carryForward === true && message.fieldNote?.trim()) {
+        return { text: message.fieldNote.trim(), date: message.createdAt }
+      }
+      // Preserve explicit captures created by the previous SMS grammar.
+      if (message.mode === 'capture' && message.status === 'captured') {
+        return { text: message.body, date: message.createdAt }
+      }
+      return null
+    })
+    .filter((note): note is { text: string; date: number } => note !== null)
     .slice(0, RECENT_FIELD_NOTE_LIMIT)
-    .map(message => ({ text: message.body, date: message.createdAt, mode: message.mode }))
 
   return {
     recentSessionNotes,

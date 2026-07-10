@@ -59,7 +59,7 @@ const zhBase = {
   'settings.sms.description': '白天可随时给 UnderSurface 发短信。这些消息可成为之后会话的背景。',
   'settings.sms.loading': '正在加载...',
   'settings.sms.connected': '已连接尾号为 {last4} 的手机',
-  'settings.sms.commands': '正常发短信会收到简短回应。使用 SAVE: 仅保存而不对话，DEEP: 获得更多空间，或 OPEN 继续使用应用。',
+  'settings.sms.guidance': '自然地发短信即可。回复会根据当下情况调整，只有有助于后续会话的内容才会被带入。',
   'settings.sms.createCode': '连接手机',
   'settings.sms.creating': '正在创建代码...',
   'settings.sms.linkInstruction': '请在 10 分钟内向 {number} 发送 LINK {code}。',

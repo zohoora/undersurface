@@ -3,17 +3,13 @@ export const TWILIO_PHONE_DISPLAY = '+1 289-778-0589'
 export const TWILIO_WEBHOOK_URL = 'https://undersurface.me/api/sms'
 export const UNDERSURFACE_SESSION_URL = 'https://undersurface.me/session/new'
 
-export type SmsMode = 'exchange' | 'deep' | 'capture'
-
 export type ParsedSmsIntent =
   | { kind: 'link'; code: string }
   | { kind: 'invalid_link' }
   | { kind: 'unlink' }
   | { kind: 'help' }
-  | { kind: 'open' }
   | { kind: 'opt_out' }
-  | { kind: 'capture'; text: string }
-  | { kind: 'message'; mode: 'exchange' | 'deep'; text: string }
+  | { kind: 'message'; text: string }
 
 const LINK_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{6}$/
 const OPT_OUT_WORDS = new Set(['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT'])
@@ -31,21 +27,14 @@ export function parseSmsBody(raw: string): ParsedSmsIntent {
   if (OPT_OUT_WORDS.has(upper)) return { kind: 'opt_out' }
   if (upper === 'UNLINK') return { kind: 'unlink' }
   if (upper === 'HELP' || upper === 'START') return { kind: 'help' }
-  if (upper === 'OPEN') return { kind: 'open' }
 
   if (/^LINK\b/i.test(text)) {
     const code = text.replace(/^LINK\s*/i, '').trim().toUpperCase()
     return LINK_CODE_PATTERN.test(code) ? { kind: 'link', code } : { kind: 'invalid_link' }
   }
 
-  const capture = text.match(/^SAVE(?:\s*:|\s+)\s*([\s\S]+)$/i)
-  if (capture?.[1]?.trim()) return { kind: 'capture', text: capture[1].trim() }
-
-  const deep = text.match(/^DEEP(?:\s*:|\s+)\s*([\s\S]+)$/i)
-  if (deep?.[1]?.trim()) return { kind: 'message', mode: 'deep', text: deep[1].trim() }
-
   if (!text) return { kind: 'help' }
-  return { kind: 'message', mode: 'exchange', text }
+  return { kind: 'message', text }
 }
 
 function escapeXml(value: string): string {
@@ -62,8 +51,8 @@ export function renderTwiml(message?: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`
 }
 
-export function sanitizeSmsReply(raw: string, mode: 'exchange' | 'deep'): string {
-  const maxChars = mode === 'deep' ? 1200 : 480
+export function sanitizeSmsReply(raw: string): string {
+  const maxChars = 1200
   const cleaned = raw
     .replace(/^\s*<<RISK:[^>]+>>\s*/i, '')
     .replace(/\[([^\]]+)]\([^\s)]+\)/g, '$1')
@@ -79,8 +68,18 @@ export function sanitizeSmsReply(raw: string, mode: 'exchange' | 'deep'): string
   return `${cut.trimEnd()}…`
 }
 
+export function sanitizeSmsFieldNote(raw: string): string {
+  return raw
+    .replace(/<\/?untrusted[^>]*>/gi, '')
+    .replace(/\[([^\]]+)]\([^\s)]+\)/g, '$1')
+    .replace(/[*_`#]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 320)
+}
+
 export const SMS_HELP =
-  `Text normally for one small response. Start with SAVE: to capture without a conversation, DEEP: for more space, OPEN to continue in UnderSurface, or UNLINK to disconnect.`
+  `Text naturally. I'll respond with the amount of space the moment seems to need, and may carry forward a concise note when it could help a later UnderSurface session. Text UNLINK to disconnect.`
 
 export const SMS_CRISIS_RESPONSE =
   `I'm concerned you may be in immediate danger. If you might act now or can't stay safe, call local emergency services now. In Canada or the U.S., call or text 988. If you can, move away from anything you could use to hurt yourself and contact someone who can stay with you.`

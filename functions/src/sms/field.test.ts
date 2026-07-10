@@ -2,24 +2,26 @@ import { describe, expect, it } from 'vitest'
 import { CRISIS_EVAL_NEGATIVES } from '../../../src/engine/crisisClassifier.eval'
 import { detectCrisisKeywords } from '../shared/crisisFloor'
 import {
+  SMS_HELP,
   normalizePhone,
   parseSmsBody,
   renderTwiml,
+  sanitizeSmsFieldNote,
   sanitizeSmsReply,
 } from './field'
 import { generateSmsLinkCode, hashSmsValue } from './linking'
 
 describe('SMS field grammar', () => {
-  it('parses linking and field modes without confusing ordinary text', () => {
+  it('keeps only account controls and treats former content commands naturally', () => {
     expect(parseSmsBody('LINK AB23XY')).toEqual({ kind: 'link', code: 'AB23XY' })
     expect(parseSmsBody('link 000000')).toEqual({ kind: 'invalid_link' })
-    expect(parseSmsBody('SAVE: meeting dread')).toEqual({ kind: 'capture', text: 'meeting dread' })
-    expect(parseSmsBody('DEEP I keep circling this')).toEqual({
-      kind: 'message', mode: 'deep', text: 'I keep circling this',
-    })
+    expect(parseSmsBody('SAVE: meeting dread')).toEqual({ kind: 'message', text: 'SAVE: meeting dread' })
+    expect(parseSmsBody('DEEP I keep circling this')).toEqual({ kind: 'message', text: 'DEEP I keep circling this' })
+    expect(parseSmsBody('OPEN')).toEqual({ kind: 'message', text: 'OPEN' })
     expect(parseSmsBody('A small thing happened')).toEqual({
-      kind: 'message', mode: 'exchange', text: 'A small thing happened',
+      kind: 'message', text: 'A small thing happened',
     })
+    expect(parseSmsBody('HELP')).toEqual({ kind: 'help' })
     expect(parseSmsBody('STOP')).toEqual({ kind: 'opt_out' })
   })
 
@@ -34,11 +36,17 @@ describe('SMS field grammar', () => {
     expect(renderTwiml()).toContain('<Response></Response>')
   })
 
-  it('strips app-only markup and bounds normal versus deep replies', () => {
-    expect(sanitizeSmsReply('<<RISK:0>>\n**Try** [Journal](#switch:journal).', 'exchange'))
+  it('describes natural SMS behavior without content commands', () => {
+    expect(SMS_HELP).toContain('Text naturally')
+    expect(SMS_HELP).not.toMatch(/SAVE:|DEEP:|\bOPEN\b/)
+  })
+
+  it('strips app-only markup and keeps a generous SMS backstop', () => {
+    expect(sanitizeSmsReply('<<RISK:0>>\n**Try** [Journal](#switch:journal).'))
       .toBe('Try Journal.')
-    expect(sanitizeSmsReply('word '.repeat(400), 'exchange').length).toBeLessThanOrEqual(480)
-    expect(sanitizeSmsReply('word '.repeat(400), 'deep').length).toBeLessThanOrEqual(1200)
+    expect(sanitizeSmsReply('word '.repeat(400)).length).toBeLessThanOrEqual(1200)
+    expect(sanitizeSmsFieldNote('**Decision:** stay home\n\nthis Friday')).toBe('Decision: stay home this Friday')
+    expect(sanitizeSmsFieldNote('x'.repeat(500))).toHaveLength(320)
   })
 
   it('generates unambiguous six-character codes from supplied entropy', () => {

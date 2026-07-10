@@ -59,7 +59,7 @@ const koBase = {
   'settings.sms.description': '하루 중 UnderSurface에 문자를 보내세요. 메시지는 이후 세션의 맥락이 될 수 있습니다.',
   'settings.sms.loading': '불러오는 중...',
   'settings.sms.connected': '끝 번호가 {last4}인 전화에 연결됨',
-  'settings.sms.commands': '일반 문자는 짧게 답합니다. 대화 없이 저장하려면 SAVE:, 더 깊게 쓰려면 DEEP:, 앱을 열려면 OPEN을 사용하세요.',
+  'settings.sms.guidance': '자연스럽게 문자를 보내세요. 답변 길이는 상황에 맞게 조절되며, 나중 세션에 도움이 될 내용만 이어집니다.',
   'settings.sms.createCode': '전화 연결',
   'settings.sms.creating': '코드 만드는 중...',
   'settings.sms.linkInstruction': '10분 안에 {number}로 LINK {code}를 보내세요.',

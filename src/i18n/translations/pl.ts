@@ -59,7 +59,7 @@ const plBase = {
   'settings.sms.description': 'Pisz do UnderSurface w ciągu dnia. Wiadomości mogą być kontekstem dla późniejszych sesji.',
   'settings.sms.loading': 'Ładowanie...',
   'settings.sms.connected': 'Połączono z telefonem kończącym się na {last4}',
-  'settings.sms.commands': 'Napisz zwyczajnie, aby dostać krótką odpowiedź. Użyj SAVE:, aby tylko zapisać, DEEP:, aby dostać więcej przestrzeni, lub OPEN, aby przejść do aplikacji.',
+  'settings.sms.guidance': 'Pisz naturalnie. Odpowiedzi dostosują się do chwili, a do późniejszych sesji trafią tylko przydatne szczegóły.',
   'settings.sms.createCode': 'Połącz telefon',
   'settings.sms.creating': 'Tworzenie kodu...',
   'settings.sms.linkInstruction': 'W ciągu 10 minut wyślij LINK {code} na {number}.',

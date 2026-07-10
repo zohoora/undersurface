@@ -59,7 +59,7 @@ const nlBase = {
   'settings.sms.description': 'Stuur UnderSurface overdag een bericht. Berichten kunnen context geven aan latere sessies.',
   'settings.sms.loading': 'Laden...',
   'settings.sms.connected': 'Verbonden met telefoonnummer eindigend op {last4}',
-  'settings.sms.commands': 'Stuur normaal voor één kort antwoord. Gebruik SAVE: om zonder gesprek te bewaren, DEEP: voor meer ruimte of OPEN om verder te gaan in de app.',
+  'settings.sms.guidance': 'Stuur gewoon wat er speelt. Antwoorden passen zich aan het moment aan en alleen nuttige details gaan mee naar latere sessies.',
   'settings.sms.createCode': 'Telefoon koppelen',
   'settings.sms.creating': 'Code maken...',
   'settings.sms.linkInstruction': 'Stuur binnen 10 minuten LINK {code} naar {number}.',

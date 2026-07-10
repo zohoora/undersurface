@@ -59,7 +59,7 @@ const idBase = {
   'settings.sms.description': 'Kirim pesan ke UnderSurface sepanjang hari. Pesan dapat menjadi konteks untuk sesi berikutnya.',
   'settings.sms.loading': 'Memuat...',
   'settings.sms.connected': 'Terhubung ke telepon dengan akhiran {last4}',
-  'settings.sms.commands': 'Kirim pesan biasa untuk satu respons singkat. Gunakan SAVE: untuk menyimpan tanpa percakapan, DEEP: untuk ruang lebih, atau OPEN untuk melanjutkan di aplikasi.',
+  'settings.sms.guidance': 'Kirim pesan secara alami. Respons menyesuaikan momen, dan hanya detail yang berguna yang dibawa ke sesi berikutnya.',
   'settings.sms.createCode': 'Hubungkan telepon',
   'settings.sms.creating': 'Membuat kode...',
   'settings.sms.linkInstruction': 'Kirim LINK {code} ke {number} dalam 10 menit.',

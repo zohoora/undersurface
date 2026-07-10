@@ -112,7 +112,7 @@ export function SmsSettingsSection({ isOpen }: { isOpen: boolean }) {
             {interpolate(t['settings.sms.connected'], { last4: status.phoneLast4 ?? '' })}
           </div>
           <div style={{ fontSize: 10, color: 'var(--text-ghost)', lineHeight: 1.5 }}>
-            {t['settings.sms.commands']}
+            {t['settings.sms.guidance']}
           </div>
           <button
             type="button"

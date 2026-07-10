@@ -59,7 +59,7 @@ const frBase = {
   'settings.sms.description': 'Écrivez à UnderSurface pendant la journée. Les messages peuvent éclairer les séances suivantes.',
   'settings.sms.loading': 'Chargement...',
   'settings.sms.connected': 'Connecté au téléphone se terminant par {last4}',
-  'settings.sms.commands': 'Écrivez normalement pour une réponse brève. Utilisez SAVE: pour enregistrer sans échange, DEEP: pour plus d’espace ou OPEN pour continuer dans l’application.',
+  'settings.sms.guidance': 'Écrivez naturellement. Les réponses s’adaptent au moment, et seuls les détails utiles sont conservés pour les séances suivantes.',
   'settings.sms.createCode': 'Associer un téléphone',
   'settings.sms.creating': 'Création du code...',
   'settings.sms.linkInstruction': 'Envoyez LINK {code} au {number} dans les 10 minutes.',

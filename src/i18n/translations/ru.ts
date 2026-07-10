@@ -59,7 +59,7 @@ const ruBase = {
   'settings.sms.description': 'Пишите UnderSurface в течение дня. Сообщения могут стать контекстом для следующих сессий.',
   'settings.sms.loading': 'Загрузка...',
   'settings.sms.connected': 'Подключен телефон с последними цифрами {last4}',
-  'settings.sms.commands': 'Пишите обычно для короткого ответа. Используйте SAVE:, чтобы только сохранить, DEEP: для более глубокого ответа или OPEN для перехода в приложение.',
+  'settings.sms.guidance': 'Пишите естественно. Ответ подстраивается под ситуацию, а в следующие сессии переносятся только полезные детали.',
   'settings.sms.createCode': 'Подключить телефон',
   'settings.sms.creating': 'Создание кода...',
   'settings.sms.linkInstruction': 'В течение 10 минут отправьте LINK {code} на номер {number}.',
