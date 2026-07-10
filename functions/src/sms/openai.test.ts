@@ -47,6 +47,10 @@ describe('SMS OpenAI adapter', () => {
       text: 'Presentation in ten minutes',
       risk: 0,
       history: [{ direction: 'inbound', body: 'I expected to freeze', createdAt: 100 }],
+      companionContext: {
+        recentSessionNotes: [{ note: 'The writer was preparing for a presentation.', date: 100 }],
+        activeValues: [{ name: 'craft', description: 'doing careful work' }],
+      },
       apiKey: 'test-key',
       fetchImpl: fetchMock as typeof fetch,
     })
@@ -66,6 +70,9 @@ describe('SMS OpenAI adapter', () => {
     expect(body.messages[0].content).toContain('FIELD-NOTE DECISION')
     expect(body.messages[0].content).toContain('MMS IMAGES')
     expect(body.messages[0].content).toContain('not identity evidence')
+    expect(body.messages[0].content).toContain('SHARED COMPANION KERNEL')
+    expect(body.messages[0].content).toContain('Notes from recent sessions')
+    expect(body.messages[0].content).toContain('doing careful work')
     expect(body.messages[1].content[0].text).toContain('untrusted_recent_sms_context')
     expect(body.messages[1].content[0].text).toContain('Presentation in ten minutes')
   })

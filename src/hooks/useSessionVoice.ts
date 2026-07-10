@@ -106,6 +106,7 @@ export function useSessionVoice({
         .catch(() => { /* best-effort */ })
     }
     return buildTherapistSystemPrompt({
+      channel: 'voice',
       phase: sessionRef.current?.phase ?? 'opening',
       recentSessionNotes: context.recentSessionNotes,
       recentFieldNotes: context.recentFieldNotes,
@@ -115,7 +116,9 @@ export function useSessionVoice({
       isGrounding: grounded,
       hrvContext: hrv.buildPromptContext(),
       mode: sessionRef.current?.mode ?? 'standard',
-      allowRecommendations: true,
+      // Voice has no renderer for recommendation links. The shared capability
+      // contract keeps these surface mechanics out of spoken output.
+      allowRecommendations: false,
       isFirstTurn,
       inSessionRelaxBreaks,
       recentRelaxBreaks: context.recentRelaxBreaks,
@@ -143,6 +146,15 @@ export function useSessionVoice({
         : undefined,
       stanceContext: getGlobalConfig()?.features?.stanceAdaptation === true && context.stanceEntries.length > 0
         ? context.stanceEntries
+        : undefined,
+      activeValues: getGlobalConfig()?.features?.userValues === true && context.activeValues.length > 0
+        ? context.activeValues
+        : undefined,
+      // Voice can remember the substance of a commitment but cannot emit the
+      // web marker that records delivery. The shared renderer makes this
+      // read-only for non-web channels.
+      duePromises: getGlobalConfig()?.features?.companionInteriority === true && context.duePromises.length > 0
+        ? context.duePromises
         : undefined,
     })
   }, [contextRef, sessionRef, messagesRef, hrv])

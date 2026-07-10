@@ -1,7 +1,7 @@
 # SMS Field Bridge
 
 **Date:** 2026-07-09  
-**Status:** SMS implemented, deployed, and verified on a live handset; natural-interaction revision live; multimodal MMS revision implemented with live handset verification pending
+**Status:** SMS and multimodal MMS implemented, deployed, and verified on a live handset; shared cross-channel companion kernel implemented, verification and deployment pending
 
 ## Goal
 
@@ -23,9 +23,11 @@ Extend UnderSurface into ordinary daily life without turning SMS into a full rep
 2. Deterministic account controls and linking respond synchronously with TwiML.
 3. Conversational messages and attachment metadata are stored under `users/{uid}/smsMessages` and queued in `smsInbound/{MessageSid}`.
 4. `smsInboundProcessor` claims the queue item, authenticates to Twilio's protected `MediaUrlN` resources, validates host/path/type and a 5MB aggregate bound, then converts supported images to base64 data URLs.
-5. The processor applies the shared text crisis stack and asks GPT-5.5 for a multimodal structured adaptive-length reply, optional field note, and narrow visual-risk signal before sending through Twilio. Clear visual danger is replaced with fixed crisis guidance.
-6. `sessionContextLoader` loads only selected field notes as weak, source-grounded context for later Talk and Speak sessions. Full text remains available for short-term SMS continuity and export; image bytes are not duplicated into Firestore.
-7. SMS/MMS records participate in export and account deletion. Link codes, phone mappings, and processing queues are server-owned top-level collections; queued media URLs are cleared after processing.
+5. The processor uses `sms/context.ts` to load the same stable longitudinal categories used by Talk and Speak: recent session notes, memories, profile, facts, selected field notes, and flag-gated parts, lexicon, intentions, stance, values, and promises.
+6. Talk, Speak, and SMS render that context through the pure shared kernel in `functions/src/shared/companionKernel.ts`. Channel adapters declare capabilities; web-only markers and tracked actions cannot leak into Voice or SMS.
+7. The processor applies the shared text crisis stack and asks GPT-5.5 for a multimodal structured adaptive-length reply, optional field note, and narrow visual-risk signal before sending through Twilio. Clear visual danger is replaced with fixed crisis guidance.
+8. `sessionContextLoader` loads selected field notes as weak, source-grounded context for later Talk and Speak sessions. Full text remains available for short-term SMS continuity and export; image bytes are not duplicated into Firestore.
+9. SMS/MMS records participate in export and account deletion. Link codes, phone mappings, and processing queues are server-owned top-level collections; queued media URLs are cleared after processing.
 
 ## Research constraints
 
@@ -38,6 +40,7 @@ Extend UnderSurface into ordinary daily life without turning SMS into a full rep
 - Clear crisis language bypasses generation and receives fixed crisis guidance.
 - SMS safety shares the exact classifier prompt/schema and deterministic hard floor with the rest of the app.
 - The model never grades its own intervention effectiveness; outcome instrumentation is a later research tranche.
+- A channel is transport context, not a separate companion identity. Stable intelligence is shared by default; unsupported interaction mechanics are capability-gated.
 
 ## Production configuration
 

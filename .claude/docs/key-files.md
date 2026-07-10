@@ -7,6 +7,7 @@
 | `src/ai/openrouter.ts` | Client-side API calls to `/api/chat`; `analyzeEmotionAndDistress()` for combined emotion + distress check |
 | `functions/src/shared/crisisClassifier.ts` | Canonical calibrated L2 prompt + structured-output schema shared by browser chat and SMS |
 | `functions/src/shared/crisisFloor.ts` | Canonical narrow L1 explicit-method floor shared by every channel |
+| `functions/src/shared/companionKernel.ts` | Pure cross-channel companion contract: shared behavior, Talk/Voice/SMS capability matrix, stable continuity types and renderer |
 | `src/ai/partPrompts.ts` | System prompts for 7 seeded parts + `SHARED_INSTRUCTIONS` + emergence, reflection, growth, grounding, intention prompts + `languageDirective()` for multilingual AI response directives |
 | `src/ai/sessionPrompts.ts` | Session mode prompts for parts — `SESSION_INSTRUCTIONS`, `buildSessionMessages()`, `buildSessionNotePrompt()` |
 | `src/ai/therapistPrompts.ts` | Therapist companion prompts — `THERAPIST_CORE` (warm), `REAL_TALK_CORE` (calling-out coping patterns), `buildTherapistMessages()`, `buildTherapistSessionNotePrompt()`, `buildSessionReflectionPrompt()`. Mode swap is gated on `mode==='real_talk' && !isGrounding` — grounding always reverts to warm core |
@@ -18,7 +19,7 @@
 | `src/ai/llmCorrect.ts` | LLM-based autocorrect — sentence-level spelling/capitalization correction via small model. All languages with sentence-ending punctuation. Exports `shouldTriggerAutocorrect()`, `isCJK()`, `SENTENCE_END_PUNCT`, `CJK_SENTENCE_END` |
 | `src/engine/sessionOrchestrator.ts` | Session phase detection, shared narrow crisis hard floor, emotion check with grounding activation |
 | `src/engine/sessionReflectionEngine.ts` | Post-session reflection — extracts memories, profile updates, somatic signals, personal facts (people, dates, context, current threads) from session transcripts |
-| `src/engine/sessionContextLoader.ts` | Loads bounded session context including memories, profile, recent notes, and model-selected weak SMS field notes |
+| `src/engine/sessionContextLoader.ts` | Browser-side bounded companion context loader: memories, profile, facts, recent notes, field notes, parts, intentions, stance, values, and promises |
 | `src/engine/weatherEngine.ts` | Inner weather tracking from emotional tone shifts |
 | `src/engine/ritualEngine.ts` | Session logging for ritual detection (writing habits) |
 | `src/engine/fossilEngine.ts` | Resurfaces old entry commentary. Lazy-loaded on first entry switch |
@@ -147,7 +148,7 @@
 | File | Purpose |
 |------|---------|
 | `functions/src/index.ts` | Cloud Function exports, including `smsApi` + `smsInboundProcessor` |
-| `functions/src/sms/` | Twilio SMS/MMS webhook, protected-media fetch/validation, multimodal adaptive prompt + structured note/visual-risk decision, crisis pipeline, async delivery processor, and unit tests |
+| `functions/src/sms/` | Twilio SMS/MMS webhook, server-side shared-context loader, protected-media fetch/validation, multimodal adaptive prompt + structured note/visual-risk decision, crisis pipeline, async delivery processor, and unit tests |
 | `firebase.json` | Hosting config + API rewrites, including `/api/sms` |
 | `firestore.rules` | Security rules |
 | `vite.config.ts` | Vite + React + Tailwind v4 + VitePWA + Sentry source maps; `manualChunks` splits editor + sentry |

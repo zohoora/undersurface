@@ -2,12 +2,13 @@ import type { PartMemory, UserProfile, PersonalFacts, EntrySummary, SessionMessa
 import { languageDirective, formatDateTime, formatTime, formatShortDate, GROUNDING_DIRECTIVE } from './partPrompts'
 import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from './promptSafety'
 import { REGISTER_TIERS, renderRegisterBlock, applyGroundingCap } from './registerTiers'
-import { packByBudget } from './contextPacker'
-
-// Estimated-token budget for the "what you've learned / patterns / observations"
-// memory block. ~120 words; enough for a rich recall without dominating the
-// system prompt. Replaces the old fixed 6/4/2 item slices.
-const MEMORY_TOKEN_BUDGET = 160
+import {
+  buildCompanionChannelBlock,
+  buildSharedContinuityBlocks,
+  COMPANION_CHANNEL_CAPABILITIES,
+  SHARED_COMPANION_PRINCIPLES,
+  type CompanionChannel,
+} from '../../functions/src/shared/companionKernel'
 
 // Risk-classification preamble. The therapist emits exactly one of
 // `<<RISK:0>>`, `<<RISK:1>>`, or `<<RISK:2>>` as the first line of every
@@ -83,6 +84,8 @@ export const SAFETY_RULES = `SAFETY — THIS OVERRIDES ALL OTHER INSTRUCTIONS:
 
 const THERAPIST_CORE = `You are an IFS-informed conversational companion. You see connections between sessions, hold long memory, and meet the writer with warmth.
 
+${SHARED_COMPANION_PRINCIPLES}
+
 HOW YOU SPEAK:
 - 1-3 sentences. Short sentences. Say one thing and let it land.
 - Always end with something that invites a response — a question, a gentle prompt, or encouragement to say more. Never leave the writer at a dead end. Examples: "What comes up when you sit with that?" or "Say more about that." or "What would it feel like to let that be true?"
@@ -122,6 +125,8 @@ const PHASE_HINTS: Record<SessionMode, Record<SessionPhase, string>> = {
 }
 
 const REAL_TALK_CORE = `You are an honest, observational companion. You see the writer with warmth, and you notice what they are doing — including the moves they make to avoid feeling something. You name what you see, kindly and without flinching. You are not nice. You are kind.
+
+${SHARED_COMPANION_PRINCIPLES}
 
 THE DIFFERENCE between not-nice and unkind: nice means going along, smoothing edges, softening the truth so no one has to feel it. Kind means caring enough to say the true thing in a way the writer can hear. You do the second.
 
@@ -189,6 +194,9 @@ Hard rules:
 
 export interface TherapistPromptOptions {
   phase: SessionPhase
+  // The shared kernel is channel-aware. Talk is the default; Realtime voice
+  // passes `voice` so unsupported markers and rich actions stay out.
+  channel?: Extract<CompanionChannel, 'web' | 'voice'>
   recentSessionNotes?: { note: string; date: number }[]
   recentFieldNotes?: { text: string; date: number }[]
   relevantMemories?: PartMemory[]
@@ -292,38 +300,6 @@ function formatRelaxBreak(s: RelaxSession): string {
   return `- ${minutes} min ${label} (${status})`
 }
 
-function formatPersonalFactsBlock(facts: PersonalFacts): string {
-  const sections: string[] = []
-
-  if (facts.people.length > 0) {
-    const lines = facts.people.map(p => {
-      const rel = p.relationship ? ` (${sanitizeForPrompt(p.relationship)})` : ''
-      const notes = p.notes ? ` — ${sanitizeForPrompt(p.notes)}` : ''
-      return `- ${sanitizeForPrompt(p.name)}${rel}${notes}`
-    })
-    sections.push(`People in their life:\n${lines.join('\n')}`)
-  }
-
-  if (facts.dates.length > 0) {
-    const lines = facts.dates.map(d => `- ${sanitizeForPrompt(d.event)}: ${sanitizeForPrompt(d.date)}`)
-    sections.push(`Important dates:\n${lines.join('\n')}`)
-  }
-
-  if (facts.context.length > 0) {
-    const lines = facts.context.map(c => `- ${sanitizeForPrompt(c.category)}: ${sanitizeForPrompt(c.value)}`)
-    sections.push(`Context about their life:\n${lines.join('\n')}`)
-  }
-
-  if (facts.currentThreads.length > 0) {
-    const lines = facts.currentThreads.map(t => `- ${sanitizeForPrompt(t.topic)}`)
-    sections.push(`What's currently going on:\n${lines.join('\n')}`)
-  }
-
-  if (sections.length === 0) return ''
-
-  return `Concrete facts about this writer (use naturally — reference names, ask about ongoing situations, remember what matters to them. Do not list these or recite them; weave them in only when relevant):\n\n${sections.join('\n\n')}`
-}
-
 // ── Rupture repair / rumination pivot / withdrawal softening ────────────────
 // Spec: docs/superpowers/specs/2026-07-03-rupture-rumination-design.md
 
@@ -354,39 +330,8 @@ Ride their own material — the shift should feel like a natural deepening, not 
 
 const SOFTEN_BLOCK = `Stance adjustment (silent): The writer's replies suggest they may be pulling back from the conversation. Do not name this or ask about it. Make your responses shorter and warmer. Ask nothing probing — at most one gentle, open, low-pressure question, or none. No interpretations, no challenges, no naming of patterns. Leave them room; let them set the pace.`
 
-// ── User parts (SP1 of the unique-companion program) ─────────────────────────
-// Spec: docs/superpowers/specs/2026-07-04-user-parts-model-design.md
-
-function userPartsBlock(parts: { name: string; description: string; stance: string }[]): string {
-  const lines = parts
-    .map((p) => `- ${wrapUserContent(p.name, 'part-name')} — ${wrapUserContent(p.description, 'part-description')} (internal stance note, never quote or paraphrase it to them: ${sanitizeForPrompt(p.stance)})`)
-    .join('\n')
-  return `Parts of the writer you both know (mapped together in past sessions; the names are THEIR words):
-${lines}
-Rules for parts of the writer:
-- Refer to a part only by the writer's own name for it, in lowercase, with respect — these names are theirs.
-- Never coin, rename, or introduce new parts in conversation; noticing new parts happens only through the sanctioned proposal flow.
-- Never describe their parts in clinical or diagnostic language. The internal stance notes shape your tone only.
-- If the writer speaks as or about one of these parts, meet it directly and gently.`
-}
-
-function lexiconBlock(lexicon: string[]): string {
-  return `Shared language (phrases the writer coined; their words, their sense):
-${lexicon.map((p) => `- ${wrapUserContent(p, 'phrase')}`).join('\n')}
-Use these naturally and sparingly when they genuinely fit — never explain them back to the writer, never overuse them.`
-}
-
 // ── Session intentions + stance (2026-07-04) ────────────────────────────────
 // Spec: docs/superpowers/specs/2026-07-04-intentions-and-stance-design.md
-
-function intentionsBlock(intentions: { text: string; notYetCount: number; serves?: string }[]): string {
-  const lines = intentions
-    .map((i) => `- ${wrapUserContent(i.text, 'intention')}${i.serves ? ` — in service of ${wrapUserContent(i.serves, 'value-name')}` : ''}${i.notYetCount > 0 ? ` (still open after ${i.notYetCount} session${i.notYetCount > 1 ? 's' : ''})` : ''}`)
-    .join('\n')
-  return `The thread — intentions the writer chose to carry between sessions (their words):
-${lines}
-Rules: weave AT MOST ONE into your opening, warmly and briefly — a genuine "how did it go with…", never a check-up, never a verdict, zero homework-cop energy. If they don't pick it up, let it go for this session. Later in the session, mention an intention only if the writer brings it near. Never invent, restate, or add intentions outside the sanctioned flow.`
-}
 
 const INTENTION_OFFER_BLOCK = `Closing offer (optional, at most once): if — and only if — the writer voiced something concrete they want to do or try, you may offer to carry it as an intention to the next session. Wrap the exact offer phrase in this marker: [<their intention, in their words>](#offer-intention)
 Example shape: Would you like to carry [calling him on Thursday](#offer-intention) with you until next time?
@@ -397,12 +342,6 @@ function patternNudgeBlock(text: string, valueName?: string): string {
     ? ` This intention sits right on ${wrapUserContent(valueName, 'value-name')} — something they said matters to them; you may gently wonder about that tension.`
     : ''
   return `Naming a slipping thread (use ONCE, then let it go): the intention ${wrapUserContent(text, 'intention')} has stayed open across several sessions. Once, gently and without judgment, name the pattern itself — that this one keeps slipping — and wonder together what it asks of them or protects them from.${valueLine} One or two sentences, curious not corrective. If they engage, follow their lead; if not, drop it entirely and do not raise it again.`
-}
-
-function stanceBlock(entries: string[]): string {
-  return `Working with this writer (learned across your sessions together):
-${entries.map((e) => `- ${sanitizeForPrompt(e)}`).join('\n')}
-Lean into these as tendencies, never rules — today's session outranks any of them. They NEVER override safety behavior, grounding, or the safety rules; they tune approach and register only.`
 }
 
 function disclosureBlock(ctx: { entries: string[]; recentHindered?: string }): string {
@@ -419,18 +358,7 @@ function carriedNoticingBlock(text: string): string {
 Share it EARLY in your opening, briefly and warmly, as something you carried — "something you said last time stayed with me" — then let them take it wherever they want. Once only; never turn it into an agenda.`
 }
 
-function promisesBlock(due: { id: string; text: string }[]): string {
-  return `Promises you made to this writer (deliver naturally, at the right moment this session):
-${due.map((p) => `- [id: ${p.id}] ${wrapUserContent(p.text, 'promise')}`).join('\n')}
-When you actually deliver one, wrap the delivering phrase in this marker so it is recorded: [<your delivering phrase>](#kept-promise:<id>). Deliver like a person keeping their word — brief, warm, no ceremony about the mechanism. If the moment never comes this session, simply don't; it stays with you.`
-}
-
 const PROMISE_INVITE_BLOCK = `Making a promise (optional, rare): when something arises that genuinely deserves to be held for the writer — a thing to revisit, a date that matters — you may commit to it by wrapping your committing phrase in a marker: [<your committing phrase>](#promise) for next session, or [<phrase>](#promise:YYYY-MM-DD) for a date. Rules: only promise what the system can keep (bringing something back up); at most one per session; never promise as a way to end a topic. A promise made is a promise tracked — it will come back to you for delivery.`
-
-function missedPromiseBlock(p: { id: string; text: string }): string {
-  return `A promise you made has slipped past its time: ${wrapUserContent(p.text, 'promise')}
-Once, briefly and without self-flagellation, acknowledge that you said you'd bring this back and let it slip — then either deliver it now or ask if they still want it held. Never pretend it didn't happen.`
-}
 
 const PRESENCE_BLOCK = `Presence (rare): some moments are better accompanied than answered — grief landing, a heavy thing just said, the writer asking for quiet. In such a moment you MAY reply with exactly one short line wrapped in this marker and NOTHING else: [<one short line, e.g. I'm here. No words needed right now.>](#presence)
 Rules: only when stillness genuinely serves better than any words; never as a shortcut; never twice in a row. The interface will hold a quiet presence with them until they write again.`
@@ -442,15 +370,6 @@ Offer it in your own warm words, near the start, without advice and without aski
 }
 
 const HUMOR_BLOCK = `Levity (rare, earned): when the emotional weather is genuinely light, you may use mild, warm humor — a callback to their own shared language or history, a gentle irony held together. Rules: never at the writer's expense, never during heaviness or right after a hard disclosure, at most once per session, and if it lands flat, drop it instantly and completely. If the learned tendencies above suggest playfulness does not serve this writer, use none. Humor is seasoning, never the meal.`
-
-function activeValuesBlock(values: { name: string; description: string }[]): string {
-  const lines = values
-    .map((v) => `- ${wrapUserContent(v.name, 'value-name')} — ${wrapUserContent(v.description, 'value-description')}`)
-    .join('\n')
-  return `What matters to this writer (values they named themselves):
-${lines}
-Rules: these are THEIR words for what they care about — never moralize with them, never weaponize them, never invent new values in conversation (the sanctioned proposal flow is the only birth channel). Let them quietly orient your sense of what is at stake for this writer.`
-}
 
 function valueProposalBlock(proposal: { id: string; tentativeName: string; description: string; quote: string }): string {
   return `Value noticing (offer at most ONCE this session, only at a natural moment):
@@ -473,6 +392,9 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   // Grounding always wins — naming coping patterns is the wrong response to distress.
   const useRealTalk = options.mode === 'real_talk' && !options.isGrounding
   parts.push(useRealTalk ? REAL_TALK_CORE : THERAPIST_CORE)
+  const channel = options.channel ?? 'web'
+  const capabilities = COMPANION_CHANNEL_CAPABILITIES[channel]
+  parts.push(buildCompanionChannelBlock(channel))
   parts.push(PHASE_HINTS[useRealTalk ? 'real_talk' : 'standard'][options.phase])
 
   // Grounding caps literate/scholarly down to conversational — distress is not
@@ -481,46 +403,24 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   const tier = options.isGrounding ? applyGroundingCap(REGISTER_TIERS[tierId]) : REGISTER_TIERS[tierId]
   parts.push(renderRegisterBlock(tier, options.currentInputMode ?? 'desktop'))
 
-  if (options.personalFacts) {
-    const block = formatPersonalFactsBlock(options.personalFacts)
-    if (block) parts.push(block)
-  }
-
-  if (options.profile) {
-    const profileLines: string[] = []
-    if (options.profile.innerLandscape) profileLines.push(sanitizeForPrompt(options.profile.innerLandscape))
-    if (options.profile.recurringThemes?.length > 0) {
-      profileLines.push(`Recurring themes: ${options.profile.recurringThemes.map(sanitizeForPrompt).join(', ')}`)
-    }
-    if (options.profile.emotionalPatterns?.length > 0) {
-      profileLines.push(`Emotional patterns: ${options.profile.emotionalPatterns.map(sanitizeForPrompt).join(', ')}`)
-    }
-    if (options.profile.avoidancePatterns?.length > 0) {
-      profileLines.push(`Avoidance patterns: ${options.profile.avoidancePatterns.map(sanitizeForPrompt).join(', ')}`)
-    }
-    if (options.profile.growthSignals?.length > 0) {
-      profileLines.push(`Growth signals: ${options.profile.growthSignals.map(sanitizeForPrompt).join(', ')}`)
-    }
-    if (profileLines.length > 0) {
-      parts.push(`What you know about this writer (as of ${formatShortDate(options.profile.lastUpdated)}):\n${profileLines.join('\n')}`)
-    }
-  }
-
-  if (options.recentSessionNotes && options.recentSessionNotes.length > 0) {
-    const notes = options.recentSessionNotes
-      .slice(0, 5)
-      .map(n => `- ${formatShortDate(n.date)}: ${sanitizeForPrompt(n.note)}`)
-      .join('\n')
-    parts.push(`Notes from recent sessions:\n${notes}`)
-  }
-
-  if (options.recentFieldNotes && options.recentFieldNotes.length > 0) {
-    const notes = options.recentFieldNotes
-      .slice(0, 8)
-      .map(note => `- ${formatShortDate(note.date)}: ${wrapUserContent(note.text, 'sms_field_note')}`)
-      .join('\n')
-    parts.push(`Recent field notes selected from this writer's between-session SMS messages:\n${notes}\nThese are concise, source-grounded context, not conclusions. Use one only when it is naturally relevant. Never infer a stable trait or announce a pattern from these notes alone.`)
-  }
+  parts.push(...buildSharedContinuityBlocks({
+    recentSessionNotes: options.recentSessionNotes,
+    recentFieldNotes: options.recentFieldNotes,
+    relevantMemories: options.relevantMemories,
+    profile: options.profile,
+    personalFacts: options.personalFacts,
+    activeUserParts: options.activeUserParts,
+    lexicon: options.lexicon,
+    openIntentions: options.openIntentions,
+    stanceContext: options.stanceContext,
+    activeValues: options.activeValues,
+    duePromises: options.duePromises,
+    missedPromise: options.missedPromise,
+  }, {
+    channel,
+    includeRelationalContext: !options.isGrounding,
+    formatDate: formatShortDate,
+  }))
 
   if (options.inSessionRelaxBreaks && options.inSessionRelaxBreaks.length > 0) {
     const breaks = options.inSessionRelaxBreaks.map(formatRelaxBreak).join('\n')
@@ -539,42 +439,6 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
       })
       .join('\n')
     parts.push(`Recent relax sessions (background only — do not quote back):\n${breaks}`)
-  }
-
-  if (options.relevantMemories && options.relevantMemories.length > 0) {
-    // Token-budgeted rather than fixed 6/4/2 slices: pack the memory block up
-    // to MEMORY_TOKEN_BUDGET, prioritizing reflections > patterns > other and
-    // newer within each tier. Adapts to content length — a few verbose memories
-    // no longer crowd out everything, and many terse ones aren't left on the
-    // table. relevantMemories arrives newest-first from sessionContextLoader.
-    const priorityFor = (type: PartMemory['type']): number =>
-      type === 'reflection' ? 0 : type === 'pattern' ? 1 : 2
-    const packItems = options.relevantMemories.map(m => ({
-      priority: priorityFor(m.type),
-      recency: m.timestamp,
-      text: `- ${formatShortDate(m.timestamp)}: ${sanitizeForPrompt(m.content)}`,
-      memory: m,
-    }))
-    const packed = packByBudget(packItems, MEMORY_TOKEN_BUDGET)
-
-    const line = (m: PartMemory): string => `- ${formatShortDate(m.timestamp)}: ${sanitizeForPrompt(m.content)}`
-    const reflections = packed.filter(p => p.memory.type === 'reflection').map(p => line(p.memory))
-    const patterns = packed.filter(p => p.memory.type === 'pattern').map(p => line(p.memory))
-    const other = packed.filter(p => p.memory.type !== 'reflection' && p.memory.type !== 'pattern').map(p => line(p.memory))
-
-    const memoryBlocks: string[] = []
-    if (reflections.length > 0) {
-      memoryBlocks.push(`What you have learned about this writer:\n${reflections.join('\n')}`)
-    }
-    if (patterns.length > 0) {
-      memoryBlocks.push(`Patterns you have noticed:\n${patterns.join('\n')}`)
-    }
-    if (other.length > 0) {
-      memoryBlocks.push(`Observations:\n${other.join('\n')}`)
-    }
-    if (memoryBlocks.length > 0) {
-      parts.push(memoryBlocks.join('\n\n'))
-    }
   }
 
   if (options.currentEmotion && options.currentEmotion !== 'neutral') {
@@ -614,13 +478,7 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   // All suppressed under grounding (no parts language during distress); the
   // proposal additionally never fires on the opener.
   if (!options.isGrounding) {
-    if (options.activeUserParts && options.activeUserParts.length > 0) {
-      parts.push(userPartsBlock(options.activeUserParts))
-    }
-    if (options.lexicon && options.lexicon.length > 0) {
-      parts.push(lexiconBlock(options.lexicon))
-    }
-    if (options.partProposal && !options.isFirstTurn) {
+    if (capabilities.richActions && options.partProposal && !options.isFirstTurn) {
       parts.push(partProposalBlock(options.partProposal))
     }
   }
@@ -628,22 +486,13 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   // The thread + stance. Suppressed under grounding like all companion
   // signals; the closing offer additionally requires the closing phase.
   if (!options.isGrounding) {
-    if (options.openIntentions && options.openIntentions.length > 0) {
-      parts.push(intentionsBlock(options.openIntentions))
-    }
     if (options.namePatternFor) {
       parts.push(patternNudgeBlock(options.namePatternFor.text, options.namePatternFor.valueName))
     }
-    if (options.intentionOffer && options.phase === 'closing') {
+    if (capabilities.richActions && options.intentionOffer && options.phase === 'closing') {
       parts.push(INTENTION_OFFER_BLOCK)
     }
-    if (options.stanceContext && options.stanceContext.length > 0) {
-      parts.push(stanceBlock(options.stanceContext))
-    }
-    if (options.activeValues && options.activeValues.length > 0) {
-      parts.push(activeValuesBlock(options.activeValues))
-    }
-    if (options.valueProposal && !options.isFirstTurn) {
+    if (capabilities.richActions && options.valueProposal && !options.isFirstTurn) {
       parts.push(valueProposalBlock(options.valueProposal))
     }
     if (options.carriedNoticing && options.isFirstTurn) {
@@ -652,16 +501,10 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
     if (options.disclosureContext && options.disclosureContext.entries.length > 0) {
       parts.push(disclosureBlock(options.disclosureContext))
     }
-    if (options.duePromises && options.duePromises.length > 0) {
-      parts.push(promisesBlock(options.duePromises))
-    }
-    if (options.missedPromise) {
-      parts.push(missedPromiseBlock(options.missedPromise))
-    }
-    if (options.promiseInvite && !options.isFirstTurn) {
+    if (capabilities.trackedPromises && options.promiseInvite && !options.isFirstTurn) {
       parts.push(PROMISE_INVITE_BLOCK)
     }
-    if (options.allowPresence && !options.isFirstTurn) {
+    if (capabilities.richActions && options.allowPresence && !options.isFirstTurn) {
       parts.push(PRESENCE_BLOCK)
     }
     if (options.allowHumor) {
@@ -678,6 +521,7 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   // - isGrounding is false (already gated by useRealTalk path, but explicit guard for clarity)
   // - isFirstTurn is false (do not pivot before establishing connection)
   const includeRecommendations =
+    capabilities.richActions &&
     Boolean(options.allowRecommendations) &&
     !useRealTalk &&
     !options.isGrounding &&
@@ -698,7 +542,7 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   // Risk preamble goes last so it is freshest in context when generation
   // starts — the very first tokens the model emits must be the risk marker.
   // Omitted for transports with no preamble parser (voice).
-  if (options.includeRiskPreamble !== false) {
+  if (capabilities.riskPreamble && options.includeRiskPreamble !== false) {
     parts.push(RISK_PREAMBLE_INSTRUCTIONS)
   }
 

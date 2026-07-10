@@ -33,6 +33,7 @@ import {
   type SmsHistoryMessage,
   type SmsTurnResult,
 } from './openai.js'
+import { loadSmsCompanionContext } from './context.js'
 
 const MAX_INBOUND_CHARS = 1600
 const MAX_PROCESSING_ATTEMPTS = 3
@@ -339,14 +340,23 @@ export const smsInboundProcessor = onDocumentCreated(
       if (risk === 2) {
         reply = SMS_CRISIS_RESPONSE
       } else {
-        const history = await recentSmsHistory(queued.uid, queued.inboundMessageId)
         try {
-          const fetched = await fetchTwilioImages({
-            media: queued.media ?? [],
-            accountSid: twilioAccountSid.value(),
-            authToken: twilioAuthToken.value(),
-            messageSid: queued.inboundMessageId,
-          })
+          const [history, companionContext, fetched] = await Promise.all([
+            recentSmsHistory(queued.uid, queued.inboundMessageId),
+            // Context is valuable but never allowed to make the SMS transport
+            // unavailable. A bounded, empty context preserves graceful
+            // degradation if one of the optional collections cannot be read.
+            loadSmsCompanionContext(queued.uid).catch(error => {
+              console.error(`[sms] companion context unavailable category=${errorCategory(error)}`)
+              return {}
+            }),
+            fetchTwilioImages({
+              media: queued.media ?? [],
+              accountSid: twilioAccountSid.value(),
+              authToken: twilioAuthToken.value(),
+              messageSid: queued.inboundMessageId,
+            }),
+          ])
           const failedImageCount = (queued.rejectedMediaCount ?? 0) + fetched.failedCount
           if (!queued.body.trim() && fetched.images.length === 0 && failedImageCount > 0) {
             reply = SMS_MEDIA_UNAVAILABLE_RESPONSE
@@ -357,6 +367,7 @@ export const smsInboundProcessor = onDocumentCreated(
               history,
               images: fetched.images,
               failedImageCount,
+              companionContext,
               apiKey: openAiKey.value(),
             })
             const resolved = resolveGeneratedSmsTurn(risk, turn)

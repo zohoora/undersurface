@@ -6,6 +6,7 @@ import {
 import { sanitizeSmsFieldNote, sanitizeSmsReply } from './field.js'
 import type { SmsImageInput } from './media.js'
 import { buildSmsSystemPrompt, wrapSmsHistory } from './prompts.js'
+import type { SharedCompanionContext } from '../shared/companionKernel.js'
 
 const OPENAI_CRISIS_MODEL = 'gpt-5-nano'
 
@@ -94,6 +95,7 @@ export async function generateSmsTurn(opts: {
   history: SmsHistoryMessage[]
   images?: SmsImageInput[]
   failedImageCount?: number
+  companionContext?: SharedCompanionContext
   apiKey: string
   fetchImpl?: FetchLike
 }): Promise<SmsTurnResult> {
@@ -127,7 +129,7 @@ export async function generateSmsTurn(opts: {
     body: JSON.stringify({
       model: OPENAI_CHAT_MODEL,
       messages: [
-        { role: 'system', content: buildSmsSystemPrompt(opts.risk) },
+        { role: 'system', content: buildSmsSystemPrompt(opts.risk, opts.companionContext) },
         { role: 'user', content: userContent },
       ],
       max_completion_tokens: 1600,

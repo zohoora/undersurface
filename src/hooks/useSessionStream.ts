@@ -301,6 +301,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             : undefined
 
         const promptMessages = buildTherapistMessages(currentMessages, {
+          channel: 'web',
           phase,
           recentSessionNotes: context?.recentSessionNotes,
           recentFieldNotes: context?.recentFieldNotes,
