@@ -7,6 +7,29 @@
  */
 
 export type CompanionChannel = 'web' | 'voice' | 'sms'
+export type MemoryAperture = 'fresh' | 'light' | 'pattern' | 'counterstory'
+export type CompanionResponseMode =
+  | 'witness'
+  | 'reflect'
+  | 'clarify'
+  | 'make_concrete'
+  | 'user_first'
+  | 'offer_action'
+  | 'offer_quiet'
+  | 'handoff'
+  | 'close_warmly'
+
+export const COMPANION_RESPONSE_MODES: readonly CompanionResponseMode[] = [
+  'witness',
+  'reflect',
+  'clarify',
+  'make_concrete',
+  'user_first',
+  'offer_action',
+  'offer_quiet',
+  'handoff',
+  'close_warmly',
+] as const
 
 export interface CompanionChannelCapabilities {
   channel: CompanionChannel
@@ -83,8 +106,16 @@ Write for a phone notification, not an app chat window. Images may accompany the
   }
 }
 
-export function buildCompanionKernelPrompt(channel: CompanionChannel): string {
-  return `${SHARED_COMPANION_PRINCIPLES}\n\n${buildCompanionChannelBlock(channel)}`
+export function buildCompanionKernelPrompt(
+  channel: CompanionChannel,
+  options: { memoryAperture?: MemoryAperture; grounding?: boolean } = {},
+): string {
+  return [
+    SHARED_COMPANION_PRINCIPLES,
+    buildCompanionChannelBlock(channel),
+    buildMemoryApertureBlock(options.memoryAperture ?? 'pattern'),
+    buildCompanionExperienceBlock(channel, options.grounding === true),
+  ].join('\n\n')
 }
 
 export interface SharedMemory {
@@ -110,6 +141,10 @@ export interface SharedPersonalFacts {
 }
 
 export interface SharedCompanionContext {
+  memoryAperture?: MemoryAperture
+  fieldMosaicEnabled?: boolean
+  outcomeSampling?: 'off' | 'light'
+  outcomeContext?: string[]
   recentSessionNotes?: Array<{ note: string; date: number }>
   recentFieldNotes?: Array<{ text: string; date: number }>
   relevantMemories?: SharedMemory[]
@@ -131,6 +166,93 @@ export interface SharedContinuityRenderOptions {
 }
 
 const MEMORY_TOKEN_BUDGET = 160
+
+export function normalizeMemoryAperture(value: unknown): MemoryAperture {
+  return value === 'fresh' || value === 'light' || value === 'counterstory'
+    ? value
+    : 'pattern'
+}
+
+export function applyMemoryAperture(
+  context: SharedCompanionContext,
+  aperture: MemoryAperture = normalizeMemoryAperture(context.memoryAperture),
+): SharedCompanionContext {
+  const preferences = {
+    fieldMosaicEnabled: context.fieldMosaicEnabled,
+    outcomeSampling: context.outcomeSampling,
+  }
+  if (aperture === 'fresh') return { memoryAperture: aperture, ...preferences }
+  if (aperture === 'light') {
+    return {
+      memoryAperture: aperture,
+      ...preferences,
+      personalFacts: context.personalFacts,
+      recentSessionNotes: context.recentSessionNotes,
+      recentFieldNotes: context.recentFieldNotes,
+      activeUserParts: context.activeUserParts,
+      lexicon: context.lexicon,
+      openIntentions: context.openIntentions,
+      activeValues: context.activeValues,
+      outcomeContext: context.outcomeContext,
+      duePromises: context.duePromises,
+      missedPromise: context.missedPromise,
+    }
+  }
+  return { ...context, memoryAperture: aperture }
+}
+
+export function buildMemoryApertureBlock(aperture: MemoryAperture): string {
+  switch (aperture) {
+    case 'fresh':
+      return `MEMORY APERTURE: fresh eyes.
+Do not use autobiographical memory, inferred patterns, prior-session notes, or saved personal context. Work only with the current exchange. Never announce that memory is off unless the writer asks.`
+    case 'light':
+      return `MEMORY APERTURE: light continuity.
+Use only confirmed facts, current threads, writer-confirmed parts/values/intentions, promises, and recent source-grounded notes. Do not make longitudinal pattern claims or characterize the writer from this context.`
+    case 'counterstory':
+      return `MEMORY APERTURE: counterstory.
+Longitudinal context is available, but your job is to resist narrative foreclosure. When the writer makes an identity-level or always/never claim, look for a real exception, limiting case, changed condition, or contradictory memory in the supplied context. Offer it tentatively and only when genuinely relevant. If no counterexample is present, do not invent one.`
+    case 'pattern':
+      return `MEMORY APERTURE: full continuity.
+Longitudinal context is available. Use it sparingly and tentatively; the current moment outranks history, and remembered patterns never become identity claims.`
+  }
+}
+
+export function buildCompanionExperienceBlock(
+  channel: CompanionChannel,
+  grounding: boolean,
+): string {
+  if (grounding) {
+    return `EXPERIENCE POLICY DURING GROUNDING:
+Do not experiment with response form, autobiographical challenge, user-first exercises, outcome prompts, optimal-ending markers, or surface handoffs. Stay with the grounding and safety instructions.`
+  }
+
+  const channelRules = channel === 'web'
+    ? `When a handoff would materially help, rich-action instructions elsewhere may provide an exact marker. Never invent a marker. When the moment feels complete and a clean ending would serve better than another question, you may wrap a natural ending phrase in [phrase](#end:session). Use this rarely, never on the first response, and never to escape something difficult.`
+    : channel === 'voice'
+      ? `All moves must be natural spoken language. Never speak mode names, markers, menus, or implementation details.`
+      : `Keep the move proportional to SMS. A witness or warm close may be one sentence. Never turn a field message into a miniature session merely because more context is available.`
+
+  return `RESPONSE GRAMMAR — choose ONE primary move silently for this turn:
+- witness: acknowledge the reality of the moment without analysis or a question
+- reflect: offer one precise, tentative distinction or connection
+- clarify: ask one genuinely necessary question
+- make_concrete: move from an abstract always/never/identity conclusion into ONE bounded scene — where, when, what happened first; do not debate the conclusion
+- user_first: invite the writer to generate the useful language first, often by asking what they would say to someone they cared about in the same position; on their next turn, return their own language with minimal polishing before adding yours
+- offer_action: suggest one small, reversible next step grounded in their words
+- offer_quiet: explicitly permit silence, pause, or leaving the moment here
+- handoff: offer another UnderSurface surface only when its interaction grammar fits better than continued conversation
+- close_warmly: give a good-enough ending without another question
+
+Selection rules:
+- Do not run a technique because its trigger word appeared. Read the whole exchange.
+- Prefer witness when something has just landed; prefer make_concrete when abstraction is feeding rumination; prefer user_first when the writer has wisdom for others but cannot access it for themselves.
+- A response may end without a question. Do not manufacture an invitation when the moment is complete.
+- Do not repeat the same move mechanically. Responsiveness to what landed outranks novelty.
+- Never tell the writer which response mode you selected.
+
+${channelRules}`
+}
 
 export function sanitizeSharedPromptText(text: string): string {
   if (!text) return text
@@ -273,44 +395,50 @@ export function buildSharedContinuityBlocks(
   options: SharedContinuityRenderOptions,
 ): string[] {
   const blocks: string[] = []
+  const visible = applyMemoryAperture(context)
   const formatDate = options.formatDate ?? defaultFormatDate
   const relational = options.includeRelationalContext !== false
 
-  if (context.personalFacts) {
-    const block = formatPersonalFactsBlock(context.personalFacts)
+  if (visible.personalFacts) {
+    const block = formatPersonalFactsBlock(visible.personalFacts)
     if (block) blocks.push(block)
   }
-  if (context.profile) {
-    const block = formatProfileBlock(context.profile, formatDate)
+  if (visible.profile) {
+    const block = formatProfileBlock(visible.profile, formatDate)
     if (block) blocks.push(block)
   }
-  if (context.recentSessionNotes?.length) {
-    blocks.push(`Notes from recent sessions:\n${context.recentSessionNotes.slice(0, 5).map(note => `- ${formatDate(note.date)}: ${sanitizeSharedPromptText(note.note)}`).join('\n')}`)
+  if (visible.recentSessionNotes?.length) {
+    blocks.push(`Notes from recent sessions:\n${visible.recentSessionNotes.slice(0, 5).map(note => `- ${formatDate(note.date)}: ${sanitizeSharedPromptText(note.note)}`).join('\n')}`)
   }
-  if (context.recentFieldNotes?.length) {
-    blocks.push(`Recent field notes selected from this writer's between-session SMS messages:\n${context.recentFieldNotes.slice(0, 8).map(note => `- ${formatDate(note.date)}: ${wrapSharedUserContent(note.text, 'sms_field_note')}`).join('\n')}\nThese are concise, source-grounded context, not conclusions. Use one only when it is naturally relevant. Never infer a stable trait or announce a pattern from these notes alone.`)
+  if (visible.recentFieldNotes?.length) {
+    blocks.push(`Recent field notes selected from this writer's between-session SMS messages:\n${visible.recentFieldNotes.slice(0, 8).map(note => `- ${formatDate(note.date)}: ${wrapSharedUserContent(note.text, 'sms_field_note')}`).join('\n')}\nThese are concise, source-grounded context, not conclusions. Use one only when it is naturally relevant. Never infer a stable trait or announce a pattern from these notes alone.`)
   }
-  if (context.relevantMemories?.length) {
-    const block = formatMemoryBlocks(context.relevantMemories, formatDate)
+  if (visible.relevantMemories?.length) {
+    const block = formatMemoryBlocks(visible.relevantMemories, formatDate)
     if (block) blocks.push(block)
   }
 
   if (!relational) return blocks
 
-  if (context.activeUserParts?.length) blocks.push(formatPartsBlock(context.activeUserParts))
-  if (context.lexicon?.length) {
-    blocks.push(`Shared language (phrases the writer coined; their words, their sense):\n${context.lexicon.map(phrase => `- ${wrapSharedUserContent(phrase, 'phrase')}`).join('\n')}\nUse these naturally and sparingly when they genuinely fit — never explain them back to the writer, never overuse them.`)
+  if (visible.activeUserParts?.length) blocks.push(formatPartsBlock(visible.activeUserParts))
+  if (visible.lexicon?.length) {
+    blocks.push(`Shared language (phrases the writer coined; their words, their sense):\n${visible.lexicon.map(phrase => `- ${wrapSharedUserContent(phrase, 'phrase')}`).join('\n')}\nUse these naturally and sparingly when they genuinely fit — never explain them back to the writer, never overuse them.`)
   }
-  if (context.openIntentions?.length) blocks.push(formatIntentionsBlock(context.openIntentions))
-  if (context.stanceContext?.length) {
-    blocks.push(`Working with this writer (learned across your sessions together):\n${context.stanceContext.map(entry => `- ${sanitizeSharedPromptText(entry)}`).join('\n')}\nLean into these as tendencies, never rules — today's moment outranks any of them. They NEVER override safety behavior, grounding, or the safety rules; they tune approach and register only.`)
+  if (visible.openIntentions?.length) blocks.push(formatIntentionsBlock(visible.openIntentions))
+  if (visible.stanceContext?.length) {
+    blocks.push(`Working with this writer (learned across your sessions together):\n${visible.stanceContext.map(entry => `- ${sanitizeSharedPromptText(entry)}`).join('\n')}\nLean into these as tendencies, never rules — today's moment outranks any of them. They NEVER override safety behavior, grounding, or the safety rules; they tune approach and register only.`)
   }
-  if (context.activeValues?.length) {
-    blocks.push(`What matters to this writer (values they named themselves):\n${context.activeValues.map(value => `- ${wrapSharedUserContent(value.name, 'value-name')} — ${wrapSharedUserContent(value.description, 'value-description')}`).join('\n')}\nRules: these are THEIR words for what they care about — never moralize with them, never weaponize them, never invent new values in conversation. Let them quietly orient your sense of what is at stake for this writer.`)
+  if (visible.outcomeContext?.length) {
+    blocks.push(`What the writer's own check-ins say about prior companion moves:
+${visible.outcomeContext.slice(0, 8).map(entry => `- ${sanitizeSharedPromptText(entry)}`).join('\n')}
+Use these as weak, evolving evidence. Avoid repeating moves that were unwanted or made things worse; do not turn a few taps into a fixed rule about the writer.`)
   }
-  if (context.duePromises?.length) blocks.push(formatPromiseBlock(context.duePromises, options.channel))
-  if (context.missedPromise && options.channel === 'web') {
-    blocks.push(`A promise you made has slipped past its time: ${wrapSharedUserContent(context.missedPromise.text, 'promise')}\nOnce, briefly and without self-flagellation, acknowledge that you said you'd bring this back and let it slip — then either deliver it now or ask if they still want it held. Never pretend it didn't happen.`)
+  if (visible.activeValues?.length) {
+    blocks.push(`What matters to this writer (values they named themselves):\n${visible.activeValues.map(value => `- ${wrapSharedUserContent(value.name, 'value-name')} — ${wrapSharedUserContent(value.description, 'value-description')}`).join('\n')}\nRules: these are THEIR words for what they care about — never moralize with them, never weaponize them, never invent new values in conversation. Let them quietly orient your sense of what is at stake for this writer.`)
+  }
+  if (visible.duePromises?.length) blocks.push(formatPromiseBlock(visible.duePromises, options.channel))
+  if (visible.missedPromise && options.channel === 'web') {
+    blocks.push(`A promise you made has slipped past its time: ${wrapSharedUserContent(visible.missedPromise.text, 'promise')}\nOnce, briefly and without self-flagellation, acknowledge that you said you'd bring this back and let it slip — then either deliver it now or ask if they still want it held. Never pretend it didn't happen.`)
   }
 
   return blocks

@@ -139,6 +139,7 @@ describe('multimodal SMS safety resolution', () => {
       reply: 'Generated response',
       fieldNote: 'Unsafe note',
       visualRisk: 2,
+      responseMode: 'witness',
     })
 
     expect(result.risk).toBe(2)
@@ -151,10 +152,12 @@ describe('multimodal SMS safety resolution', () => {
       reply: 'That looks like a crowded room.',
       fieldNote: null,
       visualRisk: 0,
+      responseMode: 'reflect',
     })).toEqual({
       risk: 0,
       reply: 'That looks like a crowded room.',
       fieldNote: null,
+      responseMode: 'reflect',
     })
   })
 })

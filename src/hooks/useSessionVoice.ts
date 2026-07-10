@@ -19,7 +19,7 @@ export interface SessionVoiceWiring {
   orchestratorRef: RefObject<SessionOrchestrator>
   setSession: (updater: (prev: Session | null) => Session | null) => void
   setMessages: (next: SessionMessage[]) => void
-  appendUserMessage: (content: string, inputMethod?: 'text' | 'voice') => Promise<unknown>
+  appendUserMessage: (content: string, inputMethod?: 'text' | 'voice', surface?: SessionMessage['surface']) => Promise<unknown>
   hrv: BiometricSource
   enqueueAppend: EnqueueAppend
 }
@@ -66,6 +66,7 @@ export function useSessionVoice({
         phase,
         isEmergence: false,
         inputMethod: 'voice',
+        surface: 'speak',
       }
 
       await sessionMessagesDb.add(currentSession.id, message)
@@ -107,6 +108,7 @@ export function useSessionVoice({
     }
     return buildTherapistSystemPrompt({
       channel: 'voice',
+      memoryAperture: sessionRef.current?.memoryAperture ?? context.memoryAperture,
       phase: sessionRef.current?.phase ?? 'opening',
       recentSessionNotes: context.recentSessionNotes,
       recentFieldNotes: context.recentFieldNotes,
@@ -147,6 +149,7 @@ export function useSessionVoice({
       stanceContext: getGlobalConfig()?.features?.stanceAdaptation === true && context.stanceEntries.length > 0
         ? context.stanceEntries
         : undefined,
+      outcomeContext: context.outcomeContext,
       activeValues: getGlobalConfig()?.features?.userValues === true && context.activeValues.length > 0
         ? context.activeValues
         : undefined,

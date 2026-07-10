@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { db } from '../../store/db'
 import { useTranslation } from '../../i18n'
 import type { Session } from '../../types'
+import { recordSessionOutcome } from '../../store/interventionOutcomes'
 
 type Feeling = NonNullable<Session['leavingFeeling']>
 
@@ -14,6 +15,12 @@ interface Props {
 async function persistFeeling(sessionId: string, feeling: Feeling): Promise<void> {
   try {
     await db.sessions.update(sessionId, { leavingFeeling: feeling })
+    const outcome = feeling === 'heavier'
+      ? 'worse'
+      : feeling === 'same'
+        ? 'nothing'
+        : 'helped'
+    await recordSessionOutcome(sessionId, outcome)
   } catch { /* one lost tap costs nothing */ }
 }
 

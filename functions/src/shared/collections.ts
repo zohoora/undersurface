@@ -30,6 +30,9 @@ export const USER_SUBCOLLECTIONS = [
   'stanceProfile',
   'userValues',
   'companionPromises',
+  'companionPreferences',
+  'fieldMoments',
+  'interventionOutcomes',
   'smsMessages',
   'smsSettings',
 ] as const

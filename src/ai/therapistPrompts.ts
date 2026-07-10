@@ -4,10 +4,13 @@ import { wrapUserContent, sanitizeForPrompt, UNTRUSTED_CONTENT_PREAMBLE } from '
 import { REGISTER_TIERS, renderRegisterBlock, applyGroundingCap } from './registerTiers'
 import {
   buildCompanionChannelBlock,
+  buildCompanionExperienceBlock,
+  buildMemoryApertureBlock,
   buildSharedContinuityBlocks,
   COMPANION_CHANNEL_CAPABILITIES,
   SHARED_COMPANION_PRINCIPLES,
   type CompanionChannel,
+  type MemoryAperture,
 } from '../../functions/src/shared/companionKernel'
 
 // Risk-classification preamble. The therapist emits exactly one of
@@ -88,7 +91,7 @@ ${SHARED_COMPANION_PRINCIPLES}
 
 HOW YOU SPEAK:
 - 1-3 sentences. Short sentences. Say one thing and let it land.
-- Always end with something that invites a response — a question, a gentle prompt, or encouragement to say more. Never leave the writer at a dead end. Examples: "What comes up when you sit with that?" or "Say more about that." or "What would it feel like to let that be true?"
+- Do not force an invitation. A witness, useful thought, offered pause, or warm ending may stand without a question.
 - Talk like a person, not a poet. Plain words. No literary flourishes.
 - No em dashes ever. Use commas, periods, or break into two sentences.
 - No "not X, but Y" constructions. No stacked metaphors.
@@ -179,12 +182,17 @@ const RECOMMENDATION_BLOCK = `You can occasionally suggest a tonal or modal shif
   [write about it for a moment](#switch:journal)
   [say it aloud](#switch:speak)
   [settle into your body for a few minutes](#switch:relax)
+  [take this into a short writing arc](#switch:journal-arc)
+  [let your voice carry this for a moment](#switch:speak-arc)
+  [let your body finish this thought](#switch:relax-arc)
+  [let this settle without more analysis](#switch:drift-arc)
 
 When to use each:
 - #switch:real-talk-on — when softness is becoming avoidance, when the writer would benefit from being called out kindly. Once they accept, your tone sharpens.
 - #switch:journal — when something is brewing under the surface that doesn't want a back-and-forth. The writer steps into a private writing space; you wait quietly.
 - #switch:speak — when the body knows something the typing fingers don't. Voice often surfaces what text holds back.
 - #switch:relax — when the body is wired and the words can't get loose: somatic activation, racing thoughts, hours of rumination, breath you can hear in their sentences. The writer enters a guided meditation/biofeedback session and returns when ready. NEVER suggest this in response to acute distress, panic, or crisis — slow paced breathing can amplify dissociation in someone heading toward overwhelm.
+- The -arc forms are deliberate, temporary continuations of THIS exact thread. Use one only when the other surface's interaction grammar fits the next move better, with an expectation of returning to Talk afterward. Journal is for uncensored language, Speak for prosody or what is hard to type, Relax for settling activation, and Drift for bilateral noticing. Do not use an arc as novelty or avoidance.
 
 Hard rules:
 - At most one recommendation per ~5 turns. Most responses contain none.
@@ -197,6 +205,7 @@ export interface TherapistPromptOptions {
   // The shared kernel is channel-aware. Talk is the default; Realtime voice
   // passes `voice` so unsupported markers and rich actions stay out.
   channel?: Extract<CompanionChannel, 'web' | 'voice'>
+  memoryAperture?: MemoryAperture
   recentSessionNotes?: { note: string; date: number }[]
   recentFieldNotes?: { text: string; date: number }[]
   relevantMemories?: PartMemory[]
@@ -214,6 +223,7 @@ export interface TherapistPromptOptions {
   // Allow the therapist to suggest tonal shifts via inline [phrase](#switch:target)
   // recommendations. The session UI renders the tappable spans inside SessionMessage.
   allowRecommendations?: boolean
+  availableSurfaceArcs?: Array<'journal' | 'speak' | 'relax' | 'drift'>
   // Default true. The text path streams through openrouter.ts, whose parser
   // strips the `<<RISK:N>>` preamble. The Realtime voice path has no such
   // parser — it must pass false so the voice model is never instructed to
@@ -261,6 +271,9 @@ export interface TherapistPromptOptions {
   namePatternFor?: { text: string; valueName?: string }
   // Internal N-of-1 stance tendencies, plain language. Never overrides safety.
   stanceContext?: string[]
+  // Sparse user-rated immediate and delayed outcomes from prior companion
+  // moves. User report outranks the model's guess about what helped.
+  outcomeContext?: string[]
   // What matters to this writer, in their words (confirmed values).
   activeValues?: { name: string; description: string }[]
   // One candidate value to offer (shares the single proposal slot with parts).
@@ -388,6 +401,7 @@ Rules: at most one offer, never in your first sentence, never during heavy or di
 
 export function buildTherapistSystemPrompt(options: TherapistPromptOptions): string {
   const parts: string[] = []
+  const durableContextEnabled = (options.memoryAperture ?? 'pattern') !== 'fresh'
 
   // Grounding always wins — naming coping patterns is the wrong response to distress.
   const useRealTalk = options.mode === 'real_talk' && !options.isGrounding
@@ -395,6 +409,8 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   const channel = options.channel ?? 'web'
   const capabilities = COMPANION_CHANNEL_CAPABILITIES[channel]
   parts.push(buildCompanionChannelBlock(channel))
+  parts.push(buildMemoryApertureBlock(options.memoryAperture ?? 'pattern'))
+  parts.push(buildCompanionExperienceBlock(channel, options.isGrounding === true))
   parts.push(PHASE_HINTS[useRealTalk ? 'real_talk' : 'standard'][options.phase])
 
   // Grounding caps literate/scholarly down to conversational — distress is not
@@ -404,6 +420,7 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   parts.push(renderRegisterBlock(tier, options.currentInputMode ?? 'desktop'))
 
   parts.push(...buildSharedContinuityBlocks({
+    memoryAperture: options.memoryAperture,
     recentSessionNotes: options.recentSessionNotes,
     recentFieldNotes: options.recentFieldNotes,
     relevantMemories: options.relevantMemories,
@@ -413,6 +430,7 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
     lexicon: options.lexicon,
     openIntentions: options.openIntentions,
     stanceContext: options.stanceContext,
+    outcomeContext: options.outcomeContext,
     activeValues: options.activeValues,
     duePromises: options.duePromises,
     missedPromise: options.missedPromise,
@@ -430,7 +448,7 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
     )
   }
 
-  if (options.recentRelaxBreaks && options.recentRelaxBreaks.length > 0) {
+  if (durableContextEnabled && options.recentRelaxBreaks && options.recentRelaxBreaks.length > 0) {
     const breaks = options.recentRelaxBreaks
       .slice(0, 3)
       .map(s => {
@@ -462,7 +480,7 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   // Rupture repair fires only on the opener; pivot/soften only mid-session.
   // ALL THREE are suppressed under grounding — crisis owns the session, and
   // pivoting away from a distress disclosure would be actively harmful.
-  if (!options.isGrounding) {
+  if (!options.isGrounding && durableContextEnabled) {
     if (options.repairContext && options.isFirstTurn) {
       parts.push(repairBlock(options.repairContext.evidence))
     }
@@ -477,7 +495,7 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
   // The writer's mapped parts + shared lexicon + at most one part proposal.
   // All suppressed under grounding (no parts language during distress); the
   // proposal additionally never fires on the opener.
-  if (!options.isGrounding) {
+  if (!options.isGrounding && durableContextEnabled) {
     if (capabilities.richActions && options.partProposal && !options.isFirstTurn) {
       parts.push(partProposalBlock(options.partProposal))
     }
@@ -485,7 +503,7 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
 
   // The thread + stance. Suppressed under grounding like all companion
   // signals; the closing offer additionally requires the closing phase.
-  if (!options.isGrounding) {
+  if (!options.isGrounding && durableContextEnabled) {
     if (options.namePatternFor) {
       parts.push(patternNudgeBlock(options.namePatternFor.text, options.namePatternFor.valueName))
     }
@@ -504,15 +522,19 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
     if (capabilities.trackedPromises && options.promiseInvite && !options.isFirstTurn) {
       parts.push(PROMISE_INVITE_BLOCK)
     }
-    if (capabilities.richActions && options.allowPresence && !options.isFirstTurn) {
-      parts.push(PRESENCE_BLOCK)
-    }
-    if (options.allowHumor) {
-      parts.push(HUMOR_BLOCK)
-    }
     if (options.storyArc && !options.isFirstTurn) {
       parts.push(storyArcBlock(options.storyArc.text))
     }
+  }
+
+  // Presence is about the current exchange, not autobiographical memory, so
+  // fresh-eyes sessions may still use it. Earned humor relies on callbacks
+  // and therefore stays behind the durable-context gate above.
+  if (!options.isGrounding && capabilities.richActions && options.allowPresence && !options.isFirstTurn) {
+    parts.push(PRESENCE_BLOCK)
+  }
+  if (!options.isGrounding && durableContextEnabled && options.allowHumor) {
+    parts.push(HUMOR_BLOCK)
   }
 
   // Allow inline recommendation phrases only when:
@@ -528,6 +550,7 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
     !options.isFirstTurn
   if (includeRecommendations) {
     parts.push(RECOMMENDATION_BLOCK)
+    parts.push(`AVAILABLE SURFACES THIS SESSION: ${(options.availableSurfaceArcs ?? ['journal']).join(', ')}. Never emit a #switch marker for an unavailable surface.`)
   }
 
   parts.push(`Current date and time: ${formatDateTime(Date.now())}`)
@@ -612,7 +635,7 @@ export function buildBoundedTranscript(
       ? msg.content.slice(0, MAX_LINE_CONTENT) + '…'
       : msg.content
     const prefix = options.withTimestamps ? `[${formatTime(msg.timestamp)}] ` : ''
-    if (msg.speaker === 'user') return `${prefix}Writer: ${wrapUserContent(trimmed, 'message')}`
+    if (msg.speaker === 'user') return `${prefix}Writer (${msg.surface ?? (msg.inputMethod === 'voice' ? 'speak' : 'talk')}): ${wrapUserContent(trimmed, 'message')}`
     return `${prefix}Companion: ${trimmed}`
   })
 
@@ -775,12 +798,15 @@ export interface SessionReflectionPromptOptions {
   userValues?: { id: string; name: string; description: string }[]
   // Ask for one noticing worth carrying to the next opener (companionInteriority).
   includeCarrying?: boolean
+  // Extract up to two exact writer moments for the next-session mosaic. The
+  // client validates the quote against the transcript before persistence.
+  includeFieldMoments?: boolean
 }
 
 export function buildSessionReflectionPrompt(
   options: SessionReflectionPromptOptions,
 ): { role: 'system' | 'user'; content: string }[] {
-  const { transcript, profile, recentSummaries, parts, existingFacts, userParts, openIntentions, includeStance, closingCheckIn, userValues, includeCarrying } = options
+  const { transcript, profile, recentSummaries, parts, existingFacts, userParts, openIntentions, includeStance, closingCheckIn, userValues, includeCarrying, includeFieldMoments } = options
   const partList = parts.map(p => `${p.name} (id: ${p.id}, role: ${p.ifsRole})`).join(', ')
 
   const userPartsContext = userParts && userParts.length > 0
@@ -887,6 +913,23 @@ CARRIED NOTICING — rules:
 - Most sessions carry nothing, and that is correct. If the writer did not clearly articulate a distinctive recognition, or if you are unsure, return present=false and text="".`
     : ''
 
+  const fieldMomentSchema = includeFieldMoments
+    ? `,
+  "fieldMoments": [
+    { "quote": "exact writer phrase from this session (max 40 words)", "source": "talk|journal|speak" }
+  ]`
+    : ''
+  const fieldMomentRules = includeFieldMoments
+    ? `
+
+FIELD MOMENTS — rules:
+- At most 2. Most sessions should return none.
+- quote MUST be an exact, contiguous phrase written or spoken by the WRITER in this transcript. Never use companion words and never paraphrase.
+- Save only a small moment worth placing back in the writer's hands next session: a vivid scene, decision, boundary, unresolved thread, personally coined phrase, or concrete event.
+- Do not save generic mood labels, greetings, ordinary logistics, crisis content, diagnoses, inferred patterns, or your interpretation.
+- source must match the transcript label for that writer turn. If uncertain, omit it.`
+    : ''
+
   const stanceContextLine = closingCheckIn
     ? `\n\nHow the writer said they were leaving this session: "${sanitizeForPrompt(closingCheckIn)}".`
     : ''
@@ -947,14 +990,14 @@ Respond with valid JSON only:
     "present": false,
     "theme": "",
     "newInformation": true
-  }${partObservationSchema}${valueSchema}${intentionSchema}${stanceSchema}${carryingSchema}
+  }${partObservationSchema}${valueSchema}${intentionSchema}${stanceSchema}${carryingSchema}${fieldMomentSchema}
 }
 
 LOOP SIGNAL — rules:
 - "present" is true ONLY when this session substantially re-treads ground already visible in the recent entry summaries — same worry or grievance in nearly the same terms. Compare against the summaries above, not just within this session.
 - "newInformation" is true when this session added anything the summaries don't show: a new detail, a new feeling, a decision, a shift in perspective. When present=false, set newInformation=true.
 - "theme": when present=true, a neutral 3-8 word label for the re-trodden topic. Otherwise "".
-- Retelling a painful event, grief, and processing that is MOVING are not loops. When unsure, present=false.${partObservationRules}${valueRules}${intentionRules}${stanceRules}${carryingRules}
+- Retelling a painful event, grief, and processing that is MOVING are not loops. When unsure, present=false.${partObservationRules}${valueRules}${intentionRules}${stanceRules}${carryingRules}${fieldMomentRules}
 
 PERSONAL FACTS — extraction rules:
 - Return the FULL updated object (existing facts + new mentions, consolidated). Not a delta.

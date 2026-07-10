@@ -10,6 +10,14 @@ service firebase.storage {
       allow write: if false;
     }
 
+    // Private moment images are written by the trusted SMS function. The
+    // owning client may read bytes with its Firebase credential; clients may
+    // never write or replace these objects directly.
+    match /field-moments/{uid}/{path=**} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
     // Default-deny everything else.
     match /{path=**} {
       allow read, write: if false;

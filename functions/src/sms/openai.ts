@@ -6,7 +6,11 @@ import {
 import { sanitizeSmsFieldNote, sanitizeSmsReply } from './field.js'
 import type { SmsImageInput } from './media.js'
 import { buildSmsSystemPrompt, wrapSmsHistory } from './prompts.js'
-import type { SharedCompanionContext } from '../shared/companionKernel.js'
+import {
+  COMPANION_RESPONSE_MODES,
+  type CompanionResponseMode,
+  type SharedCompanionContext,
+} from '../shared/companionKernel.js'
 
 const OPENAI_CRISIS_MODEL = 'gpt-5-nano'
 
@@ -35,8 +39,9 @@ const SMS_TURN_RESPONSE_FORMAT = {
         save: { type: 'boolean' },
         field_note: { type: ['string', 'null'] },
         visual_risk: { type: 'integer', enum: [0, 1, 2] },
+        response_mode: { type: 'string', enum: COMPANION_RESPONSE_MODES },
       },
-      required: ['reply', 'save', 'field_note', 'visual_risk'],
+      required: ['reply', 'save', 'field_note', 'visual_risk', 'response_mode'],
       additionalProperties: false,
     },
   },
@@ -46,6 +51,7 @@ export interface SmsTurnResult {
   reply: string
   fieldNote: string | null
   visualRisk: 0 | 1 | 2
+  responseMode: CompanionResponseMode
 }
 
 export async function classifySmsCrisis(
@@ -146,7 +152,7 @@ export async function generateSmsTurn(opts: {
   if (typeof content !== 'string' || content.trim().length === 0) {
     throw new Error('openai_empty')
   }
-  let parsed: { reply?: unknown; save?: unknown; field_note?: unknown; visual_risk?: unknown }
+  let parsed: { reply?: unknown; save?: unknown; field_note?: unknown; visual_risk?: unknown; response_mode?: unknown }
   try {
     parsed = JSON.parse(content) as typeof parsed
   } catch {
@@ -157,6 +163,7 @@ export async function generateSmsTurn(opts: {
     || typeof parsed.save !== 'boolean'
     || (parsed.field_note !== null && typeof parsed.field_note !== 'string')
     || (parsed.visual_risk !== 0 && parsed.visual_risk !== 1 && parsed.visual_risk !== 2)
+    || !COMPANION_RESPONSE_MODES.includes(parsed.response_mode as CompanionResponseMode)
   ) {
     throw new Error('openai_malformed')
   }
@@ -170,5 +177,6 @@ export async function generateSmsTurn(opts: {
     reply,
     fieldNote: candidate || null,
     visualRisk: parsed.visual_risk,
+    responseMode: parsed.response_mode as CompanionResponseMode,
   }
 }

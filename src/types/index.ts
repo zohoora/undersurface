@@ -191,7 +191,25 @@ export interface Session {
   // One-tap closing check-in ("How are you leaving?"), skippable — absent
   // when skipped or when the stanceAdaptation flag is off.
   leavingFeeling?: 'heavier' | 'same' | 'shade_lighter' | 'lighter' | 'much_lighter'
+  // How much durable autobiographical context the companion may use in this
+  // session. Optional records inherit the user's current preference.
+  memoryAperture?: MemoryAperture
 }
+
+export type MemoryAperture = 'fresh' | 'light' | 'pattern' | 'counterstory'
+
+export type CompanionResponseMode =
+  | 'witness'
+  | 'reflect'
+  | 'clarify'
+  | 'make_concrete'
+  | 'user_first'
+  | 'offer_action'
+  | 'offer_quiet'
+  | 'handoff'
+  | 'close_warmly'
+
+export type SessionSurface = 'talk' | 'journal' | 'speak' | 'relax' | 'drift'
 
 export interface SessionMessage {
   id: string
@@ -205,6 +223,8 @@ export interface SessionMessage {
   emergenceReason?: EmergenceReason
   inputMethod?: 'text' | 'voice'
   userInputMode?: InputMode
+  surface?: SessionSurface
+  responseMode?: CompanionResponseMode
 }
 
 export interface SmsMessage {
@@ -225,6 +245,48 @@ export interface SmsMessage {
   providerSid?: string
   replyTo?: string
   usedFallback?: boolean
+  responseMode?: CompanionResponseMode
+}
+
+export interface CompanionPreferences {
+  id: 'current'
+  defaultMemoryAperture: MemoryAperture
+  fieldMosaicEnabled: boolean
+  outcomeSampling: 'off' | 'light'
+  updatedAt: number
+}
+
+export type FieldMomentStatus = 'unreviewed' | 'kept' | 'dismissed'
+
+export interface FieldMoment {
+  id: string
+  source: 'sms' | SessionSurface
+  sourceId: string
+  text: string
+  createdAt: number
+  mediaPaths?: string[]
+  status: FieldMomentStatus
+  userMeaning?: string | null
+  reviewedInSessionId?: string | null
+  connectedTo?: string | null
+  responseMode?: CompanionResponseMode
+}
+
+export type ImmediateOutcome = 'helped' | 'nothing' | 'worse' | 'not_wanted'
+export type DelayedOutcome = 'stayed' | 'used' | 'nothing' | 'regret' | 'changed_mind'
+
+export interface InterventionOutcome {
+  id: string
+  source: 'sms' | SessionSurface | 'session'
+  sourceId: string
+  sessionId?: string
+  intervention: CompanionResponseMode | 'surface_arc' | 'session'
+  immediate?: ImmediateOutcome
+  delayed?: DelayedOutcome
+  delayedAskedAt?: number
+  note?: string
+  createdAt: number
+  updatedAt: number
 }
 
 export type PauseType =

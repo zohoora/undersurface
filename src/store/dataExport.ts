@@ -318,6 +318,35 @@ export function buildMarkdownExport(
     }
   }
 
+  const fieldMoments = [...(collections.fieldMoments ?? [])]
+    .filter(moment => typeof moment.text === 'string' && typeof moment.createdAt === 'number')
+    .sort((a, b) => (a.createdAt as number) - (b.createdAt as number))
+  if (fieldMoments.length > 0) {
+    ln(`## Field mosaic`)
+    ln()
+    for (const moment of fieldMoments) {
+      ln(`- **${fmtDate(moment.createdAt as number)} · ${String(moment.source)} · ${String(moment.status)}:** ${String(moment.text)}`)
+      if (moment.userMeaning) ln(`  - Your meaning: ${String(moment.userMeaning)}`)
+      if (Array.isArray(moment.mediaPaths) && moment.mediaPaths.length > 0) {
+        ln(`  - ${moment.mediaPaths.length} private image attachment(s)`)
+      }
+    }
+    ln()
+  }
+
+  const outcomes = [...(collections.interventionOutcomes ?? [])]
+    .filter(outcome => typeof outcome.createdAt === 'number')
+    .sort((a, b) => (a.createdAt as number) - (b.createdAt as number))
+  if (outcomes.length > 0) {
+    ln(`## Intervention outcomes`)
+    ln()
+    for (const outcome of outcomes) {
+      const result = [outcome.immediate, outcome.delayed].filter(Boolean).join(' → ') || 'not rated'
+      ln(`- **${fmtDate(outcome.createdAt as number)} · ${String(outcome.source)} · ${String(outcome.intervention)}:** ${result}`)
+    }
+    ln()
+  }
+
   return lines.join('\n')
 }
 
@@ -328,7 +357,7 @@ export async function exportAllData() {
     'sessionLog', 'innerWeather', 'consent', 'sessions',
     'hrvSessions', 'relaxSessions', 'driftSessions', 'companionSignals', 'userParts',
     'sessionIntentions', 'stanceProfile', 'userValues', 'companionPromises',
-    'smsMessages',
+    'companionPreferences', 'fieldMoments', 'interventionOutcomes', 'smsMessages',
   ] as const
 
   const results = await Promise.all(

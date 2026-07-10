@@ -32,6 +32,10 @@ import { PolarH10ConsentDialog } from './PolarH10ConsentDialog'
 import { PolarH10ConnectButton } from './PolarH10ConnectButton'
 import type { Session, SessionMessage, SessionMode } from '../../types'
 import { useTranslation } from '../../i18n'
+import type { MemoryAperture } from '../../types'
+import { FieldMosaic } from './FieldMosaic'
+import { DelayedOutcomePulse, OutcomePulse } from './OutcomePulse'
+import { SurfaceArcGuide, SurfaceArcReturn } from './SurfaceArc'
 
 const VoiceField = lazy(() => import('./VoiceField').then(module => ({ default: module.VoiceField })))
 const RelaxField = lazy(() => import('./Relax/RelaxField'))
@@ -100,6 +104,14 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const driftEnabled = globalConfig?.features?.driftEnabled === true
   const [surface, setSurface] = useState<SessionSurface>('talk')
   const [journalDraft, setJournalDraft] = useState<string>('')
+  const [activeArc, setActiveArc] = useState<{ surface: SessionSurface; outcomeId: string; startedAt: number } | null>(null)
+  const [returnedArc, setReturnedArc] = useState<{ surface: SessionSurface; outcomeId: string } | null>(null)
+  const sampledOutcomeMessageIds = useMemo(() => {
+    const therapistMessages = messages.filter(message => message.speaker === 'therapist')
+    return new Set(therapistMessages
+      .filter((_message, index) => (index + 1) % 4 === 0)
+      .map(message => message.id))
+  }, [messages])
 
   const handleAutocorrect = useAutocorrect({
     autocorrect: settings.autocorrect,
@@ -205,6 +217,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       favorited: false,
       mode: initialMode ?? settings.lastSessionMode,
       journalPartsEnabled: true,
+      memoryAperture: contextRef.current?.memoryAperture ?? 'pattern',
     }
 
     await db.sessions.add(newSession)
@@ -305,6 +318,23 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     }
   }, [isStreaming, generateTherapistMessage, appendUserMessage])
 
+  const handleMosaicOpen = useCallback(async (moment: { text: string }) => {
+    if (isStreaming || !sessionRef.current || !runtimeRef.current.acquireSend()) return
+    try {
+      const result = await appendUserMessage(moment.text, 'text', 'talk')
+      if (!result) return
+      const currentSession = sessionRef.current
+      if (!currentSession) return
+      await generateTherapistMessage(result.updatedMessages, {
+        ...currentSession,
+        messageCount: result.updatedMessages.length,
+        firstLine: result.firstLine,
+      })
+    } finally {
+      runtimeRef.current.releaseSend()
+    }
+  }, [isStreaming, appendUserMessage, generateTherapistMessage])
+
   const handleEndSession = useCallback(async () => {
     const currentSession = sessionRef.current
     const currentMessages = messagesRef.current
@@ -314,9 +344,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     // closing message + note generation — so it lands at the bottom in view,
     // where the person already is. Reflection is coordinated with it below.
     const stanceOn = getGlobalConfig()?.features?.stanceAdaptation === true
+    const outcomeCheckInOn = !grounding && contextRef.current?.outcomeSampling !== 'off'
     reflectionFiredRef.current = false
     checkInAnsweredRef.current = false
-    if (stanceOn) setCheckInSessionId(currentSession.id)
+    if (stanceOn || outcomeCheckInOn) setCheckInSessionId(currentSession.id)
 
     // Generate closing therapist message — returns updated messages array
     const finalMessages = await generateTherapistMessage(currentMessages, currentSession)
@@ -387,7 +418,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       message_count: finalMessages.length,
       duration_ms: endedAt - currentSession.startedAt,
     })
-  }, [isStreaming, generateTherapistMessage, stopAndFlushBiometrics, weatherEngine])
+  }, [isStreaming, generateTherapistMessage, stopAndFlushBiometrics, weatherEngine, grounding])
 
   const updateSession = useCallback(async (patch: Partial<Session>) => {
     if (!session?.id) return
@@ -407,6 +438,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     [updateSession],
   )
 
+  const handleMemoryApertureChange = useCallback((next: MemoryAperture) => {
+    void updateSession({ memoryAperture: next })
+  }, [updateSession])
+
   const voiceState = voice.state
   const voiceStop = voice.stop
   const voiceHandleStart = voice.handleStart
@@ -414,7 +449,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     // Leaving Journal with non-empty text: append it as a user message so the
     // therapist receives it as context on her next turn.
     if (surface === 'journal' && next !== 'journal' && journalDraft.trim()) {
-      void appendUserMessage(journalDraft.trim(), 'text')
+      void appendUserMessage(journalDraft.trim(), 'text', 'journal')
       setJournalDraft('')
     }
     if (surface !== 'speak' && next === 'speak') {
@@ -423,8 +458,49 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     if (surface === 'speak' && next !== 'speak' && voiceState !== 'idle') {
       voiceStop()
     }
+    if (activeArc && next === 'talk') {
+      setReturnedArc({ surface: activeArc.surface, outcomeId: activeArc.outcomeId })
+      setActiveArc(null)
+    }
     setSurface(next)
-  }, [surface, journalDraft, appendUserMessage, voiceHandleStart, voiceState, voiceStop])
+  }, [surface, journalDraft, appendUserMessage, voiceHandleStart, voiceState, voiceStop, activeArc])
+
+  const startSurfaceArc = useCallback((next: Exclude<SessionSurface, 'talk'>) => {
+    if (!session || grounding) return
+    if (next === 'speak' && !voiceEnabled) return
+    if (next === 'relax' && !relaxEnabled) return
+    if (next === 'drift' && !driftEnabled) return
+    const outcomeId = generateId()
+    const now = Date.now()
+    setActiveArc({ surface: next, outcomeId, startedAt: now })
+    void db.interventionOutcomes.add({
+      id: outcomeId,
+      source: 'talk',
+      sourceId: messagesRef.current.at(-1)?.id ?? session.id,
+      sessionId: session.id,
+      intervention: 'surface_arc',
+      createdAt: now,
+      updatedAt: now,
+    })
+    handleSurfaceChange(next)
+  }, [session, handleSurfaceChange, grounding, voiceEnabled, relaxEnabled, driftEnabled])
+
+  // A crisis/grounding transition cancels every experimental arc except
+  // Drift, whose mounted reducer owns its scripted crisis closure. Preserve
+  // journal words before returning to Talk; never show an outcome card for a
+  // safety-forced return.
+  useEffect(() => {
+    if (!grounding || !activeArc || activeArc.surface === 'drift') return
+    if (activeArc.surface === 'journal' && journalDraft.trim()) {
+      void appendUserMessage(journalDraft.trim(), 'text', 'journal')
+      setJournalDraft('')
+    }
+    if (activeArc.surface === 'speak' && voiceState !== 'idle') voiceStop()
+    void db.interventionOutcomes.delete(activeArc.outcomeId)
+    setActiveArc(null)
+    setReturnedArc(null)
+    setSurface('talk')
+  }, [grounding, activeArc, journalDraft, appendUserMessage, voiceState, voiceStop])
 
   const handleRecommendationTap = useCallback((target: string) => {
     switch (target) {
@@ -440,11 +516,26 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       case 'relax':
         handleSurfaceChange('relax')
         return
+      case 'journal-arc':
+        startSurfaceArc('journal')
+        return
+      case 'speak-arc':
+        startSurfaceArc('speak')
+        return
+      case 'relax-arc':
+        startSurfaceArc('relax')
+        return
+      case 'drift-arc':
+        startSurfaceArc('drift')
+        return
+      case 'end-session':
+        void handleEndSession()
+        return
       default:
         console.warn(`[unifiedSession] Unknown recommendation target: "${target}"`)
         return
     }
-  }, [handleRealTalkToggle, handleSurfaceChange])
+  }, [handleRealTalkToggle, handleSurfaceChange, startSurfaceArc, handleEndSession])
 
   const inputEditor = useEditor({
     extensions: [
@@ -702,16 +793,21 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
           onSurfaceChange={handleSurfaceChange}
           onRealTalkToggle={handleRealTalkToggle}
           onJournalPartsToggle={handleJournalPartsToggle}
+          memoryAperture={session?.memoryAperture ?? contextRef.current?.memoryAperture ?? 'pattern'}
+          onMemoryApertureChange={handleMemoryApertureChange}
         />
       )}
 
       {surface === 'journal' ? (
-        <SessionJournalSurface
-          initialContent={journalDraft}
-          onChange={setJournalDraft}
-          partsEnabled={journalPartsOn}
-          sessionId={session?.id ?? ''}
-        />
+        <>
+          {activeArc?.surface === 'journal' && <SurfaceArcGuide surface="journal" startedAt={activeArc.startedAt} onReturn={() => handleSurfaceChange('talk')} />}
+          <SessionJournalSurface
+            initialContent={journalDraft}
+            onChange={setJournalDraft}
+            partsEnabled={journalPartsOn}
+            sessionId={session?.id ?? ''}
+          />
+        </>
       ) : (
         <>
           {/* Error banner for opening message generation */}
@@ -757,17 +853,24 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
           )}
 
           {/* Messages list */}
-          {messages.map(msg => (
-            <SessionMessageBubble
-              key={msg.id}
-              message={msg}
-              onRecommendationTap={handleRecommendationTap}
-              intentionOfferSessionId={
-                session?.status === 'active' && getGlobalConfig()?.features?.sessionIntentions === true
-                  ? session.id
-                  : null
-              }
-            />
+          {session?.status === 'active' && !grounding && messages.length <= 2 && contextRef.current?.fieldMosaicEnabled !== false && <FieldMosaic sessionId={session.id} disabled={isStreaming} onBringIntoTalk={handleMosaicOpen} />}
+          {session?.status === 'active' && !grounding && messages.length <= 2 && contextRef.current?.outcomeSampling !== 'off' && <DelayedOutcomePulse sessionId={session.id} />}
+          {!grounding && returnedArc && <SurfaceArcReturn outcomeId={returnedArc.outcomeId} surface={returnedArc.surface} onDone={() => setReturnedArc(null)} />}
+          {messages.map((msg) => (
+            <div key={msg.id}>
+              <SessionMessageBubble
+                message={msg}
+                onRecommendationTap={handleRecommendationTap}
+                intentionOfferSessionId={
+                  session?.status === 'active' && getGlobalConfig()?.features?.sessionIntentions === true
+                    ? session.id
+                    : null
+                }
+              />
+              {session?.status === 'active' && !grounding && contextRef.current?.outcomeSampling !== 'off' && sampledOutcomeMessageIds.has(msg.id) && (
+                <OutcomePulse message={msg} sessionId={session.id} />
+              )}
+            </div>
           ))}
 
           {/* Streaming message */}
@@ -943,7 +1046,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
           remoteStream={voice.remoteStream}
           dominantEmotion={weatherEngine.getCurrentDominantEmotion()}
           onToggleMute={voice.toggleMute}
-          onEnd={voice.handleEnd}
+          onEnd={() => {
+            voice.handleEnd()
+            if (surface === 'speak') handleSurfaceChange('talk')
+          }}
         />
       </Suspense>
     )}

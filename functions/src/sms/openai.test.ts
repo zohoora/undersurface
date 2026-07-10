@@ -40,6 +40,7 @@ describe('SMS OpenAI adapter', () => {
         save: true,
         field_note: 'Presentation anxiety immediately before speaking.',
         visual_risk: 0,
+        response_mode: 'offer_action',
       }) } }],
     }))
 
@@ -59,12 +60,14 @@ describe('SMS OpenAI adapter', () => {
       reply: 'That sounds tight. What is the smallest next step?',
       fieldNote: 'Presentation anxiety immediately before speaking.',
       visualRisk: 0,
+      responseMode: 'offer_action',
     })
     const init = fetchMock.mock.calls[0][1] as RequestInit
     const body = JSON.parse(String(init.body))
     expect(body.model).toBe('gpt-5.5')
     expect(body.reasoning_effort).toBe('none')
     expect(body.response_format.json_schema.name).toBe('sms_turn')
+    expect(body.response_format.json_schema.schema.required).toContain('response_mode')
     expect(body.messages[0].content).toContain('carrier SMS')
     expect(body.messages[0].content).toContain('Decide how much response')
     expect(body.messages[0].content).toContain('FIELD-NOTE DECISION')
@@ -84,6 +87,7 @@ describe('SMS OpenAI adapter', () => {
         save: false,
         field_note: null,
         visual_risk: 0,
+        response_mode: 'witness',
       }) } }],
     }))
 
@@ -93,7 +97,7 @@ describe('SMS OpenAI adapter', () => {
       history: [],
       apiKey: 'test-key',
       fetchImpl: fetchMock as typeof fetch,
-    })).resolves.toEqual({ reply: 'I am here.', fieldNote: null, visualRisk: 0 })
+    })).resolves.toEqual({ reply: 'I am here.', fieldNote: null, visualRisk: 0, responseMode: 'witness' })
   })
 
   it('sends image-only MMS as a multimodal content array', async () => {
@@ -103,6 +107,7 @@ describe('SMS OpenAI adapter', () => {
         save: false,
         field_note: null,
         visual_risk: 0,
+        response_mode: 'clarify',
       }) } }],
     }))
 

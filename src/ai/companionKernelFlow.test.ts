@@ -41,4 +41,25 @@ describe('companion kernel channel flow', () => {
     expect(voice).not.toContain('#kept-promise')
     expect(voice).toContain('cannot record a promise as delivered')
   })
+
+  it('makes fresh eyes a real boundary for every durable companion feature', () => {
+    const prompt = buildTherapistSystemPrompt({
+      channel: 'web',
+      phase: 'deepening',
+      memoryAperture: 'fresh',
+      isFirstTurn: false,
+      recentSessionNotes: [{ note: 'Remembered note', date: Date.now() }],
+      recentRelaxBreaks: [{ id: 'r', parentSessionId: null, startedAt: 1, endedAt: 2, sessionType: 'breathwork', duration: 5, audioTrack: 'none', voiceEnabled: false, visualMode: 'off', completed: true, hrvSummary: { startCoherence: null, endCoherence: null, delta: null } }],
+      repairContext: { evidence: 'abandoned' },
+      partProposal: { id: 'p', tentativeName: 'planner', description: 'plans', quote: 'I plan' },
+      storyArc: { text: 'A remembered arc.' },
+      allowPresence: true,
+    })
+    expect(prompt).toContain('MEMORY APERTURE: fresh eyes')
+    expect(prompt).not.toContain('Remembered note')
+    expect(prompt).not.toContain('Recent relax sessions')
+    expect(prompt).not.toContain('#propose-part')
+    expect(prompt).not.toContain('A remembered arc')
+    expect(prompt).toContain('#presence')
+  })
 })

@@ -13,7 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",
-    "test:indexes": "firebase emulators:exec --only firestore 'npx vitest run --config vitest.config.integration.ts'",
+    "test:indexes": "firebase emulators:exec --only firestore,storage 'npx vitest run --config vitest.config.integration.ts'",
     "test:crisis": "RUN_CRISIS_EVAL=1 vitest run src/engine/crisisClassifier.live.test.ts",
     "test:signals": "RUN_SIGNAL_EVAL=1 vitest run src/engine/signalClassifier.live.test.ts",
     "test:parts": "RUN_PARTS_EVAL=1 vitest run src/engine/partObservations.live.test.ts",

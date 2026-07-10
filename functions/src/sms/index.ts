@@ -34,6 +34,9 @@ import {
   type SmsTurnResult,
 } from './openai.js'
 import { loadSmsCompanionContext } from './context.js'
+import type { CompanionResponseMode, SharedCompanionContext } from '../shared/companionKernel.js'
+import type { SmsImageInput } from './media.js'
+import { persistSmsMomentMedia } from './moments.js'
 
 const MAX_INBOUND_CHARS = 1600
 const MAX_PROCESSING_ATTEMPTS = 3
@@ -82,12 +85,13 @@ function validMessageSid(value: string): boolean {
 export function resolveGeneratedSmsTurn(
   baseRisk: 0 | 1,
   turn: SmsTurnResult,
-): { risk: 0 | 1 | 2; reply: string; fieldNote: string | null } {
+): { risk: 0 | 1 | 2; reply: string; fieldNote: string | null; responseMode: CompanionResponseMode } {
   const risk = Math.max(baseRisk, turn.visualRisk) as 0 | 1 | 2
   return {
     risk,
     reply: risk === 2 ? SMS_CRISIS_RESPONSE : turn.reply,
     fieldNote: risk === 2 ? null : turn.fieldNote,
+    responseMode: turn.responseMode,
   }
 }
 
@@ -336,12 +340,15 @@ export const smsInboundProcessor = onDocumentCreated(
 
       let reply: string
       let fieldNote: string | null = null
+      let responseMode: CompanionResponseMode | undefined
+      let momentImages: SmsImageInput[] = []
+      let companionContext: SharedCompanionContext = {}
       let usedFallback = false
       if (risk === 2) {
         reply = SMS_CRISIS_RESPONSE
       } else {
         try {
-          const [history, companionContext, fetched] = await Promise.all([
+          const [history, loadedContext, fetched] = await Promise.all([
             recentSmsHistory(queued.uid, queued.inboundMessageId),
             // Context is valuable but never allowed to make the SMS transport
             // unavailable. A bounded, empty context preserves graceful
@@ -357,6 +364,8 @@ export const smsInboundProcessor = onDocumentCreated(
               messageSid: queued.inboundMessageId,
             }),
           ])
+          companionContext = loadedContext
+          momentImages = fetched.images
           const failedImageCount = (queued.rejectedMediaCount ?? 0) + fetched.failedCount
           if (!queued.body.trim() && fetched.images.length === 0 && failedImageCount > 0) {
             reply = SMS_MEDIA_UNAVAILABLE_RESPONSE
@@ -374,6 +383,7 @@ export const smsInboundProcessor = onDocumentCreated(
             risk = resolved.risk
             reply = resolved.reply
             fieldNote = resolved.fieldNote
+            responseMode = resolved.responseMode
           }
         } catch (error) {
           usedFallback = true
@@ -389,6 +399,11 @@ export const smsInboundProcessor = onDocumentCreated(
         body: reply,
       })
       const sentAt = Date.now()
+      const momentId = queued.inboundMessageId
+      const shouldCreateMoment = fieldNote !== null && companionContext.fieldMosaicEnabled !== false
+      const mediaPaths = shouldCreateMoment && momentImages.length > 0
+        ? await persistSmsMomentMedia(queued.uid, momentId, momentImages)
+        : []
       const batch = getFirestore().batch()
       batch.set(userSmsMessages(queued.uid).doc(outbound.sid), {
         id: outbound.sid,
@@ -402,6 +417,7 @@ export const smsInboundProcessor = onDocumentCreated(
         risk,
         usedFallback,
         replyTo: queued.inboundMessageId,
+        ...(responseMode ? { responseMode } : {}),
       })
       batch.update(userSmsMessages(queued.uid).doc(queued.inboundMessageId), {
         status: 'processed',
@@ -411,7 +427,23 @@ export const smsInboundProcessor = onDocumentCreated(
         fieldNoteSelectedAt: sentAt,
         mediaProcessed: (queued.media?.length ?? 0) > 0,
         processedAt: sentAt,
+        ...(responseMode ? { responseMode } : {}),
       })
+      if (shouldCreateMoment) {
+        batch.set(
+          getFirestore().collection('users').doc(queued.uid).collection('fieldMoments').doc(momentId),
+          {
+            id: momentId,
+            source: 'sms',
+            sourceId: queued.inboundMessageId,
+            text: fieldNote,
+            createdAt: queued.receivedAt,
+            mediaPaths,
+            status: 'unreviewed',
+            ...(responseMode ? { responseMode } : {}),
+          },
+        )
+      }
       batch.update(ref, {
         status: 'completed',
         risk,

@@ -5,6 +5,7 @@ import type {
   SharedPersonalFacts,
   SharedProfile,
 } from '../shared/companionKernel.js'
+import { normalizeMemoryAperture } from '../shared/companionKernel.js'
 
 const MEMORY_SOURCE_PARTS = new Set(['open', 'weaver', 'still'])
 const FIELD_NOTE_MAX_AGE_MS = 14 * 86_400_000
@@ -20,6 +21,8 @@ export interface SmsContextDocuments {
   stanceProfile: DocumentData | null
   values: DocumentData[]
   promises: DocumentData[]
+  preferences?: DocumentData | null
+  outcomes?: DocumentData[]
 }
 
 function strings(value: unknown): string[] {
@@ -197,6 +200,13 @@ export function deriveSmsCompanionContext(
   })
 
   return {
+    memoryAperture: normalizeMemoryAperture(docs.preferences?.defaultMemoryAperture),
+    fieldMosaicEnabled: docs.preferences?.fieldMosaicEnabled !== false,
+    outcomeSampling: docs.preferences?.outcomeSampling === 'off' ? 'off' : 'light',
+    outcomeContext: (docs.outcomes ?? [])
+      .filter(outcome => outcome.immediate || outcome.delayed)
+      .slice(0, 8)
+      .map(outcome => `${String(outcome.source ?? 'unknown')} ${String(outcome.intervention ?? 'move')}: immediate ${String(outcome.immediate ?? 'not rated')}${outcome.delayed ? `; later ${String(outcome.delayed)}` : ''}`),
     recentSessionNotes,
     relevantMemories,
     profile: profileFrom(docs.profile),
@@ -253,7 +263,7 @@ export async function loadSmsCompanionContext(
   const valuesOn = features.userValues === true
   const interiorityOn = features.companionInteriority === true
 
-  const [sessions, memories, profile, personalFacts, smsMessages, userParts, intentions, stanceProfile, values, promises] = await Promise.all([
+  const [sessions, memories, profile, personalFacts, smsMessages, userParts, intentions, stanceProfile, values, promises, preferences, outcomes] = await Promise.all([
     collectionData(db, uid, 'sessions', 50, 'startedAt'),
     collectionData(db, uid, 'memories', 60, 'timestamp'),
     documentData(db, uid, 'userProfile'),
@@ -264,6 +274,8 @@ export async function loadSmsCompanionContext(
     stanceOn ? documentData(db, uid, 'stanceProfile') : Promise.resolve(null),
     valuesOn ? collectionData(db, uid, 'userValues', 20) : Promise.resolve([]),
     interiorityOn ? collectionData(db, uid, 'companionPromises', 10) : Promise.resolve([]),
+    documentData(db, uid, 'companionPreferences'),
+    collectionData(db, uid, 'interventionOutcomes', 20, 'createdAt'),
   ])
 
   return deriveSmsCompanionContext({
@@ -277,5 +289,7 @@ export async function loadSmsCompanionContext(
     stanceProfile,
     values,
     promises,
+    preferences,
+    outcomes,
   }, features)
 }

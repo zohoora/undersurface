@@ -28,6 +28,7 @@ let smsInbound: Map<string, DocNode>
 let deletedAuthUsers: string[]
 let authThrowsNotFound: boolean
 let setCalls: { id: string; fields: Record<string, unknown> }[]
+let deletedStoragePrefixes: string[]
 
 function makeDocRef(node: DocNode | null, container: Map<string, DocNode>, id: string) {
   return {
@@ -108,6 +109,13 @@ const firestore = {
 }
 
 vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => firestore }))
+vi.mock('firebase-admin/storage', () => ({
+  getStorage: () => ({
+    bucket: () => ({
+      deleteFiles: async ({ prefix }: { prefix: string }) => { deletedStoragePrefixes.push(prefix) },
+    }),
+  }),
+}))
 vi.mock('firebase-admin/auth', () => ({
   getAuth: () => ({
     deleteUser: async (uid: string) => {
@@ -154,6 +162,7 @@ beforeEach(() => {
   deletedAuthUsers = []
   authThrowsNotFound = false
   setCalls = []
+  deletedStoragePrefixes = []
 })
 
 describe('handleDeleteAccount', () => {
@@ -173,6 +182,7 @@ describe('handleDeleteAccount', () => {
     expect([...smsPhoneLinks.values()].some(doc => doc.fields.uid === 'u1')).toBe(false)
     expect([...smsLinkCodes.values()].some(doc => doc.fields.uid === 'u1')).toBe(false)
     expect([...smsInbound.values()].some(doc => doc.fields.uid === 'u1')).toBe(false)
+    expect(deletedStoragePrefixes).toEqual(['field-moments/u1/'])
     expect(res.json).toHaveBeenCalledWith({ success: true })
   })
 

@@ -13,6 +13,7 @@ import { UserValuesSection } from './UserValuesSection'
 import { db } from '../../store/db'
 import PolicyModal from '../PolicyModal'
 import { SmsSettingsSection } from './SmsSettingsSection'
+import { CompanionPreferencesSection } from './CompanionPreferencesSection'
 
 const TIMEZONE_VALUES = [
   'Pacific/Honolulu',
@@ -228,6 +229,8 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
           )}
 
           {user && <SmsSettingsSection isOpen={isOpen} />}
+
+          {user && <CompanionPreferencesSection isOpen={isOpen} />}
 
           {/* Parts of you (userParts flag; renders nothing when off/empty) */}
           <UserPartsSection isOpen={isOpen} />

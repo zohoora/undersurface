@@ -34,6 +34,8 @@ vi.mock('../store/db', () => ({
     sessionIntentions: { toArray: vi.fn(async () => []), add: vi.fn(), update: vi.fn() },
     stanceProfile: { get: vi.fn(async () => undefined), add: vi.fn(), update: vi.fn() },
     sessions: { get: vi.fn(async () => undefined) },
+    companionPreferences: { get: vi.fn(async () => ({ id: 'current', fieldMosaicEnabled: true })) },
+    fieldMoments: { add: vi.fn() },
   },
   generateId: vi.fn(() => 'gen-id'),
 }))
@@ -129,6 +131,24 @@ describe('reflectOnSession', () => {
       content: 'Writer is exploring childhood patterns with openness',
       source: 'session',
       sessionId: 'session-1',
+    }))
+  })
+
+  it('stores only exact writer quotes as field moments', async () => {
+    const exact = 'I decided I will ask for the role change on Monday.'
+    const messages = [makeMessage({ id: 'writer-1', content: `${exact} This gives us enough transcript length to run the reflection pipeline and validate the extracted moment safely.`, surface: 'talk' })]
+    mockChatCompletion.mockResolvedValue(JSON.stringify({
+      fieldMoments: [
+        { quote: exact, source: 'talk' },
+        { quote: 'The writer finally chose courage.', source: 'talk' },
+      ],
+    }))
+
+    await reflectOnSession('session-1', messages, [makePart()])
+
+    expect(db.fieldMoments.add).toHaveBeenCalledTimes(1)
+    expect(db.fieldMoments.add).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'talk', sourceId: 'writer-1', text: exact, status: 'unreviewed',
     }))
   })
 

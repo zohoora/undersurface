@@ -48,7 +48,7 @@ export async function reflectOnSession(
     const stanceOn = features?.stanceAdaptation === true
     const valuesOn = features?.userValues === true
     const interiorityOn = features?.companionInteriority === true
-    const [profile, allSummaries, existingFacts, existingUserParts, allIntentions, sessionDoc, existingValues] = await Promise.all([
+    const [profile, allSummaries, existingFacts, existingUserParts, allIntentions, sessionDoc, existingValues, preferences] = await Promise.all([
       db.userProfile.get('current'),
       db.entrySummaries.orderBy('timestamp').reverse().toArray(),
       db.personalFacts.get('current'),
@@ -56,6 +56,7 @@ export async function reflectOnSession(
       intentionsOn ? db.sessionIntentions.toArray() : Promise.resolve([] as SessionIntention[]),
       stanceOn ? db.sessions.get(sessionId) : Promise.resolve(undefined as Session | undefined),
       valuesOn ? db.userValues.toArray() : Promise.resolve([] as UserValue[]),
+      db.companionPreferences?.get('current') ?? Promise.resolve(undefined),
     ])
     const recentSummaries = allSummaries.slice(0, 5)
 
@@ -87,6 +88,7 @@ export async function reflectOnSession(
             .map((v) => ({ id: v.id, name: v.name, description: v.description }))
         : undefined,
       includeCarrying: interiorityOn || undefined,
+      includeFieldMoments: preferences?.fieldMosaicEnabled !== false,
     })
     // gpt-5.5 with default reasoning was burning the entire token budget on
     // hidden reasoning, leaving zero output. Reflection is structured JSON
@@ -257,6 +259,32 @@ export async function reflectOnSession(
       }
     }
 
+    // 6e-field. Exact-quote-only Field Mosaic candidates. Matching against
+    // raw user turns makes model paraphrase or companion-originated content a
+    // hard no-op rather than a durable false memory.
+    if (preferences?.fieldMosaicEnabled !== false && Array.isArray(parsed.fieldMoments)) {
+      for (const candidate of parsed.fieldMoments.slice(0, 2)) {
+        if (!candidate || typeof candidate !== 'object') continue
+        const quote = typeof candidate.quote === 'string' ? candidate.quote.trim() : ''
+        if (!quote || quote.length > 320) continue
+        const sourceMessage = messages.find(message =>
+          message.speaker === 'user' && message.content.includes(quote),
+        )
+        if (!sourceMessage) continue
+        const source = sourceMessage.surface === 'journal' || sourceMessage.surface === 'speak'
+          ? sourceMessage.surface
+          : 'talk'
+        await db.fieldMoments.add({
+          id: generateId(),
+          source,
+          sourceId: sourceMessage.id,
+          text: quote,
+          createdAt: sourceMessage.timestamp,
+          status: 'unreviewed',
+        })
+      }
+    }
+
     // 6e-bis. Rupture/rumination signal state (terse-ending marker + loop
     // streak). Best-effort — never lets a signal failure affect the reflection.
     try {
@@ -373,6 +401,7 @@ function parseReflectionResponse(response: string): {
   stanceObservation?: { observation?: unknown; direction?: unknown }
   valueObservations?: unknown
   carriedNoticing?: { present?: unknown; text?: unknown }
+  fieldMoments?: Array<{ quote?: unknown; source?: unknown }>
 } | null {
   try {
     const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, response]

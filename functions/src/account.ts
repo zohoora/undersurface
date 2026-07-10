@@ -3,6 +3,7 @@ import type { Request } from 'firebase-functions/v2/https'
 import { onRequest } from 'firebase-functions/v2/https'
 import { getAuth } from 'firebase-admin/auth'
 import { getFirestore } from 'firebase-admin/firestore'
+import { getStorage } from 'firebase-admin/storage'
 import type { CollectionReference, Query } from 'firebase-admin/firestore'
 import { ALLOWED_ORIGINS } from './shared/cors.js'
 import { verifyAuth } from './shared/auth.js'
@@ -48,7 +49,7 @@ type AccountHandler = (
 //   1. tombstone the user doc first (marks intent; client rules deny access)
 //   2. delete the sessions/messages subcollections before their parent docs
 //   3. delete every user subcollection (registry-driven, includes apiKeys)
-//   4. delete the user's top-level contactMessages + quota doc
+//   4. delete the user's private Storage objects + top-level docs
 //   5. delete the user doc (parent last)
 //   6. delete the Auth user last, tolerating already-deleted
 // Every step is idempotent, so a retry re-runs cleanly against partial state.
@@ -77,7 +78,9 @@ export async function handleDeleteAccount(uid: string, _params: Record<string, u
     await deleteCollection(uid, coll)
   }
 
-  // 4. Top-level contactMessages authored by this user + the quota doc.
+  // 4. Private field-moment media and top-level records. deleteFiles is
+  // prefix-idempotent: an already-empty prefix succeeds on retry.
+  await getStorage().bucket().deleteFiles({ prefix: `field-moments/${uid}/` })
   await deleteQuery(db.collection('contactMessages').where('uid', '==', uid))
   await db.collection('quotas').doc(uid).delete()
 

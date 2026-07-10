@@ -1,4 +1,4 @@
-import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue, CompanionPromise } from '../types'
+import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue, CompanionPromise, MemoryAperture, InterventionOutcome } from '../types'
 import { db } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { detectOpenTimeEvidence } from './ruptureDetector'
@@ -8,6 +8,10 @@ import { orderForFollowUp, selectPatternToName } from './intentionTracker'
 import { selectValueProposal } from './userValueTracker'
 
 export interface TherapistContext {
+  memoryAperture: MemoryAperture
+  fieldMosaicEnabled: boolean
+  outcomeSampling: 'off' | 'light'
+  outcomeContext: string[]
   recentSessionNotes: { note: string; date: number }[]
   relevantMemories: PartMemory[]
   userProfile: UserProfile | null
@@ -68,7 +72,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
   const interiorityOn = features?.companionInteriority === true
   const arcsOn = features?.storyArcs === true
 
-  const [sessions, memories, profiles, facts, relaxBreaks, signals, allUserParts, allIntentions, stanceProfile, allValues, allPromises, smsMessages] = await Promise.all([
+  const [sessions, memories, profiles, facts, relaxBreaks, signals, allUserParts, allIntentions, stanceProfile, allValues, allPromises, fieldMoments, smsMessages, preferences, outcomes] = await Promise.all([
     // Bounded: only the 5 newest noted sessions are kept, so scanning the
     // full collection is pure read amplification. 50 newest gives ample
     // margin for closed-without-note gaps.
@@ -87,7 +91,10 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     stanceOn || interiorityOn ? db.stanceProfile.get('current') : Promise.resolve(undefined as StanceProfile | undefined),
     valuesOn ? db.userValues.toArray() : Promise.resolve([] as UserValue[]),
     interiorityOn ? db.companionPromises.toArray() : Promise.resolve([] as CompanionPromise[]),
+    db.fieldMoments?.orderBy('createdAt').reverse().limit(24).toArray() ?? Promise.resolve([]),
     db.smsMessages.orderBy('createdAt').reverse().limit(24).toArray(),
+    db.companionPreferences?.get('current') ?? Promise.resolve(undefined),
+    db.interventionOutcomes?.orderBy('createdAt').reverse().limit(20).toArray() ?? Promise.resolve([] as InterventionOutcome[]),
   ])
 
   // Extract notes from the 5 most recent closed sessions
@@ -193,23 +200,45 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     ? [...(stanceProfile?.rawObservations ?? [])].reverse().find((o) => o.direction === 'hindered')?.observation
     : undefined
 
-  const recentFieldNotes = smsMessages
+  const mosaicNotes = fieldMoments
+    .filter(moment => moment.status !== 'dismissed')
+    .filter(moment => Date.now() - moment.createdAt <= FIELD_NOTE_MAX_AGE_MS)
+    .filter(moment => moment.text.trim().length > 0)
+    .map(moment => ({ text: moment.text.trim(), date: moment.createdAt }))
+  // Backward compatibility for model-selected notes created before the Field
+  // Mosaic collection existed. New writes go to fieldMoments.
+  const legacySmsNotes = smsMessages
     .filter(message => message.direction === 'inbound')
     .filter(message => Date.now() - message.createdAt <= FIELD_NOTE_MAX_AGE_MS)
     .map(message => {
       if (message.carryForward === true && message.fieldNote?.trim()) {
         return { text: message.fieldNote.trim(), date: message.createdAt }
       }
-      // Preserve explicit captures created by the previous SMS grammar.
       if (message.mode === 'capture' && message.status === 'captured') {
         return { text: message.body, date: message.createdAt }
       }
       return null
     })
     .filter((note): note is { text: string; date: number } => note !== null)
+  const seenFieldNotes = new Set<string>()
+  const recentFieldNotes = [...mosaicNotes, ...legacySmsNotes]
+    .sort((a, b) => b.date - a.date)
+    .filter(note => {
+      const key = note.text.toLowerCase()
+      if (seenFieldNotes.has(key)) return false
+      seenFieldNotes.add(key)
+      return true
+    })
     .slice(0, RECENT_FIELD_NOTE_LIMIT)
 
   return {
+    memoryAperture: preferences?.defaultMemoryAperture ?? 'pattern',
+    fieldMosaicEnabled: preferences?.fieldMosaicEnabled !== false,
+    outcomeSampling: preferences?.outcomeSampling === 'off' ? 'off' : 'light',
+    outcomeContext: outcomes
+      .filter(outcome => outcome.immediate || outcome.delayed)
+      .slice(0, 8)
+      .map(outcome => `${outcome.source} ${outcome.intervention}: immediate ${outcome.immediate ?? 'not rated'}${outcome.delayed ? `; later ${outcome.delayed}` : ''}`),
     recentSessionNotes,
     relevantMemories: allMemories,
     userProfile,

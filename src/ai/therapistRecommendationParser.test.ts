@@ -64,4 +64,16 @@ describe('parseRecommendations', () => {
     const result = parseRecommendations(input)
     expect(result).toEqual([{ type: 'text', text: "I'm noticing a pattern. [Can I be more" }])
   })
+
+  it('parses a reversible surface arc', () => {
+    expect(parseRecommendations('[take this to the page](#switch:journal-arc)')).toEqual([
+      { type: 'recommendation', phrase: 'take this to the page', target: 'journal-arc' },
+    ])
+  })
+
+  it('parses the optimal-ending marker as an end-session action', () => {
+    expect(parseRecommendations('[We can leave it here.](#end:session)')).toEqual([
+      { type: 'recommendation', phrase: 'We can leave it here.', target: 'end-session' },
+    ])
+  })
 })

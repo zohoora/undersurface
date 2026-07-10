@@ -302,6 +302,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
 
         const promptMessages = buildTherapistMessages(currentMessages, {
           channel: 'web',
+          memoryAperture: currentSession.memoryAperture ?? context?.memoryAperture,
           phase,
           recentSessionNotes: context?.recentSessionNotes,
           recentFieldNotes: context?.recentFieldNotes,
@@ -312,6 +313,12 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           hrvContext,
           mode: currentSession.mode ?? 'standard',
           allowRecommendations: true,
+          availableSurfaceArcs: [
+            'journal',
+            ...(signalFeatures?.voiceEnabled === true ? ['speak' as const] : []),
+            ...(signalFeatures?.relaxEnabled === true ? ['relax' as const] : []),
+            ...(signalFeatures?.driftEnabled === true ? ['drift' as const] : []),
+          ],
           isFirstTurn,
           inSessionRelaxBreaks,
           recentRelaxBreaks: context?.recentRelaxBreaks,
@@ -325,6 +332,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           namePatternFor,
           intentionOffer,
           stanceContext,
+          outcomeContext: context?.outcomeContext,
           activeValues,
           valueProposal,
           carriedNoticing,
@@ -364,6 +372,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             timestamp: Date.now(),
             phase,
             isEmergence: false,
+            surface: 'talk',
           }
 
           // Serialized append: read the base list fresh INSIDE the queue so a
@@ -617,6 +626,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
   const appendUserMessage = useCallback(async (
     content: string,
     inputMethod?: 'text' | 'voice',
+    surface: SessionMessage['surface'] = inputMethod === 'voice' ? 'speak' : 'talk',
   ): Promise<AppendUserMessageResult | null> => {
     const currentSession = sessionRef.current
     if (!currentSession || currentSession.status === 'closed') return null
@@ -638,6 +648,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
         timestamp: Date.now(),
         phase,
         isEmergence: false,
+        surface,
         ...(inputMethod === 'voice' && { inputMethod }),
       }
 
