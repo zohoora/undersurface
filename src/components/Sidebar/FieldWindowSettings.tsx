@@ -51,7 +51,6 @@ async function persistFieldWindows(value: FieldWindowPreferences, exists: boolea
   }
   const initial: CompanionPreferences = {
     id: 'current',
-    defaultMemoryAperture: 'pattern',
     fieldMosaicEnabled: true,
     outcomeSampling: 'light',
     fieldWindows: value,

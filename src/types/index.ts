@@ -334,7 +334,9 @@ export interface FieldWindowPreferences {
 
 export interface CompanionPreferences {
   id: 'current'
-  defaultMemoryAperture: MemoryAperture
+  // Deprecated persisted field. New sessions deliberately ignore it because
+  // Fresh eyes is session-scoped and never becomes a default.
+  defaultMemoryAperture?: MemoryAperture
   fieldMosaicEnabled: boolean
   outcomeSampling: 'off' | 'light'
   personalScienceEnabled?: boolean

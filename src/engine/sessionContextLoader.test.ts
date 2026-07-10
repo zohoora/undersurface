@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { Session, PartMemory, UserProfile, PersonalFacts, RelaxSession, CompanionSignals, SmsMessage } from '../types'
+import type { Session, PartMemory, UserProfile, PersonalFacts, RelaxSession, CompanionSignals, SmsMessage, CompanionPreferences } from '../types'
 
 // Per-collection fixtures the tests configure; the db mock pulls from these.
 type State = {
@@ -16,6 +16,7 @@ type State = {
   // assert the scan is bounded.
   sessionsQueryLimit: number | null
   smsMessages: SmsMessage[]
+  companionPreferences: CompanionPreferences | undefined
 }
 
 let state: State
@@ -33,6 +34,7 @@ function freshState(): State {
     features: {},
     sessionsQueryLimit: null,
     smsMessages: [],
+    companionPreferences: undefined,
   }
 }
 
@@ -103,6 +105,9 @@ vi.mock('../store/db', () => ({
         }),
       }),
     },
+    companionPreferences: {
+      get: async () => state.companionPreferences,
+    },
   },
 }))
 
@@ -151,6 +156,18 @@ describe('loadTherapistContext', () => {
     expect(ctx.personalFacts).toBeNull()
     expect(ctx.recentRelaxBreaks).toEqual([])
     expect(ctx.recentFieldNotes).toEqual([])
+  })
+
+  it('always starts new sessions with normal continuity even if a legacy default says fresh', async () => {
+    state.companionPreferences = {
+      id: 'current',
+      defaultMemoryAperture: 'fresh',
+      fieldMosaicEnabled: true,
+      outcomeSampling: 'light',
+      updatedAt: 1,
+    }
+
+    expect((await loadTherapistContext()).memoryAperture).toBe('pattern')
   })
 
   it('loads only recent model-selected SMS notes as weak field-note context', async () => {

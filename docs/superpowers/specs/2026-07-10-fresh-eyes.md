@@ -12,6 +12,10 @@ plain binary mode instead:
 - Fresh eyes — the companion uses only the current session and the session
   does not update longitudinal memory.
 
+Normal continuity is the unconditional default for every new session. Fresh
+eyes is invoked explicitly for one session, like a browser's private mode; it
+is not offered or remembered as a persistent preference.
+
 The transcript remains in session history and export. Fresh eyes is a memory
 boundary, not an ephemeral or incognito transcript mode.
 
@@ -46,10 +50,10 @@ rupture evidence, and parent-linked Relax history.
 
 ## Compatibility
 
-Legacy `light` and `counterstory` values remain readable in stored documents
-but normalize to normal continuity when a session is loaded. New writes use
-only `fresh` or `pattern`. SMS continues with normal shared continuity; Fresh
-eyes is a session-surface mode.
+Legacy `light`, `counterstory`, and stored default-aperture values remain
+readable but are ignored for new sessions. Existing session records normalize
+to `fresh` or `pattern`; new sessions always start at `pattern`. SMS continues
+with normal shared continuity; Fresh eyes is a session-surface mode.
 
 ## Verification
 

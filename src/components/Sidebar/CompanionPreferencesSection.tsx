@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { db } from '../../store/db'
 import type { AlliancePreferences, CompanionPreferences, PartMemory, PersonalFacts, Session, UserProfile } from '../../types'
 import { useTranslation } from '../../i18n'
-import { normalizeSessionMemoryAperture } from '../../engine/freshEyes'
 
 const DEFAULT_ALLIANCE: AlliancePreferences = {
   comfortBeforeChallenge: true,
@@ -15,7 +14,6 @@ const DEFAULT_ALLIANCE: AlliancePreferences = {
 
 const DEFAULTS: CompanionPreferences = {
   id: 'current',
-  defaultMemoryAperture: 'pattern',
   fieldMosaicEnabled: true,
   outcomeSampling: 'light',
   personalScienceEnabled: false,
@@ -182,11 +180,7 @@ export function CompanionPreferencesSection({ isOpen }: { isOpen: boolean }) {
     void db.companionPreferences.get('current').then(value => {
       if (value) {
         setExists(true)
-        const defaultMemoryAperture = normalizeSessionMemoryAperture(value.defaultMemoryAperture)
-        setPreferences({ ...DEFAULTS, ...value, defaultMemoryAperture, alliance: { ...DEFAULT_ALLIANCE, ...value.alliance } })
-        if (defaultMemoryAperture !== value.defaultMemoryAperture) {
-          void db.companionPreferences.update('current', { defaultMemoryAperture, updatedAt: Date.now() })
-        }
+        setPreferences({ ...DEFAULTS, ...value, alliance: { ...DEFAULT_ALLIANCE, ...value.alliance } })
       }
     })
   }, [isOpen])
@@ -214,13 +208,8 @@ export function CompanionPreferencesSection({ isOpen }: { isOpen: boolean }) {
 
   return (
     <div className="settings-section">
-      <div className="settings-section-label">Companion continuity</div>
-      <div style={{ color: 'var(--text-ghost)', fontSize: 10, lineHeight: 1.45, marginBottom: 8 }}>Normal sessions can use and update companion memory. Fresh eyes uses only that session and does not teach the companion. The transcript still stays in history and export.</div>
+      <div className="settings-section-label">Companion memory</div>
       <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, color: 'var(--text-secondary)', fontSize: 11 }}>
-        Start new sessions with Fresh eyes
-        <input type="checkbox" checked={preferences.defaultMemoryAperture === 'fresh'} onChange={event => change('defaultMemoryAperture', event.target.checked ? 'fresh' : 'pattern')} />
-      </label>
-      <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 10, color: 'var(--text-secondary)', fontSize: 11 }}>
         Field mosaic
         <input type="checkbox" checked={preferences.fieldMosaicEnabled} onChange={event => change('fieldMosaicEnabled', event.target.checked)} />
       </label>

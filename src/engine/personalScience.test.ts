@@ -4,7 +4,6 @@ import type { CompanionPreferences, InterventionOutcome, PersonalProtocol, Resea
 
 const preferences: CompanionPreferences = {
   id: 'current',
-  defaultMemoryAperture: 'pattern',
   fieldMosaicEnabled: true,
   outcomeSampling: 'light',
   personalScienceEnabled: true,

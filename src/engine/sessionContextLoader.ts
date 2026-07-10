@@ -6,7 +6,7 @@ import { RUMINATION_WATCH_ARM_STREAK } from './signalTracker'
 import { selectProposalCandidate } from './userPartTracker'
 import { orderForFollowUp, selectPatternToName } from './intentionTracker'
 import { selectValueProposal } from './userValueTracker'
-import { isFreshEyesSession, normalizeSessionMemoryAperture } from './freshEyes'
+import { isFreshEyesSession } from './freshEyes'
 
 export interface TherapistContext {
   memoryAperture: MemoryAperture
@@ -248,7 +248,10 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     .slice(0, RECENT_FIELD_NOTE_LIMIT)
 
   return {
-    memoryAperture: normalizeSessionMemoryAperture(preferences?.defaultMemoryAperture),
+    // Fresh eyes is intentionally never a persistent default. Every new
+    // session starts with ordinary continuity and may opt into Fresh eyes for
+    // that session only.
+    memoryAperture: 'pattern',
     fieldMosaicEnabled: preferences?.fieldMosaicEnabled !== false,
     outcomeSampling: preferences?.outcomeSampling === 'off' ? 'off' : 'light',
     companionPreferences: preferences ?? null,
