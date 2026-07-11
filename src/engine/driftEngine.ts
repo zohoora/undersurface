@@ -24,9 +24,9 @@ export type NoticeDirection = 'softer' | 'same' | 'stronger' | 'skipped'
 export type InterweaveKind = 'rain' | 'defusion' | 'parts' | 'focusing'
 export type ClosureReason = 'stuck' | 'cap' | 'user' | 'settle' | 'crisis' | null
 
-// v2: the practice is time-boxed and chosen upfront. Wave count scales with the
-// chosen length; wave duration is short (frequent titration points). Defaults
-// (no length on BEGIN) remain the v1 values so the machine is back-compatible.
+// v3: the practice is time-boxed and chosen upfront. A round is long enough to
+// settle into the rhythm before the interface asks anything. Fewer, longer
+// rounds replace the restless 12-second wave/check-in loop from v2.
 export type DriftLength = 'quick' | 'short' | 'full'
 
 export interface DriftLimitsActive {
@@ -36,9 +36,9 @@ export interface DriftLimitsActive {
 }
 
 export const DRIFT_LENGTHS: Record<DriftLength, DriftLimitsActive> = {
-  quick: { setTarget: 3, setMs: 12_000, maxSessionMs: 240_000 }, // ~2 min
-  short: { setTarget: 5, setMs: 12_000, maxSessionMs: 360_000 }, // ~4 min
-  full: { setTarget: 7, setMs: 12_000, maxSessionMs: 540_000 }, // ~6 min
+  quick: { setTarget: 2, setMs: 45_000, maxSessionMs: 180_000 }, // ~2 min including one check-in + landing
+  short: { setTarget: 3, setMs: 60_000, maxSessionMs: 300_000 }, // ~4 min including check-ins + landing
+  full: { setTarget: 4, setMs: 75_000, maxSessionMs: 480_000 }, // ~6 min including check-ins + landing
 }
 
 export interface DriftState {

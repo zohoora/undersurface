@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, cleanup, screen } from '@testing-library/react'
+import { act, render, cleanup, screen } from '@testing-library/react'
 
 void React
 
@@ -23,7 +23,8 @@ Object.defineProperty(window, 'matchMedia', {
 
 // ── Minimal Web Audio stubs (jsdom has none) ──
 class FakeParam {
-  setValueAtTime() { return this }
+  values: number[] = []
+  setValueAtTime(value: number) { this.values.push(value); return this }
   cancelScheduledValues() { return this }
   linearRampToValueAtTime() { return this }
   exponentialRampToValueAtTime() { return this }
@@ -31,15 +32,19 @@ class FakeParam {
 class FakeAudioContext {
   currentTime = 0
   destination = {}
+  resume = vi.fn(() => Promise.resolve())
   close = vi.fn(() => Promise.resolve())
 }
 class FakeStereoPannerNode {
   pan = new FakeParam()
+  constructor() { panners.push(this) }
   connect(next: unknown) { return next }
+  disconnect() {}
 }
 class FakeGainNode {
   gain = new FakeParam()
   connect(next: unknown) { return next }
+  disconnect() {}
 }
 class FakeOscillatorNode {
   connect(next: unknown) { return next }
@@ -56,15 +61,21 @@ vi.stubGlobal('cancelAnimationFrame', () => {})
 
 import { BilateralStimulus } from './BilateralStimulus'
 
+const panners: FakeStereoPannerNode[] = []
+
 afterEach(() => {
   cleanup()
+  vi.restoreAllMocks()
   prefersReduced = false
+  panners.length = 0
+  vi.stubGlobal('requestAnimationFrame', () => 1)
 })
 
 describe('BilateralStimulus', () => {
   it('renders the traveling dot on the visual channel while running', () => {
     render(<BilateralStimulus channel="visual" running passMs={2000} volume={0.5} />)
     expect(screen.queryByTestId('bls-dot')).not.toBeNull()
+    expect(screen.queryByTestId('drift-rhythm-lane')).not.toBeNull()
   })
 
   it('keeps a quiet visual trace on the audio channel', () => {
@@ -88,5 +99,22 @@ describe('BilateralStimulus', () => {
     expect(() => visual.unmount()).not.toThrow()
     const audio = render(<BilateralStimulus channel="audio" running passMs={2000} volume={0.5} />)
     expect(() => audio.unmount()).not.toThrow()
+  })
+
+  it('uses the same frame clock for the visible endpoint and stereo side', async () => {
+    let frame: FrameRequestCallback | null = null
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frame = callback; return 1 })
+    vi.spyOn(performance, 'now').mockReturnValue(0)
+    render(<BilateralStimulus channel="audio" running passMs={2000} volume={0.5} />)
+    await act(async () => { await Promise.resolve() })
+
+    act(() => { frame?.(0) })
+    expect(screen.getByTestId('bls-dot').style.left).toBe('6%')
+    expect(panners.at(-1)?.pan.values.at(-1)).toBe(-1)
+
+    act(() => { frame?.(2000) })
+    expect(screen.getByTestId('bls-dot').style.left).toBe('94%')
+    expect(panners.at(-1)?.pan.values.at(-1)).toBe(1)
+    vi.restoreAllMocks()
   })
 })

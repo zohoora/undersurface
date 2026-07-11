@@ -11,9 +11,8 @@ import { getLanguageCode } from '../i18n'
 import { db, generateId } from '../store/db'
 import type { DriftAnchorKind, DriftBlsChannel, DriftCheckIn, DriftOutcome, DriftSession, DriftTranscriptEntry } from '../types'
 
-// Matches Talk's proven floor (getMaxTokens 300–600): gpt-5.x reasoning eats the
-// budget before content, and too-tight caps return empty completions. 220 sat
-// below that floor — raised to 400 (Checkpoint C finding).
+// Typed Drift check-ins ask for one short sentence. Keep this bounded while
+// leaving enough room for the model's hidden reasoning and visible line.
 const NOTICE_MAX_TOKENS = 400
 const RISK_RACE_MS = 1500
 const PERSIST_DEBOUNCE_MS = 2000
@@ -57,7 +56,7 @@ export interface DriftApi {
   closureDone: () => Promise<void>
   abandon: () => Promise<void>
   recordInterruption: () => void
-  updateExperienceTelemetry: (patch: Pick<DriftSession, 'audioState' | 'voiceGuidanceState' | 'firstCueRequestedAt'>) => void
+  updateExperienceTelemetry: (patch: Pick<DriftSession, 'audioState' | 'voiceGuidanceState' | 'firstCueRequestedAt' | 'firstWaveStartedAt'>) => void
   voiceActive: boolean
 }
 
@@ -129,7 +128,6 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
       hrvPresent: hrvContext != null,
       audioState: opts.audioState ?? (blsChannel === 'audio' ? 'priming' : 'not_requested'),
       voiceGuidanceState: voice ? 'connecting' : 'off',
-      firstWaveStartedAt: Date.now(),
       displayMode: opts.displayMode ?? 'browser',
     }
     // Storage and personalization begin immediately but never block the first
@@ -286,7 +284,7 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
 
   const recordInterruption = useCallback(() => { interruptionsRef.current += 1 }, [])
 
-  const updateExperienceTelemetry = useCallback((patch: Pick<DriftSession, 'audioState' | 'voiceGuidanceState' | 'firstCueRequestedAt'>) => {
+  const updateExperienceTelemetry = useCallback((patch: Pick<DriftSession, 'audioState' | 'voiceGuidanceState' | 'firstCueRequestedAt' | 'firstWaveStartedAt'>) => {
     const id = docIdRef.current
     if (!id) return
     void persistReadyRef.current.then(() => db.driftSessions.update(id, patch)).catch(() => {})

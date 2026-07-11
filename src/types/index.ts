@@ -178,7 +178,7 @@ export interface DriftSession {
   actualDurationMs?: number
   interruptions?: number
   audioState?: 'not_requested' | 'priming' | 'primed' | 'failed'
-  voiceGuidanceState?: 'off' | 'connecting' | 'connected' | 'failed'
+  voiceGuidanceState?: 'off' | 'connecting' | 'connected' | 'device_fallback' | 'failed'
   firstCueRequestedAt?: number
   firstWaveStartedAt?: number
   displayMode?: 'browser' | 'standalone'

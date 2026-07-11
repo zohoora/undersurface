@@ -1,5 +1,15 @@
 # Drift v2 — webapp redesign (2026-07-09)
 
+> **2026-07-11 v3 experience repair:** iPhone testing invalidated the
+> 12-second-wave design. Drift now uses 2/3/4 uninterrupted rounds lasting
+> 45/60/75 seconds for roughly 2/4/6-minute practices. The moving point lives
+> in a dedicated rhythm lane and cannot cross guidance text. Visual position
+> and stereo notes share one animation clock. Spoken guidance must finish (or
+> fail closed with the voice connection stopped) before a round and its timer
+> begin. Pause/resume preserves elapsed round time. "Guided imagery" enables
+> spoken guidance when that capability is available. This addendum supersedes
+> every duration, wave-count, and audiovisual sequencing statement below.
+
 Supersedes the *experience layer* of `2026-07-04-drift-design.md`. The safety
 architecture from that spec is **unchanged and still authoritative**: the engine's
 monotonic no-return invariant, the two-layer crisis stack, scripted safety copy,

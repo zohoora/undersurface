@@ -397,9 +397,9 @@ const viBase = {
   'drift.chip.unsettled': 'Chỉ là bất an',
   'drift.begin.somethingElse': 'Điều gì khác…',
   'drift.begin.length': 'Bao lâu?',
-  'drift.length.quick': '1 phút',
-  'drift.length.short': '2 phút',
-  'drift.length.full': '3 phút',
+  'drift.length.quick': '2 phút',
+  'drift.length.short': '4 phút',
+  'drift.length.full': '6 phút',
   'drift.begin.anchorLabel': 'Lối trở về của bạn:',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': 'Tốt. Cứ để nó tiếp tục nới lỏng.',

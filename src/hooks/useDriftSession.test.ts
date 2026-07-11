@@ -59,7 +59,7 @@ import { useDriftSession } from './useDriftSession'
 import type { DriftApi } from './useDriftSession'
 
 // v2: one begin() call drives the machine to the first set; a completed set
-// lands on the first notice. 'full' (7 waves) so multi-notice tests never cap.
+// lands on the first notice. 'full' has enough rounds for multi-notice tests.
 async function toNotice(api: () => DriftApi) {
   await act(async () => {
     await api().begin({
@@ -184,7 +184,7 @@ describe('useDriftSession', () => {
       })
     })
     expect(result.current.state.phase).toBe('set')
-    expect(result.current.state.limits.setTarget).toBe(3)
+    expect(result.current.state.limits.setTarget).toBe(2)
     // The focus opens the transcript so later typed exchanges have context.
     expect(result.current.transcript[0]).toMatchObject({ role: 'user', content: 'a knot of worry' })
     // A chip is app-authored copy — never crisis-classified.
@@ -204,11 +204,11 @@ describe('useDriftSession', () => {
     })
     expect(driftAddMock).toHaveBeenCalledWith(expect.objectContaining({
       audioState: 'priming', voiceGuidanceState: 'connecting', displayMode: 'standalone',
-      firstWaveStartedAt: expect.any(Number),
     }))
-    act(() => result.current.updateExperienceTelemetry({ voiceGuidanceState: 'connected', firstCueRequestedAt: 123 }))
+    expect(driftAddMock.mock.calls[0][0]).not.toHaveProperty('firstWaveStartedAt')
+    act(() => result.current.updateExperienceTelemetry({ voiceGuidanceState: 'connected', firstCueRequestedAt: 123, firstWaveStartedAt: 456 }))
     await waitFor(() => expect(driftUpdateMock).toHaveBeenCalledWith('drift-test-1', expect.objectContaining({
-      voiceGuidanceState: 'connected', firstCueRequestedAt: 123,
+      voiceGuidanceState: 'connected', firstCueRequestedAt: 123, firstWaveStartedAt: 456,
     })))
   })
 

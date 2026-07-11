@@ -397,9 +397,9 @@ const thBase = {
   'drift.chip.unsettled': 'แค่รู้สึกไม่สงบ',
   'drift.begin.somethingElse': 'อย่างอื่น…',
   'drift.begin.length': 'นานแค่ไหน?',
-  'drift.length.quick': '1 นาที',
-  'drift.length.short': '2 นาที',
-  'drift.length.full': '3 นาที',
+  'drift.length.quick': '2 นาที',
+  'drift.length.short': '4 นาที',
+  'drift.length.full': '6 นาที',
   'drift.begin.anchorLabel': 'ทางกลับของคุณ:',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': 'ดีแล้ว ปล่อยให้มันคลายต่อไป',

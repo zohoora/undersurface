@@ -397,9 +397,9 @@ const hiBase = {
   'drift.chip.unsettled': 'बस बेचैनी',
   'drift.begin.somethingElse': 'कुछ और…',
   'drift.begin.length': 'कितनी देर?',
-  'drift.length.quick': '1 मिनट',
-  'drift.length.short': '2 मिनट',
-  'drift.length.full': '3 मिनट',
+  'drift.length.quick': '2 मिनट',
+  'drift.length.short': '4 मिनट',
+  'drift.length.full': '6 मिनट',
   'drift.begin.anchorLabel': 'तुम्हारा लौटने का रास्ता:',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': 'अच्छा। इसे और ढीला पड़ने दो।',

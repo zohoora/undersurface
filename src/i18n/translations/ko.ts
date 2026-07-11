@@ -397,9 +397,9 @@ const koBase = {
   'drift.chip.unsettled': '그냥 불안정한',
   'drift.begin.somethingElse': '다른 것…',
   'drift.begin.length': '얼마나?',
-  'drift.length.quick': '1분',
-  'drift.length.short': '2분',
-  'drift.length.full': '3분',
+  'drift.length.quick': '2분',
+  'drift.length.short': '4분',
+  'drift.length.full': '6분',
   'drift.begin.anchorLabel': '너의 돌아올 길:',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': '좋아. 계속 풀려가게 둬.',

@@ -397,9 +397,9 @@ const plBase = {
   'drift.chip.unsettled': 'Po prostu niepokój',
   'drift.begin.somethingElse': 'Coś innego…',
   'drift.begin.length': 'Jak długo?',
-  'drift.length.quick': '1 min',
-  'drift.length.short': '2 min',
-  'drift.length.full': '3 min',
+  'drift.length.quick': '2 min',
+  'drift.length.short': '4 min',
+  'drift.length.full': '6 min',
   'drift.begin.anchorLabel': 'Twoja droga powrotna:',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': 'Dobrze. Niech dalej się rozluźnia.',

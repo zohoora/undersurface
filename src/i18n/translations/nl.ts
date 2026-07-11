@@ -397,9 +397,9 @@ const nlBase = {
   'drift.chip.unsettled': 'Gewoon onrustig',
   'drift.begin.somethingElse': 'Iets anders…',
   'drift.begin.length': 'Hoe lang?',
-  'drift.length.quick': '1 min',
-  'drift.length.short': '2 min',
-  'drift.length.full': '3 min',
+  'drift.length.quick': '2 min',
+  'drift.length.short': '4 min',
+  'drift.length.full': '6 min',
   'drift.begin.anchorLabel': 'Jouw weg terug:',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': 'Goed. Laat het verder losser worden.',

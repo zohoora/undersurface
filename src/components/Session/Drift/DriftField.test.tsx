@@ -17,15 +17,21 @@ vi.mock('../../../hooks/useDriftSession', () => ({
   useDriftSession: () => ({ ...currentApi }),
 }))
 
-// Voice wiring is covered by useDriftVoice.test; isolate DriftField from it.
+// Voice lifecycle is covered by useDriftVoice.test; expose its cue state here
+// so DriftField's voice-before-rhythm sequencing can be verified.
+let voiceCueState: 'idle' | 'waiting' | 'speaking' | 'complete' | 'failed' = 'idle'
+let voiceConnectionState: 'idle' | 'connecting' | 'connected' | 'error' = 'idle'
+const primeCueMock = vi.fn(() => false)
 vi.mock('../../../hooks/useDriftVoice', () => ({
-  useDriftVoice: () => ({ voiceState: 'idle', assistantSpeaking: false, error: null, speak: vi.fn() }),
+  useDriftVoice: () => ({ voiceState: voiceConnectionState, assistantSpeaking: voiceCueState === 'speaking', cueState: voiceCueState, usingDeviceVoice: false, error: null, speak: vi.fn(), primeCue: primeCueMock }),
 }))
 
 // Isolate DriftField from BLS internals (Web Audio / rAF) — Task 4 tests those.
 vi.mock('./BilateralStimulus', () => ({
   BilateralStimulus: ({ channel, running }: { channel: string; running: boolean }) =>
-    running && channel === 'visual' ? React.createElement('div', { 'data-testid': 'bls-dot' }) : null,
+    running && channel === 'visual'
+      ? React.createElement('div', { 'data-testid': 'drift-rhythm-lane' }, React.createElement('div', { 'data-testid': 'bls-dot' }))
+      : null,
 }))
 
 vi.mock('../../../i18n', () => ({ t: (k: string) => k }))
@@ -46,12 +52,12 @@ vi.mock('../../../store/settings', () => ({
 
 import { DriftField } from './DriftField'
 
-// v2 defaults mirror the 'short' preset (5 waves × 12s).
+// v3 defaults mirror the 'short' preset (3 uninterrupted one-minute rounds).
 function makeState(overrides: Partial<DriftState> = {}): DriftState {
   return {
     phase: 'arrive', setCount: 0, sameStreak: 0, softerStreak: 0, softerTotal: 0,
     inSettleRecheck: false, elapsedMs: 0, closureReason: null, lastInterweave: null,
-    limits: { setTarget: 5, setMs: 12_000, maxSessionMs: 360_000 },
+    limits: { setTarget: 3, setMs: 60_000, maxSessionMs: 300_000 },
     ...overrides,
   }
 }
@@ -86,6 +92,8 @@ function renderPhase(state: DriftState) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  voiceCueState = 'idle'
+  voiceConnectionState = 'idle'
   currentSettings = { lastDriftBlsChannel: 'visual', lastDriftAudioVolume: 0.5, lastDriftVoice: false, lastDriftLength: 'short', lastDriftAnchorKind: 'feet', driftHasCompleted: false }
 })
 afterEach(() => cleanup())
@@ -151,11 +159,34 @@ describe('DriftField v2', () => {
     expect(screen.queryByText('drift.anchor.calmPlaceCue')).not.toBeNull()
   })
 
+  it('guided imagery enables and primes spoken guidance on the Begin gesture', () => {
+    currentApi = makeApi(makeState({ phase: 'arrive' }))
+    render(<DriftField {...PROPS} voiceAvailable />)
+    fireEvent.click(screen.getByText('drift.anchor.calmPlace'))
+    expect(screen.getByRole('checkbox')).toBeChecked()
+    fireEvent.click(screen.getByText('drift.arrive.begin'))
+    expect(primeCueMock).toHaveBeenCalledWith('set:0', 'drift.anchor.calmPlaceCue')
+  })
+
+  it('remounts the phase viewport so mobile setup scroll cannot hide the practice', () => {
+    currentApi = makeApi(makeState({ phase: 'arrive' }))
+    const { rerender, container } = render(<DriftField {...PROPS} />)
+    const setupMain = container.querySelector('main')
+    expect(setupMain).not.toBeNull()
+    setupMain!.scrollTop = 500
+
+    currentApi = { ...currentApi, state: makeState({ phase: 'set' }) }
+    rerender(<DriftField {...PROPS} />)
+    const practiceMain = container.querySelector('main')
+    expect(practiceMain).not.toBe(setupMain)
+    expect(practiceMain?.scrollTop).toBe(0)
+  })
+
   it('a wave renders the BLS dot, the progress dots, and Skip advances', () => {
     renderPhase(makeState({ phase: 'set', setCount: 2 }))
     expect(screen.queryByTestId('bls-dot')).not.toBeNull()
     const progress = screen.getByTestId('drift-progress')
-    expect(progress.getAttribute('aria-label')).toBe('3/5')
+    expect(progress.getAttribute('aria-label')).toBe('3/3')
     expect(progress.querySelectorAll('[data-filled="true"]').length).toBe(2)
     fireEvent.click(screen.getByText('drift.set.skip'))
     expect(currentApi.completeSet).toHaveBeenCalled()
@@ -211,6 +242,53 @@ describe('DriftField v2', () => {
     fireEvent.click(screen.getByText('drift.pause'))
     expect(screen.queryByText('drift.paused.title')).not.toBeNull()
     expect(screen.getAllByText('drift.resume').length).toBeGreaterThan(0)
+  })
+
+  it('keeps the moving point inside a dedicated rhythm lane, separate from guidance text', () => {
+    renderPhase(makeState({ phase: 'set' }))
+    expect(screen.queryByTestId('drift-rhythm-lane')).not.toBeNull()
+    expect(screen.getByText('drift.anchor.feetCue').contains(screen.getByTestId('bls-dot'))).toBe(false)
+  })
+
+  it('finishes spoken guidance before starting the rhythm and its round timer', () => {
+    vi.useFakeTimers()
+    try {
+      currentSettings = { ...currentSettings, lastDriftVoice: true }
+      voiceCueState = 'speaking'
+      voiceConnectionState = 'connected'
+      currentApi = makeApi(makeState({ phase: 'set', setCount: 0 }))
+      const { rerender } = render(<DriftField {...PROPS} voiceAvailable />)
+      expect(screen.queryByTestId('drift-rhythm-lane')).toBeNull()
+      act(() => { vi.advanceTimersByTime(currentApi.state.limits.setMs + 1) })
+      expect(currentApi.completeSet).not.toHaveBeenCalled()
+
+      voiceCueState = 'complete'
+      rerender(<DriftField {...PROPS} voiceAvailable />)
+      expect(screen.queryByTestId('drift-rhythm-lane')).not.toBeNull()
+      act(() => { vi.advanceTimersByTime(currentApi.state.limits.setMs + 1) })
+      expect(currentApi.completeSet).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('pause and resume preserve the remaining round instead of restarting it', () => {
+    vi.useFakeTimers()
+    try {
+      currentApi = makeApi(makeState({ phase: 'set', setCount: 0 }))
+      render(<DriftField {...PROPS} />)
+      act(() => { vi.advanceTimersByTime(20_000) })
+      fireEvent.click(screen.getByText('drift.pause'))
+      act(() => { vi.advanceTimersByTime(90_000) })
+      expect(currentApi.completeSet).not.toHaveBeenCalled()
+      fireEvent.click(screen.getAllByText('drift.resume')[0])
+      act(() => { vi.advanceTimersByTime(39_999) })
+      expect(currentApi.completeSet).not.toHaveBeenCalled()
+      act(() => { vi.advanceTimersByTime(2) })
+      expect(currentApi.completeSet).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   // Regression (Codex #2): the abandon cleanup must fire only on true unmount.

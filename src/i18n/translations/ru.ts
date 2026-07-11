@@ -397,9 +397,9 @@ const ruBase = {
   'drift.chip.unsettled': 'Просто беспокойно',
   'drift.begin.somethingElse': 'Что-то другое…',
   'drift.begin.length': 'Сколько времени?',
-  'drift.length.quick': '1 мин',
-  'drift.length.short': '2 мин',
-  'drift.length.full': '3 мин',
+  'drift.length.quick': '2 мин',
+  'drift.length.short': '4 мин',
+  'drift.length.full': '6 мин',
   'drift.begin.anchorLabel': 'Твой путь назад:',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': 'Хорошо. Пусть отпускает дальше.',

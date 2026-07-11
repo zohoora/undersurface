@@ -397,9 +397,9 @@ const idBase = {
   'drift.chip.unsettled': 'Sekadar gelisah',
   'drift.begin.somethingElse': 'Sesuatu yang lain…',
   'drift.begin.length': 'Berapa lama?',
-  'drift.length.quick': '1 mnt',
-  'drift.length.short': '2 mnt',
-  'drift.length.full': '3 mnt',
+  'drift.length.quick': '2 mnt',
+  'drift.length.short': '4 mnt',
+  'drift.length.full': '6 mnt',
   'drift.begin.anchorLabel': 'Jalan kembalimu:',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': 'Bagus. Biarkan terus mengendur.',

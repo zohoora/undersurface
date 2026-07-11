@@ -397,9 +397,9 @@ const jaBase = {
   'drift.chip.unsettled': 'ただ落ち着かない',
   'drift.begin.somethingElse': '何か別のこと…',
   'drift.begin.length': 'どのくらい？',
-  'drift.length.quick': '1分',
-  'drift.length.short': '2分',
-  'drift.length.full': '3分',
+  'drift.length.quick': '2分',
+  'drift.length.short': '4分',
+  'drift.length.full': '6分',
   'drift.begin.anchorLabel': 'あなたの戻り道：',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': 'いいね。そのままほどけていくままに。',

@@ -438,18 +438,18 @@ describe('driftReduce — v2 length parameterization', () => {
     expect(s.limits).toEqual(DRIFT_LENGTHS.quick)
   })
 
-  it('a quick drift closes via cap after its 3rd wave', () => {
+  it('a quick drift closes via cap after its 2nd round', () => {
     let s = run([
       { type: 'BEGIN', length: 'quick' },
       { type: 'ANCHOR_CONFIRMED' },
       { type: 'STARTING_POINT' },
       { type: 'BASELINE_DONE' },
     ])
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < DRIFT_LENGTHS.quick.setTarget; i++) {
       s = driftReduce(s, { type: 'SET_COMPLETE' })
       s = driftReduce(s, { type: 'NOTICE', direction: 'softer', risk: 0, interweave: null })
     }
-    expect(s.setCount).toBe(3)
+    expect(s.setCount).toBe(DRIFT_LENGTHS.quick.setTarget)
     expect(s.phase).toBe('closure')
     expect(s.closureReason).toBe('cap')
     expect(outcomeForReason(s.closureReason)).toBe('settled')
@@ -515,17 +515,17 @@ describe('driftReduce — v2 softening counters', () => {
       { type: 'STARTING_POINT' },
       { type: 'BASELINE_DONE' },
     ])
-    // softer, skipped, then a softer landing exactly on the wave target —
+    // A softer landing exactly on the round target —
     // toSet's cap branch must not drop that last increment. (No two 'same's,
     // which would close via stuck before the cap is ever reached.)
-    const directions = ['softer', 'skipped', 'softer'] as const
+    const directions = ['skipped', 'softer'] as const
     for (const d of directions) {
       s = driftReduce(s, { type: 'SET_COMPLETE' })
       s = driftReduce(s, notice(d))
     }
     expect(s.phase).toBe('closure')
     expect(s.closureReason).toBe('cap')
-    expect(s.softerTotal).toBe(2) // includes the cap-landing softer
+    expect(s.softerTotal).toBe(1) // includes the cap-landing softer
   })
 })
 

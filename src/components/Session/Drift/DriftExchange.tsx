@@ -16,17 +16,18 @@ interface Props {
   // submit ON TAP — typing is the optional depth, never the requirement.
   onSubmit: (text: string, direction: NoticeDirection) => void | Promise<void>
   submitting?: boolean
+  disabled?: boolean
 }
 
 // v2 check-in: three big pills that submit immediately, plus an "add a word"
 // affordance that reveals a single quiet input. With text present, the pills
 // carry the direction for the typed submission; Enter submits as 'skipped'.
-export function DriftExchange({ prompt, onSubmit, submitting = false }: Props) {
+export function DriftExchange({ prompt, onSubmit, submitting = false, disabled = false }: Props) {
   const [text, setText] = useState('')
   const [showInput, setShowInput] = useState(false)
 
   const submit = async (direction: NoticeDirection) => {
-    if (submitting) return
+    if (submitting || disabled) return
     await onSubmit(text.trim(), direction)
     setText('')
     setShowInput(false)
@@ -41,7 +42,7 @@ export function DriftExchange({ prompt, onSubmit, submitting = false }: Props) {
             key={dir}
             type="button"
             onClick={() => { void submit(dir) }}
-            disabled={submitting}
+            disabled={submitting || disabled}
             style={{
               padding: '12px 22px',
               borderRadius: 999,
@@ -62,7 +63,7 @@ export function DriftExchange({ prompt, onSubmit, submitting = false }: Props) {
         <button
           type="button"
           onClick={() => setShowInput(true)}
-          disabled={submitting}
+          disabled={submitting || disabled}
           style={{
             background: 'transparent',
             border: 'none',
@@ -77,7 +78,7 @@ export function DriftExchange({ prompt, onSubmit, submitting = false }: Props) {
       ) : (
         <input
           value={text}
-          disabled={submitting}
+          disabled={submitting || disabled}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void submit('skipped') } }}
           placeholder={t('drift.choose.placeholder')}

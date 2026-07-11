@@ -60,7 +60,10 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
   const [paused, setPaused] = useState(false)
   const primedAudioRef = useRef<AudioContext | null>(null)
   const cueRecordedRef = useRef(false)
+  const firstRoundRecordedRef = useRef(false)
   const guidanceErrorRecordedRef = useRef(false)
+  const roundRemainingRef = useRef(limits.setMs)
+  const roundKeyRef = useRef('')
 
   const recordCueRequested = useCallback(() => {
     if (cueRecordedRef.current) return
@@ -85,9 +88,9 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
     userPartNames: EMPTY_PARTS,
     onCueRequested: recordCueRequested,
   })
-  const voiceHold = voiceOn && (driftVoice.assistantSpeaking || (setCount === 0 && driftVoice.voiceState === 'connecting'))
+  const voiceHold = voiceOn && (driftVoice.cueState === 'waiting' || driftVoice.cueState === 'speaking')
   const setActive = phase === 'set' && !voiceHold && !paused
-  const rhythmRunning = (setActive || phase === 'settle') && !paused
+  const settleActive = phase === 'settle' && !voiceHold && !paused
 
   const summary = (): DriftReturnSummary => ({
     direction: drift.state.closureReason === 'settle' || drift.state.closureReason === 'crisis'
@@ -106,7 +109,9 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
   }, [])
   useEffect(() => {
     if (!voiceOn || phase === 'arrive' || phase === 'closed') return
-    const voiceGuidanceState = driftVoice.voiceState === 'connected'
+    const voiceGuidanceState = driftVoice.usingDeviceVoice
+      ? 'device_fallback'
+      : driftVoice.voiceState === 'connected'
       ? 'connected'
       : driftVoice.voiceState === 'error' ? 'failed' : 'connecting'
     updateExperienceTelemetry({ voiceGuidanceState })
@@ -114,18 +119,36 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
       guidanceErrorRecordedRef.current = true
       engineLog('warn', 'drift.guidance_failed', 'one-way Drift guidance could not connect', { sessionId: parentSessionId ?? undefined })
     }
-  }, [voiceOn, phase, driftVoice.voiceState, updateExperienceTelemetry, parentSessionId])
+  }, [voiceOn, phase, driftVoice.voiceState, driftVoice.usingDeviceVoice, updateExperienceTelemetry, parentSessionId])
 
   useEffect(() => {
-    if (!setActive) return
-    const id = window.setTimeout(completeSet, limits.setMs)
-    return () => window.clearTimeout(id)
-  }, [setActive, completeSet, limits.setMs])
+    const key = phase === 'set' ? `set:${setCount}` : ''
+    if (!key || roundKeyRef.current === key) return
+    roundKeyRef.current = key
+    roundRemainingRef.current = limits.setMs
+  }, [phase, setCount, limits.setMs])
+
+  // Pause/resume and spoken guidance preserve the round's remaining time.
+  // The old timeout restarted from zero whenever audio state changed, which
+  // made the displayed round, sound, and actual transition disagree.
   useEffect(() => {
-    if (phase !== 'settle' || paused) return
-    const id = window.setTimeout(settleDone, limits.setMs)
+    if (!setActive) return
+    const startedAt = performance.now()
+    const id = window.setTimeout(completeSet, roundRemainingRef.current)
+    if (setCount === 0 && !firstRoundRecordedRef.current) {
+      firstRoundRecordedRef.current = true
+      updateExperienceTelemetry({ firstWaveStartedAt: Date.now() })
+    }
+    return () => {
+      window.clearTimeout(id)
+      roundRemainingRef.current = Math.max(0, roundRemainingRef.current - (performance.now() - startedAt))
+    }
+  }, [setActive, setCount, completeSet, updateExperienceTelemetry])
+  useEffect(() => {
+    if (!settleActive) return
+    const id = window.setTimeout(settleDone, 12_000)
     return () => window.clearTimeout(id)
-  }, [phase, paused, settleDone, limits.setMs])
+  }, [settleActive, settleDone])
 
   const inPractice = phase !== 'arrive' && phase !== 'closed'
   useEffect(() => {
@@ -184,6 +207,7 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
       lastDriftBlsChannel: blsChannel,
     })
     const custom = customFocus.trim()
+    if (voice && voiceAvailable) driftVoice.primeCue('set:0', anchorCue)
     const standalone = window.matchMedia?.('(display-mode: standalone)').matches
       || Boolean((navigator as Navigator & { standalone?: boolean }).standalone)
     void drift.begin({
@@ -210,10 +234,6 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
     <div role="dialog" aria-modal="true" aria-label="Drift" style={overlayStyle}>
       <div aria-hidden style={{ ...warmthStyle, opacity: 0.05 + Math.min(setCount / limits.setTarget, 1) * 0.18 }} />
 
-      {phase !== 'arrive' && phase !== 'closed' && (
-        <BilateralStimulus channel={blsChannel} running={rhythmRunning} passMs={passMsForSoftening(softerStreak)} volume={settings.lastDriftAudioVolume} audioContext={primedAudioRef.current} />
-      )}
-
       <button
         type="button"
         aria-label={phase === 'arrive' ? t('drift.exit') : t('drift.settleClose')}
@@ -223,7 +243,7 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
         ×
       </button>
 
-      <main style={{ ...mainStyle, justifyContent: phase === 'arrive' ? 'flex-start' : 'center' }}>
+      <main key={phase} style={{ ...mainStyle, justifyContent: phase === 'arrive' ? 'flex-start' : 'center' }}>
         {phase === 'arrive' && (
           <div style={columnStyle}>
             <div style={{ font: "italic 28px/1.2 'Cormorant Garamond', serif" }}>{t('drift.arrive.title')}</div>
@@ -253,7 +273,7 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
                 <SectionLabel>{t('drift.begin.anchorLabel')}</SectionLabel>
                 <div style={wrapStyle}>
                   <Choice active={anchorKind === 'feet'} onClick={() => setAnchorKind('feet')}>{t('drift.anchor.feet')}</Choice>
-                  <Choice active={anchorKind === 'calm_place'} onClick={() => setAnchorKind('calm_place')}>{t('drift.anchor.calmPlace')}</Choice>
+                  <Choice active={anchorKind === 'calm_place'} onClick={() => { setAnchorKind('calm_place'); if (voiceAvailable) setVoice(true) }}>{t('drift.anchor.calmPlace')}</Choice>
                 </div>
 
                 <SectionLabel>{t('drift.arrive.rhythm')}</SectionLabel>
@@ -280,19 +300,25 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
           <div style={columnStyle}>
             <div style={{ fontSize: 16, lineHeight: 1.7, color: 'var(--text-secondary)', maxWidth: 430 }}>{waveHint}</div>
             {voiceOn && driftVoice.voiceState === 'connecting' && <div role="status" style={helperStyle}>{t('drift.voice.connecting')}</div>}
-            {voiceOn && driftVoice.error && <div role="status" style={helperStyle}>{t('drift.voice.unavailable')}</div>}
+            {voiceOn && driftVoice.cueState === 'failed' && <div role="status" style={helperStyle}>{t('drift.voice.unavailable')}</div>}
             {setCount === 0 && <div style={helperStyle}>{t('drift.set.butterflyHint')}</div>}
+            <BilateralStimulus channel={blsChannel} running={setActive} passMs={passMsForSoftening(softerStreak)} volume={settings.lastDriftAudioVolume} audioContext={primedAudioRef.current} />
             <button type="button" onClick={completeSet} disabled={paused} style={ghostBtn}>{t('drift.set.skip')}</button>
           </div>
         )}
 
         {phase === 'notice' && (
           <div style={{ ...columnStyle, width: '100%' }}>
-            <DriftExchange prompt={t('drift.notice.prompt')} onSubmit={submitCheckIn} submitting={drift.isSubmitting} />
+            <DriftExchange prompt={t('drift.notice.prompt')} onSubmit={submitCheckIn} submitting={drift.isSubmitting} disabled={voiceHold} />
           </div>
         )}
 
-        {phase === 'settle' && <div style={{ fontSize: 17, lineHeight: 1.7, color: 'var(--text-secondary)', maxWidth: 430 }}>{t('drift.settle.line')}</div>}
+        {phase === 'settle' && (
+          <div style={columnStyle}>
+            <div style={{ fontSize: 17, lineHeight: 1.7, color: 'var(--text-secondary)', maxWidth: 430 }}>{t('drift.settle.line')}</div>
+            <BilateralStimulus channel={blsChannel} running={settleActive} passMs={passMsForSoftening(0)} volume={settings.lastDriftAudioVolume} audioContext={primedAudioRef.current} />
+          </div>
+        )}
 
         {phase === 'closure' && (
           <DriftClosing
