@@ -193,6 +193,25 @@ describe('useDriftSession', () => {
     expect(driftAddMock).toHaveBeenCalledWith(expect.objectContaining({ length: 'quick' }))
   })
 
+  it('records content-free device telemetry and accepts late guidance/audio updates', async () => {
+    const { result } = renderHook(() => useDriftSession('parent-1'))
+    await act(async () => {
+      await result.current.begin({
+        anchorKind: 'calm_place', blsChannel: 'audio', voice: true,
+        length: 'quick', focus: 'a built-in chip', focusIsCustom: false,
+        audioState: 'priming', displayMode: 'standalone',
+      })
+    })
+    expect(driftAddMock).toHaveBeenCalledWith(expect.objectContaining({
+      audioState: 'priming', voiceGuidanceState: 'connecting', displayMode: 'standalone',
+      firstWaveStartedAt: expect.any(Number),
+    }))
+    act(() => result.current.updateExperienceTelemetry({ voiceGuidanceState: 'connected', firstCueRequestedAt: 123 }))
+    await waitFor(() => expect(driftUpdateMock).toHaveBeenCalledWith('drift-test-1', expect.objectContaining({
+      voiceGuidanceState: 'connected', firstCueRequestedAt: 123,
+    })))
+  })
+
   it('L1 keyword hit on a TYPED focus aborts to grounding before the first wave', async () => {
     detectCrisisKeywordsMock.mockReturnValue(true)
     const { result } = renderHook(() => useDriftSession(null))

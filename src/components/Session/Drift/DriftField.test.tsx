@@ -72,6 +72,7 @@ function makeApi(state: DriftState): DriftApi {
     closureDone: vi.fn(async () => {}),
     abandon: vi.fn(async () => {}),
     recordInterruption: vi.fn(),
+    updateExperienceTelemetry: vi.fn(),
     voiceActive: false,
   }
 }

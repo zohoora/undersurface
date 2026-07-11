@@ -755,6 +755,33 @@ describe('streamChatCompletion — risk preamble parsing', () => {
     expect(scrubLeakedRiskMarker('<<RISK:N>> That sentence matters.')).toBe('That sentence matters.')
     expect(scrubLeakedRiskMarker('<<RISK:0>>\n\nHey there.')).toBe('Hey there.')
     expect(scrubLeakedRiskMarker('`<<RISK:2>>`\nPlease reach out.')).toBe('Please reach out.')
+    expect(scrubLeakedRiskMarker('<<RISK:0;FIT:landed;MOVE:deepened;AG')).toBe('')
+  })
+
+  it('rejects a stream that ends during the hidden risk preamble', async () => {
+    mockStream([
+      sse('<<RISK:0;FIT:landed;MOVE:deepened;AG'),
+      'data: [DONE]\n\n',
+    ])
+    const stream = await loadStream()
+
+    const tokens: string[] = []
+    let completed = false
+    let error: Error | null = null
+    await stream(
+      [{ role: 'user', content: 'hi' }],
+      {
+        onToken: token => tokens.push(token),
+        onRisk: () => {},
+        onComplete: () => { completed = true },
+        onError: value => { error = value },
+      },
+    )
+
+    expect(tokens).toEqual([])
+    expect(completed).toBe(false)
+    expect(error).toBeInstanceOf(Error)
+    expect(error?.message).toBe('stream ended during risk preamble')
   })
 
   it('scrubLeakedRiskMarker leaves marker-free content and mid-text quotes untouched', async () => {

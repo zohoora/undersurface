@@ -8,6 +8,7 @@ export interface DriftVoiceOptions {
   cueKey: string
   cueText: string | null
   userPartNames: string[]
+  onCueRequested?: () => void
 }
 
 export interface DriftVoiceState {
@@ -21,7 +22,7 @@ export interface DriftVoiceState {
 // need to listen to the writer, so passive mode avoids getUserMedia entirely.
 // This is also a useful product truth: "spoken guidance" means guidance, not a
 // second conversational pipeline competing with the text companion.
-export function useDriftVoice({ enabled, cueKey, cueText, userPartNames }: DriftVoiceOptions): DriftVoiceState {
+export function useDriftVoice({ enabled, cueKey, cueText, userPartNames, onCueRequested }: DriftVoiceOptions): DriftVoiceState {
   const voice = useVoiceSession()
   const voiceRef = useRef(voice)
   useEffect(() => { voiceRef.current = voice })
@@ -43,7 +44,8 @@ export function useDriftVoice({ enabled, cueKey, cueText, userPartNames }: Drift
     if (!enabled || voice.state !== 'connected' || !cueText || lastCueKeyRef.current === cueKey) return
     lastCueKeyRef.current = cueKey
     voiceRef.current.speak(cueText)
-  }, [enabled, cueKey, cueText, voice.state])
+    onCueRequested?.()
+  }, [enabled, cueKey, cueText, voice.state, onCueRequested])
 
   return {
     voiceState: voice.state,

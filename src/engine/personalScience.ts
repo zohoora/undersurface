@@ -21,7 +21,7 @@ const TRANSFERABLE_ARMS: ResearchArm[] = ['witness', 'reflect', 'clarify', 'make
 
 export interface ResearchAssignment {
   event: ResearchEvent
-  delivery: 'model' | 'fixed_silence' | 'fixed_journal_offer' | 'fixed_transfer'
+  delivery: 'model' | 'fixed_silence' | 'fixed_journal_offer' | 'fixed_surface_offer' | 'fixed_transfer'
   responseMode: CompanionResponseMode
   directive?: string
 }

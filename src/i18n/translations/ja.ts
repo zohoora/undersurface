@@ -1,5 +1,6 @@
 import { sessionCopy } from './sessionCopy'
 import { driftSeamlessFallback } from '../driftSeamlessFallback'
+import { conductorFallback } from '../conductorFallback'
 
 const jaBase = {
   'login.tagline': '自由に書いてください。あなたが立ち止まると、\n内なる声がそっと動き出します——\n裁くためではなく、あなたのそばに座るために\n言葉の中で。',
@@ -414,6 +415,6 @@ const jaBase = {
   'drift.closing.steady': 'それと一緒にいられた。それは大切なこと。',
 } as const
 
-const ja = { ...jaBase, ...driftSeamlessFallback, ...sessionCopy.ja } as const
+const ja = { ...jaBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.ja } as const
 
 export default ja

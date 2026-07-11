@@ -1,5 +1,6 @@
 import { sessionCopy } from './sessionCopy'
 import { driftSeamlessFallback } from '../driftSeamlessFallback'
+import { conductorFallback } from '../conductorFallback'
 
 const zhBase = {
   'login.tagline': '自由书写。当你停顿时，\n一个内心的声音轻轻涌起——\n不是来评判，而是来陪伴你\n坐在文字之间。',
@@ -414,6 +415,6 @@ const zhBase = {
   'drift.closing.steady': '你陪着它待了下来。这很重要。',
 } as const
 
-const zh = { ...zhBase, ...driftSeamlessFallback, ...sessionCopy.zh } as const
+const zh = { ...zhBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.zh } as const
 
 export default zh

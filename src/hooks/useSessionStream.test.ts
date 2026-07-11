@@ -473,6 +473,8 @@ describe('useSessionStream — empty-completion retries', () => {
 
     expect(sessionMessageAddMock).not.toHaveBeenCalled()
     expect(wiring.setOpenerError).toHaveBeenLastCalledWith('Therapist offline.')
+    // The fixture's orchestrator starts at 300; retries must add 400 each.
+    expect(streamMock.mock.calls.map(call => call[2])).toEqual([300, 700, 1100])
     vi.useRealTimers()
   })
 

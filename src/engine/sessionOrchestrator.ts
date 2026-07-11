@@ -21,14 +21,15 @@ export class SessionOrchestrator {
   }
 
   getMaxTokens(phase: SessionPhase): number {
-    // gpt-5.5 with reasoning=medium consumes a non-trivial slice of the budget
-    // on internal reasoning before any content tokens are emitted. Empty-completion
-    // bug logs (2026-05-06) showed bytes=608 streams (= zero content) when the
-    // budget was tight. Headroom is cheap; truncated therapists are not.
+    // gpt-5.5 budgets hidden reasoning, the ambient assessment preamble, and
+    // visible prose against the same max_completion_tokens value. The old
+    // 300–600 range could end halfway through the hidden preamble, especially
+    // on a research-assigned turn. These are ceilings, not length targets;
+    // prompt instructions still keep the visible reply appropriately concise.
     switch (phase) {
-      case 'opening': return 300
-      case 'deepening': return 500
-      case 'closing': return 600
+      case 'opening': return 1600
+      case 'deepening': return 2000
+      case 'closing': return 2400
     }
   }
 

@@ -65,6 +65,10 @@ const RISK_PREAMBLE_PATTERN = /^<<RISK:([^;>]{1,8})(?:;FIT:([^;>]{1,16});MOVE:([
 // fires as the real risk — discarding a crisis signal the model actually
 // produced would be worse than the formatting noise.
 const RISK_MARKER_SCRUB = /^[\s`*_]{0,8}<<RISK:([^>]{1,240})>>[`*_]{0,8}[ \t]*\n*/
+// A stream can end cleanly at the transport layer while the model is still
+// halfway through its hidden preamble (for example because it reached its
+// output cap). Treat that as a failed completion, not user-visible prose.
+const INCOMPLETE_RISK_PREAMBLE = /^[\s`*_]{0,8}<<RISK:[^>]{0,320}$/
 const PREAMBLE_FAIL_OPEN_CHARS = 320
 // Abort a stream only after this long with no incoming data. Re-armed on every
 // chunk, so it caps idle time (a stalled connection), not total duration.
@@ -76,7 +80,7 @@ const STREAM_IDLE_MS = 30000
 // start of the message — a marker quoted mid-text is untouched.
 export function scrubLeakedRiskMarker(text: string): string {
   const match = text.match(RISK_MARKER_SCRUB)
-  if (!match) return text
+  if (!match) return INCOMPLETE_RISK_PREAMBLE.test(text) ? '' : text
   return text.slice(match[0].length).replace(/^\s+/, '')
 }
 
@@ -374,6 +378,17 @@ export async function streamChatCompletion(
     // (via the outer catch) rather than delivering the partial text as complete.
     if (truncationError) {
       throw new Error(`stream truncated by server: ${truncationError}`)
+    }
+
+    // A recognizable partial marker is never content. A nominally clean SSE
+    // ending can still mean the model exhausted its output budget while
+    // writing metadata; routing this through onError lets the session layer
+    // make its existing empty-completion retry instead of persisting gibberish.
+    if (!preambleConsumed && INCOMPLETE_RISK_PREAMBLE.test(preambleBuffer)) {
+      engineLog('warn', 'stream.preamble_malformed', 'stream ended during risk preamble; retrying', {
+        extra: { category: 'truncated_preamble', length: preambleBuffer.length },
+      })
+      throw new Error('stream ended during risk preamble')
     }
 
     // Fail-open if preamble never matched and we ended below the threshold.

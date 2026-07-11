@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useDriftSession } from '../../../hooks/useDriftSession'
 import { useDriftVoice } from '../../../hooks/useDriftVoice'
 import { passMsForSoftening } from '../../../engine/driftEngine'
@@ -10,6 +10,7 @@ import { getSettings, updateSettings } from '../../../store/settings'
 import { acquireWakeLock, reacquireWakeLockIfVisible, releaseWakeLock } from '../../../native/keepAwake'
 import { t } from '../../../i18n'
 import type { DriftAnchorKind, DriftBlsChannel } from '../../../types'
+import { engineLog } from '../../../services/diagnostics'
 
 const CHIPS = ['drift.chip.worry', 'drift.chip.body', 'drift.chip.today', 'drift.chip.heavy', 'drift.chip.unsettled'] as const
 type ChipKey = (typeof CHIPS)[number]
@@ -44,7 +45,7 @@ const EMPTY_PARTS: string[] = []
 export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClose }: Props) {
   const drift = useDriftSession(parentSessionId, hrvContext)
   const { phase, setCount, softerStreak, softerTotal, limits } = drift.state
-  const { abandon, completeSet, settleDone, requestClose, recordInterruption } = drift
+  const { abandon, completeSet, settleDone, requestClose, recordInterruption, updateExperienceTelemetry } = drift
   const settings = getSettings()
 
   const [voice, setVoice] = useState(settings.lastDriftVoice)
@@ -58,6 +59,14 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
   const [adjusting, setAdjusting] = useState(!settings.driftHasCompleted)
   const [paused, setPaused] = useState(false)
   const primedAudioRef = useRef<AudioContext | null>(null)
+  const cueRecordedRef = useRef(false)
+  const guidanceErrorRecordedRef = useRef(false)
+
+  const recordCueRequested = useCallback(() => {
+    if (cueRecordedRef.current) return
+    cueRecordedRef.current = true
+    updateExperienceTelemetry({ firstCueRequestedAt: Date.now() })
+  }, [updateExperienceTelemetry])
 
   const anchorCue = anchorKind === 'calm_place' ? t('drift.anchor.calmPlaceCue') : t('drift.anchor.feetCue')
   const waveHint = drift.companionCue || (setCount === 0
@@ -74,6 +83,7 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
     cueKey: `${phase}:${setCount}`,
     cueText,
     userPartNames: EMPTY_PARTS,
+    onCueRequested: recordCueRequested,
   })
   const voiceHold = voiceOn && (driftVoice.assistantSpeaking || (setCount === 0 && driftVoice.voiceState === 'connecting'))
   const setActive = phase === 'set' && !voiceHold && !paused
@@ -94,6 +104,17 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
     primedAudioRef.current = null
     if (context) void context.close()
   }, [])
+  useEffect(() => {
+    if (!voiceOn || phase === 'arrive' || phase === 'closed') return
+    const voiceGuidanceState = driftVoice.voiceState === 'connected'
+      ? 'connected'
+      : driftVoice.voiceState === 'error' ? 'failed' : 'connecting'
+    updateExperienceTelemetry({ voiceGuidanceState })
+    if (voiceGuidanceState === 'failed' && !guidanceErrorRecordedRef.current) {
+      guidanceErrorRecordedRef.current = true
+      engineLog('warn', 'drift.guidance_failed', 'one-way Drift guidance could not connect', { sessionId: parentSessionId ?? undefined })
+    }
+  }, [voiceOn, phase, driftVoice.voiceState, updateExperienceTelemetry, parentSessionId])
 
   useEffect(() => {
     if (!setActive) return
@@ -140,11 +161,21 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
     // WebKit only guarantees Web Audio playback when the context is created or
     // resumed directly inside a user gesture. Prime the exact context the
     // rhythm will use before the first render of the practice.
+    let audioState: 'not_requested' | 'priming' | 'failed' = 'not_requested'
     if (blsChannel === 'audio') {
+      audioState = 'priming'
       try {
         primedAudioRef.current ??= new AudioContext()
-        void primedAudioRef.current.resume()
-      } catch { /* the visible rhythm remains as the fallback */ }
+        void primedAudioRef.current.resume().then(() => {
+          updateExperienceTelemetry({ audioState: 'primed' })
+        }).catch(() => {
+          updateExperienceTelemetry({ audioState: 'failed' })
+          engineLog('warn', 'drift.audio_failed', 'Drift audio context could not resume', { sessionId: parentSessionId ?? undefined })
+        })
+      } catch {
+        audioState = 'failed'
+        engineLog('warn', 'drift.audio_failed', 'Drift audio context could not be created', { sessionId: parentSessionId ?? undefined })
+      }
     }
     updateSettings({
       lastDriftVoice: voice,
@@ -153,7 +184,18 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
       lastDriftBlsChannel: blsChannel,
     })
     const custom = customFocus.trim()
-    void drift.begin({ anchorKind, blsChannel, voice, length, focus: custom || t(chip), focusIsCustom: custom.length > 0 })
+    const standalone = window.matchMedia?.('(display-mode: standalone)').matches
+      || Boolean((navigator as Navigator & { standalone?: boolean }).standalone)
+    void drift.begin({
+      anchorKind,
+      blsChannel,
+      voice,
+      length,
+      focus: custom || t(chip),
+      focusIsCustom: custom.length > 0,
+      audioState,
+      displayMode: standalone ? 'standalone' : 'browser',
+    })
   }
 
   const submitCheckIn = async (text: string, direction: NoticeDirection) => {

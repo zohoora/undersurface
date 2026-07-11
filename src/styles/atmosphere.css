@@ -1888,7 +1888,9 @@ body {
   }
 
   .session-container {
-    padding: 56px 14px 80px;
+    /* Clear the 44px mobile navigation trigger. The opener previously began
+       on the same row and its first words could sit underneath the button. */
+    padding: 76px 14px 80px;
   }
 
   .session-message-text {

@@ -64,6 +64,13 @@ describe('useDriftVoice', () => {
     expect(speakMock).toHaveBeenCalledTimes(3)
   })
 
+  it('reports the first cue request to operational telemetry', () => {
+    const onCueRequested = vi.fn()
+    renderHook(() => useDriftVoice(base({ onCueRequested })))
+    expect(onCueRequested).toHaveBeenCalledTimes(1)
+    expect(speakMock).toHaveBeenCalledWith('Find your anchor.')
+  })
+
   it('surfaces connection errors without blocking the visual practice', () => {
     voiceStateMock = 'error'
     const { result } = renderHook(() => useDriftVoice(base()))

@@ -1,5 +1,6 @@
 import { sessionCopy } from './sessionCopy'
 import { driftSeamlessFallback } from '../driftSeamlessFallback'
+import { conductorFallback } from '../conductorFallback'
 
 const koBase = {
   'login.tagline': '자유롭게 쓰세요. 멈출 때,\n내면의 목소리가 깨어납니다 —\n판단하려는 게 아니라,\n글 속에서 당신 곁에 앉으려는 거예요.',
@@ -414,6 +415,6 @@ const koBase = {
   'drift.closing.steady': '그것과 함께 있었어. 그거면 충분해.',
 } as const
 
-const ko = { ...koBase, ...driftSeamlessFallback, ...sessionCopy.ko } as const
+const ko = { ...koBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.ko } as const
 
 export default ko

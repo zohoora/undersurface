@@ -90,18 +90,17 @@ describe('SessionOrchestrator', () => {
   })
 
   describe('getMaxTokens', () => {
-    // Doubled (was 150/250/300) to give reasoning models headroom — see
-    // sessionOrchestrator.ts comment block above getMaxTokens.
-    it('returns 300 for opening', () => {
-      expect(orch.getMaxTokens('opening')).toBe(300)
+    // Includes headroom for GPT-5.5 hidden reasoning + ambient metadata.
+    it('returns 1600 for opening', () => {
+      expect(orch.getMaxTokens('opening')).toBe(1600)
     })
 
-    it('returns 500 for deepening', () => {
-      expect(orch.getMaxTokens('deepening')).toBe(500)
+    it('returns 2000 for deepening', () => {
+      expect(orch.getMaxTokens('deepening')).toBe(2000)
     })
 
-    it('returns 600 for closing', () => {
-      expect(orch.getMaxTokens('closing')).toBe(600)
+    it('returns 2400 for closing', () => {
+      expect(orch.getMaxTokens('closing')).toBe(2400)
     })
   })
 

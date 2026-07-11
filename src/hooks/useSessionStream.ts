@@ -195,7 +195,10 @@ export function useSessionStream(wiring: SessionStreamWiring) {
       // Inner loop: original + one crisis-grounded retry.
       for (let attempt = 0; attempt < 2; attempt++) {
         const phase = orchestrator.detectPhase(currentMessages)
-        const maxTokens = orchestrator.getMaxTokens(phase)
+        // Each empty retry gets more reasoning/output headroom. Repeating the
+        // exact budget after a length-starved completion only reproduces the
+        // same failure; the server caps this safely at 4,000 tokens.
+        const maxTokens = orchestrator.getMaxTokens(phase) + emptyAttempt * 400
 
         const context = contextRef.current
         const hrvContext = hrv.buildPromptContext()

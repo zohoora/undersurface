@@ -177,6 +177,11 @@ export interface DriftSession {
   closureReason?: string | null
   actualDurationMs?: number
   interruptions?: number
+  audioState?: 'not_requested' | 'priming' | 'primed' | 'failed'
+  voiceGuidanceState?: 'off' | 'connecting' | 'connected' | 'failed'
+  firstCueRequestedAt?: number
+  firstWaveStartedAt?: number
+  displayMode?: 'browser' | 'standalone'
 }
 
 export interface Session {
@@ -467,6 +472,7 @@ export type ResearchProtocolId =
   | 'field-window-timing-v1'
   | 'ambiguity-prism-v1'
   | 'naturalistic-sms-v1'
+  | 'adaptive-conductor-v1'
 
 export type TransferLevel = 'companion_led' | 'user_first' | 'minimal_cue' | 'independent'
 export type TransferStatus = 'not_started' | 'learning' | 'paused' | 'graduated'
@@ -490,12 +496,41 @@ export type ResearchArm =
   | 'single_hypothesis'
   | 'ambiguity_prism'
 
+export type ConductorReason =
+  | 'ambient_need'
+  | 'limited_capacity'
+  | 'looping'
+  | 'stirred'
+  | 'explicit_writing'
+  | 'explicit_speaking'
+  | 'body_activation'
+  | 'action_language'
+  | 'closing_language'
+  | 'long_form'
+  | 'writer_protocol'
+  | 'transfer_fading'
+  | 'ordinary_fit'
+
+export interface ConductorCandidate {
+  arm: ResearchArm
+  score: number
+  reasons: ConductorReason[]
+}
+
+export interface ConductorDecision {
+  phase: 'shadow' | 'live'
+  confidence: 'low' | 'medium' | 'high'
+  candidates: ConductorCandidate[]
+  availableSurfaces: SessionSurface[]
+  shadowDecisionsBefore: number
+}
+
 export interface ResearchEvent {
   id: string
   protocolId: ResearchProtocolId
   protocolVersion: number
   assignmentKind: 'randomized' | 'observational' | 'personalized'
-  status: 'assigned' | 'delivered' | 'overridden' | 'cancelled'
+  status: 'shadow' | 'assigned' | 'delivered' | 'overridden' | 'cancelled'
   source: 'sms' | SessionSurface
   sessionId?: string
   sourceId?: string
@@ -517,6 +552,7 @@ export interface ResearchEvent {
   createdAt: number
   deliveredAt?: number
   cancelReason?: string
+  conductorDecision?: ConductorDecision
   updatedAt: number
 }
 

@@ -10,6 +10,7 @@ import { extractPromiseMarkers } from '../../ai/promiseParser'
 import { scrubLeakedRiskMarker } from '../../ai/openrouter'
 import { extractAmbiguityPrism } from '../../ai/ambiguityPrismParser'
 import { AmbiguityPrism } from './AmbiguityPrism'
+import { ConductorOfferCard } from './ConductorOfferCard'
 
 interface Props {
   message: SessionMessageType
@@ -18,6 +19,7 @@ interface Props {
   // history and closed sessions never grow offer cards.
   intentionOfferSessionId?: string | null
   prismSessionId?: string | null
+  conductorOfferSessionId?: string | null
 }
 
 export const SessionMessageBubble = memo(function SessionMessageBubble({
@@ -25,6 +27,7 @@ export const SessionMessageBubble = memo(function SessionMessageBubble({
   onRecommendationTap,
   intentionOfferSessionId,
   prismSessionId,
+  conductorOfferSessionId,
 }: Props) {
   const isUser = message.speaker === 'user'
   // Therapist messages persisted while older parsers were live can carry a
@@ -105,6 +108,9 @@ export const SessionMessageBubble = memo(function SessionMessageBubble({
         )}
         {prism && prismSessionId && (
           <AmbiguityPrism message={message} sessionId={prismSessionId} hypotheses={prism} />
+        )}
+        {!isUser && conductorOfferSessionId && message.researchEventId?.startsWith('conductor-') && ['journal_arc', 'speak_arc', 'relax_arc', 'drift_arc'].includes(message.researchArm ?? '') && (
+          <ConductorOfferCard eventId={message.researchEventId} />
         )}
       </div>
     </>

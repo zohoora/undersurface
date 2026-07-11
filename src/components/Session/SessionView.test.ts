@@ -264,16 +264,16 @@ describe('SessionOrchestrator (integration with SessionView)', () => {
   })
 
   describe('getMaxTokens', () => {
-    it('returns 300 for opening phase', () => {
-      expect(orchestrator.getMaxTokens('opening')).toBe(300)
+    it('returns 1600 for opening phase', () => {
+      expect(orchestrator.getMaxTokens('opening')).toBe(1600)
     })
 
-    it('returns 500 for deepening phase', () => {
-      expect(orchestrator.getMaxTokens('deepening')).toBe(500)
+    it('returns 2000 for deepening phase', () => {
+      expect(orchestrator.getMaxTokens('deepening')).toBe(2000)
     })
 
-    it('returns 600 for closing phase', () => {
-      expect(orchestrator.getMaxTokens('closing')).toBe(600)
+    it('returns 2400 for closing phase', () => {
+      expect(orchestrator.getMaxTokens('closing')).toBe(2400)
     })
   })
 

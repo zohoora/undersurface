@@ -199,6 +199,27 @@ describe('personal science findings', () => {
     const finding = deriveResearchFindings(base, outcomes)[0]
     expect(deriveResearchFindings(base, outcomes, [{ findingKey: finding.id } as never])).toHaveLength(0)
   })
+
+  it('turns randomized delivered conductor comparisons into contextual findings, never shadow decisions', () => {
+    const conductor = (id: string, arm: ResearchEvent['assignedArm'], status: ResearchEvent['status'] = 'delivered'): ResearchEvent => ({
+      ...event(id, arm),
+      protocolId: 'adaptive-conductor-v1',
+      status,
+      assignmentKind: status === 'shadow' ? 'observational' : 'randomized',
+      ...(status === 'shadow' ? { deliveredArm: undefined } : {}),
+    })
+    const events = [
+      conductor('shadow', 'journal_arc', 'shadow'),
+      conductor('c1', 'journal_arc'),
+      conductor('c2', 'journal_arc'),
+      conductor('c3', 'continue_talk'),
+    ]
+    const outcomes = [outcome('c1', 'helped'), outcome('c2', 'helped'), outcome('c3', 'nothing')]
+    const findings = deriveResearchFindings(events, outcomes)
+    expect(findings).toHaveLength(1)
+    expect(findings[0]).toMatchObject({ protocolId: 'adaptive-conductor-v1', preferredArm: 'journal_arc', ratedEvents: 3 })
+    expect(findings[0].evidenceEventIds).not.toContain('shadow')
+  })
 })
 
 function transferEvent(id: string, level: TransferLevel): ResearchEvent {

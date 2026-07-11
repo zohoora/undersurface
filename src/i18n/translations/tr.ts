@@ -1,5 +1,6 @@
 import { sessionCopy } from './sessionCopy'
 import { driftSeamlessFallback } from '../driftSeamlessFallback'
+import { conductorFallback } from '../conductorFallback'
 
 const trBase = {
   'login.tagline': 'Özgürce yaz. Duraksadığında,\niç sesin uyanır —\nyargılamak için değil,\nkelimelerin arasında yanında oturmak için.',
@@ -414,6 +415,6 @@ const trBase = {
   'drift.closing.steady': 'Onunla kaldın. Bu önemli.',
 } as const
 
-const tr = { ...trBase, ...driftSeamlessFallback, ...sessionCopy.tr } as const
+const tr = { ...trBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.tr } as const
 
 export default tr

@@ -12,6 +12,9 @@ export type DiagnosticCode =
   | 'hrv.skin_filter_low_confidence'
   | 'hrv.persistence_failed'
   | 'grounding.activated'
+  | 'conductor.persistence_failed'
+  | 'drift.guidance_failed'
+  | 'drift.audio_failed'
 
 export interface EngineLogContext {
   sessionId?: string
@@ -61,6 +64,9 @@ const DEDUP_RULES: Record<DiagnosticCode, DedupRule> = {
   // activateGrounding is already idempotent while active; every distinct
   // activation is significant, so no dedup.
   'grounding.activated': { cooldownMs: 0 },
+  'conductor.persistence_failed': { cooldownMs: 30_000 },
+  'drift.guidance_failed': { cooldownMs: 30_000 },
+  'drift.audio_failed': { cooldownMs: 30_000 },
 }
 
 const MAX_MSG_CHARS = 200

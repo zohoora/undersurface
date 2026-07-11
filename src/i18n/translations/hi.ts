@@ -1,5 +1,6 @@
 import { sessionCopy } from './sessionCopy'
 import { driftSeamlessFallback } from '../driftSeamlessFallback'
+import { conductorFallback } from '../conductorFallback'
 
 const hiBase = {
   'login.tagline': 'स्वतंत्र रूप से लिखें। जब आप रुकें,\nएक आंतरिक आवाज़ जागती है —\nआंकने के लिए नहीं, बल्कि शब्दों में\nआपके पास बैठने के लिए।',
@@ -414,6 +415,6 @@ const hiBase = {
   'drift.closing.steady': 'तुम इसके साथ बने रहे। यह मायने रखता है।',
 } as const
 
-const hi = { ...hiBase, ...driftSeamlessFallback, ...sessionCopy.hi } as const
+const hi = { ...hiBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.hi } as const
 
 export default hi

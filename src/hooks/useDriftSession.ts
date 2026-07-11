@@ -35,6 +35,8 @@ export interface DriftBeginOptions {
   focus: string
   // True when the writer typed the focus themselves → L1 + L2 crisis checks.
   focusIsCustom: boolean
+  audioState?: DriftSession['audioState']
+  displayMode?: DriftSession['displayMode']
 }
 
 export interface DriftApi {
@@ -55,6 +57,7 @@ export interface DriftApi {
   closureDone: () => Promise<void>
   abandon: () => Promise<void>
   recordInterruption: () => void
+  updateExperienceTelemetry: (patch: Pick<DriftSession, 'audioState' | 'voiceGuidanceState' | 'firstCueRequestedAt'>) => void
   voiceActive: boolean
 }
 
@@ -124,6 +127,10 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
       length,
       voiceUsed: voice,
       hrvPresent: hrvContext != null,
+      audioState: opts.audioState ?? (blsChannel === 'audio' ? 'priming' : 'not_requested'),
+      voiceGuidanceState: voice ? 'connecting' : 'off',
+      firstWaveStartedAt: Date.now(),
+      displayMode: opts.displayMode ?? 'browser',
     }
     // Storage and personalization begin immediately but never block the first
     // render. Starting them before crisis routing also guarantees that an
@@ -279,6 +286,12 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
 
   const recordInterruption = useCallback(() => { interruptionsRef.current += 1 }, [])
 
+  const updateExperienceTelemetry = useCallback((patch: Pick<DriftSession, 'audioState' | 'voiceGuidanceState' | 'firstCueRequestedAt'>) => {
+    const id = docIdRef.current
+    if (!id) return
+    void persistReadyRef.current.then(() => db.driftSessions.update(id, patch)).catch(() => {})
+  }, [])
+
   // Grounding from ANY source (L1/L2 here, or crisis raised elsewhere) aborts Drift.
   useEffect(() => subscribeGrounding(() => {
     if (isGroundingActive()) dispatch({ type: 'CRISIS' })
@@ -325,6 +338,7 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
     closureDone,
     abandon,
     recordInterruption,
+    updateExperienceTelemetry,
     voiceActive,
   }
 }

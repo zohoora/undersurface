@@ -29,7 +29,7 @@ import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
 import { PolarH10ConsentDialog } from './PolarH10ConsentDialog'
 import { PolarH10ConnectButton } from './PolarH10ConnectButton'
-import type { Session, SessionMessage, SessionMode } from '../../types'
+import type { ResearchArm, Session, SessionMessage, SessionMode } from '../../types'
 import { useTranslation } from '../../i18n'
 import type { MemoryAperture } from '../../types'
 import { FieldMosaic } from './FieldMosaic'
@@ -39,6 +39,8 @@ import { persistResearchAssignment } from '../../store/personalScience'
 import { isFreshEyesSession, normalizeSessionMemoryAperture } from '../../engine/freshEyes'
 import { finalizePreviousActiveSessions } from '../../engine/sessionFinalizer'
 import { DriftField, type DriftReturnSummary } from './Drift/DriftField'
+import { planAdaptiveConductor } from '../../engine/adaptiveConductor'
+import { engineLog } from '../../services/diagnostics'
 
 const VoiceField = lazy(() => import('./VoiceField').then(module => ({ default: module.VoiceField })))
 const RelaxField = lazy(() => import('./Relax/RelaxField'))
@@ -98,9 +100,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const driftEnabled = globalConfig?.features?.driftEnabled === true
   const [surface, setSurface] = useState<SessionSurface>('talk')
   const [journalDraft, setJournalDraft] = useState<string>('')
-  const [activeArc, setActiveArc] = useState<{ surface: SessionSurface; outcomeId: string; startedAt: number } | null>(null)
+  const [activeArc, setActiveArc] = useState<{ surface: SessionSurface; outcomeId: string; startedAt: number; ambientReturn?: boolean } | null>(null)
   const [returnedArc, setReturnedArc] = useState<{ surface: SessionSurface; outcomeId: string } | null>(null)
   const [driftReturn, setDriftReturn] = useState<DriftReturnSummary | null>(null)
+  const [conductorReturn, setConductorReturn] = useState<Exclude<SessionSurface, 'talk' | 'drift'> | null>(null)
   const handleAutocorrect = useAutocorrect({
     autocorrect: settings.autocorrect,
     autoCapitalize: settings.autoCapitalize ?? true,
@@ -271,6 +274,46 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     updatedMessages: SessionMessage[],
     currentSession: Session,
   ): Promise<SessionMessage[]> => {
+    const conductor = planAdaptiveConductor(currentSession, updatedMessages, {
+      grounding,
+      availableSurfaces: [
+        'talk',
+        'journal',
+        ...(voiceEnabled ? ['speak' as const] : []),
+        ...(relaxEnabled ? ['relax' as const] : []),
+        ...(driftEnabled ? ['drift' as const] : []),
+      ],
+      recentEvents: contextRef.current?.recentConductorEvents,
+      protocols: contextRef.current?.activePersonalProtocols,
+    })
+    if (conductor) {
+      let persisted = false
+      try {
+        await persistResearchAssignment(conductor.event)
+        persisted = true
+      } catch {
+        engineLog('warn', 'conductor.persistence_failed', 'conductor provenance could not be persisted', { sessionId: currentSession.id })
+      }
+      if (persisted && contextRef.current) {
+        contextRef.current.recentConductorEvents = [
+          conductor.event,
+          ...contextRef.current.recentConductorEvents.filter(event => event.id !== conductor.event.id),
+        ].slice(0, 40)
+      }
+      if (persisted && conductor.assignment) {
+        if (conductor.assignment.delivery === 'fixed_surface_offer') {
+          const key = ({
+            journal_arc: 'conductor.offer.journal',
+            speak_arc: 'conductor.offer.speak',
+            relax_arc: 'conductor.offer.relax',
+            drift_arc: 'conductor.offer.drift',
+          } as const)[conductor.event.assignedArm as Extract<ResearchArm, 'journal_arc' | 'speak_arc' | 'relax_arc' | 'drift_arc'>]
+          if (key) return await appendDeterministicCompanionMessage(tr[key], conductor.event) ?? updatedMessages
+        }
+        return generateTherapistMessage(updatedMessages, currentSession, conductor.assignment)
+      }
+    }
+
     const assignment = grounding
       ? null
       : planResearchTurn(currentSession, updatedMessages, contextRef.current?.companionPreferences ?? undefined, {
@@ -306,7 +349,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       return await appendDeterministicCompanionMessage(content, assignment.event) ?? updatedMessages
     }
     return generateTherapistMessage(updatedMessages, currentSession, assignment)
-  }, [appendDeterministicCompanionMessage, generateTherapistMessage, grounding, tr])
+  }, [appendDeterministicCompanionMessage, generateTherapistMessage, grounding, tr, voiceEnabled, relaxEnabled, driftEnabled])
 
   const voice = useSessionVoice({
     sessionRef,
@@ -507,7 +550,12 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       voiceStop()
     }
     if (activeArc && next === 'talk') {
-      setReturnedArc({ surface: activeArc.surface, outcomeId: activeArc.outcomeId })
+      if (activeArc.ambientReturn && activeArc.surface !== 'talk' && activeArc.surface !== 'drift') {
+        setConductorReturn(activeArc.surface)
+        setReturnedArc(null)
+      } else {
+        setReturnedArc({ surface: activeArc.surface, outcomeId: activeArc.outcomeId })
+      }
       setActiveArc(null)
     }
     setSurface(next)
@@ -521,11 +569,12 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     const outcomeId = generateId()
     const now = Date.now()
     const sourceMessage = messagesRef.current.at(-1)
-    const existingResearchEventId = sourceMessage?.researchArm === 'offer_journal_arc'
+    const conductorArc = sourceMessage?.researchEventId?.startsWith('conductor-') === true
+    const existingResearchEventId = sourceMessage?.researchArm === 'offer_journal_arc' || conductorArc
       ? sourceMessage.researchEventId
       : undefined
     const researchEventId = existingResearchEventId ?? `research-arc-${outcomeId}`
-    setActiveArc({ surface: next, outcomeId, startedAt: now })
+    setActiveArc({ surface: next, outcomeId, startedAt: now, ambientReturn: conductorArc })
     void db.interventionOutcomes.add({
       id: outcomeId,
       source: 'talk',
@@ -971,12 +1020,19 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
               <button type="button" aria-label="Dismiss" onClick={() => setDriftReturn(null)} style={{ float: 'right', border: 0, background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer' }}>×</button>
             </div>
           )}
+          {!freshEyes && !grounding && conductorReturn && (
+            <div style={{ margin: '8px 0 20px', padding: '12px 14px', borderLeft: '2px solid var(--accent-warm)', color: 'var(--text-secondary)', font: "italic 15px/1.55 'Cormorant Garamond', serif" }}>
+              <span>{tr[`conductor.return.${conductorReturn}` as keyof typeof tr]}</span>
+              <button type="button" aria-label="Dismiss" onClick={() => setConductorReturn(null)} style={{ float: 'right', border: 0, background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer' }}>×</button>
+            </div>
+          )}
           {messages.map((msg) => (
             <div key={msg.id}>
               <SessionMessageBubble
                 message={msg}
                 onRecommendationTap={handleRecommendationTap}
                 prismSessionId={session?.status === 'active' && !freshEyes && !grounding ? session.id : null}
+                conductorOfferSessionId={session?.status === 'active' && !freshEyes && !grounding ? session.id : null}
                 intentionOfferSessionId={
                   session?.status === 'active' && !freshEyes && getGlobalConfig()?.features?.sessionIntentions === true
                     ? session.id

@@ -1,4 +1,4 @@
-import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue, CompanionPromise, MemoryAperture, InterventionOutcome, AlliancePreferences, CompanionPreferences, PersonalProtocol, LivingHypothesis } from '../types'
+import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue, CompanionPromise, MemoryAperture, InterventionOutcome, AlliancePreferences, CompanionPreferences, PersonalProtocol, LivingHypothesis, ResearchEvent } from '../types'
 import { db } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { detectOpenTimeEvidence } from './ruptureDetector'
@@ -15,6 +15,7 @@ export interface TherapistContext {
   companionPreferences: CompanionPreferences | null
   alliancePreferences?: AlliancePreferences
   activePersonalProtocols: PersonalProtocol[]
+  recentConductorEvents: ResearchEvent[]
   livingHypotheses: Array<{ text: string; status: 'confirmed' | 'contested' }>
   recentSessionNotes: { note: string; date: number }[]
   relevantMemories: PartMemory[]
@@ -76,7 +77,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
   const interiorityOn = features?.companionInteriority === true
   const arcsOn = features?.storyArcs === true
 
-  const [sessions, memories, profiles, facts, relaxBreaks, signals, allUserParts, allIntentions, stanceProfile, allValues, allPromises, fieldMoments, smsMessages, preferences, outcomes, personalProtocols, livingHypotheses] = await Promise.all([
+  const [sessions, memories, profiles, facts, relaxBreaks, signals, allUserParts, allIntentions, stanceProfile, allValues, allPromises, fieldMoments, smsMessages, preferences, outcomes, personalProtocols, livingHypotheses, conductorEvents] = await Promise.all([
     // Bounded: only the 5 newest noted sessions are kept, so scanning the
     // full collection is pure read amplification. 50 newest gives ample
     // margin for closed-without-note gaps.
@@ -101,6 +102,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     db.interventionOutcomes?.orderBy('createdAt').reverse().limit(20).toArray() ?? Promise.resolve([] as InterventionOutcome[]),
     db.personalProtocols?.where('status').equals('active').toArray() ?? Promise.resolve([] as PersonalProtocol[]),
     db.livingHypotheses?.orderBy('updatedAt').reverse().limit(16).toArray() ?? Promise.resolve([] as LivingHypothesis[]),
+    db.researchEvents?.orderBy('createdAt').reverse().limit(40).toArray() ?? Promise.resolve([] as ResearchEvent[]),
   ])
 
   const continuitySessions = sessions.filter(session => !isFreshEyesSession(session))
@@ -253,6 +255,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     companionPreferences: preferences ?? null,
     alliancePreferences: preferences?.alliance,
     activePersonalProtocols: personalProtocols,
+    recentConductorEvents: conductorEvents.filter(event => event.protocolId === 'adaptive-conductor-v1'),
     livingHypotheses: livingHypotheses
       .filter(item => !item.sourceSessionId || !freshSessionIds.has(item.sourceSessionId))
       .filter(item => item.status === 'confirmed' || item.status === 'contested')
