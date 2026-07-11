@@ -855,6 +855,10 @@ describe('buildTherapistSystemPrompt — recommendations', () => {
       allowRecommendations: true,
     })
     expect(prompt).toContain('#switch:journal')
+    expect(prompt).toContain('[Open Journal for a few quiet minutes](#switch:journal)')
+    expect(prompt).not.toContain('[write about it for a moment](#switch:journal)')
+    expect(prompt).toMatch(/explanatory sentence comes first/i)
+    expect(prompt).toMatch(/staying in Talk is also fine/i)
   })
 
   it('teaches the speak recommendation pattern when allowed', () => {
@@ -866,6 +870,7 @@ describe('buildTherapistSystemPrompt — recommendations', () => {
       allowRecommendations: true,
     })
     expect(prompt).toContain('#switch:speak')
+    expect(prompt).toContain('[Continue in Speak and say this aloud](#switch:speak)')
   })
 
   it('teaches the relax recommendation pattern when allowed', () => {
@@ -877,6 +882,7 @@ describe('buildTherapistSystemPrompt — recommendations', () => {
       allowRecommendations: true,
     })
     expect(prompt).toContain('#switch:relax')
+    expect(prompt).toContain('[Open Relax for a guided settling practice](#switch:relax)')
     // Crisis safety: the prompt must explicitly tell the model not to
     // suggest relax during acute distress — slow paced breathing can
     // amplify dissociation in someone heading toward overwhelm.

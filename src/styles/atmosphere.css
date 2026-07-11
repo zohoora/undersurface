@@ -2389,11 +2389,43 @@ body {
   color: var(--accent-warm);
   cursor: pointer;
   text-decoration: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.38em;
+  vertical-align: baseline;
+}
+
+.session-recommendation__phrase {
   border-bottom: 1px dotted var(--accent-warm);
 }
 
-.session-recommendation:hover {
+.session-recommendation:hover .session-recommendation__phrase {
   border-bottom-style: solid;
+}
+
+.session-recommendation__destination {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28em;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--accent-warm) 48%, transparent);
+  border-radius: 999px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.58em;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 1.55;
+  letter-spacing: 0.025em;
+  white-space: nowrap;
+  transform: translateY(-0.08em);
+}
+
+.session-recommendation__arrow {
+  transition: transform 0.15s ease;
+}
+
+.session-recommendation:hover .session-recommendation__arrow {
+  transform: translateX(2px);
 }
 
 .session-recommendation:focus-visible {
