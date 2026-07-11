@@ -47,6 +47,12 @@ export default defineConfig(({ mode }) => {
       registerType: 'autoUpdate',
       injectRegister: false,
       workbox: {
+        // Activate new releases as soon as their files are safely precached.
+        // clientsClaim updates the controller, but we intentionally do not
+        // force-reload an open reflection session; the next navigation/reload
+        // gets the new shell without an update prompt or multi-day stale wait.
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         runtimeCaching: [
           {

@@ -107,7 +107,9 @@ window.addEventListener('unhandledrejection', (event) => {
 // Skip on native: the bundle ships on-device, and a SW can stale Cloud Function calls.
 if ('serviceWorker' in navigator && !Capacitor.isNativePlatform()) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {})
+    navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' })
+      .then((registration) => registration.update())
+      .catch(() => {})
   })
 }
 
