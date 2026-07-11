@@ -148,6 +148,13 @@ export interface DriftTranscriptEntry {
   content: string
   atMs: number
 }
+export interface DriftCheckIn {
+  wave: number
+  direction: 'softer' | 'same' | 'stronger' | 'skipped'
+  usedWords: boolean
+  atMs: number
+  responseLatencyMs: number
+}
 export interface DriftSession {
   id: string
   // Parent chat session id if Drift was entered from inside a session; null when standalone.
@@ -160,11 +167,16 @@ export interface DriftSession {
   transcript: DriftTranscriptEntry[]
   anchorKind: DriftAnchorKind
   blsChannel: DriftBlsChannel
-  // v2: the chosen practice length (quick ~2min / short ~4min / full ~6min).
+  // v2: the chosen practice length (roughly 1 / 2 / 3 minutes in normal use).
   // Optional — v1 records predate it. Literal union to avoid an engine import.
   length?: 'quick' | 'short' | 'full'
   voiceUsed: boolean
   hrvPresent: boolean
+  checkIns?: DriftCheckIn[]
+  softerTotal?: number
+  closureReason?: string | null
+  actualDurationMs?: number
+  interruptions?: number
 }
 
 export interface Session {

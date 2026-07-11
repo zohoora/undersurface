@@ -1,4 +1,5 @@
 import { sessionCopy } from './sessionCopy'
+import { driftSeamlessFallback } from '../driftSeamlessFallback'
 
 const esBase = {
   'login.tagline': 'Escribe libremente. Cuando hagas una pausa,\nuna voz interior se agita —\nno para juzgar, sino para sentarse a tu lado\nentre las palabras.',
@@ -395,9 +396,9 @@ const esBase = {
   'drift.chip.unsettled': 'Solo inquietud',
   'drift.begin.somethingElse': 'Otra cosa…',
   'drift.begin.length': '¿Cuánto tiempo?',
-  'drift.length.quick': '2 min',
-  'drift.length.short': '4 min',
-  'drift.length.full': '6 min',
+  'drift.length.quick': '1 min',
+  'drift.length.short': '2 min',
+  'drift.length.full': '3 min',
   'drift.begin.anchorLabel': 'Tu camino de regreso:',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': 'Bien. Deja que siga aflojándose.',
@@ -413,6 +414,6 @@ const esBase = {
   'drift.closing.steady': 'Te quedaste con ello. Eso cuenta.',
 } as const
 
-const es = { ...esBase, ...sessionCopy.es } as const
+const es = { ...esBase, ...driftSeamlessFallback, ...sessionCopy.es } as const
 
 export default es

@@ -45,6 +45,8 @@ export interface AppSettings {
   lastDriftVoice: boolean
   // Literal union (not the engine's DriftLength) so the store stays engine-free.
   lastDriftLength: 'quick' | 'short' | 'full'
+  lastDriftAnchorKind: 'feet' | 'calm_place'
+  driftHasCompleted: boolean
 }
 
 // The device's zone, not a hardcoded one: the timezone defines "today's
@@ -73,10 +75,12 @@ const DEFAULTS: AppSettings = {
   lastRelaxAudioVolume: 0.5,
   lastRelaxVoiceEnabled: false,
   lastRelaxVisualMode: 'full',
-  lastDriftBlsChannel: 'audio',
+  lastDriftBlsChannel: 'visual',
   lastDriftAudioVolume: 0.5,
   lastDriftVoice: false,
   lastDriftLength: 'short',
+  lastDriftAnchorKind: 'feet',
+  driftHasCompleted: false,
 }
 
 const STORAGE_KEY = 'undersurface:settings'

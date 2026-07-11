@@ -82,13 +82,15 @@ describe('settings', () => {
     expect('autocorrect' in parsed).toBe(false)
   })
 
-  it('defaults Drift device preferences (channel audio, volume 0.5, voice off)', () => {
+  it('defaults Drift to visible rhythm, volume 0.5, and voice off', () => {
     storage.clear()
     updateSettings({})
     const s = getSettings()
-    expect(s.lastDriftBlsChannel).toBe('audio')
+    expect(s.lastDriftBlsChannel).toBe('visual')
     expect(s.lastDriftAudioVolume).toBe(0.5)
     expect(s.lastDriftVoice).toBe(false)
+    expect(s.lastDriftAnchorKind).toBe('feet')
+    expect(s.driftHasCompleted).toBe(false)
   })
 
   it('round-trips lastDriftVoice through updateSettings', () => {

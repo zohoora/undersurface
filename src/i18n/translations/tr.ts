@@ -1,4 +1,5 @@
 import { sessionCopy } from './sessionCopy'
+import { driftSeamlessFallback } from '../driftSeamlessFallback'
 
 const trBase = {
   'login.tagline': 'Özgürce yaz. Duraksadığında,\niç sesin uyanır —\nyargılamak için değil,\nkelimelerin arasında yanında oturmak için.',
@@ -395,9 +396,9 @@ const trBase = {
   'drift.chip.unsettled': 'Sadece huzursuzluk',
   'drift.begin.somethingElse': 'Başka bir şey…',
   'drift.begin.length': 'Ne kadar?',
-  'drift.length.quick': '2 dk',
-  'drift.length.short': '4 dk',
-  'drift.length.full': '6 dk',
+  'drift.length.quick': '1 dk',
+  'drift.length.short': '2 dk',
+  'drift.length.full': '3 dk',
   'drift.begin.anchorLabel': 'Geri dönüş yolun:',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': 'Güzel. Bırak gevşemeye devam etsin.',
@@ -413,6 +414,6 @@ const trBase = {
   'drift.closing.steady': 'Onunla kaldın. Bu önemli.',
 } as const
 
-const tr = { ...trBase, ...sessionCopy.tr } as const
+const tr = { ...trBase, ...driftSeamlessFallback, ...sessionCopy.tr } as const
 
 export default tr

@@ -1,4 +1,5 @@
 import { sessionCopy } from './sessionCopy'
+import { driftSeamlessFallback } from '../driftSeamlessFallback'
 
 const nlBase = {
   'login.tagline': 'Schrijf vrij. Wanneer je pauzeert,\nroert een innerlijke stem zich —\nniet om te oordelen, maar om naast je te zitten\nin de woorden.',
@@ -395,9 +396,9 @@ const nlBase = {
   'drift.chip.unsettled': 'Gewoon onrustig',
   'drift.begin.somethingElse': 'Iets anders…',
   'drift.begin.length': 'Hoe lang?',
-  'drift.length.quick': '2 min',
-  'drift.length.short': '4 min',
-  'drift.length.full': '6 min',
+  'drift.length.quick': '1 min',
+  'drift.length.short': '2 min',
+  'drift.length.full': '3 min',
   'drift.begin.anchorLabel': 'Jouw weg terug:',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': 'Goed. Laat het verder losser worden.',
@@ -413,6 +414,6 @@ const nlBase = {
   'drift.closing.steady': 'Je bent erbij gebleven. Dat telt.',
 } as const
 
-const nl = { ...nlBase, ...sessionCopy.nl } as const
+const nl = { ...nlBase, ...driftSeamlessFallback, ...sessionCopy.nl } as const
 
 export default nl

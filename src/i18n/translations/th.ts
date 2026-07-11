@@ -1,4 +1,5 @@
 import { sessionCopy } from './sessionCopy'
+import { driftSeamlessFallback } from '../driftSeamlessFallback'
 
 const thBase = {
   'login.tagline': 'เขียนอย่างอิสระ เมื่อคุณหยุด\nเสียงภายในจะตื่นขึ้น —\nไม่ใช่เพื่อตัดสิน แต่เพื่อนั่งข้างคุณ\nอยู่ในถ้อยคำ',
@@ -395,9 +396,9 @@ const thBase = {
   'drift.chip.unsettled': 'แค่รู้สึกไม่สงบ',
   'drift.begin.somethingElse': 'อย่างอื่น…',
   'drift.begin.length': 'นานแค่ไหน?',
-  'drift.length.quick': '2 นาที',
-  'drift.length.short': '4 นาที',
-  'drift.length.full': '6 นาที',
+  'drift.length.quick': '1 นาที',
+  'drift.length.short': '2 นาที',
+  'drift.length.full': '3 นาที',
   'drift.begin.anchorLabel': 'ทางกลับของคุณ:',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': 'ดีแล้ว ปล่อยให้มันคลายต่อไป',
@@ -413,6 +414,6 @@ const thBase = {
   'drift.closing.steady': 'คุณอยู่กับมัน นั่นมีความหมาย',
 } as const
 
-const th = { ...thBase, ...sessionCopy.th } as const
+const th = { ...thBase, ...driftSeamlessFallback, ...sessionCopy.th } as const
 
 export default th

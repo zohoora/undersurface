@@ -13,9 +13,10 @@ interface Props {
   // scripted template line — engine counters in, fixed copy out, never a score.
   softened?: boolean
   onDone: () => void
+  onSpeak?: (line: string) => void
 }
 
-export function DriftClosing({ reason, softened, onDone }: Props) {
+export function DriftClosing({ reason, softened, onDone, onSpeak }: Props) {
   const isCrisis = reason === 'crisis'
   const [step, setStep] = useState(0)
   const lastStep = STEPS.length - 1
@@ -30,6 +31,8 @@ export function DriftClosing({ reason, softened, onDone }: Props) {
   const advance = () => { if (!isCrisis) setStep((s) => Math.min(s + 1, lastStep)) }
   const line = isCrisis ? t('drift.abort.handoff') : t(STEPS[step])
   const atEnd = isCrisis || step >= lastStep
+
+  useEffect(() => { onSpeak?.(line) }, [line, onSpeak])
 
   return (
     <div
@@ -47,6 +50,7 @@ export function DriftClosing({ reason, softened, onDone }: Props) {
           {t(softened ? 'drift.closing.softened' : 'drift.closing.steady')}
         </div>
       )}
+      {!atEnd && <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t('drift.closure.continue')}</div>}
       {atEnd && (
         <button
           type="button"

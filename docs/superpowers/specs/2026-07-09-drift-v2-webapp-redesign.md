@@ -64,9 +64,41 @@ The hook auto-advances `anchor → choose → baseline` from the single begin sc
 machine is *driven faster*, not rewritten. Typed focus text still runs L1 + L2
 before the practice proceeds; chips are app-authored copy and dispatch directly.
 
-Voice keeps the same adapter: scripted cues for settle/closure/abort, the anchor
-cue spoken once at the first wave, typed/voiced notices routed through the
-unchanged LLM path.
+The original v2 voice adapter used scripted cues for settle/closure/abort and
+routed spoken notices through the LLM path. The mobile addendum below supersedes
+that behavior after field testing showed that it did not fit a tap-first practice.
+
+## Seamless mobile addendum (2026-07-11)
+
+The first iPhone field test exposed an important mismatch: enabling guidance
+opened a two-way Realtime session, requested microphone permission, and then
+did not reliably speak the selected anchor. Drift is tap-first, so it has no
+reason to listen. The experience now follows these rules:
+
+- **Spoken guidance is one-way.** Realtime starts with `passive: true`; Drift
+  never calls `getUserMedia`, never requests microphone permission, and never
+  runs a second voice-conversation pipeline beside its text companion.
+- **The chosen anchor is real guidance.** Feet and calm-place anchors each have
+  a distinct fixed cue, shown on screen and spoken word-for-word. Calm place
+  includes a small, concrete imagery sequence rather than a generic label.
+- **Audio is explicitly armed on the Begin gesture.** A single Web Audio
+  context is created/resumed inside that gesture for iOS/WebKit and reused for
+  every wave. Audio mode retains a quiet visual trace, so silence never looks
+  like a frozen app. Visual rhythm is the first-use default.
+- **Durations describe the actual practice.** The three 12-second-wave presets
+  are presented as about 1/2/3 minutes (3/5/7 waves), not 2/4/6 minutes.
+- **Entry and interruption are kind.** The first wave renders before storage or
+  personalization reads finish; returning users get a remembered one-tap
+  start; the screen stays awake; backgrounding pauses rather than silently
+  consuming a wave; explicit pause/resume and close controls are always visible.
+- **Typed depth has state.** A typed check-in disables duplicate input and shows
+  a holding state. Its companion reply is one short sentence carried into the
+  next wave, then cleared so it cannot repeat on later check-ins.
+- **Return is ambient.** Directional check-ins, latency, interruptions, actual
+  duration, and closure reason are persisted. Returning to Talk gets one quiet
+  bridge line; it does not produce a research questionnaire.
+- **Mobile entry is first-class.** Drift remains visible in the bottom bar on
+  narrow screens instead of being hidden in More.
 
 ## Explicitly out of scope
 

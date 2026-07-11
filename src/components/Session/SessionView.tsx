@@ -38,10 +38,10 @@ import { assignmentFromEvent, planResearchTurn } from '../../engine/personalScie
 import { persistResearchAssignment } from '../../store/personalScience'
 import { isFreshEyesSession, normalizeSessionMemoryAperture } from '../../engine/freshEyes'
 import { finalizePreviousActiveSessions } from '../../engine/sessionFinalizer'
+import { DriftField, type DriftReturnSummary } from './Drift/DriftField'
 
 const VoiceField = lazy(() => import('./VoiceField').then(module => ({ default: module.VoiceField })))
 const RelaxField = lazy(() => import('./Relax/RelaxField'))
-const DriftField = lazy(() => import('./Drift/DriftField'))
 
 interface Props {
   sessionId: string | null
@@ -100,6 +100,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const [journalDraft, setJournalDraft] = useState<string>('')
   const [activeArc, setActiveArc] = useState<{ surface: SessionSurface; outcomeId: string; startedAt: number } | null>(null)
   const [returnedArc, setReturnedArc] = useState<{ surface: SessionSurface; outcomeId: string } | null>(null)
+  const [driftReturn, setDriftReturn] = useState<DriftReturnSummary | null>(null)
   const handleAutocorrect = useAutocorrect({
     autocorrect: settings.autocorrect,
     autoCapitalize: settings.autoCapitalize ?? true,
@@ -564,6 +565,25 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     handleSurfaceChange(next)
   }, [session, handleSurfaceChange, grounding, voiceEnabled, relaxEnabled, driftEnabled])
 
+  const handleDriftClose = useCallback((summary?: DriftReturnSummary) => {
+    if (summary) setDriftReturn(summary)
+    if (activeArc?.surface === 'drift') {
+      if (summary) {
+        const immediate = summary.direction === 'softer' ? 'helped' : summary.direction === 'stronger' ? 'worse' : 'nothing'
+        void db.interventionOutcomes.update(activeArc.outcomeId, {
+          immediate,
+          note: `Ambient Drift return: ${summary.reason ?? 'unfinished'} after ${summary.setCount} waves`,
+          updatedAt: Date.now(),
+        })
+      } else {
+        void db.interventionOutcomes.delete(activeArc.outcomeId)
+      }
+      setActiveArc(null)
+    }
+    setReturnedArc(null)
+    setSurface('talk')
+  }, [activeArc])
+
   // A crisis/grounding transition cancels every experimental arc except
   // Drift, whose mounted reducer owns its scripted crisis closure. Preserve
   // journal words before returning to Talk; never show an outcome card for a
@@ -944,7 +964,13 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
           {/* Messages list */}
           {session?.status === 'active' && !freshEyes && !grounding && messages.length <= 2 && contextRef.current?.fieldMosaicEnabled !== false && <FieldMosaic sessionId={session.id} disabled={isStreaming} onBringIntoTalk={handleMosaicOpen} />}
-          {!freshEyes && !grounding && returnedArc && <SurfaceArcReturn outcomeId={returnedArc.outcomeId} surface={returnedArc.surface} onDone={() => setReturnedArc(null)} />}
+          {!freshEyes && !grounding && returnedArc && returnedArc.surface !== 'drift' && <SurfaceArcReturn outcomeId={returnedArc.outcomeId} surface={returnedArc.surface} onDone={() => setReturnedArc(null)} />}
+          {!freshEyes && !grounding && driftReturn && (
+            <div style={{ margin: '8px 0 20px', padding: '12px 14px', borderLeft: '2px solid var(--accent-warm)', color: 'var(--text-secondary)', font: "italic 15px/1.55 'Cormorant Garamond', serif" }}>
+              <span>{driftReturn.direction === 'softer' ? 'You are back. Let the softening have a little room.' : 'You are back. Take a breath before deciding whether anything needs words.'}</span>
+              <button type="button" aria-label="Dismiss" onClick={() => setDriftReturn(null)} style={{ float: 'right', border: 0, background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer' }}>×</button>
+            </div>
+          )}
           {messages.map((msg) => (
             <div key={msg.id}>
               <SessionMessageBubble
@@ -1160,14 +1186,12 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         even if grounding activated mid-practice (mount is not grounding-gated
         for exactly that reason — only the ENTRY pill is). */}
     {driftEnabled && surface === 'drift' && (
-      <Suspense fallback={null}>
-        <DriftField
-          parentSessionId={session?.id ?? null}
-          hrvContext={null}
-          voiceAvailable={voiceEnabled}
-          onClose={() => handleSurfaceChange('talk')}
-        />
-      </Suspense>
+      <DriftField
+        parentSessionId={session?.id ?? null}
+        hrvContext={null}
+        voiceAvailable={voiceEnabled}
+        onClose={handleDriftClose}
+      />
     )}
     </>
   )

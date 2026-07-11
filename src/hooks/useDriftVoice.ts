@@ -1,81 +1,54 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useVoiceSession, type VoiceSessionState } from './useVoiceSession'
 import { buildDriftVoiceInstructions } from '../ai/driftPrompts'
-import { detectCrisisKeywords } from '../engine/sessionOrchestrator'
-import { activateGrounding } from '../store/groundingState'
-import { classifyCrisisRisk } from '../ai/openrouter'
 import { getLanguageCode } from '../i18n'
-import type { DriftPhase } from '../engine/driftEngine'
 
 export interface DriftVoiceOptions {
   enabled: boolean
-  phase: DriftPhase
-  cueText: string | null // scripted line for the current phase, already localized; null = no cue
+  cueKey: string
+  cueText: string | null
   userPartNames: string[]
-  onUtterance: (text: string) => void // DriftField routes: choose/baseline/notice submission
-  onCrisis: () => void
 }
 
-// Realtime adapter for Drift voice mode. The engine still owns all flow; this
-// hook only drives the Realtime session: it mutes the mic during BLS sets,
-// speaks one scripted cue per phase entry, and applies the same two-layer crisis
-// floor as the text path to user transcripts. Direction is NOT parsed from voice
-// (spec: conversational) — utterances route through submitNotice(text,'skipped').
-export function useDriftVoice(opts: DriftVoiceOptions): { voiceState: VoiceSessionState; assistantSpeaking: boolean } {
-  const { enabled, phase, cueText } = opts
-  const voice = useVoiceSession()
+export interface DriftVoiceState {
+  voiceState: VoiceSessionState
+  assistantSpeaking: boolean
+  error: string | null
+  speak: (text: string) => void
+}
 
-  // Fresh mirrors for use inside the stable transcript handler / start effect.
-  const optsRef = useRef(opts)
+// Drift guidance is deliberately one-way. The practice is tap-first and has no
+// need to listen to the writer, so passive mode avoids getUserMedia entirely.
+// This is also a useful product truth: "spoken guidance" means guidance, not a
+// second conversational pipeline competing with the text companion.
+export function useDriftVoice({ enabled, cueKey, cueText, userPartNames }: DriftVoiceOptions): DriftVoiceState {
+  const voice = useVoiceSession()
   const voiceRef = useRef(voice)
-  useEffect(() => { optsRef.current = opts })
   useEffect(() => { voiceRef.current = voice })
 
-  // Stable — captured once by voice.start(); reads fresh opts + voice from refs.
-  const onUserTranscript = useCallback((text: string) => {
-    const o = optsRef.current
-    // L1 deterministic floor.
-    if (detectCrisisKeywords(text)) {
-      activateGrounding()
-      voiceRef.current.cancelResponse()
-      o.onCrisis()
-      return
-    }
-    // L2 backstop — risk=2 aborts the spoken response and hands off.
-    void classifyCrisisRisk(text, getLanguageCode()).then((r) => {
-      if (r.risk === 2) {
-        activateGrounding()
-        voiceRef.current.cancelResponse()
-        o.onCrisis()
-      }
-    }).catch(() => { /* fails open */ })
-    o.onUtterance(text)
-  }, [])
-
-  // Start when enabled; stop on disable or unmount.
   useEffect(() => {
     if (!enabled) return
     void voiceRef.current.start({
-      instructions: buildDriftVoiceInstructions({ language: getLanguageCode(), userPartNames: optsRef.current.userPartNames }),
-      onUserTranscript,
+      instructions: buildDriftVoiceInstructions({ language: getLanguageCode(), userPartNames }),
+      passive: true,
     })
     return () => { voiceRef.current.stop() }
-  }, [enabled, onUserTranscript])
+  }, [enabled, userPartNames])
 
-  // Mic gating (open except during BLS sets) + one scripted cue per phase entry.
-  // speak() is a no-op until the data channel is open, so the cue is gated on
-  // 'connected' and retried when the session reaches it (voice.state is a dep).
-  // Without this the first phase's cue — spoken before connect — is silently
-  // dropped, leaving voice users without that phase's guidance (Codex #3).
-  const lastCuePhaseRef = useRef<DriftPhase | null>(null)
+  // A cue is identified by the wave/phase, not just the phase. Repeated set and
+  // notice phases therefore speak each new instruction once. Connecting cues
+  // are not marked delivered, so they retry as soon as the data channel opens.
+  const lastCueKeyRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!enabled) return
-    voiceRef.current.setMicEnabled(phase !== 'set')
-    if (voice.state === 'connected' && cueText && lastCuePhaseRef.current !== phase) {
-      lastCuePhaseRef.current = phase
-      voiceRef.current.speak(cueText)
-    }
-  }, [enabled, phase, cueText, voice.state])
+    if (!enabled || voice.state !== 'connected' || !cueText || lastCueKeyRef.current === cueKey) return
+    lastCueKeyRef.current = cueKey
+    voiceRef.current.speak(cueText)
+  }, [enabled, cueKey, cueText, voice.state])
 
-  return { voiceState: voice.state, assistantSpeaking: voice.assistantSpeaking }
+  return {
+    voiceState: voice.state,
+    assistantSpeaking: voice.assistantSpeaking,
+    error: voice.error,
+    speak: voice.speak,
+  }
 }

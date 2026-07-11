@@ -77,9 +77,10 @@ describe('buildDriftVoiceInstructions', () => {
     expect(buildDriftVoiceInstructions({})).toContain(DRIFT_DECLINE_LOOP)
   })
 
-  it('pins the fixed pendulation question and the verbatim-cue directive', () => {
+  it('pins one-way, app-directed spoken guidance and the verbatim-cue directive', () => {
     const p = buildDriftVoiceInstructions({})
-    expect(p).toContain('What do you notice now — softer, the same, or stronger?')
+    expect(p).toContain('writer responds by tapping the screen')
+    expect(p).toContain('Do not start a conversation')
     expect(p).toContain('word for word')
   })
 

@@ -9,7 +9,7 @@ import { activateGrounding, isGroundingActive, subscribeGrounding } from '../sto
 import { getSettings } from '../store/settings'
 import { getLanguageCode } from '../i18n'
 import { db, generateId } from '../store/db'
-import type { DriftAnchorKind, DriftBlsChannel, DriftOutcome, DriftSession, DriftTranscriptEntry } from '../types'
+import type { DriftAnchorKind, DriftBlsChannel, DriftCheckIn, DriftOutcome, DriftSession, DriftTranscriptEntry } from '../types'
 
 // Matches Talk's proven floor (getMaxTokens 300–600): gpt-5.x reasoning eats the
 // budget before content, and too-tight caps return empty completions. 220 sat
@@ -41,6 +41,8 @@ export interface DriftApi {
   state: DriftState
   transcript: DriftTranscriptEntry[]
   streamingText: string
+  companionCue: string
+  isSubmitting: boolean
   begin: (opts: DriftBeginOptions) => Promise<void>
   completeSet: () => void
   // Typed check-in — the LLM companion path (unchanged, eval-verified).
@@ -52,6 +54,7 @@ export interface DriftApi {
   requestClose: () => void
   closureDone: () => Promise<void>
   abandon: () => Promise<void>
+  recordInterruption: () => void
   voiceActive: boolean
 }
 
@@ -68,6 +71,8 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
   const [transcript, setTranscript] = useState<DriftTranscriptEntry[]>([])
   const transcriptRef = useRef<DriftTranscriptEntry[]>([])
   const [streamingText, setStreamingText] = useState('')
+  const [companionCue, setCompanionCue] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [voiceActive, setVoiceActive] = useState(false)
 
   const startRef = useRef<number | null>(null)
@@ -75,6 +80,11 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
   const abortRef = useRef<AbortController | null>(null)
   const userPartNamesRef = useRef<string[]>([])
   const interweavesUsedRef = useRef<string[]>([])
+  const checkInsRef = useRef<DriftCheckIn[]>([])
+  const interruptionsRef = useRef(0)
+  const noticeStartedRef = useRef<number | null>(null)
+  const submittingRef = useRef(false)
+  const persistReadyRef = useRef<Promise<void>>(Promise.resolve())
 
   const appendEntry = useCallback((entry: DriftTranscriptEntry) => {
     const next = [...transcriptRef.current, entry]
@@ -98,12 +108,6 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
     const { anchorKind, blsChannel, voice, length, focus, focusIsCustom } = opts
     startRef.current = Date.now()
     setVoiceActive(voice)
-    try {
-      const parts = await db.userParts.toArray()
-      userPartNamesRef.current = parts.filter(p => p.status === 'active').map(p => p.name)
-    } catch {
-      userPartNamesRef.current = []
-    }
     const id = generateId()
     docIdRef.current = id
     const record: DriftSession = {
@@ -121,7 +125,13 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
       voiceUsed: voice,
       hrvPresent: hrvContext != null,
     }
-    try { await db.driftSessions.add(record) } catch { /* persistence is non-fatal */ }
+    // Storage and personalization begin immediately but never block the first
+    // render. Starting them before crisis routing also guarantees that an
+    // early safety closure still has a record to finalize.
+    persistReadyRef.current = db.driftSessions.add(record).then(() => undefined).catch(() => undefined)
+    void db.userParts.toArray().then((parts) => {
+      userPartNamesRef.current = parts.filter(p => p.status === 'active').map(p => p.name)
+    }).catch(() => { userPartNamesRef.current = [] })
 
     // Drive the verified machine through its opening phases — the same events
     // the v1 UI gated on, dispatched in order. The no-return invariant and the
@@ -137,20 +147,44 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
     }
     dispatch({ type: 'STARTING_POINT' })
     dispatch({ type: 'BASELINE_DONE' })
+
   }, [parentSessionId, hrvContext, appendEntry, raceCrisisAbort])
 
-  const completeSet = useCallback(() => { dispatch({ type: 'SET_COMPLETE' }) }, [])
+  const completeSet = useCallback(() => {
+    setCompanionCue('')
+    noticeStartedRef.current = Date.now()
+    dispatch({ type: 'SET_COMPLETE' })
+  }, [])
 
   // Tap-only check-in: nothing typed → nothing to crisis-classify, no LLM turn.
   // Instant by design — momentum is the default, depth (typing) is opt-in.
   const submitNoticeTap = useCallback((direction: NoticeDirection) => {
+    checkInsRef.current = [...checkInsRef.current, {
+      wave: stateRef.current.setCount,
+      direction,
+      usedWords: false,
+      atMs: Date.now(),
+      responseLatencyMs: Math.max(0, Date.now() - (noticeStartedRef.current ?? Date.now())),
+    }]
     dispatch({ type: 'NOTICE', direction, risk: 0, interweave: null })
   }, [])
 
   const submitNotice = useCallback(async (text: string, direction: NoticeDirection) => {
+    if (submittingRef.current) return
+    submittingRef.current = true
+    setIsSubmitting(true)
+    checkInsRef.current = [...checkInsRef.current, {
+      wave: stateRef.current.setCount,
+      direction,
+      usedWords: true,
+      atMs: Date.now(),
+      responseLatencyMs: Math.max(0, Date.now() - (noticeStartedRef.current ?? Date.now())),
+    }]
     appendEntry({ role: 'user', content: text, atMs: Date.now() })
     // L1 deterministic floor — runs before any generation.
-    if (detectCrisisKeywords(text)) { activateGrounding(); dispatch({ type: 'CRISIS' }); return }
+    if (detectCrisisKeywords(text)) {
+      activateGrounding(); dispatch({ type: 'CRISIS' }); submittingRef.current = false; setIsSubmitting(false); return
+    }
 
     // L2 classifier: risk=2 aborts immediately; the resolved risk (0|1) is folded
     // into the NOTICE, capped at RISK_RACE_MS so routing includes it when fast.
@@ -192,7 +226,10 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
     setStreamingText('')
     // Truthy, not just non-null: a truncated/empty completion must not append a
     // blank companion bubble (the flow still advances via the NOTICE dispatch).
-    if (companion) appendEntry({ role: 'companion', content: companion, atMs: Date.now() })
+    if (companion) {
+      appendEntry({ role: 'companion', content: companion, atMs: Date.now() })
+      setCompanionCue(companion)
+    }
 
     let timer: ReturnType<typeof setTimeout>
     const risk = await Promise.race<CrisisRisk>([
@@ -202,6 +239,8 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
     clearTimeout(timer!)
     // NOTICE is a no-op if a crisis already closed the session (reducer guards it).
     dispatch({ type: 'NOTICE', direction, risk, interweave })
+    submittingRef.current = false
+    setIsSubmitting(false)
   }, [appendEntry, hrvContext])
 
   const settleDone = useCallback(() => { dispatch({ type: 'SETTLE_DONE' }) }, [])
@@ -211,12 +250,18 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
     const id = docIdRef.current
     if (!id) return
     try {
+      await persistReadyRef.current
       await db.driftSessions.update(id, {
         outcome,
         endedAt: Date.now(),
         setCount: stateRef.current.setCount,
         interweavesUsed: interweavesUsedRef.current,
         transcript: transcriptRef.current,
+        checkIns: checkInsRef.current,
+        softerTotal: stateRef.current.softerTotal,
+        closureReason: stateRef.current.closureReason,
+        actualDurationMs: startRef.current == null ? undefined : Date.now() - startRef.current,
+        interruptions: interruptionsRef.current,
       })
     } catch { /* non-fatal */ }
   }, [])
@@ -231,6 +276,8 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
     if (stateRef.current.phase === 'closed') return
     await persistFinal('abandoned')
   }, [persistFinal])
+
+  const recordInterruption = useCallback(() => { interruptionsRef.current += 1 }, [])
 
   // Grounding from ANY source (L1/L2 here, or crisis raised elsewhere) aborts Drift.
   useEffect(() => subscribeGrounding(() => {
@@ -252,11 +299,13 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
     const id = setTimeout(() => {
       const docId = docIdRef.current
       if (!docId) return
-      void db.driftSessions.update(docId, {
+      void persistReadyRef.current.then(() => db.driftSessions.update(docId, {
         transcript: transcriptRef.current,
         setCount: state.setCount,
         interweavesUsed: interweavesUsedRef.current,
-      }).catch(() => {})
+        checkIns: checkInsRef.current,
+        interruptions: interruptionsRef.current,
+      })).catch(() => {})
     }, PERSIST_DEBOUNCE_MS)
     return () => clearTimeout(id)
   }, [state.setCount, state.phase, transcript])
@@ -265,6 +314,8 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
     state,
     transcript,
     streamingText,
+    companionCue,
+    isSubmitting,
     begin,
     completeSet,
     submitNotice,
@@ -273,6 +324,7 @@ export function useDriftSession(parentSessionId: string | null, hrvContext?: str
     requestClose,
     closureDone,
     abandon,
+    recordInterruption,
     voiceActive,
   }
 }

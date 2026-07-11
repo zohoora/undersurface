@@ -1,4 +1,5 @@
 import { sessionCopy } from './sessionCopy'
+import { driftSeamlessFallback } from '../driftSeamlessFallback'
 
 const zhBase = {
   'login.tagline': '自由书写。当你停顿时，\n一个内心的声音轻轻涌起——\n不是来评判，而是来陪伴你\n坐在文字之间。',
@@ -395,9 +396,9 @@ const zhBase = {
   'drift.chip.unsettled': '只是心神不宁',
   'drift.begin.somethingElse': '别的事…',
   'drift.begin.length': '多久？',
-  'drift.length.quick': '2分钟',
-  'drift.length.short': '4分钟',
-  'drift.length.full': '6分钟',
+  'drift.length.quick': '1分钟',
+  'drift.length.short': '2分钟',
+  'drift.length.full': '3分钟',
   'drift.begin.anchorLabel': '你回来的路：',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': '很好。让它继续松开。',
@@ -413,6 +414,6 @@ const zhBase = {
   'drift.closing.steady': '你陪着它待了下来。这很重要。',
 } as const
 
-const zh = { ...zhBase, ...sessionCopy.zh } as const
+const zh = { ...zhBase, ...driftSeamlessFallback, ...sessionCopy.zh } as const
 
 export default zh

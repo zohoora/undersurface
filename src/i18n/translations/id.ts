@@ -1,4 +1,5 @@
 import { sessionCopy } from './sessionCopy'
+import { driftSeamlessFallback } from '../driftSeamlessFallback'
 
 const idBase = {
   'login.tagline': 'Tulis dengan bebas. Saat kamu berhenti,\nsuara dalam diri terbangun —\nbukan untuk menghakimi, tapi untuk duduk di sampingmu\ndi antara kata-kata.',
@@ -395,9 +396,9 @@ const idBase = {
   'drift.chip.unsettled': 'Sekadar gelisah',
   'drift.begin.somethingElse': 'Sesuatu yang lain…',
   'drift.begin.length': 'Berapa lama?',
-  'drift.length.quick': '2 mnt',
-  'drift.length.short': '4 mnt',
-  'drift.length.full': '6 mnt',
+  'drift.length.quick': '1 mnt',
+  'drift.length.short': '2 mnt',
+  'drift.length.full': '3 mnt',
   'drift.begin.anchorLabel': 'Jalan kembalimu:',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': 'Bagus. Biarkan terus mengendur.',
@@ -413,6 +414,6 @@ const idBase = {
   'drift.closing.steady': 'Kamu tetap bersamanya. Itu berarti.',
 } as const
 
-const id = { ...idBase, ...sessionCopy.id } as const
+const id = { ...idBase, ...driftSeamlessFallback, ...sessionCopy.id } as const
 
 export default id

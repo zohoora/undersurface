@@ -1,4 +1,5 @@
 import { sessionCopy } from './sessionCopy'
+import { driftSeamlessFallback } from '../driftSeamlessFallback'
 
 const viBase = {
   'login.tagline': 'Viết tự do. Khi bạn dừng lại,\nmột giọng nói bên trong thức dậy —\nkhông phải để phán xét, mà để ngồi bên bạn\ngiữa những con chữ.',
@@ -395,9 +396,9 @@ const viBase = {
   'drift.chip.unsettled': 'Chỉ là bất an',
   'drift.begin.somethingElse': 'Điều gì khác…',
   'drift.begin.length': 'Bao lâu?',
-  'drift.length.quick': '2 phút',
-  'drift.length.short': '4 phút',
-  'drift.length.full': '6 phút',
+  'drift.length.quick': '1 phút',
+  'drift.length.short': '2 phút',
+  'drift.length.full': '3 phút',
   'drift.begin.anchorLabel': 'Lối trở về của bạn:',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': 'Tốt. Cứ để nó tiếp tục nới lỏng.',
@@ -413,6 +414,6 @@ const viBase = {
   'drift.closing.steady': 'Bạn đã ở lại với nó. Điều đó có ý nghĩa.',
 } as const
 
-const vi = { ...viBase, ...sessionCopy.vi } as const
+const vi = { ...viBase, ...driftSeamlessFallback, ...sessionCopy.vi } as const
 
 export default vi

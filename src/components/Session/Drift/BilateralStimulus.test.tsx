@@ -67,9 +67,9 @@ describe('BilateralStimulus', () => {
     expect(screen.queryByTestId('bls-dot')).not.toBeNull()
   })
 
-  it('renders no dot on the audio channel (audible only)', () => {
+  it('keeps a quiet visual trace on the audio channel', () => {
     render(<BilateralStimulus channel="audio" running passMs={2000} volume={0.5} />)
-    expect(screen.queryByTestId('bls-dot')).toBeNull()
+    expect(screen.queryByTestId('bls-dot')).not.toBeNull()
   })
 
   it('renders no dot when not running', () => {
@@ -77,10 +77,10 @@ describe('BilateralStimulus', () => {
     expect(screen.queryByTestId('bls-dot')).toBeNull()
   })
 
-  it('falls back to audio (no dot) when the user prefers reduced motion', () => {
+  it('keeps a reduced alternating visual cue instead of changing modality', () => {
     prefersReduced = true
     render(<BilateralStimulus channel="visual" running passMs={2000} volume={0.5} />)
-    expect(screen.queryByTestId('bls-dot')).toBeNull()
+    expect(screen.queryByTestId('bls-dot')).not.toBeNull()
   })
 
   it('does not throw when unmounted mid-run (visual and audio)', () => {

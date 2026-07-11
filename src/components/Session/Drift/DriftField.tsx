@@ -1,24 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDriftSession } from '../../../hooks/useDriftSession'
 import { useDriftVoice } from '../../../hooks/useDriftVoice'
 import { passMsForSoftening } from '../../../engine/driftEngine'
-import type { DriftPhase, DriftLength, ClosureReason, NoticeDirection } from '../../../engine/driftEngine'
+import type { DriftLength, NoticeDirection } from '../../../engine/driftEngine'
 import { BilateralStimulus } from './BilateralStimulus'
 import { DriftExchange } from './DriftExchange'
 import { DriftClosing } from './DriftClosing'
 import { getSettings, updateSettings } from '../../../store/settings'
+import { acquireWakeLock, reacquireWakeLockIfVisible, releaseWakeLock } from '../../../native/keepAwake'
 import { t } from '../../../i18n'
-import type { DriftAnchorKind } from '../../../types'
+import type { DriftAnchorKind, DriftBlsChannel } from '../../../types'
 
-// "What's stirring?" chips — app-authored copy, safe by construction, so a
-// chip start never needs a crisis check. The unsettled chip is the default.
-const CHIPS = [
-  'drift.chip.worry',
-  'drift.chip.body',
-  'drift.chip.today',
-  'drift.chip.heavy',
-  'drift.chip.unsettled',
-] as const
+const CHIPS = ['drift.chip.worry', 'drift.chip.body', 'drift.chip.today', 'drift.chip.heavy', 'drift.chip.unsettled'] as const
 type ChipKey = (typeof CHIPS)[number]
 
 const LENGTHS: { value: DriftLength; key: 'drift.length.quick' | 'drift.length.short' | 'drift.length.full' }[] = [
@@ -27,109 +20,115 @@ const LENGTHS: { value: DriftLength; key: 'drift.length.quick' | 'drift.length.s
   { value: 'full', key: 'drift.length.full' },
 ]
 
-// Scripted cue spoken aloud on entry to each phase in voice mode. Safety-copy
-// phases (settle/closure/abort) are fixed i18n strings, never LLM output. The
-// anchor teaching is spoken once at the first wave (v2 has no anchor screen);
-// notice is null — the model asks per its instructions.
-function voiceCue(phase: DriftPhase, closureReason: ClosureReason, setCount: number): string | null {
-  switch (phase) {
-    case 'set': return setCount === 0 ? t('drift.anchor.body') : null
-    case 'settle': return t('drift.settle.line')
-    case 'closure': return closureReason === 'crisis' ? t('drift.abort.handoff') : t('drift.closure.anchor')
-    default: return null // arrive, anchor, choose, baseline (transited in begin), notice, closed
-  }
+function microLineKey(direction: NoticeDirection, wave: number) {
+  if (direction === 'softer') return (['drift.micro.softer1', 'drift.micro.softer2', 'drift.micro.softer3'] as const)[wave % 3]
+  if (direction === 'same') return (['drift.micro.same1', 'drift.micro.same2'] as const)[wave % 2]
+  return (['drift.micro.drift1', 'drift.micro.drift2'] as const)[wave % 2]
 }
 
-// Rotating scripted micro-line shown as the next wave's hint after a tap-only
-// check-in. Deterministic (indexed by wave count) — no clock, no randomness.
-function microLineKey(direction: NoticeDirection, wave: number) {
-  if (direction === 'softer') {
-    return (['drift.micro.softer1', 'drift.micro.softer2', 'drift.micro.softer3'] as const)[wave % 3]
-  }
-  if (direction === 'same') {
-    return (['drift.micro.same1', 'drift.micro.same2'] as const)[wave % 2]
-  }
-  return (['drift.micro.drift1', 'drift.micro.drift2'] as const)[wave % 2]
+export interface DriftReturnSummary {
+  direction: 'softer' | 'steady' | 'stronger' | 'unfinished'
+  setCount: number
+  reason: string | null
 }
 
 interface Props {
   parentSessionId: string | null
   hrvContext: string | null
   voiceAvailable: boolean
-  onClose: () => void
+  onClose: (summary?: DriftReturnSummary) => void
 }
 
-// Full-screen Drift overlay, v2: one begin screen (chips + length + anchor),
-// short waves with visible progression, tap-first check-ins. All flow authority
-// lives in the engine (via useDriftSession). Theme-aware (var(--bg/-text)).
+const EMPTY_PARTS: string[] = []
+
 export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClose }: Props) {
   const drift = useDriftSession(parentSessionId, hrvContext)
   const { phase, setCount, softerStreak, softerTotal, limits } = drift.state
-  // Stable useCallback handlers off the API. Effects/timers depend on THESE, not
-  // the whole `drift` object — which is a fresh literal each render, so keying an
-  // effect on it would reset the wave/settle timers on every 1s TICK re-render
-  // and run the abandon cleanup on every re-render.
-  const { abandon, completeSet, settleDone, requestClose } = drift
+  const { abandon, completeSet, settleDone, requestClose, recordInterruption } = drift
   const settings = getSettings()
-  const blsChannel = settings.lastDriftBlsChannel
-  const audioVolume = settings.lastDriftAudioVolume
 
   const [voice, setVoice] = useState(settings.lastDriftVoice)
   const [length, setLength] = useState<DriftLength>(settings.lastDriftLength)
-  const [anchorKind, setAnchorKind] = useState<DriftAnchorKind>('feet')
+  const [anchorKind, setAnchorKind] = useState<DriftAnchorKind>(settings.lastDriftAnchorKind ?? 'feet')
+  const [blsChannel, setBlsChannel] = useState<DriftBlsChannel>(settings.lastDriftBlsChannel)
   const [chip, setChip] = useState<ChipKey>('drift.chip.unsettled')
   const [customOpen, setCustomOpen] = useState(false)
   const [customFocus, setCustomFocus] = useState('')
-  // Last check-in direction — drives the scripted micro-line on the next wave.
   const [lastDir, setLastDir] = useState<NoticeDirection | null>(null)
+  const [adjusting, setAdjusting] = useState(!settings.driftHasCompleted)
+  const [paused, setPaused] = useState(false)
+  const primedAudioRef = useRef<AudioContext | null>(null)
 
-  // Voice mode: the Realtime adapter. Utterances route into the same engine
-  // driver as text; the crisis floor lives inside useDriftVoice.
+  const anchorCue = anchorKind === 'calm_place' ? t('drift.anchor.calmPlaceCue') : t('drift.anchor.feetCue')
+  const waveHint = drift.companionCue || (setCount === 0
+    ? anchorCue
+    : !lastDir || lastDir === 'stronger' ? t('drift.set.hint') : t(microLineKey(lastDir, setCount)))
+
+  const cueText = phase === 'set'
+    ? waveHint
+    : phase === 'notice' ? t('drift.notice.voiceCue') : phase === 'settle' ? t('drift.settle.line') : null
+
   const voiceOn = voice && voiceAvailable
   const driftVoice = useDriftVoice({
     enabled: voiceOn && phase !== 'arrive' && phase !== 'closed',
-    phase,
-    cueText: voiceCue(phase, drift.state.closureReason, setCount),
-    userPartNames: [], // v1 decision kept: voice persona omits user-part names
-    onUtterance: (text) => {
-      if (phase === 'notice') void drift.submitNotice(text, 'skipped')
-    },
-    // activateGrounding() inside useDriftVoice already trips useDriftSession's
-    // grounding subscription → CRISIS dispatch; handling it here would double-dispatch.
-    onCrisis: () => {},
+    cueKey: `${phase}:${setCount}`,
+    cueText,
+    userPartNames: EMPTY_PARTS,
   })
-  // A BLS wave holds while the model speaks its cue, and the FIRST wave also
-  // waits for the voice session to finish connecting (the anchor cue retries
-  // on connect — speak() is a no-op before the data channel opens).
   const voiceHold = voiceOn && (driftVoice.assistantSpeaking || (setCount === 0 && driftVoice.voiceState === 'connecting'))
-  const setActive = phase === 'set' && !voiceHold
+  const setActive = phase === 'set' && !voiceHold && !paused
+  const rhythmRunning = (setActive || phase === 'settle') && !paused
 
-  // Close the overlay once the engine reaches its terminal phase.
-  useEffect(() => { if (phase === 'closed') onClose() }, [phase, onClose])
+  const summary = (): DriftReturnSummary => ({
+    direction: drift.state.closureReason === 'settle' || drift.state.closureReason === 'crisis'
+      ? 'stronger'
+      : softerTotal > 0 ? 'softer' : drift.state.closureReason ? 'steady' : 'unfinished',
+    setCount,
+    reason: drift.state.closureReason,
+  })
 
-  // If the overlay unmounts mid-practice (navigation), mark the session abandoned.
-  // Keyed on the stable `abandon` so it fires only on true unmount, not re-renders.
+  useEffect(() => { if (phase === 'closed') onClose(summary()) }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { void abandon() }, [abandon])
+  useEffect(() => () => {
+    const context = primedAudioRef.current
+    primedAudioRef.current = null
+    if (context) void context.close()
+  }, [])
 
-  // Wave / settle bands auto-advance after one wave duration (from the active
-  // limits — fixed at begin, so these deps never churn).
-  const waveMs = limits.setMs
   useEffect(() => {
     if (!setActive) return
-    const id = setTimeout(() => { completeSet() }, waveMs)
-    return () => clearTimeout(id)
-  }, [setActive, completeSet, waveMs])
+    const id = window.setTimeout(completeSet, limits.setMs)
+    return () => window.clearTimeout(id)
+  }, [setActive, completeSet, limits.setMs])
   useEffect(() => {
-    if (phase !== 'settle') return
-    const id = setTimeout(() => { settleDone() }, waveMs)
-    return () => clearTimeout(id)
-  }, [phase, settleDone, waveMs])
+    if (phase !== 'settle' || paused) return
+    const id = window.setTimeout(settleDone, limits.setMs)
+    return () => window.clearTimeout(id)
+  }, [phase, paused, settleDone, limits.setMs])
 
-  // Escape: from arrive just closes the overlay; anywhere else it routes through
-  // the engine's graceful close (settle & land) — never a dead exit mid-practice.
+  const inPractice = phase !== 'arrive' && phase !== 'closed'
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
+    if (!inPractice) return
+    void acquireWakeLock()
+    return () => { void releaseWakeLock() }
+  }, [inPractice])
+  useEffect(() => {
+    if (!inPractice) return
+    const onVisibility = () => {
+      if (document.hidden) {
+        setPaused(true)
+        recordInterruption()
+      } else {
+        void reacquireWakeLockIfVisible()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [inPractice, recordInterruption])
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
       if (phase === 'arrive') onClose()
       else requestClose()
     }
@@ -138,234 +137,178 @@ export function DriftField({ parentSessionId, hrvContext, voiceAvailable, onClos
   }, [phase, requestClose, onClose])
 
   const beginDrift = () => {
-    updateSettings({ lastDriftVoice: voice, lastDriftLength: length })
-    const custom = customFocus.trim()
-    void drift.begin({
-      anchorKind,
-      blsChannel,
-      voice,
-      length,
-      focus: custom || t(chip),
-      focusIsCustom: custom.length > 0,
+    // WebKit only guarantees Web Audio playback when the context is created or
+    // resumed directly inside a user gesture. Prime the exact context the
+    // rhythm will use before the first render of the practice.
+    if (blsChannel === 'audio') {
+      try {
+        primedAudioRef.current ??= new AudioContext()
+        void primedAudioRef.current.resume()
+      } catch { /* the visible rhythm remains as the fallback */ }
+    }
+    updateSettings({
+      lastDriftVoice: voice,
+      lastDriftLength: length,
+      lastDriftAnchorKind: anchorKind,
+      lastDriftBlsChannel: blsChannel,
     })
+    const custom = customFocus.trim()
+    void drift.begin({ anchorKind, blsChannel, voice, length, focus: custom || t(chip), focusIsCustom: custom.length > 0 })
   }
 
-  const submitCheckIn = (text: string, direction: NoticeDirection) => {
+  const submitCheckIn = async (text: string, direction: NoticeDirection) => {
     setLastDir(direction)
-    if (text) void drift.submitNotice(text, direction)
+    if (text) await drift.submitNotice(text, direction)
     else drift.submitNoticeTap(direction)
   }
 
-  const showSettleClose = phase !== 'arrive' && phase !== 'closure' && phase !== 'closed'
-  const lastCompanion = [...drift.transcript].reverse().find(e => e.role === 'companion')?.content ?? ''
-  // Wave hint: the first wave teaches, later waves carry the scripted micro-line
-  // that answers the writer's last tap. Typed check-ins stream the companion on
-  // the notice screen instead.
-  const waveHint = setCount === 0 || !lastDir || lastDir === 'stronger'
-    ? t('drift.set.hint')
-    : t(microLineKey(lastDir, setCount))
   const waveNumber = Math.min(setCount + (phase === 'set' ? 1 : 0), limits.setTarget)
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Drift"
-      style={{
-        position: 'fixed', inset: 0, zIndex: 1000,
-        background: 'var(--bg-primary)', color: 'var(--text-primary)',
-        overflow: 'hidden', fontFamily: "'Inter', sans-serif",
-      }}
-    >
-      {/* Warmth layer — deepens as waves complete; progression you can feel. */}
-      <div
-        aria-hidden
-        style={{
-          position: 'absolute', inset: 0, pointerEvents: 'none',
-          background: 'radial-gradient(ellipse at 50% 62%, var(--accent-warm) 0%, transparent 62%)',
-          opacity: Math.min(setCount / limits.setTarget, 1) * 0.12,
-          transition: 'opacity 1.6s ease',
-        }}
-      />
+    <div role="dialog" aria-modal="true" aria-label="Drift" style={overlayStyle}>
+      <div aria-hidden style={{ ...warmthStyle, opacity: 0.05 + Math.min(setCount / limits.setTarget, 1) * 0.18 }} />
 
-      {(phase === 'set' || phase === 'settle') && (
-        <BilateralStimulus
-          channel={blsChannel}
-          running={setActive || phase === 'settle'}
-          passMs={passMsForSoftening(softerStreak)}
-          volume={audioVolume}
-        />
+      {phase !== 'arrive' && phase !== 'closed' && (
+        <BilateralStimulus channel={blsChannel} running={rhythmRunning} passMs={passMsForSoftening(softerStreak)} volume={settings.lastDriftAudioVolume} audioContext={primedAudioRef.current} />
       )}
 
-      <div style={{
-        position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', gap: 24, padding: 28, textAlign: 'center',
-      }}>
+      <button
+        type="button"
+        aria-label={phase === 'arrive' ? t('drift.exit') : t('drift.settleClose')}
+        onClick={() => phase === 'arrive' ? onClose() : requestClose()}
+        style={closeBtn}
+      >
+        ×
+      </button>
+
+      <main style={{ ...mainStyle, justifyContent: phase === 'arrive' ? 'flex-start' : 'center' }}>
         {phase === 'arrive' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, maxWidth: 480 }}>
-            <div style={{ fontSize: 22, color: 'var(--text-primary)' }}>{t('drift.arrive.title')}</div>
-            <div style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--text-secondary)' }}>{t('drift.arrive.body')}</div>
+          <div style={columnStyle}>
+            <div style={{ font: "italic 28px/1.2 'Cormorant Garamond', serif" }}>{t('drift.arrive.title')}</div>
+            <div style={{ fontSize: 14, lineHeight: 1.65, color: 'var(--text-secondary)', maxWidth: 430 }}>{t('drift.arrive.body')}</div>
 
-            <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{t('drift.begin.whats')}</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-              {CHIPS.map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => { setChip(key); setCustomOpen(false); setCustomFocus('') }}
-                  aria-pressed={!customOpen && chip === key}
-                  style={chipBtn(!customOpen && chip === key)}
-                >
-                  {t(key)}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setCustomOpen(true)}
-                aria-pressed={customOpen}
-                style={chipBtn(customOpen)}
-              >
-                {t('drift.begin.somethingElse')}
-              </button>
-            </div>
-            {customOpen && (
-              <input
-                value={customFocus}
-                onChange={(e) => setCustomFocus(e.target.value)}
-                placeholder={t('drift.choose.placeholder')}
-                aria-label={t('drift.begin.somethingElse')}
-                autoFocus
-                style={{
-                  width: '100%', maxWidth: 340, background: 'transparent', border: 'none',
-                  borderBottom: '1px solid var(--border-light)', color: 'var(--text-primary)',
-                  fontSize: 15, textAlign: 'center', padding: '6px 4px', outline: 'none',
-                  fontFamily: "'Inter', sans-serif",
-                }}
-              />
+            {!adjusting ? (
+              <>
+                <div style={rememberedStyle}>
+                  <span>{t(chip)}</span><span>·</span><span>{t(LENGTHS.find((item) => item.value === length)!.key)}</span><span>·</span>
+                  <span>{anchorKind === 'feet' ? t('drift.anchor.feet') : t('drift.anchor.calmPlace')}</span>
+                </div>
+                <button type="button" onClick={beginDrift} style={primaryBtn}>{t('drift.arrive.begin')}</button>
+                <button type="button" onClick={() => setAdjusting(true)} style={textBtn}>{t('drift.arrive.adjust')}</button>
+              </>
+            ) : (
+              <>
+                <SectionLabel>{t('drift.begin.whats')}</SectionLabel>
+                <div style={wrapStyle}>
+                  {CHIPS.map((key) => <Choice key={key} active={!customOpen && chip === key} onClick={() => { setChip(key); setCustomOpen(false); setCustomFocus('') }}>{t(key)}</Choice>)}
+                  <Choice active={customOpen} onClick={() => setCustomOpen(true)}>{t('drift.begin.somethingElse')}</Choice>
+                </div>
+                {customOpen && <input value={customFocus} onChange={(e) => setCustomFocus(e.target.value)} placeholder={t('drift.choose.placeholder')} aria-label={t('drift.begin.somethingElse')} autoFocus style={inputStyle} />}
+
+                <SectionLabel>{t('drift.begin.length')}</SectionLabel>
+                <div style={wrapStyle}>{LENGTHS.map(({ value, key }) => <Choice key={value} active={length === value} onClick={() => setLength(value)}>{t(key)}</Choice>)}</div>
+
+                <SectionLabel>{t('drift.begin.anchorLabel')}</SectionLabel>
+                <div style={wrapStyle}>
+                  <Choice active={anchorKind === 'feet'} onClick={() => setAnchorKind('feet')}>{t('drift.anchor.feet')}</Choice>
+                  <Choice active={anchorKind === 'calm_place'} onClick={() => setAnchorKind('calm_place')}>{t('drift.anchor.calmPlace')}</Choice>
+                </div>
+
+                <SectionLabel>{t('drift.arrive.rhythm')}</SectionLabel>
+                <div style={wrapStyle}>
+                  <Choice active={blsChannel === 'visual'} onClick={() => setBlsChannel('visual')}>{t('drift.arrive.visual')}</Choice>
+                  <Choice active={blsChannel === 'audio'} onClick={() => setBlsChannel('audio')}>{t('drift.arrive.softNotes')}</Choice>
+                </div>
+                {blsChannel === 'audio' && <div style={helperStyle}>{t('drift.arrive.audioHelper')}</div>}
+
+                {voiceAvailable && (
+                  <label style={toggleStyle}>
+                    <input type="checkbox" checked={voice} onChange={(e) => setVoice(e.target.checked)} />
+                    <span><strong>{t('drift.arrive.voice')}</strong><small style={{ display: 'block', marginTop: 3, color: 'var(--text-tertiary)' }}>{t('drift.arrive.spokenHelper')}</small></span>
+                  </label>
+                )}
+                <button type="button" onClick={beginDrift} style={primaryBtn}>{t('drift.arrive.begin')}</button>
+              </>
             )}
-
-            <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{t('drift.begin.length')}</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {LENGTHS.map(({ value, key }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setLength(value)}
-                  aria-pressed={length === value}
-                  style={chipBtn(length === value)}
-                >
-                  {t(key)}
-                </button>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-              <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{t('drift.begin.anchorLabel')}</span>
-              <button type="button" onClick={() => setAnchorKind('feet')} aria-pressed={anchorKind === 'feet'} style={chipBtn(anchorKind === 'feet')}>
-                {t('drift.anchor.feet')}
-              </button>
-              <button type="button" onClick={() => setAnchorKind('calm_place')} aria-pressed={anchorKind === 'calm_place'} style={chipBtn(anchorKind === 'calm_place')}>
-                {t('drift.anchor.calmPlace')}
-              </button>
-            </div>
-
-            {voiceAvailable && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                <input type="checkbox" checked={voice} onChange={(e) => setVoice(e.target.checked)} />
-                {t('drift.arrive.voice')}
-              </label>
-            )}
-
-            <button type="button" onClick={beginDrift} style={primaryBtn}>{t('drift.arrive.begin')}</button>
-            <div style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('drift.arrive.notTherapy')}</div>
+            <div style={{ ...helperStyle, fontStyle: 'italic' }}>{t('drift.arrive.notTherapy')}</div>
           </div>
         )}
 
         {phase === 'set' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-            <div style={{ fontSize: 15, lineHeight: 1.65, color: 'var(--text-secondary)', maxWidth: 420 }}>{waveHint}</div>
-            {setCount < 1 && (
-              <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{t('drift.set.butterflyHint')}</div>
-            )}
-            <button type="button" onClick={completeSet} style={ghostBtn}>{t('drift.set.skip')}</button>
+          <div style={columnStyle}>
+            <div style={{ fontSize: 16, lineHeight: 1.7, color: 'var(--text-secondary)', maxWidth: 430 }}>{waveHint}</div>
+            {voiceOn && driftVoice.voiceState === 'connecting' && <div role="status" style={helperStyle}>{t('drift.voice.connecting')}</div>}
+            {voiceOn && driftVoice.error && <div role="status" style={helperStyle}>{t('drift.voice.unavailable')}</div>}
+            {setCount === 0 && <div style={helperStyle}>{t('drift.set.butterflyHint')}</div>}
+            <button type="button" onClick={completeSet} disabled={paused} style={ghostBtn}>{t('drift.set.skip')}</button>
           </div>
         )}
 
         {phase === 'notice' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, width: '100%', maxWidth: 460 }}>
-            {!voiceOn && (drift.streamingText || lastCompanion) && (
-              <div style={{ fontSize: 15, lineHeight: 1.7, color: 'var(--text-primary)' }}>{drift.streamingText || lastCompanion}</div>
-            )}
-            <DriftExchange prompt={t('drift.notice.prompt')} onSubmit={submitCheckIn} />
+          <div style={{ ...columnStyle, width: '100%' }}>
+            <DriftExchange prompt={t('drift.notice.prompt')} onSubmit={submitCheckIn} submitting={drift.isSubmitting} />
           </div>
         )}
 
-        {phase === 'settle' && (
-          <div style={{ fontSize: 16, lineHeight: 1.7, color: 'var(--text-secondary)', maxWidth: 420 }}>{t('drift.settle.line')}</div>
-        )}
+        {phase === 'settle' && <div style={{ fontSize: 17, lineHeight: 1.7, color: 'var(--text-secondary)', maxWidth: 430 }}>{t('drift.settle.line')}</div>}
 
         {phase === 'closure' && (
-          <DriftClosing reason={drift.state.closureReason} softened={softerTotal > 0} onDone={() => { void drift.closureDone() }} />
+          <DriftClosing
+            reason={drift.state.closureReason}
+            softened={softerTotal > 0}
+            onSpeak={voiceOn && driftVoice.voiceState === 'connected' ? driftVoice.speak : undefined}
+            onDone={() => { updateSettings({ driftHasCompleted: true }); void drift.closureDone() }}
+          />
         )}
-      </div>
+      </main>
 
-      {/* Wave progression — always visible during the practice loop. */}
       {(phase === 'set' || phase === 'notice' || phase === 'settle') && (
-        <div
-          data-testid="drift-progress"
-          aria-label={`${waveNumber}/${limits.setTarget}`}
-          style={{
-            position: 'absolute', top: 'calc(20px + env(safe-area-inset-top, 0px))', left: '50%',
-            transform: 'translateX(-50%)', display: 'flex', gap: 8,
-          }}
-        >
-          {Array.from({ length: limits.setTarget }, (_, i) => (
-            <span
-              key={i}
-              data-filled={i < setCount}
-              style={{
-                width: 7, height: 7, borderRadius: 999,
-                background: i < setCount ? 'var(--accent-warm)' : 'transparent',
-                border: '1px solid ' + (i < setCount ? 'var(--accent-warm)' : 'var(--border-light)'),
-                opacity: phase === 'set' && i === setCount ? 0.9 : 0.7,
-                transition: 'all 0.6s ease',
-              }}
-            />
-          ))}
+        <div data-testid="drift-progress" aria-label={`${waveNumber}/${limits.setTarget}`} style={progressStyle}>
+          <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginRight: 4 }}>{t('drift.progress.wave')} {waveNumber}</span>
+          {Array.from({ length: limits.setTarget }, (_, index) => <span key={index} data-filled={index < setCount} style={dotStyle(index < setCount, phase === 'set' && index === setCount)} />)}
         </div>
       )}
 
-      {showSettleClose && (
-        <button
-          type="button"
-          onClick={requestClose}
-          style={{
-            position: 'absolute', bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))', left: '50%', transform: 'translateX(-50%)',
-            padding: '8px 16px', borderRadius: 999, border: '1px solid var(--border-subtle)',
-            background: 'transparent', color: 'var(--text-tertiary)', fontSize: 12, cursor: 'pointer', fontFamily: "'Inter', sans-serif",
-          }}
-        >
-          {t('drift.settleClose')}
-        </button>
+      {inPractice && phase !== 'closure' && (
+        <div style={practiceControlsStyle}>
+          <button type="button" onClick={() => setPaused((value) => !value)} style={controlBtn}>{t(paused ? 'drift.resume' : 'drift.pause')}</button>
+          <button type="button" onClick={requestClose} style={controlBtn}>{t('drift.settleClose')}</button>
+        </div>
+      )}
+      {paused && inPractice && phase !== 'closure' && (
+        <div role="status" style={pauseCardStyle}>
+          <div style={{ fontSize: 17 }}>{t('drift.paused.title')}</div>
+          <div style={helperStyle}>{t('drift.paused.body')}</div>
+          <button type="button" onClick={() => setPaused(false)} style={primaryBtn}>{t('drift.resume')}</button>
+        </div>
       )}
     </div>
   )
 }
 
-const primaryBtn: React.CSSProperties = {
-  padding: '11px 30px', borderRadius: 999, border: '1px solid var(--accent-warm)',
-  background: 'var(--accent-warm)', color: '#fff', fontSize: 15, cursor: 'pointer', fontFamily: "'Inter', sans-serif",
+function Choice({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return <button type="button" onClick={onClick} aria-pressed={active} style={chipBtn(active)}>{children}</button>
 }
-const ghostBtn: React.CSSProperties = {
-  padding: '8px 18px', borderRadius: 999, border: '1px solid var(--border-light)',
-  background: 'transparent', color: 'var(--text-tertiary)', fontSize: 13, cursor: 'pointer', fontFamily: "'Inter', sans-serif",
-}
-function chipBtn(active: boolean): React.CSSProperties {
-  return {
-    padding: '8px 16px', borderRadius: 999, border: `1px solid ${active ? 'var(--accent-warm)' : 'var(--border-light)'}`,
-    background: active ? 'var(--accent-warm)' : 'transparent', color: active ? '#fff' : 'var(--text-secondary)',
-    fontSize: 13, cursor: 'pointer', fontFamily: "'Inter', sans-serif", transition: 'all 0.15s ease',
-  }
-}
+function SectionLabel({ children }: { children: React.ReactNode }) { return <div style={{ fontSize: 12, letterSpacing: '0.04em', color: 'var(--text-tertiary)', marginTop: 3 }}>{children}</div> }
+
+const overlayStyle: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--bg-primary)', color: 'var(--text-primary)', overflow: 'hidden', fontFamily: "'Inter', sans-serif" }
+const warmthStyle: React.CSSProperties = { position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 60%, color-mix(in srgb, var(--accent-warm) 55%, transparent) 0%, transparent 64%)', transition: 'opacity 1.4s ease' }
+const mainStyle: React.CSSProperties = { position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'max(76px, calc(48px + env(safe-area-inset-top))) 24px max(90px, calc(64px + env(safe-area-inset-bottom)))', textAlign: 'center', overflowY: 'auto' }
+const columnStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, maxWidth: 500 }
+const wrapStyle: React.CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }
+const primaryBtn: React.CSSProperties = { padding: '12px 30px', borderRadius: 999, border: '1px solid var(--accent-warm)', background: 'var(--accent-warm)', color: '#fff', fontSize: 15, cursor: 'pointer', fontFamily: "'Inter', sans-serif", minWidth: 132 }
+const ghostBtn: React.CSSProperties = { padding: '9px 18px', borderRadius: 999, border: '1px solid var(--border-light)', background: 'color-mix(in srgb, var(--bg-primary) 72%, transparent)', color: 'var(--text-tertiary)', fontSize: 13, cursor: 'pointer', fontFamily: "'Inter', sans-serif" }
+const textBtn: React.CSSProperties = { border: 'none', background: 'transparent', color: 'var(--text-tertiary)', fontSize: 12, cursor: 'pointer' }
+const helperStyle: React.CSSProperties = { fontSize: 12, lineHeight: 1.55, color: 'var(--text-tertiary)', maxWidth: 420 }
+const toggleStyle: React.CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: 10, textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer', padding: '10px 14px', borderRadius: 12, border: '1px solid var(--border-subtle)', maxWidth: 330 }
+const inputStyle: React.CSSProperties = { width: 'min(340px, 82vw)', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-light)', color: 'var(--text-primary)', fontSize: 15, textAlign: 'center', padding: '7px 4px', outline: 'none', fontFamily: "'Inter', sans-serif" }
+const rememberedStyle: React.CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13, padding: '12px 18px', border: '1px solid var(--border-subtle)', borderRadius: 14 }
+const closeBtn: React.CSSProperties = { position: 'absolute', zIndex: 3, top: 'calc(14px + env(safe-area-inset-top, 0px))', right: 18, width: 42, height: 42, borderRadius: '50%', border: '1px solid var(--border-subtle)', background: 'color-mix(in srgb, var(--bg-primary) 80%, transparent)', color: 'var(--text-secondary)', fontSize: 26, lineHeight: 1, cursor: 'pointer' }
+const progressStyle: React.CSSProperties = { position: 'absolute', top: 'calc(24px + env(safe-area-inset-top, 0px))', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 8, alignItems: 'center' }
+const practiceControlsStyle: React.CSSProperties = { position: 'absolute', zIndex: 3, bottom: 'calc(18px + env(safe-area-inset-bottom, 0px))', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 8 }
+const controlBtn: React.CSSProperties = { padding: '9px 14px', borderRadius: 999, border: '1px solid var(--border-subtle)', background: 'color-mix(in srgb, var(--bg-primary) 78%, transparent)', color: 'var(--text-tertiary)', fontSize: 12, cursor: 'pointer' }
+const pauseCardStyle: React.CSSProperties = { position: 'absolute', zIndex: 4, inset: 0, display: 'flex', flexDirection: 'column', gap: 16, justifyContent: 'center', alignItems: 'center', padding: 30, textAlign: 'center', background: 'color-mix(in srgb, var(--bg-primary) 94%, transparent)', backdropFilter: 'blur(8px)' }
+function chipBtn(active: boolean): React.CSSProperties { return { padding: '8px 15px', borderRadius: 999, border: `1px solid ${active ? 'var(--accent-warm)' : 'var(--border-light)'}`, background: active ? 'var(--accent-warm)' : 'transparent', color: active ? '#fff' : 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', fontFamily: "'Inter', sans-serif", transition: 'all 0.15s ease' } }
+function dotStyle(filled: boolean, current: boolean): React.CSSProperties { return { width: current ? 10 : 8, height: current ? 10 : 8, borderRadius: 999, background: filled || current ? 'var(--accent-warm)' : 'transparent', border: `1px solid ${filled || current ? 'var(--accent-warm)' : 'var(--border-light)'}`, opacity: current ? 1 : 0.75, transition: 'all 0.5s ease' } }
 
 export default DriftField

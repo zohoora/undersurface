@@ -14,18 +14,20 @@ interface Props {
   // Empty text = a tap-only check-in (instant, no LLM turn). Non-empty text =
   // the typed path (the streamed companion + full crisis stack). The pills
   // submit ON TAP — typing is the optional depth, never the requirement.
-  onSubmit: (text: string, direction: NoticeDirection) => void
+  onSubmit: (text: string, direction: NoticeDirection) => void | Promise<void>
+  submitting?: boolean
 }
 
 // v2 check-in: three big pills that submit immediately, plus an "add a word"
 // affordance that reveals a single quiet input. With text present, the pills
 // carry the direction for the typed submission; Enter submits as 'skipped'.
-export function DriftExchange({ prompt, onSubmit }: Props) {
+export function DriftExchange({ prompt, onSubmit, submitting = false }: Props) {
   const [text, setText] = useState('')
   const [showInput, setShowInput] = useState(false)
 
-  const submit = (direction: NoticeDirection) => {
-    onSubmit(text.trim(), direction)
+  const submit = async (direction: NoticeDirection) => {
+    if (submitting) return
+    await onSubmit(text.trim(), direction)
     setText('')
     setShowInput(false)
   }
@@ -38,7 +40,8 @@ export function DriftExchange({ prompt, onSubmit }: Props) {
           <button
             key={dir}
             type="button"
-            onClick={() => submit(dir)}
+            onClick={() => { void submit(dir) }}
+            disabled={submitting}
             style={{
               padding: '12px 22px',
               borderRadius: 999,
@@ -59,6 +62,7 @@ export function DriftExchange({ prompt, onSubmit }: Props) {
         <button
           type="button"
           onClick={() => setShowInput(true)}
+          disabled={submitting}
           style={{
             background: 'transparent',
             border: 'none',
@@ -73,8 +77,9 @@ export function DriftExchange({ prompt, onSubmit }: Props) {
       ) : (
         <input
           value={text}
+          disabled={submitting}
           onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit('skipped') } }}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void submit('skipped') } }}
           placeholder={t('drift.choose.placeholder')}
           aria-label={t('drift.notice.addWord')}
           autoFocus
@@ -91,6 +96,11 @@ export function DriftExchange({ prompt, onSubmit }: Props) {
             fontFamily: "'Inter', sans-serif",
           }}
         />
+      )}
+      {submitting && (
+        <div role="status" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+          {t('drift.notice.holding')}
+        </div>
       )}
     </div>
   )

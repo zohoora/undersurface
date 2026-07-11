@@ -19,7 +19,7 @@ vi.mock('../../../hooks/useDriftSession', () => ({
 
 // Voice wiring is covered by useDriftVoice.test; isolate DriftField from it.
 vi.mock('../../../hooks/useDriftVoice', () => ({
-  useDriftVoice: () => ({ voiceState: 'idle', assistantSpeaking: false }),
+  useDriftVoice: () => ({ voiceState: 'idle', assistantSpeaking: false, error: null, speak: vi.fn() }),
 }))
 
 // Isolate DriftField from BLS internals (Web Audio / rAF) — Task 4 tests those.
@@ -35,6 +35,8 @@ let currentSettings = {
   lastDriftAudioVolume: 0.5,
   lastDriftVoice: false,
   lastDriftLength: 'short',
+  lastDriftAnchorKind: 'feet',
+  driftHasCompleted: false,
 }
 const updateSettingsMock = vi.fn()
 vi.mock('../../../store/settings', () => ({
@@ -59,6 +61,8 @@ function makeApi(state: DriftState): DriftApi {
     state,
     transcript: [],
     streamingText: '',
+    companionCue: '',
+    isSubmitting: false,
     begin: vi.fn(async () => {}),
     completeSet: vi.fn(),
     submitNotice: vi.fn(async () => {}),
@@ -67,6 +71,7 @@ function makeApi(state: DriftState): DriftApi {
     requestClose: vi.fn(),
     closureDone: vi.fn(async () => {}),
     abandon: vi.fn(async () => {}),
+    recordInterruption: vi.fn(),
     voiceActive: false,
   }
 }
@@ -80,7 +85,7 @@ function renderPhase(state: DriftState) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  currentSettings = { lastDriftBlsChannel: 'visual', lastDriftAudioVolume: 0.5, lastDriftVoice: false, lastDriftLength: 'short' }
+  currentSettings = { lastDriftBlsChannel: 'visual', lastDriftAudioVolume: 0.5, lastDriftVoice: false, lastDriftLength: 'short', lastDriftAnchorKind: 'feet', driftHasCompleted: false }
 })
 afterEach(() => cleanup())
 
@@ -93,6 +98,14 @@ describe('DriftField v2', () => {
     expect(screen.queryByText('drift.begin.anchorLabel')).not.toBeNull()
     expect(screen.queryByText('drift.arrive.notTherapy')).not.toBeNull()
     expect(screen.queryByText('drift.settleClose')).toBeNull()
+    expect(screen.queryByText('drift.arrive.visual')).not.toBeNull()
+    expect(screen.queryByText('drift.arrive.softNotes')).not.toBeNull()
+    expect(screen.queryByLabelText('drift.exit')).not.toBeNull()
+  })
+
+  it('describes spoken guidance as one-way and never as microphone input', () => {
+    render(<DriftField {...PROPS} voiceAvailable />)
+    expect(screen.queryByText('drift.arrive.spokenHelper')).not.toBeNull()
   })
 
   it('Begin starts immediately with the selected chip (no crisis-checked custom text)', () => {
@@ -118,6 +131,23 @@ describe('DriftField v2', () => {
       focus: 'the call tomorrow',
       focusIsCustom: true,
     }))
+  })
+
+  it('gives returning users a remembered one-tap start with an adjust escape hatch', () => {
+    currentSettings = { ...currentSettings, driftHasCompleted: true, lastDriftAnchorKind: 'calm_place' }
+    renderPhase(makeState({ phase: 'arrive' }))
+    expect(screen.queryByText('drift.arrive.adjust')).not.toBeNull()
+    fireEvent.click(screen.getByText('drift.arrive.begin'))
+    expect(currentApi.begin).toHaveBeenCalledWith(expect.objectContaining({ anchorKind: 'calm_place', length: 'short' }))
+  })
+
+  it('shows the selected calm-place imagery on the first wave', () => {
+    currentApi = makeApi(makeState({ phase: 'arrive' }))
+    const { rerender } = render(<DriftField {...PROPS} />)
+    fireEvent.click(screen.getByText('drift.anchor.calmPlace'))
+    currentApi = { ...currentApi, state: makeState({ phase: 'set', setCount: 0 }) }
+    rerender(<DriftField {...PROPS} />)
+    expect(screen.queryByText('drift.anchor.calmPlaceCue')).not.toBeNull()
   })
 
   it('a wave renders the BLS dot, the progress dots, and Skip advances', () => {
@@ -173,6 +203,13 @@ describe('DriftField v2', () => {
     renderPhase(makeState({ phase: 'notice' }))
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(currentApi.requestClose).toHaveBeenCalled()
+  })
+
+  it('pauses the wave and offers a clear resume action', () => {
+    renderPhase(makeState({ phase: 'set' }))
+    fireEvent.click(screen.getByText('drift.pause'))
+    expect(screen.queryByText('drift.paused.title')).not.toBeNull()
+    expect(screen.getAllByText('drift.resume').length).toBeGreaterThan(0)
   })
 
   // Regression (Codex #2): the abandon cleanup must fire only on true unmount.

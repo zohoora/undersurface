@@ -1,4 +1,5 @@
 import { sessionCopy } from './sessionCopy'
+import { driftSeamlessFallback } from '../driftSeamlessFallback'
 
 const jaBase = {
   'login.tagline': '自由に書いてください。あなたが立ち止まると、\n内なる声がそっと動き出します——\n裁くためではなく、あなたのそばに座るために\n言葉の中で。',
@@ -395,9 +396,9 @@ const jaBase = {
   'drift.chip.unsettled': 'ただ落ち着かない',
   'drift.begin.somethingElse': '何か別のこと…',
   'drift.begin.length': 'どのくらい？',
-  'drift.length.quick': '2分',
-  'drift.length.short': '4分',
-  'drift.length.full': '6分',
+  'drift.length.quick': '1分',
+  'drift.length.short': '2分',
+  'drift.length.full': '3分',
   'drift.begin.anchorLabel': 'あなたの戻り道：',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': 'いいね。そのままほどけていくままに。',
@@ -413,6 +414,6 @@ const jaBase = {
   'drift.closing.steady': 'それと一緒にいられた。それは大切なこと。',
 } as const
 
-const ja = { ...jaBase, ...sessionCopy.ja } as const
+const ja = { ...jaBase, ...driftSeamlessFallback, ...sessionCopy.ja } as const
 
 export default ja

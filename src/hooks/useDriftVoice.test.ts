@@ -1,54 +1,41 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { renderHook, act } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { renderHook } from '@testing-library/react'
 
 const startMock = vi.fn()
 const stopMock = vi.fn()
 const speakMock = vi.fn()
-const setMicEnabledMock = vi.fn()
-const cancelResponseMock = vi.fn()
-let capturedOnUserTranscript: ((t: string) => void) | undefined
-// Mutable so a test can drive connecting → connected. speak() faithfully mirrors
-// the real hook: a no-op until the data channel is open (state === 'connected').
 let voiceStateMock: 'idle' | 'connecting' | 'connected' | 'error' = 'connected'
+
 vi.mock('./useVoiceSession', () => ({
   useVoiceSession: () => ({
     state: voiceStateMock,
     assistantSpeaking: false,
-    start: (o: { onUserTranscript?: (t: string) => void }) => { capturedOnUserTranscript = o.onUserTranscript; return startMock(o) },
+    error: voiceStateMock === 'error' ? 'failed' : null,
+    start: startMock,
     stop: stopMock,
-    speak: (t: string) => { if (voiceStateMock === 'connected') speakMock(t) },
-    setMicEnabled: setMicEnabledMock,
-    cancelResponse: cancelResponseMock,
+    speak: speakMock,
   }),
 }))
-
 vi.mock('../ai/driftPrompts', () => ({ buildDriftVoiceInstructions: () => 'DRIFT_VOICE_INSTR' }))
-const detectCrisisKeywordsMock = vi.fn(() => false)
-vi.mock('../engine/sessionOrchestrator', () => ({ detectCrisisKeywords: (...a: unknown[]) => detectCrisisKeywordsMock(...(a as [])) }))
-const activateGroundingMock = vi.fn()
-vi.mock('../store/groundingState', () => ({ activateGrounding: (...a: unknown[]) => activateGroundingMock(...a) }))
-const classifyCrisisRiskMock = vi.fn(async () => ({ risk: 0 as 0 | 1 | 2 }))
-vi.mock('../ai/openrouter', () => ({ classifyCrisisRisk: (...a: unknown[]) => classifyCrisisRiskMock(...(a as [])) }))
 vi.mock('../i18n', () => ({ getLanguageCode: () => 'en' }))
 
 import { useDriftVoice, type DriftVoiceOptions } from './useDriftVoice'
 
-function base(over: Partial<DriftVoiceOptions> = {}): DriftVoiceOptions {
-  return { enabled: true, phase: 'anchor', cueText: null, userPartNames: [], onUtterance: vi.fn(), onCrisis: vi.fn(), ...over }
+const parts: string[] = []
+function base(overrides: Partial<DriftVoiceOptions> = {}): DriftVoiceOptions {
+  return { enabled: true, cueKey: 'set:0', cueText: 'Find your anchor.', userPartNames: parts, ...overrides }
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
   voiceStateMock = 'connected'
-  detectCrisisKeywordsMock.mockReturnValue(false)
-  classifyCrisisRiskMock.mockResolvedValue({ risk: 0 })
-  capturedOnUserTranscript = undefined
 })
 
 describe('useDriftVoice', () => {
-  it('starts the Realtime session with the Drift voice instructions when enabled', () => {
-    renderHook(() => useDriftVoice(base({ enabled: true })))
-    expect(startMock).toHaveBeenCalledWith(expect.objectContaining({ instructions: 'DRIFT_VOICE_INSTR' }))
+  it('starts in passive mode so Drift never requests microphone access', () => {
+    renderHook(() => useDriftVoice(base()))
+    expect(startMock).toHaveBeenCalledWith({ instructions: 'DRIFT_VOICE_INSTR', passive: true })
+    expect(startMock.mock.calls[0][0]).not.toHaveProperty('onUserTranscript')
   })
 
   it('does not start when disabled', () => {
@@ -56,52 +43,37 @@ describe('useDriftVoice', () => {
     expect(startMock).not.toHaveBeenCalled()
   })
 
-  it('gates the mic: closed during set, open during notice', () => {
-    const { rerender } = renderHook((p: DriftVoiceOptions) => useDriftVoice(p), { initialProps: base({ phase: 'set' }) })
-    expect(setMicEnabledMock).toHaveBeenLastCalledWith(false)
-    rerender(base({ phase: 'notice' }))
-    expect(setMicEnabledMock).toHaveBeenLastCalledWith(true)
-  })
-
-  // Regression (Codex #3): speak() is a no-op until the data channel opens. If the
-  // cue is marked spoken before connect and never retried, the first phase's cue is
-  // lost. It must be gated on 'connected' and retried when the session reaches it.
-  it('retries the phase cue after the session connects (cue is a no-op while connecting)', () => {
+  it('retries a cue after connecting', () => {
     voiceStateMock = 'connecting'
-    const { rerender } = renderHook((p: DriftVoiceOptions) => useDriftVoice(p), { initialProps: base({ phase: 'anchor', cueText: 'anchor cue' }) })
-    expect(speakMock).not.toHaveBeenCalled() // data channel not open yet
+    const { rerender } = renderHook((options: DriftVoiceOptions) => useDriftVoice(options), { initialProps: base() })
+    expect(speakMock).not.toHaveBeenCalled()
     voiceStateMock = 'connected'
-    rerender(base({ phase: 'anchor', cueText: 'anchor cue' }))
-    expect(speakMock).toHaveBeenCalledWith('anchor cue') // retried on connect
+    rerender(base())
+    expect(speakMock).toHaveBeenCalledWith('Find your anchor.')
   })
 
-  it('speaks a cue once per phase entry', () => {
-    const { rerender } = renderHook((p: DriftVoiceOptions) => useDriftVoice(p), { initialProps: base({ phase: 'anchor', cueText: 'anchor cue' }) })
-    expect(speakMock).toHaveBeenCalledWith('anchor cue')
+  it('speaks once per cue key, including repeated set phases', () => {
+    const { rerender } = renderHook((options: DriftVoiceOptions) => useDriftVoice(options), { initialProps: base() })
     expect(speakMock).toHaveBeenCalledTimes(1)
-    rerender(base({ phase: 'anchor', cueText: 'anchor cue' }))
-    expect(speakMock).toHaveBeenCalledTimes(1) // same phase → not re-spoken
-    rerender(base({ phase: 'settle', cueText: 'settle cue' }))
-    expect(speakMock).toHaveBeenCalledWith('settle cue')
-    expect(speakMock).toHaveBeenCalledTimes(2)
+    rerender(base({ cueText: 'A changed render.' }))
+    expect(speakMock).toHaveBeenCalledTimes(1)
+    rerender(base({ cueKey: 'notice:1', cueText: 'Choose softer, same, or stronger.' }))
+    expect(speakMock).toHaveBeenLastCalledWith('Choose softer, same, or stronger.')
+    rerender(base({ cueKey: 'set:1', cueText: 'Let it loosen.' }))
+    expect(speakMock).toHaveBeenLastCalledWith('Let it loosen.')
+    expect(speakMock).toHaveBeenCalledTimes(3)
   })
 
-  it('a crisis-keyword transcript cancels the response and fires onCrisis (no utterance)', () => {
-    detectCrisisKeywordsMock.mockReturnValue(true)
-    const onCrisis = vi.fn()
-    const onUtterance = vi.fn()
-    renderHook(() => useDriftVoice(base({ onCrisis, onUtterance })))
-    act(() => { capturedOnUserTranscript?.('i want to die') })
-    expect(cancelResponseMock).toHaveBeenCalled()
-    expect(activateGroundingMock).toHaveBeenCalled()
-    expect(onCrisis).toHaveBeenCalled()
-    expect(onUtterance).not.toHaveBeenCalled()
+  it('surfaces connection errors without blocking the visual practice', () => {
+    voiceStateMock = 'error'
+    const { result } = renderHook(() => useDriftVoice(base()))
+    expect(result.current.error).toBe('failed')
+    expect(result.current.voiceState).toBe('error')
   })
 
-  it('an ordinary transcript is passed through as an utterance', () => {
-    const onUtterance = vi.fn()
-    renderHook(() => useDriftVoice(base({ onUtterance })))
-    act(() => { capturedOnUserTranscript?.('the tightness before a call') })
-    expect(onUtterance).toHaveBeenCalledWith('the tightness before a call')
+  it('stops the one-way session on unmount', () => {
+    const { unmount } = renderHook(() => useDriftVoice(base()))
+    unmount()
+    expect(stopMock).toHaveBeenCalled()
   })
 })

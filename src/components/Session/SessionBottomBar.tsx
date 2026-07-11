@@ -75,7 +75,7 @@ export function SessionBottomBar({
         {showRelaxSurface && (
           <button
             type="button"
-            className="session-bottom-bar__pill session-bottom-bar__optional-surface"
+            className="session-bottom-bar__pill session-bottom-bar__optional-surface session-bottom-bar__relax"
             aria-pressed={activeSurface === 'relax'}
             onClick={() => handleSurfaceClick('relax')}
           >
@@ -85,7 +85,7 @@ export function SessionBottomBar({
         {showDriftSurface === true && (
           <button
             type="button"
-            className="session-bottom-bar__pill session-bottom-bar__optional-surface"
+            className="session-bottom-bar__pill session-bottom-bar__optional-surface session-bottom-bar__drift"
             aria-pressed={activeSurface === 'drift'}
             onClick={() => handleSurfaceClick('drift')}
           >
@@ -106,7 +106,7 @@ export function SessionBottomBar({
               </button>
             )}
             {showDriftSurface === true && (
-              <button type="button" aria-pressed={activeSurface === 'drift'} onClick={() => handleSurfaceClick('drift')}>
+              <button className="session-options-menu__drift" type="button" aria-pressed={activeSurface === 'drift'} onClick={() => handleSurfaceClick('drift')}>
                 {t('session.bottomBar.drift')}
               </button>
             )}

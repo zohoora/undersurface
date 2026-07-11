@@ -1,4 +1,5 @@
 import { sessionCopy } from './sessionCopy'
+import { driftSeamlessFallback } from '../driftSeamlessFallback'
 
 const ruBase = {
   'login.tagline': 'Пиши свободно. Когда ты замираешь,\nвнутренний голос пробуждается —\nне чтобы судить, а чтобы сесть рядом с тобой\nсреди слов.',
@@ -395,9 +396,9 @@ const ruBase = {
   'drift.chip.unsettled': 'Просто беспокойно',
   'drift.begin.somethingElse': 'Что-то другое…',
   'drift.begin.length': 'Сколько времени?',
-  'drift.length.quick': '2 мин',
-  'drift.length.short': '4 мин',
-  'drift.length.full': '6 мин',
+  'drift.length.quick': '1 мин',
+  'drift.length.short': '2 мин',
+  'drift.length.full': '3 мин',
   'drift.begin.anchorLabel': 'Твой путь назад:',
   // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
   'drift.micro.softer1': 'Хорошо. Пусть отпускает дальше.',
@@ -413,6 +414,6 @@ const ruBase = {
   'drift.closing.steady': 'Ты остался(ась) с этим. Это считается.',
 } as const
 
-const ru = { ...ruBase, ...sessionCopy.ru } as const
+const ru = { ...ruBase, ...driftSeamlessFallback, ...sessionCopy.ru } as const
 
 export default ru

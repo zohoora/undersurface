@@ -2306,7 +2306,7 @@ body {
   .session-bottom-bar__surfaces {
     flex: 1;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 4px;
   }
 
@@ -2320,7 +2320,8 @@ body {
   }
 
   .session-bottom-bar__optional-surface { display: none; }
-  .session-options { flex: 0 0 25%; margin-left: 4px; }
+  .session-bottom-bar__optional-surface.session-bottom-bar__drift { display: block; }
+  .session-options { flex: 0 0 20%; margin-left: 4px; }
   .session-bottom-bar__options { width: 100%; min-height: 48px; height: auto; font: 11px 'Inter', sans-serif; }
   .session-options-desktop { display: none; }
   .session-options-mobile { display: inline; }
@@ -2332,6 +2333,7 @@ body {
     width: min(280px, calc(100vw - 24px));
   }
   .session-options-menu__surfaces { display: flex; }
+  .session-options-menu__drift { display: none; }
 }
 
 @keyframes blink {
