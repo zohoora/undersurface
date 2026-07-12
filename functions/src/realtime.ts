@@ -12,7 +12,15 @@ const REALTIME_MODEL = 'gpt-realtime-2'
 // Newer transcription model: lower latency and tighter integration with the
 // realtime audio path than legacy `whisper-1`.
 const REALTIME_TRANSCRIPTION_MODEL = 'gpt-realtime-whisper'
-const REALTIME_INSTRUCTIONS_MAX = 16000
+// The Realtime model has a 32k-token context window. This is a character cap,
+// not a token cap: 48k characters is roughly 12k tokens and leaves substantial
+// room for the live conversation. The previous 16k-character guard rejected
+// ordinary continuity-rich Room/Speak prompts before they reached OpenAI.
+export const REALTIME_INSTRUCTIONS_MAX = 48_000
+
+export function realtimeInstructionsAllowed(instructions: string): boolean {
+  return instructions.length > 0 && instructions.length <= REALTIME_INSTRUCTIONS_MAX
+}
 
 // Tempo settings — therapist should sound unhurried.
 // 0.88 = ~12% slower than default; client-side pace-matching may lower further.
@@ -64,7 +72,8 @@ export const realtimeTokenApi = onRequest(
       res.status(400).json({ error: 'Missing instructions' })
       return
     }
-    if (instructions.length > REALTIME_INSTRUCTIONS_MAX) {
+    if (!realtimeInstructionsAllowed(instructions)) {
+      console.warn('Realtime instructions rejected for length', { length: instructions.length, max: REALTIME_INSTRUCTIONS_MAX })
       res.status(400).json({ error: `Instructions too long (max ${REALTIME_INSTRUCTIONS_MAX} chars)` })
       return
     }

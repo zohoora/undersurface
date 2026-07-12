@@ -39,6 +39,9 @@ sound and silence, and the writer can speak again at any time.
    Room record remain in the background.
 8. Every active state has an obvious 44px leave control. Unmount stops voice,
    microphone tracks, sound, timers, and wake lock.
+9. Continuity-rich Realtime instructions are allowed up to 48,000 characters
+   (about 12k tokens). This leaves substantial space in the model's 32k-token
+   context while avoiding the former 16k-character false rejection.
 
 ## Continuity and learning
 
