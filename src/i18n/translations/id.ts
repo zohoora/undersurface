@@ -1,6 +1,7 @@
 import { sessionCopy } from './sessionCopy'
 import { driftSeamlessFallback } from '../driftSeamlessFallback'
 import { conductorFallback } from '../conductorFallback'
+import { roomFallback } from '../roomFallback'
 
 const idBase = {
   'login.tagline': 'Tulis dengan bebas. Saat kamu berhenti,\nsuara dalam diri terbangun —\nbukan untuk menghakimi, tapi untuk duduk di sampingmu\ndi antara kata-kata.',
@@ -415,6 +416,6 @@ const idBase = {
   'drift.closing.steady': 'Kamu tetap bersamanya. Itu berarti.',
 } as const
 
-const id = { ...idBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.id } as const
+const id = { ...idBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.id, ...roomFallback } as const
 
 export default id

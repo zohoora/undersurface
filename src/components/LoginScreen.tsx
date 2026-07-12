@@ -52,7 +52,7 @@ function DemoEditor() {
         <span className="active">{t['session.bottomBar.talk']}</span>
         <span>{t['session.bottomBar.journal']}</span>
         <span>{t['session.bottomBar.speak']}</span>
-        <span>{t['session.bottomBar.relax']}</span>
+        <span>{t['session.bottomBar.room']}</span>
       </div>
       <div className="landing-preview-message landing-preview-message--writer">{t['landing.previewWriter']}</div>
       <div className="landing-preview-message landing-preview-message--companion">{t['landing.previewCompanion']}</div>

@@ -23,6 +23,7 @@ export const USER_SUBCOLLECTIONS = [
   'hrvSessions',
   'relaxSessions',
   'driftSessions',
+  'roomSessions',
   'diagnostics',
   'companionSignals',
   'userParts',

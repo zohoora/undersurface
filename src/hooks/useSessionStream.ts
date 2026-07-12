@@ -349,8 +349,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
             ? [
                 'journal',
                 ...(signalFeatures?.voiceEnabled === true ? ['speak' as const] : []),
-                ...(signalFeatures?.relaxEnabled === true ? ['relax' as const] : []),
-                ...(signalFeatures?.driftEnabled === true ? ['drift' as const] : []),
+                ...(signalFeatures?.relaxEnabled === true || signalFeatures?.driftEnabled === true ? ['room' as const] : []),
               ]
             : [],
           isFirstTurn,
@@ -740,6 +739,48 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     })
   }, [enqueueAppend, messagesRef, orchestratorRef, runtime, sessionRef, setMessages, setSession])
 
+  // Realtime surfaces that are not Speak still share the parent session's
+  // transcript and continuity. They can persist an organic companion turn
+  // here without fabricating a research event or starting a text generation.
+  const appendRealtimeCompanionMessage = useCallback(async (
+    content: string,
+    surface: SessionMessage['surface'],
+  ): Promise<SessionMessage[] | null> => {
+    const currentSession = sessionRef.current
+    if (!currentSession || currentSession.status !== 'active') return null
+    const trimmed = content.trim()
+    if (!trimmed) return null
+    return enqueueAppend(async () => {
+      const phase = orchestratorRef.current.detectPhase(messagesRef.current)
+      const message: SessionMessage = {
+        id: generateId(),
+        speaker: 'therapist',
+        partId: null,
+        partName: null,
+        content: trimmed,
+        timestamp: Date.now(),
+        phase,
+        isEmergence: false,
+        inputMethod: 'voice',
+        surface,
+      }
+      await sessionMessagesDb.add(currentSession.id, message)
+      const updatedMessages = [...messagesRef.current, message]
+      const firstLine = currentSession.firstLine || trimmed.slice(0, 100)
+      await db.sessions.update(currentSession.id, {
+        messageCount: updatedMessages.length,
+        firstLine,
+        phase,
+      })
+      if (runtime.isSessionActive(currentSession.id)) {
+        setSession(previous => previous ? { ...previous, messageCount: updatedMessages.length, firstLine, phase } : previous)
+        setMessages(updatedMessages)
+        messagesRef.current = updatedMessages
+      }
+      return updatedMessages
+    })
+  }, [enqueueAppend, messagesRef, orchestratorRef, runtime, sessionRef, setMessages, setSession])
+
   // Persist a user-authored message (text or voice) and run the synchronous
   // side effects: HRV event, crisis-keyword check, async emotion/weather update.
   // Returns the updated message list + computed firstLine so callers can chain
@@ -826,5 +867,5 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     hrv, weatherEngine, runtime,
   ])
 
-  return { generateTherapistMessage, appendUserMessage, appendDeterministicCompanionMessage }
+  return { generateTherapistMessage, appendUserMessage, appendDeterministicCompanionMessage, appendRealtimeCompanionMessage }
 }

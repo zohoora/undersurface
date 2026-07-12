@@ -873,7 +873,7 @@ describe('buildTherapistSystemPrompt — recommendations', () => {
     expect(prompt).toContain('[Continue in Speak and say this aloud](#switch:speak)')
   })
 
-  it('teaches the relax recommendation pattern when allowed', () => {
+  it('teaches the Room recommendation pattern when allowed', () => {
     const prompt = buildTherapistSystemPrompt({
       phase: 'deepening',
       mode: 'standard',
@@ -881,12 +881,9 @@ describe('buildTherapistSystemPrompt — recommendations', () => {
       isFirstTurn: false,
       allowRecommendations: true,
     })
-    expect(prompt).toContain('#switch:relax')
-    expect(prompt).toContain('[Open Relax for a guided settling practice](#switch:relax)')
-    // Crisis safety: the prompt must explicitly tell the model not to
-    // suggest relax during acute distress — slow paced breathing can
-    // amplify dissociation in someone heading toward overwhelm.
-    expect(prompt).toMatch(/never suggest this in response to acute distress|panic|crisis/i)
+    expect(prompt).toContain('#switch:room')
+    expect(prompt).toContain('[Open Room for voice, sound, or quiet company](#switch:room)')
+    expect(prompt).toMatch(/never present it as treatment|acute distress|crisis/i)
   })
 
   it('omits all four patterns during grounding', () => {
@@ -900,7 +897,7 @@ describe('buildTherapistSystemPrompt — recommendations', () => {
     expect(prompt).not.toContain('#switch:real-talk-on')
     expect(prompt).not.toContain('#switch:journal')
     expect(prompt).not.toContain('#switch:speak')
-    expect(prompt).not.toContain('#switch:relax')
+    expect(prompt).not.toContain('#switch:room')
   })
 })
 

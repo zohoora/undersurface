@@ -1,6 +1,6 @@
 # UnderSurface
 
-A session-first reflective companion app. Opening the app starts (or resumes) a daily session with an AI companion. Within a session the user can move between five surfaces — Talk, Journal, Speak, Relax, and Drift — while the companion carries context across them.
+A session-first reflective companion app. Opening the app starts (or resumes) a daily session with an AI companion. Within a session the user can move between four surfaces — Talk, Journal, Speak, and Room — while the companion carries context across them.
 
 **Live at [undersurface.me](https://undersurface.me)**
 
@@ -11,14 +11,13 @@ Visiting the app routes straight into a session: today's active session if one e
 - **Talk** — streamed text conversation with the companion (OpenAI `gpt-5.5`). Replies can include tappable recommendations (e.g. a breathing break).
 - **Journal** — a quiet TipTap writing page inside the session. An optional "Inner voices" toggle activates the parts pipeline: when the writer pauses, slows down, or trails off, an IFS-inspired inner "part" responds on the page.
 - **Speak** — live voice conversation over WebRTC via OpenAI Realtime (`gpt-realtime-2`), tuned for an unhurried reflective register.
-- **Relax** — breathwork, body scan, safe place, or open awareness, with an adaptive breath circle, ambient soundscapes (preset or custom-generated via ElevenLabs), and optional voice guidance.
-- **Drift** — a short bilateral noticing-and-settling practice with deterministic, time-boxed progression and optional sparse companion turns.
+- **Room** — an ambient space where an organic two-way voice conversation can dissolve into sound and silence. The writer chooses Listen first, Lead me, or Quiet company; one deterministic score keeps timing and atmosphere coherent while the companion remains interruptible.
 
 A **◇ Real Talk** toggle switches the companion's tone to one that names coping moves (avoidance, intellectualization, minimization, …) — not nice, but kind and constructive. It is automatically disabled whenever grounding (crisis) mode is active.
 
 Crisis safety is layered: a synchronous keyword floor plus an LLM risk classifier, both feeding a grounding mode that softens the companion, silences parts, and surfaces crisis resources.
 
-Optional biometrics (webcam rPPG or a Polar H10 chest strap over Web Bluetooth) feed live heart-rate variability into the companion's context and drive the Relax breath pacing.
+Optional biometrics (webcam rPPG or a Polar H10 chest strap over Web Bluetooth) feed live heart-rate variability into the companion's context.
 
 ### Inner parts
 
@@ -55,15 +54,15 @@ undersurface/
 │   │   ├── therapistPrompts.ts    # THERAPIST_CORE + REAL_TALK_CORE + SAFETY_RULES
 │   │   ├── partPrompts.ts         # 7 seeded parts + SHARED_INSTRUCTIONS + emergence/reflection/growth
 │   │   ├── crisisClassifierPrompt.ts
-│   │   ├── relaxPrompts.ts        # Relax voice-guidance prompts
+│   │   ├── roomPrompts.ts         # Organic, interruptible Room voice contract
 │   │   └── llmCorrect.ts          # LLM autocorrect
 │   ├── engine/                    # Core logic (sessionOrchestrator, partOrchestrator,
 │   │                              #   pauseDetector, hrvEngine, polarH10Engine, relaxEngine, …)
 │   ├── hooks/                     # useSessionStream, useSessionVoice, useVoiceSession,
-│   │                              #   useHrvSession, usePolarH10Session, useRelaxSession, …
+│   │                              #   useHrvSession, usePolarH10Session, useRoomSession, …
 │   ├── components/
 │   │   ├── Session/               # SessionView (shell), SessionBottomBar, SessionJournalSurface,
-│   │   │                          #   VoiceField, Relax/, HRV consent + biometrics bar
+│   │   │                          #   VoiceField, Room/, HRV consent + biometrics bar
 │   │   ├── Editor/                # useJournalParts + part thought bubbles (in-session journal)
 │   │   ├── Sidebar/               # Session list + settings panel
 │   │   ├── ThinkingOutLoud/       # Multi-turn dialogue with parts
@@ -118,7 +117,7 @@ useSessionVoice → POST /api/realtime-token → realtimeTokenApi
   → useVoiceSession opens WebRTC directly to api.openai.com
 ```
 
-Relax voice guidance reuses the same stack in `passive` mode (recvonly, no mic prompt).
+Room reuses the same stack in active, managed-playback mode. Quiet company does not create a Realtime session or request microphone access.
 
 ### SMS field flow
 
@@ -176,6 +175,7 @@ Writers text naturally or attach up to four JPEG, PNG, WEBP, or GIF images—the
 | `consent` | Terms + camera + Bluetooth consent records |
 | `hrvSessions` | HRV archives (`source: 'camera' \| 'polarH10'`, signal dumps) |
 | `relaxSessions` | Relax surface session records |
+| `roomSessions` | Unified Room choices, controls, elapsed time, and transcript |
 | `diagnostics` | Client diagnostic events |
 | `apiKeys` | Hashed keys for the MCP server |
 | `entries` | **Legacy** diary entries — no writers anymore; read by echo/quote/reflection engines and MCP tools |
@@ -186,7 +186,7 @@ Security rule: users can only read/write their own data (`request.auth.uid == us
 
 ### Global config — `appConfig/global`
 
-A single Firestore document with app-wide defaults and feature flags (typed as `GlobalConfig` in `src/admin/adminTypes.ts`): 6 core flags (default enabled, checked `!== false`) and 23 experimental flags (default disabled, checked `=== true`) covering atmosphere, part intelligence, memory/engagement, safety, biometrics (`webcamHrv`, `polarH10`), voice (`voiceEnabled`), and Relax (`relaxEnabled`, `customSoundscapesEnabled`), plus tuning sections and an announcement banner. Readable by all authenticated users; writable only through `adminApi`; listened to in real-time via `onSnapshot` in `src/store/globalConfig.ts`.
+A single Firestore document with app-wide defaults and feature flags (typed as `GlobalConfig` in `src/admin/adminTypes.ts`): core and experimental flags covering atmosphere, part intelligence, memory/engagement, safety, biometrics (`webcamHrv`, `polarH10`), voice (`voiceEnabled`), and the legacy restorative flags used to enable Room (`relaxEnabled` or `driftEnabled`), plus tuning sections and an announcement banner. Readable by all authenticated users; writable only through `adminApi`; listened to in real-time via `onSnapshot` in `src/store/globalConfig.ts`.
 
 ## Settings System
 
@@ -196,7 +196,7 @@ User preferences follow a 3-tier priority cascade:
 user localStorage  >  appConfig/global defaults  >  hardcoded DEFAULTS
 ```
 
-Defaults live in `src/store/settings.ts` (response speed, autocorrect, theme, language, timezone, last session mode, Relax preferences). When `appConfig/global` updates, `invalidateSettingsCache()` propagates new defaults; explicit localStorage overrides win. Reactive via `useSettings()` / `useGlobalConfig()` (`useSyncExternalStore`); `getSettings()` / `getGlobalConfig()` for non-React code.
+Defaults live in `src/store/settings.ts` (response speed, autocorrect, theme, language, timezone, last session mode, and Room preferences; legacy Relax/Drift settings remain for old records). When `appConfig/global` updates, `invalidateSettingsCache()` propagates new defaults; explicit localStorage overrides win. Reactive via `useSettings()` / `useGlobalConfig()` (`useSyncExternalStore`); `getSettings()` / `getGlobalConfig()` for non-React code.
 
 ## Development
 

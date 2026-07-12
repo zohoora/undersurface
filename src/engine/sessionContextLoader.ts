@@ -1,4 +1,4 @@
-import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RuptureEvidence, CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue, CompanionPromise, MemoryAperture, InterventionOutcome, AlliancePreferences, CompanionPreferences, PersonalProtocol, LivingHypothesis, ResearchEvent } from '../types'
+import type { PartMemory, UserProfile, PersonalFacts, RelaxSession, RoomSession, RuptureEvidence, CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue, CompanionPromise, MemoryAperture, InterventionOutcome, AlliancePreferences, CompanionPreferences, PersonalProtocol, LivingHypothesis, ResearchEvent } from '../types'
 import { db } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
 import { detectOpenTimeEvidence } from './ruptureDetector'
@@ -24,6 +24,7 @@ export interface TherapistContext {
   // Most recent relax sessions across the user's history. Used at session
   // start to inform the therapist about recent breathwork/meditation work.
   recentRelaxBreaks: RelaxSession[]
+  recentRoomSessions: RoomSession[]
   // Rupture evidence for the opener (flag-gated; null when nothing fired).
   // Persisted as pendingRepair before returning, so the stream's consume-once
   // clearing is uniform whether the evidence came from open-time detection or
@@ -77,7 +78,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
   const interiorityOn = features?.companionInteriority === true
   const arcsOn = features?.storyArcs === true
 
-  const [sessions, memories, profiles, facts, relaxBreaks, signals, allUserParts, allIntentions, stanceProfile, allValues, allPromises, fieldMoments, smsMessages, preferences, outcomes, personalProtocols, livingHypotheses, conductorEvents] = await Promise.all([
+  const [sessions, memories, profiles, facts, relaxBreaks, roomSessions, signals, allUserParts, allIntentions, stanceProfile, allValues, allPromises, fieldMoments, smsMessages, preferences, outcomes, personalProtocols, livingHypotheses, conductorEvents] = await Promise.all([
     // Bounded: only the 5 newest noted sessions are kept, so scanning the
     // full collection is pure read amplification. 50 newest gives ample
     // margin for closed-without-note gaps.
@@ -90,6 +91,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     db.userProfile.toArray(),
     db.personalFacts.get('current'),
     db.relaxSessions.orderBy('startedAt').reverse().limit(RECENT_RELAX_LIMIT * 2).toArray(),
+    db.roomSessions.orderBy('startedAt').reverse().limit(8).toArray(),
     repairOn || pivotOn || interiorityOn || arcsOn ? db.companionSignals.get('current') : Promise.resolve(undefined),
     userPartsOn ? db.userParts.toArray() : Promise.resolve([] as UserPart[]),
     intentionsOn ? db.sessionIntentions.toArray() : Promise.resolve([] as SessionIntention[]),
@@ -141,6 +143,10 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     .filter(r => r.endedAt !== null)
     .filter(r => !r.parentSessionId || !freshSessionIds.has(r.parentSessionId))
     .slice(0, RECENT_RELAX_LIMIT)
+  const recentRoomSessions = roomSessions
+    .filter(room => room.endedAt !== null)
+    .filter(room => !room.parentSessionId || !freshSessionIds.has(room.parentSessionId))
+    .slice(0, 5)
 
   // Rupture evidence: open-time markers (abandoned / atypical gap) computed
   // from prior sessions — excluding the session being opened, which on the
@@ -270,6 +276,7 @@ export async function loadTherapistContext(currentSessionId?: string): Promise<T
     userProfile,
     personalFacts: facts ?? null,
     recentRelaxBreaks,
+    recentRoomSessions,
     repairContext,
     ruminationWatch,
     activeUserParts,

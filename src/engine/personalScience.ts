@@ -107,7 +107,7 @@ function responseModeForArm(arm: ResearchArm): CompanionResponseMode {
   if (arm === 'transfer_user_first' || arm === 'transfer_minimal_cue') return 'user_first'
   if (arm === 'transfer_independent') return 'offer_quiet'
   if (arm === 'designed_silence') return 'offer_quiet'
-  if (arm === 'offer_journal_arc' || arm === 'journal_arc' || arm === 'speak_arc' || arm === 'relax_arc' || arm === 'drift_arc') return 'handoff'
+  if (arm === 'offer_journal_arc' || arm === 'journal_arc' || arm === 'speak_arc' || arm === 'relax_arc' || arm === 'drift_arc' || arm === 'room_arc') return 'handoff'
   if (arm === 'generated_response' || arm === 'continue_talk') return 'reflect'
   if (arm === 'field_check_in') return 'clarify'
   if (arm === 'field_no_contact') return 'offer_quiet'
@@ -550,6 +550,7 @@ export function labelForResearchArm(arm: ResearchArm): string {
     speak_arc: 'a Speak arc',
     relax_arc: 'a Relax arc',
     drift_arc: 'a Drift arc',
+    room_arc: 'a Room arc',
     transfer_companion_led: 'the companion leading',
     transfer_user_first: 'you going first',
     transfer_minimal_cue: 'a minimal cue',

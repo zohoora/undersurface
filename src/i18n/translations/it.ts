@@ -1,6 +1,7 @@
 import { sessionCopy } from './sessionCopy'
 import { driftSeamlessFallback } from '../driftSeamlessFallback'
 import { conductorFallback } from '../conductorFallback'
+import { roomFallback } from '../roomFallback'
 
 const itBase = {
   'login.tagline': 'Scrivi liberamente. Quando ti fermi,\nuna voce interiore si muove —\nnon per giudicare, ma per sedersi accanto a te\ntra le parole.',
@@ -415,6 +416,6 @@ const itBase = {
   'drift.closing.steady': 'Hai tenuto duro. Conta.',
 } as const
 
-const it = { ...itBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.it } as const
+const it = { ...itBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.it, ...roomFallback } as const
 
 export default it

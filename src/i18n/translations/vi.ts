@@ -1,6 +1,7 @@
 import { sessionCopy } from './sessionCopy'
 import { driftSeamlessFallback } from '../driftSeamlessFallback'
 import { conductorFallback } from '../conductorFallback'
+import { roomFallback } from '../roomFallback'
 
 const viBase = {
   'login.tagline': 'Viết tự do. Khi bạn dừng lại,\nmột giọng nói bên trong thức dậy —\nkhông phải để phán xét, mà để ngồi bên bạn\ngiữa những con chữ.',
@@ -415,6 +416,6 @@ const viBase = {
   'drift.closing.steady': 'Bạn đã ở lại với nó. Điều đó có ý nghĩa.',
 } as const
 
-const vi = { ...viBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.vi } as const
+const vi = { ...viBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.vi, ...roomFallback } as const
 
 export default vi

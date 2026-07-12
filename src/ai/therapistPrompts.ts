@@ -203,18 +203,17 @@ Use these EXACT link formats — the bracketed phrase is what the writer reads, 
   [Turn on Real Talk for a more direct response](#switch:real-talk-on)
   [Open Journal for a few quiet minutes](#switch:journal)
   [Continue in Speak and say this aloud](#switch:speak)
-  [Open Relax for a guided settling practice](#switch:relax)
+  [Open Room for voice, sound, or quiet company](#switch:room)
   [Continue this thread in Journal, then return here](#switch:journal-arc)
   [Continue this thread in Speak, then return here](#switch:speak-arc)
-  [Take a short Relax break, then return here](#switch:relax-arc)
-  [Take this into a short Drift practice, then return here](#switch:drift-arc)
+  [Enter Room for voice, sound, or quiet company, then return here](#switch:room-arc)
 
 When to use each:
 - #switch:real-talk-on — when softness is becoming avoidance, when the writer would benefit from being called out kindly. Once they accept, your tone sharpens.
 - #switch:journal — when something is brewing under the surface that doesn't want a back-and-forth. The writer steps into a private writing space; you wait quietly.
 - #switch:speak — when the body knows something the typing fingers don't. Voice often surfaces what text holds back.
-- #switch:relax — when the body is wired and the words can't get loose: somatic activation, racing thoughts, hours of rumination, breath you can hear in their sentences. The writer enters a guided meditation/biofeedback session and returns when ready. NEVER suggest this in response to acute distress, panic, or crisis — slow paced breathing can amplify dissociation in someone heading toward overwhelm.
-- The -arc forms are deliberate, temporary continuations of THIS exact thread. Use one only when the other surface's interaction grammar fits the next move better, with an expectation of returning to Talk afterward. Journal is for uncensored language, Speak for prosody or what is hard to type, Relax for settling activation, and Drift for bilateral noticing. Do not use an arc as novelty or avoidance.
+- #switch:room — when another reply is less useful than changing the form: the writer wants company but fewer words, wants to speak before settling into silence, or wants sound and light without a task. Room lets them choose conversation, gentle leadership, or quiet company. NEVER present it as treatment or use it to avoid acute distress or crisis.
+- The -arc forms are deliberate, temporary continuations of THIS exact thread. Use one only when the other surface's interaction grammar fits the next move better, with an expectation of returning to Talk afterward. Journal is for uncensored language, Speak for sustained voice conversation, and Room for conversation that can dissolve into sound and silence. Do not use an arc as novelty or avoidance.
 
 Hard rules:
 - At most one recommendation per ~5 turns. Most responses contain none.
@@ -248,7 +247,7 @@ export interface TherapistPromptOptions {
   // Allow the therapist to suggest tonal shifts via inline [phrase](#switch:target)
   // recommendations. The session UI renders the tappable spans inside SessionMessage.
   allowRecommendations?: boolean
-  availableSurfaceArcs?: Array<'journal' | 'speak' | 'relax' | 'drift'>
+  availableSurfaceArcs?: Array<'journal' | 'speak' | 'room'>
   // Default true. The text path streams through openrouter.ts, whose parser
   // strips the `<<RISK:N>>` preamble. The Realtime voice path has no such
   // parser — it must pass false so the voice model is never instructed to
@@ -376,7 +375,7 @@ The writer has been circling the same ground without new information or movement
 - Concrete next step: help them find one small, specific, doable action connected to their own words
 - Values and meaning: gently move from "why is this happening" to "what matters to you in this"
 - Body and present moment: bring attention to right-now sensation, breath, or surroundings
-- Offer a pause: suggest a short Relax break if the moment invites it
+- Offer a pause: suggest Room if a change into voice, sound, or quiet company fits
 Ride their own material — the shift should feel like a natural deepening, not a change of subject.${themeLine}`
 }
 

@@ -3,8 +3,8 @@
 // so the parser stays forward-compatible with unknown targets while the named members
 // serve as inline documentation.
 export type RecommendationTarget =
-  | 'real-talk-on' | 'journal' | 'speak' | 'relax'
-  | 'journal-arc' | 'speak-arc' | 'relax-arc' | 'drift-arc'
+  | 'real-talk-on' | 'journal' | 'speak' | 'room' | 'relax'
+  | 'journal-arc' | 'speak-arc' | 'room-arc' | 'relax-arc' | 'drift-arc'
   | 'end-session'
   | (string & {})
 

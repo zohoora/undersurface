@@ -1,4 +1,5 @@
 import { sessionCopy } from './sessionCopy'
+import { roomFallback } from '../roomFallback'
 
 const enBase = {
   // Login screen
@@ -20,7 +21,7 @@ const enBase = {
 
   // Onboarding
   'onboarding.welcome': 'Welcome to UnderSurface',
-  'onboarding.step1.body': 'UnderSurface opens into a private reflection session. You can talk with your companion, write quietly in Journal, speak aloud, or take a guided pause in Relax or Drift.',
+  'onboarding.step1.body': 'UnderSurface opens into a private reflection session. You can talk with your companion, write quietly in Journal, speak aloud, or enter Room for voice, sound, and quiet company.',
   'onboarding.step1.button': 'How does it work?',
   'onboarding.step2.title': 'A companion that remembers',
   'onboarding.step2.body1': 'Your companion can notice useful threads across sessions: words you use, intentions you choose, and patterns you decide are worth keeping.',
@@ -410,7 +411,7 @@ const enBase = {
   // Landing page hero
   'landing.headline': 'A reflection space that remembers what matters',
   'landing.feature1': 'Talk it through or write privately',
-  'landing.feature2': 'Pause and settle with Relax or Drift',
+  'landing.feature2': 'Move naturally between voice, sound, and quiet in Room',
   'landing.feature3': 'Return to one useful thread next time',
   'landing.cta': 'Begin a session — it\'s free',
   'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
@@ -438,7 +439,7 @@ const enBase = {
   'values.settings.title': 'What matters to you',
 } as const
 
-const en = { ...enBase, ...sessionCopy.en } as const
+const en = { ...enBase, ...sessionCopy.en, ...roomFallback } as const
 
 export type TranslationKey = keyof typeof en
 export type TranslationStrings = typeof en

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { getGlobalConfig } from './globalConfig'
 import { detectBrowserLanguage } from '../i18n/languages'
-import type { DriftBlsChannel, RelaxAudioTrack, RelaxSessionType, RelaxVisualMode, SessionMode } from '../types'
+import type { DriftBlsChannel, RelaxAudioTrack, RelaxSessionType, RelaxVisualMode, RoomApproach, RoomAudioTrack, RoomDuration, RoomVoiceDensity, SessionMode } from '../types'
 
 export interface AppSettings {
   // Part responsiveness (0.5 = slower, 2.0 = faster)
@@ -47,6 +47,14 @@ export interface AppSettings {
   lastDriftLength: 'quick' | 'short' | 'full'
   lastDriftAnchorKind: 'feet' | 'calm_place'
   driftHasCompleted: boolean
+
+  // Last Room shape. Room is intentionally easy to repeat: it remembers the
+  // accompaniment, length, and sound that fit on this device.
+  lastRoomApproach: RoomApproach
+  lastRoomDuration: RoomDuration
+  lastRoomVoiceDensity: RoomVoiceDensity
+  lastRoomAudio: RoomAudioTrack
+  lastRoomAudioVolume: number
 }
 
 // The device's zone, not a hardcoded one: the timezone defines "today's
@@ -81,6 +89,11 @@ const DEFAULTS: AppSettings = {
   lastDriftLength: 'short',
   lastDriftAnchorKind: 'feet',
   driftHasCompleted: false,
+  lastRoomApproach: 'listen_first',
+  lastRoomDuration: 5,
+  lastRoomVoiceDensity: 'sparse',
+  lastRoomAudio: 'ocean',
+  lastRoomAudioVolume: 0.42,
 }
 
 const STORAGE_KEY = 'undersurface:settings'

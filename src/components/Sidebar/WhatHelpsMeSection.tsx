@@ -25,6 +25,7 @@ function armTranslationKey(arm: ResearchArm): TranslationKey {
     speak_arc: 'ps.arm.speak_arc',
     relax_arc: 'ps.arm.relax_arc',
     drift_arc: 'ps.arm.drift_arc',
+    room_arc: 'ps.arm.room_arc',
     transfer_companion_led: 'ps.arm.transfer_companion_led',
     transfer_user_first: 'ps.arm.transfer_user_first',
     transfer_minimal_cue: 'ps.arm.transfer_minimal_cue',

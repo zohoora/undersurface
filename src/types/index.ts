@@ -184,6 +184,38 @@ export interface DriftSession {
   displayMode?: 'browser' | 'standalone'
 }
 
+// Room is the unified restorative surface that replaces the user-facing
+// Relax and Drift choices. Its score is deterministic, while the optional
+// voice remains a natural two-way Realtime conversation.
+export type RoomApproach = 'listen_first' | 'lead_me' | 'quiet_company'
+export type RoomDuration = 2 | 5 | 10
+export type RoomVoiceDensity = 'quiet' | 'sparse' | 'present'
+export type RoomAudioTrack = Exclude<RelaxAudioTrack, 'custom'>
+export type RoomPhase = 'choosing' | 'threshold' | 'immersing' | 'returning'
+export type RoomCommand = 'less_voice' | 'more_voice' | 'quiet' | 'change_sound' | 'stay' | 'end'
+
+export interface RoomTranscriptEntry {
+  role: 'user' | 'companion'
+  content: string
+  atMs: number
+}
+
+export interface RoomSession {
+  id: string
+  parentSessionId: string | null
+  startedAt: number
+  endedAt: number | null
+  approach: RoomApproach
+  duration: RoomDuration
+  voiceDensity: RoomVoiceDensity
+  audioTrack: RoomAudioTrack
+  transcript: RoomTranscriptEntry[]
+  commands: RoomCommand[]
+  completed: boolean
+  actualDurationMs: number
+  memoryAperture: MemoryAperture
+}
+
 export interface Session {
   id: string
   startedAt: number
@@ -236,7 +268,7 @@ export type CompanionResponseMode =
   | 'handoff'
   | 'close_warmly'
 
-export type SessionSurface = 'talk' | 'journal' | 'speak' | 'relax' | 'drift'
+export type SessionSurface = 'talk' | 'journal' | 'speak' | 'room' | 'relax' | 'drift'
 
 export interface SessionMessage {
   id: string
@@ -487,6 +519,7 @@ export type ResearchArm =
   | 'speak_arc'
   | 'relax_arc'
   | 'drift_arc'
+  | 'room_arc'
   | 'transfer_companion_led'
   | 'transfer_user_first'
   | 'transfer_minimal_cue'

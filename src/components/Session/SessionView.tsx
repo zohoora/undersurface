@@ -38,12 +38,14 @@ import { assignmentFromEvent, planResearchTurn } from '../../engine/personalScie
 import { persistResearchAssignment } from '../../store/personalScience'
 import { isFreshEyesSession, normalizeSessionMemoryAperture } from '../../engine/freshEyes'
 import { finalizePreviousActiveSessions } from '../../engine/sessionFinalizer'
-import { DriftField, type DriftReturnSummary } from './Drift/DriftField'
 import { planAdaptiveConductor } from '../../engine/adaptiveConductor'
 import { engineLog } from '../../services/diagnostics'
+import { buildTherapistSystemPrompt } from '../../ai/therapistPrompts'
+import { buildRoomInstructions } from '../../ai/roomPrompts'
+import type { RoomConfig } from '../../hooks/useRoomSession'
 
 const VoiceField = lazy(() => import('./VoiceField').then(module => ({ default: module.VoiceField })))
-const RelaxField = lazy(() => import('./Relax/RelaxField'))
+const RoomField = lazy(() => import('./Room/RoomField'))
 
 interface Props {
   sessionId: string | null
@@ -93,17 +95,19 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const relaxEnabled = getGlobalConfig()?.features?.relaxEnabled === true
 
   const globalConfig = useGlobalConfig()
-  // Drift is its own surface since v2 (2026-07-09). The ENTRY hides while
-  // grounding is active, but a mounted DriftField stays mounted mid-crisis —
-  // its engine owns the scripted crisis closure; unmounting would skip it.
+  // Room absorbs the old Relax and Drift entries. It is unavailable while
+  // grounding owns the session.
   const grounding = useGroundingMode()
   const driftEnabled = globalConfig?.features?.driftEnabled === true
+  // Room replaces the two old restorative entries without requiring a config
+  // migration before deploy: either existing flag makes the unified surface
+  // available.
+  const roomEnabled = relaxEnabled || driftEnabled
   const [surface, setSurface] = useState<SessionSurface>('talk')
   const [journalDraft, setJournalDraft] = useState<string>('')
   const [activeArc, setActiveArc] = useState<{ surface: SessionSurface; outcomeId: string; startedAt: number; ambientReturn?: boolean } | null>(null)
   const [returnedArc, setReturnedArc] = useState<{ surface: SessionSurface; outcomeId: string } | null>(null)
-  const [driftReturn, setDriftReturn] = useState<DriftReturnSummary | null>(null)
-  const [conductorReturn, setConductorReturn] = useState<Exclude<SessionSurface, 'talk' | 'drift'> | null>(null)
+  const [conductorReturn, setConductorReturn] = useState<Exclude<SessionSurface, 'talk' | 'relax' | 'drift'> | null>(null)
   const handleAutocorrect = useAutocorrect({
     autocorrect: settings.autocorrect,
     autoCapitalize: settings.autoCapitalize ?? true,
@@ -255,7 +259,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     [],
   )
 
-  const { generateTherapistMessage, appendUserMessage, appendDeterministicCompanionMessage } = useSessionStream({
+  const { generateTherapistMessage, appendUserMessage, appendDeterministicCompanionMessage, appendRealtimeCompanionMessage } = useSessionStream({
     sessionRef,
     messagesRef,
     contextRef,
@@ -280,8 +284,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         'talk',
         'journal',
         ...(voiceEnabled ? ['speak' as const] : []),
-        ...(relaxEnabled ? ['relax' as const] : []),
-        ...(driftEnabled ? ['drift' as const] : []),
+        ...(roomEnabled ? ['room' as const] : []),
       ],
       recentEvents: contextRef.current?.recentConductorEvents,
       protocols: contextRef.current?.activePersonalProtocols,
@@ -307,7 +310,8 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
             speak_arc: 'conductor.offer.speak',
             relax_arc: 'conductor.offer.relax',
             drift_arc: 'conductor.offer.drift',
-          } as const)[conductor.event.assignedArm as Extract<ResearchArm, 'journal_arc' | 'speak_arc' | 'relax_arc' | 'drift_arc'>]
+            room_arc: 'conductor.offer.room',
+          } as const)[conductor.event.assignedArm as Extract<ResearchArm, 'journal_arc' | 'speak_arc' | 'relax_arc' | 'drift_arc' | 'room_arc'>]
           if (key) return await appendDeterministicCompanionMessage(tr[key], conductor.event) ?? updatedMessages
         }
         return generateTherapistMessage(updatedMessages, currentSession, conductor.assignment)
@@ -349,7 +353,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       return await appendDeterministicCompanionMessage(content, assignment.event) ?? updatedMessages
     }
     return generateTherapistMessage(updatedMessages, currentSession, assignment)
-  }, [appendDeterministicCompanionMessage, generateTherapistMessage, grounding, tr, voiceEnabled, relaxEnabled, driftEnabled])
+  }, [appendDeterministicCompanionMessage, generateTherapistMessage, grounding, tr, voiceEnabled, roomEnabled])
 
   const voice = useSessionVoice({
     sessionRef,
@@ -550,8 +554,14 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       voiceStop()
     }
     if (activeArc && next === 'talk') {
-      if (activeArc.ambientReturn && activeArc.surface !== 'talk' && activeArc.surface !== 'drift') {
-        setConductorReturn(activeArc.surface)
+      if (activeArc.surface === 'room') {
+        // Room's research stays ambient. Returning should not trigger a
+        // questionnaire after an experience explicitly designed around ease.
+        setConductorReturn('room')
+        setReturnedArc(null)
+      } else if (activeArc.ambientReturn && activeArc.surface !== 'talk') {
+        const returnSurface = activeArc.surface === 'relax' || activeArc.surface === 'drift' ? 'room' : activeArc.surface
+        setConductorReturn(returnSurface)
         setReturnedArc(null)
       } else {
         setReturnedArc({ surface: activeArc.surface, outcomeId: activeArc.outcomeId })
@@ -564,8 +574,8 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const startSurfaceArc = useCallback((next: Exclude<SessionSurface, 'talk'>) => {
     if (!session || grounding || isFreshEyesSession(session)) return
     if (next === 'speak' && !voiceEnabled) return
-    if (next === 'relax' && !relaxEnabled) return
-    if (next === 'drift' && !driftEnabled) return
+    if (next === 'room' && !roomEnabled) return
+    if ((next === 'relax' || next === 'drift') && !roomEnabled) return
     const outcomeId = generateId()
     const now = Date.now()
     const sourceMessage = messagesRef.current.at(-1)
@@ -612,33 +622,17 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       })
     }
     handleSurfaceChange(next)
-  }, [session, handleSurfaceChange, grounding, voiceEnabled, relaxEnabled, driftEnabled])
+  }, [session, handleSurfaceChange, grounding, voiceEnabled, roomEnabled])
 
-  const handleDriftClose = useCallback((summary?: DriftReturnSummary) => {
-    if (summary) setDriftReturn(summary)
-    if (activeArc?.surface === 'drift') {
-      if (summary) {
-        const immediate = summary.direction === 'softer' ? 'helped' : summary.direction === 'stronger' ? 'worse' : 'nothing'
-        void db.interventionOutcomes.update(activeArc.outcomeId, {
-          immediate,
-          note: `Ambient Drift return: ${summary.reason ?? 'unfinished'} after ${summary.setCount} waves`,
-          updatedAt: Date.now(),
-        })
-      } else {
-        void db.interventionOutcomes.delete(activeArc.outcomeId)
-      }
-      setActiveArc(null)
-    }
-    setReturnedArc(null)
-    setSurface('talk')
-  }, [activeArc])
-
-  // A crisis/grounding transition cancels every experimental arc except
-  // Drift, whose mounted reducer owns its scripted crisis closure. Preserve
-  // journal words before returning to Talk; never show an outcome card for a
-  // safety-forced return.
+  // A crisis/grounding transition returns every ambient surface to Talk.
+  // Preserve journal words; never show an outcome card for a safety-forced
+  // return. Room unmount cleanup stops its mic, voice, sound, and wake lock.
   useEffect(() => {
-    if (!grounding || !activeArc || activeArc.surface === 'drift') return
+    if (!grounding) return
+    if (!activeArc) {
+      if (surface === 'room') setSurface('talk')
+      return
+    }
     if (activeArc.surface === 'journal' && journalDraft.trim()) {
       void appendUserMessage(journalDraft.trim(), 'text', 'journal')
       setJournalDraft('')
@@ -648,7 +642,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     setActiveArc(null)
     setReturnedArc(null)
     setSurface('talk')
-  }, [grounding, activeArc, journalDraft, appendUserMessage, voiceState, voiceStop])
+  }, [grounding, activeArc, journalDraft, appendUserMessage, voiceState, voiceStop, surface])
 
   const handleRecommendationTap = useCallback((target: string) => {
     switch (target) {
@@ -662,7 +656,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         handleSurfaceChange('speak')
         return
       case 'relax':
-        handleSurfaceChange('relax')
+        handleSurfaceChange('room')
         return
       case 'journal-arc':
         startSurfaceArc('journal')
@@ -671,10 +665,16 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         startSurfaceArc('speak')
         return
       case 'relax-arc':
-        startSurfaceArc('relax')
+        startSurfaceArc('room')
         return
       case 'drift-arc':
-        startSurfaceArc('drift')
+        startSurfaceArc('room')
+        return
+      case 'room':
+        handleSurfaceChange('room')
+        return
+      case 'room-arc':
+        startSurfaceArc('room')
         return
       case 'end-session':
         void handleEndSession()
@@ -684,6 +684,44 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         return
     }
   }, [handleRealTalkToggle, handleSurfaceChange, startSurfaceArc, handleEndSession])
+
+  const buildRoomVoiceInstructions = useCallback(async (config: RoomConfig): Promise<string> => {
+    const context = contextRef.current
+    const currentSession = sessionRef.current
+    const base = buildTherapistSystemPrompt({
+      channel: 'voice',
+      phase: currentSession?.phase ?? 'opening',
+      memoryAperture: currentSession?.memoryAperture ?? context?.memoryAperture ?? 'pattern',
+      recentSessionNotes: context?.recentSessionNotes,
+      recentFieldNotes: context?.recentFieldNotes,
+      relevantMemories: context?.relevantMemories,
+      profile: context?.userProfile,
+      personalFacts: context?.personalFacts,
+      mode: currentSession?.mode ?? 'standard',
+      isGrounding: false,
+      allowRecommendations: false,
+      includeRiskPreamble: false,
+      currentInputMode: 'voice',
+      outcomeContext: context?.outcomeContext,
+      alliancePreferences: context?.alliancePreferences,
+      personalProtocols: context?.activePersonalProtocols,
+      livingHypotheses: context?.livingHypotheses,
+      activeUserParts: currentSession?.memoryAperture === 'fresh' ? undefined : context?.activeUserParts,
+      openIntentions: currentSession?.memoryAperture === 'fresh' ? undefined : context?.openIntentions,
+      stanceContext: currentSession?.memoryAperture === 'fresh' ? undefined : context?.stanceEntries,
+      activeValues: currentSession?.memoryAperture === 'fresh' ? undefined : context?.activeValues,
+      duePromises: currentSession?.memoryAperture === 'fresh' ? undefined : context?.duePromises,
+    })
+    return buildRoomInstructions({
+      companionInstructions: base,
+      approach: config.approach,
+      duration: config.duration,
+      voiceDensity: config.voiceDensity,
+      roomHistory: currentSession?.memoryAperture === 'fresh'
+        ? undefined
+        : context?.recentRoomSessions.map(room => `${room.approach}, ${room.duration} minutes, ${room.voiceDensity} voice, ${room.audioTrack}; controls used: ${room.commands.join(', ') || 'none'}`),
+    })
+  }, [])
 
   const inputEditor = useEditor({
     extensions: [
@@ -940,8 +978,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
           journalPartsOn={journalPartsOn}
           showJournalPartsToggle={!freshEyes && globalConfig?.features?.partsEnabled !== false}
           showSpeakSurface={voiceEnabled}
-          showRelaxSurface={relaxEnabled}
-          showDriftSurface={driftEnabled && !grounding}
+          showRoomSurface={roomEnabled && !grounding}
           onSurfaceChange={handleSurfaceChange}
           onRealTalkToggle={handleRealTalkToggle}
           onJournalPartsToggle={handleJournalPartsToggle}
@@ -1013,13 +1050,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
           {/* Messages list */}
           {session?.status === 'active' && !freshEyes && !grounding && messages.length <= 2 && contextRef.current?.fieldMosaicEnabled !== false && <FieldMosaic sessionId={session.id} disabled={isStreaming} onBringIntoTalk={handleMosaicOpen} />}
-          {!freshEyes && !grounding && returnedArc && returnedArc.surface !== 'drift' && <SurfaceArcReturn outcomeId={returnedArc.outcomeId} surface={returnedArc.surface} onDone={() => setReturnedArc(null)} />}
-          {!freshEyes && !grounding && driftReturn && (
-            <div style={{ margin: '8px 0 20px', padding: '12px 14px', borderLeft: '2px solid var(--accent-warm)', color: 'var(--text-secondary)', font: "italic 15px/1.55 'Cormorant Garamond', serif" }}>
-              <span>{driftReturn.direction === 'softer' ? 'You are back. Let the softening have a little room.' : 'You are back. Take a breath before deciding whether anything needs words.'}</span>
-              <button type="button" aria-label="Dismiss" onClick={() => setDriftReturn(null)} style={{ float: 'right', border: 0, background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer' }}>×</button>
-            </div>
-          )}
+          {!freshEyes && !grounding && returnedArc && <SurfaceArcReturn outcomeId={returnedArc.outcomeId} surface={returnedArc.surface} onDone={() => setReturnedArc(null)} />}
           {!freshEyes && !grounding && conductorReturn && (
             <div style={{ margin: '8px 0 20px', padding: '12px 14px', borderLeft: '2px solid var(--accent-warm)', color: 'var(--text-secondary)', font: "italic 15px/1.55 'Cormorant Garamond', serif" }}>
               <span>{tr[`conductor.return.${conductorReturn}` as keyof typeof tr]}</span>
@@ -1207,47 +1238,26 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       </Suspense>
     )}
 
-    {/* Relax mode overlay — meditation/biofeedback/hypnotherapy surface.
-        HRV input reflects whichever device is active (Polar H10 takes
-        priority); the in-Relax toggle falls back to the webcam path when
-        nothing is streaming. Users who want Polar in Relax should pair it
-        from the Talk surface first. */}
-    {relaxEnabled && surface === 'relax' && (
+    {/* Room is the single restorative surface. One score owns its audiovisual
+        arc; optional voice is the same organic two-way Realtime companion. */}
+    {roomEnabled && surface === 'room' && !grounding && (
       <Suspense fallback={null}>
-        <RelaxField
+        <RoomField
           parentSessionId={session?.id ?? null}
+          memoryAperture={session?.memoryAperture ?? 'pattern'}
+          buildInstructions={buildRoomVoiceInstructions}
+          voiceAvailable={voiceEnabled}
+          rememberedConfig={contextRef.current?.recentRoomSessions[0] ? {
+            approach: contextRef.current.recentRoomSessions[0].approach,
+            duration: contextRef.current.recentRoomSessions[0].duration,
+            voiceDensity: contextRef.current.recentRoomSessions[0].voiceDensity,
+            audioTrack: contextRef.current.recentRoomSessions[0].audioTrack,
+          } : undefined}
+          onUserTranscript={text => { void appendUserMessage(text, 'voice', 'room') }}
+          onAssistantTranscript={text => { void appendRealtimeCompanionMessage(text, 'room') }}
           onClose={() => handleSurfaceChange('talk')}
-          hrv={{
-          enabled: activeBio?.enabled ?? false,
-          calibrating: activeBio?.calibrating ?? false,
-          latest: activeBio?.latestMeasurement ?? null,
-          error: activeBio?.error ?? null,
-          measurementCount: activeBio?.measurementCount,
-          toggle: activeBio?.toggle ?? hrv.toggle,
-          available:
-            getGlobalConfig()?.features?.webcamHrv === true ||
-            getGlobalConfig()?.features?.polarH10 === true,
-          // Live chest-motion getter (Polar H10 only). When the H10's PMD
-          // stream is up, the breath circle follows real breath instead
-          // of the internal pacer.
-          chestScaleGetter: polar.enabled ? polar.getBreathingScale : undefined,
-          }}
         />
       </Suspense>
-    )}
-
-    {/* Drift overlay — its own surface since v2 (2026-07-09), separated from
-        Relax. hrvContext stays null (deferred, corroborative-only per spec).
-        onClose returns to Talk; the engine's crisis closure runs before close
-        even if grounding activated mid-practice (mount is not grounding-gated
-        for exactly that reason — only the ENTRY pill is). */}
-    {driftEnabled && surface === 'drift' && (
-      <DriftField
-        parentSessionId={session?.id ?? null}
-        hrvContext={null}
-        voiceAvailable={voiceEnabled}
-        onClose={handleDriftClose}
-      />
     )}
     </>
   )

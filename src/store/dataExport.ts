@@ -418,7 +418,7 @@ export async function exportAllData() {
     'entries', 'parts', 'memories', 'thoughts', 'interactions',
     'entrySummaries', 'userProfile', 'personalFacts', 'fossils', 'letters',
     'sessionLog', 'innerWeather', 'consent', 'sessions',
-    'hrvSessions', 'relaxSessions', 'driftSessions', 'companionSignals', 'userParts',
+    'hrvSessions', 'relaxSessions', 'driftSessions', 'roomSessions', 'companionSignals', 'userParts',
     'sessionIntentions', 'stanceProfile', 'userValues', 'companionPromises',
     'companionPreferences', 'fieldMoments', 'interventionOutcomes', 'smsMessages',
     'researchEvents', 'personalProtocols', 'livingHypotheses',

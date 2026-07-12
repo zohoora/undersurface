@@ -18,6 +18,7 @@ vi.mock('../../i18n', () => ({
       'session.bottomBar.talk': 'Talk',
       'session.bottomBar.journal': 'Journal',
       'session.bottomBar.speak': 'Speak',
+      'session.bottomBar.room': 'Room',
       'session.bottomBar.realTalk': 'Real Talk',
       'session.bottomBar.freshEyes': 'Fresh eyes',
       'session.bottomBar.freshEyesExplainer': 'No past context and no memory learning.',
@@ -36,7 +37,7 @@ const baseProps = (overrides: Partial<Parameters<typeof SessionBottomBar>[0]> = 
   journalPartsOn: true,
   showJournalPartsToggle: true,
   showSpeakSurface: true,
-  showRelaxSurface: false,
+  showRoomSurface: true,
   onSurfaceChange: vi.fn(),
   onRealTalkToggle: vi.fn(),
   onJournalPartsToggle: vi.fn(),
@@ -60,9 +61,9 @@ describe('SessionBottomBar', () => {
     expect(() => SessionBottomBar(props)).not.toThrow()
   })
 
-  it('SessionSurface type includes talk, journal, and speak', () => {
-    const surfaces: SessionSurface[] = ['talk', 'journal', 'speak']
-    expect(surfaces).toHaveLength(3)
+  it('SessionSurface type includes the four user-facing surfaces', () => {
+    const surfaces: SessionSurface[] = ['talk', 'journal', 'speak', 'room']
+    expect(surfaces).toHaveLength(4)
   })
 
   it('onRealTalkToggle receives inverted value when called', () => {
@@ -108,8 +109,8 @@ describe('SessionBottomBar', () => {
     expect(() => SessionBottomBar(props)).not.toThrow()
   })
 
-  it('renders with all three surface values without errors', () => {
-    const surfaces: SessionSurface[] = ['talk', 'journal', 'speak']
+  it('renders with all four user-facing surface values without errors', () => {
+    const surfaces: SessionSurface[] = ['talk', 'journal', 'speak', 'room']
     for (const surface of surfaces) {
       const props = {
         activeSurface: surface,
@@ -225,24 +226,26 @@ describe('SessionBottomBar', () => {
   })
 })
 
-describe('Drift surface pill (v2 separation from Relax)', () => {
-  it('source: SessionSurface union includes drift', () => {
-    expect(SOURCE).toMatch(/'talk' \| 'journal' \| 'speak' \| 'relax' \| 'drift'/)
+describe('Room surface pill', () => {
+  it('source: SessionSurface union includes room with legacy values retained for compatibility', () => {
+    expect(SOURCE).toMatch(/'talk' \| 'journal' \| 'speak' \| 'room' \| 'relax' \| 'drift'/)
   })
 
-  it('source: the drift pill renders only behind showDriftSurface === true (hidden by default)', () => {
-    expect(SOURCE).toMatch(/showDriftSurface === true &&/)
-    expect(SOURCE).toMatch(/session\.bottomBar\.drift/)
+  it('source: Room is the only restorative pill', () => {
+    expect(SOURCE).toContain('showRoomSurface &&')
+    expect(SOURCE).toContain('session.bottomBar.room')
+    expect(SOURCE).not.toContain('session.bottomBar.relax')
+    expect(SOURCE).not.toContain('session.bottomBar.drift')
   })
 
-  it('source: the drift pill routes through the same surface click handler as its peers', () => {
-    expect(SOURCE).toMatch(/handleSurfaceClick\('drift'\)/)
+  it('source: Room routes through the same surface click handler as its peers', () => {
+    expect(SOURCE).toMatch(/handleSurfaceClick\('room'\)/)
   })
 
-  it('renders the drift pill when enabled and omits it when the prop is absent', () => {
-    const withDrift = SessionBottomBar(baseProps({ showDriftSurface: true, showRelaxSurface: true }))
-    expect(JSON.stringify(withDrift)).toContain('session.bottomBar.drift')
-    const withoutDrift = SessionBottomBar(baseProps({ showRelaxSurface: true }))
-    expect(JSON.stringify(withoutDrift)).not.toContain('session.bottomBar.drift')
+  it('renders Room when enabled and omits it when disabled', () => {
+    const withRoom = SessionBottomBar(baseProps({ showRoomSurface: true }))
+    expect(JSON.stringify(withRoom)).toContain('Room')
+    const withoutRoom = SessionBottomBar(baseProps({ showRoomSurface: false }))
+    expect(JSON.stringify(withoutRoom)).not.toContain('Room')
   })
 })

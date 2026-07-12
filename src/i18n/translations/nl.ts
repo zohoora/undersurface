@@ -1,6 +1,7 @@
 import { sessionCopy } from './sessionCopy'
 import { driftSeamlessFallback } from '../driftSeamlessFallback'
 import { conductorFallback } from '../conductorFallback'
+import { roomFallback } from '../roomFallback'
 
 const nlBase = {
   'login.tagline': 'Schrijf vrij. Wanneer je pauzeert,\nroert een innerlijke stem zich —\nniet om te oordelen, maar om naast je te zitten\nin de woorden.',
@@ -415,6 +416,6 @@ const nlBase = {
   'drift.closing.steady': 'Je bent erbij gebleven. Dat telt.',
 } as const
 
-const nl = { ...nlBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.nl } as const
+const nl = { ...nlBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.nl, ...roomFallback } as const
 
 export default nl

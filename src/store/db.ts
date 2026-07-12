@@ -21,7 +21,7 @@ import { SEEDED_PARTS } from '../ai/partPrompts'
 import type {
   DiaryEntry, Part, PartMemory, PartThought, ThinkingOutLoudInteraction,
   EntrySummary, UserProfile, PersonalFacts, EntryFossil, PartLetter, SessionLog,
-  InnerWeather, ConsentRecord, Session, SessionMessage, ApiKey, RelaxSession, DriftSession,
+  InnerWeather, ConsentRecord, Session, SessionMessage, ApiKey, RelaxSession, DriftSession, RoomSession,
   CompanionSignals, UserPart, SessionIntention, StanceProfile, UserValue, CompanionPromise,
   SmsMessage, CompanionPreferences, FieldMoment, InterventionOutcome,
   ResearchEvent, PersonalProtocol, LivingHypothesis,
@@ -161,6 +161,7 @@ export const db = {
   hrvSessions: createCollectionProxy<HrvSessionData>('hrvSessions'),
   relaxSessions: createCollectionProxy<RelaxSession>('relaxSessions'),
   driftSessions: createCollectionProxy<DriftSession>('driftSessions'),
+  roomSessions: createCollectionProxy<RoomSession>('roomSessions'),
   diagnostics: createCollectionProxy<DiagnosticEvent>('diagnostics'),
   companionSignals: createCollectionProxy<CompanionSignals>('companionSignals'),
   userParts: createCollectionProxy<UserPart>('userParts'),

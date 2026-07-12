@@ -10,8 +10,7 @@ interface Props {
 type SurfaceKey =
   | 'session.bottomBar.journal'
   | 'session.bottomBar.speak'
-  | 'session.bottomBar.relax'
-  | 'session.bottomBar.drift'
+  | 'session.bottomBar.room'
   | 'session.bottomBar.realTalk'
 
 function destinationKey(target: string): SurfaceKey | null {
@@ -24,9 +23,10 @@ function destinationKey(target: string): SurfaceKey | null {
       return 'session.bottomBar.speak'
     case 'relax':
     case 'relax-arc':
-      return 'session.bottomBar.relax'
     case 'drift-arc':
-      return 'session.bottomBar.drift'
+    case 'room':
+    case 'room-arc':
+      return 'session.bottomBar.room'
     case 'real-talk-on':
       return 'session.bottomBar.realTalk'
     default:

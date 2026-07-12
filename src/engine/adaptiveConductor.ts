@@ -21,8 +21,7 @@ export const CONDUCTOR_SHADOW_FLOOR = 3
 const SURFACE_ARMS: Partial<Record<SessionSurface, ResearchArm>> = {
   journal: 'journal_arc',
   speak: 'speak_arc',
-  relax: 'relax_arc',
-  drift: 'drift_arc',
+  room: 'room_arc',
 }
 const SURFACE_ARM_SET = new Set<ResearchArm>(Object.values(SURFACE_ARMS))
 
@@ -105,7 +104,7 @@ function rankCandidates(
   if (context.need === 'witness') {
     add('witness', 58, 'ambient_need'); add('reflect', 28, 'ambient_need')
   } else if (context.need === 'settle') {
-    add('drift_arc', 58, 'ambient_need'); add('relax_arc', 48, 'ambient_need')
+    add('room_arc', 58, 'ambient_need')
     add('offer_quiet', 42, 'ambient_need'); add('witness', 28, 'ambient_need')
   } else if (context.need === 'perspective') {
     add('make_concrete', 52, 'ambient_need'); add('user_first', 38, 'ambient_need')
@@ -117,13 +116,13 @@ function rankCandidates(
 
   if (context.capacity === 'brief') {
     add('close_warmly', 30, 'limited_capacity'); add('offer_quiet', 25, 'limited_capacity')
-    add('drift_arc', 12, 'limited_capacity')
-    add('journal_arc', -12, 'limited_capacity'); add('speak_arc', -12, 'limited_capacity'); add('relax_arc', -8, 'limited_capacity')
+    add('room_arc', 12, 'limited_capacity')
+    add('journal_arc', -12, 'limited_capacity'); add('speak_arc', -12, 'limited_capacity')
   }
   if (context.state === 'looping') {
-    add('make_concrete', 40, 'looping'); add('drift_arc', 24, 'looping'); add('offer_quiet', 18, 'looping')
+    add('make_concrete', 40, 'looping'); add('room_arc', 24, 'looping'); add('offer_quiet', 18, 'looping')
   } else if (context.state === 'stirred') {
-    add('witness', 34, 'stirred'); add('drift_arc', 25, 'stirred'); add('relax_arc', 18, 'stirred')
+    add('witness', 34, 'stirred'); add('room_arc', 25, 'stirred')
   } else if (context.state === 'flat') {
     add('user_first', 28, 'ambient_need'); add('speak_arc', 22, 'ambient_need')
   }
@@ -133,9 +132,9 @@ function rankCandidates(
   if (/\b(write|writing|journal|put (?:it|this) down|privately)\b/.test(normalized)) add('journal_arc', 78, 'explicit_writing')
   if (/\b(say (?:it|this) out loud|speak it|talk out loud|hear myself)\b/.test(normalized)) add('speak_arc', 78, 'explicit_speaking')
   if (/\b(tired|exhausted|overwhelmed|tense|tight|panicky|activated|body|shoulders|chest)\b/.test(normalized)) {
-    add('drift_arc', 54, 'body_activation'); add('relax_arc', 42, 'body_activation'); add('offer_quiet', 20, 'body_activation')
+    add('room_arc', 54, 'body_activation'); add('offer_quiet', 20, 'body_activation')
   }
-  if (/\b(breathe|breathing|calm down|settle my body|slow down)\b/.test(normalized)) add('relax_arc', 58, 'body_activation')
+  if (/\b(breathe|breathing|calm down|settle my body|slow down)\b/.test(normalized)) add('room_arc', 58, 'body_activation')
   if (/\b(what should i do|how do i|next step|need a plan|help me decide)\b/.test(normalized)) add('offer_action', 42, 'action_language')
   if (/\b(that(?:'s| is) enough|good ?night|done for now|leave it there|need to stop|stop here)\b/.test(normalized)) add('close_warmly', 90, 'closing_language')
   if (words.length >= 120) {
@@ -248,7 +247,7 @@ export function planAdaptiveConductor(
   }
 }
 
-export function isConductorSurfaceArm(arm?: ResearchArm): arm is 'journal_arc' | 'speak_arc' | 'relax_arc' | 'drift_arc' {
+export function isConductorSurfaceArm(arm?: ResearchArm): arm is 'journal_arc' | 'speak_arc' | 'room_arc' {
   return Boolean(arm && SURFACE_ARM_SET.has(arm))
 }
 

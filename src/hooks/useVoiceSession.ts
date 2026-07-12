@@ -12,6 +12,9 @@ export interface VoiceSessionOptions {
   // and skips the user-pace adaptation logic. Caller still receives assistant
   // transcripts.
   passive?: boolean
+  // Active voice normally leaves playback to VoiceField's analyser graph.
+  // Room has no VoiceField, so it asks this hook to play the remote stream.
+  managePlayback?: boolean
   onUserTranscript?: (text: string) => void
   onAssistantTranscript?: (text: string) => void
   // Raw character-level deltas, for callers that want unbuffered output.
@@ -189,13 +192,16 @@ export function useVoiceSession() {
       // element must play the stream directly or the user hears nothing.
       const audioEl = document.createElement('audio')
       audioEl.autoplay = true
-      audioEl.muted = !passive
+      audioEl.muted = !passive && options.managePlayback !== true
       audioEl.setAttribute('playsinline', 'true')
       audioElRef.current = audioEl
       pc.ontrack = (event) => {
         const stream = event.streams[0]
         audioEl.srcObject = stream
         setRemoteStream(stream)
+        if (passive || options.managePlayback === true) {
+          void audioEl.play().catch(() => { /* browser may complete autoplay on the next packet */ })
+        }
       }
 
       if (passive) {
@@ -434,6 +440,23 @@ export function useVoiceSession() {
     }
   }, [])
 
+  // Ask the connected model for an organic response scoped to one purpose.
+  // Unlike speak(), this deliberately does not prescribe exact wording or a
+  // vocal performance. Room uses it for sparse score cues while the model
+  // retains the conversation and its ordinary voice.
+  const promptAssistant = useCallback((instructions: string) => {
+    const dc = dcRef.current
+    if (!dc || dc.readyState !== 'open') return
+    try {
+      dc.send(JSON.stringify({
+        type: 'response.create',
+        response: { instructions },
+      }))
+    } catch (err) {
+      console.warn('[useVoiceSession] promptAssistant failed', err)
+    }
+  }, [])
+
   useEffect(() => {
     return () => {
       teardown()
@@ -450,6 +473,7 @@ export function useVoiceSession() {
     start,
     stop,
     speak,
+    promptAssistant,
     toggleMute,
     setMicEnabled,
     cancelResponse,

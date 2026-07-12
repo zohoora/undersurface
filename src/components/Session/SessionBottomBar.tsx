@@ -1,7 +1,7 @@
 import { t } from '../../i18n'
 import type { MemoryAperture } from '../../types'
 
-export type SessionSurface = 'talk' | 'journal' | 'speak' | 'relax' | 'drift'
+export type SessionSurface = 'talk' | 'journal' | 'speak' | 'room' | 'relax' | 'drift'
 
 interface Props {
   activeSurface: SessionSurface
@@ -11,10 +11,7 @@ interface Props {
   // entirely rather than showing a no-op control.
   showJournalPartsToggle: boolean
   showSpeakSurface: boolean
-  showRelaxSurface: boolean
-  // Drift's own first-class entry (v2, 2026-07-09 — no longer inside Relax).
-  // The caller also folds grounding in: the entry hides while grounding is active.
-  showDriftSurface?: boolean
+  showRoomSurface: boolean
   onSurfaceChange: (surface: SessionSurface) => void
   onRealTalkToggle: (next: boolean) => void
   onJournalPartsToggle: (next: boolean) => void
@@ -29,8 +26,7 @@ export function SessionBottomBar({
   journalPartsOn,
   showJournalPartsToggle,
   showSpeakSurface,
-  showRelaxSurface,
-  showDriftSurface,
+  showRoomSurface,
   onSurfaceChange,
   onRealTalkToggle,
   onJournalPartsToggle,
@@ -72,24 +68,14 @@ export function SessionBottomBar({
             {t('session.bottomBar.speak')}
           </button>
         )}
-        {showRelaxSurface && (
+        {showRoomSurface && (
           <button
             type="button"
-            className="session-bottom-bar__pill session-bottom-bar__optional-surface session-bottom-bar__relax"
-            aria-pressed={activeSurface === 'relax'}
-            onClick={() => handleSurfaceClick('relax')}
+            className="session-bottom-bar__pill session-bottom-bar__room"
+            aria-pressed={activeSurface === 'room'}
+            onClick={() => handleSurfaceClick('room')}
           >
-            {t('session.bottomBar.relax')}
-          </button>
-        )}
-        {showDriftSurface === true && (
-          <button
-            type="button"
-            className="session-bottom-bar__pill session-bottom-bar__optional-surface session-bottom-bar__drift"
-            aria-pressed={activeSurface === 'drift'}
-            onClick={() => handleSurfaceClick('drift')}
-          >
-            {t('session.bottomBar.drift')}
+            {t('session.bottomBar.room')}
           </button>
         )}
       </div>
@@ -99,18 +85,6 @@ export function SessionBottomBar({
           <span className="session-options-mobile">{t('session.bottomBar.more')}</span>
         </summary>
         <div className="session-options-menu" role="menu" aria-label={t('session.bottomBar.options')}>
-          <div className="session-options-menu__surfaces">
-            {showRelaxSurface && (
-              <button type="button" aria-pressed={activeSurface === 'relax'} onClick={() => handleSurfaceClick('relax')}>
-                {t('session.bottomBar.relax')}
-              </button>
-            )}
-            {showDriftSurface === true && (
-              <button className="session-options-menu__drift" type="button" aria-pressed={activeSurface === 'drift'} onClick={() => handleSurfaceClick('drift')}>
-                {t('session.bottomBar.drift')}
-              </button>
-            )}
-          </div>
           {onMemoryApertureChange && (
           <button
             type="button"

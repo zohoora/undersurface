@@ -1,6 +1,7 @@
 import { sessionCopy } from './sessionCopy'
 import { driftSeamlessFallback } from '../driftSeamlessFallback'
 import { conductorFallback } from '../conductorFallback'
+import { roomFallback } from '../roomFallback'
 
 const thBase = {
   'login.tagline': 'เขียนอย่างอิสระ เมื่อคุณหยุด\nเสียงภายในจะตื่นขึ้น —\nไม่ใช่เพื่อตัดสิน แต่เพื่อนั่งข้างคุณ\nอยู่ในถ้อยคำ',
@@ -415,6 +416,6 @@ const thBase = {
   'drift.closing.steady': 'คุณอยู่กับมัน นั่นมีความหมาย',
 } as const
 
-const th = { ...thBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.th } as const
+const th = { ...thBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.th, ...roomFallback } as const
 
 export default th

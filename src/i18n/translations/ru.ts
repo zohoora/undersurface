@@ -1,6 +1,7 @@
 import { sessionCopy } from './sessionCopy'
 import { driftSeamlessFallback } from '../driftSeamlessFallback'
 import { conductorFallback } from '../conductorFallback'
+import { roomFallback } from '../roomFallback'
 
 const ruBase = {
   'login.tagline': 'Пиши свободно. Когда ты замираешь,\nвнутренний голос пробуждается —\nне чтобы судить, а чтобы сесть рядом с тобой\nсреди слов.',
@@ -415,6 +416,6 @@ const ruBase = {
   'drift.closing.steady': 'Ты остался(ась) с этим. Это считается.',
 } as const
 
-const ru = { ...ruBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.ru } as const
+const ru = { ...ruBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.ru, ...roomFallback } as const
 
 export default ru

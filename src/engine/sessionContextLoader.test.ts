@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { Session, PartMemory, UserProfile, PersonalFacts, RelaxSession, CompanionSignals, SmsMessage, CompanionPreferences } from '../types'
+import type { Session, PartMemory, UserProfile, PersonalFacts, RelaxSession, RoomSession, CompanionSignals, SmsMessage, CompanionPreferences } from '../types'
 
 // Per-collection fixtures the tests configure; the db mock pulls from these.
 type State = {
@@ -9,6 +9,7 @@ type State = {
   personalFacts: PersonalFacts | undefined
   relaxSessions: RelaxSession[]
   relaxSessionsByParent: Record<string, RelaxSession[]>
+  roomSessions: RoomSession[]
   companionSignals: CompanionSignals | undefined
   companionSignalWrites: CompanionSignals[]
   features: Record<string, boolean>
@@ -29,6 +30,7 @@ function freshState(): State {
     personalFacts: undefined,
     relaxSessions: [],
     relaxSessionsByParent: {},
+    roomSessions: [],
     companionSignals: undefined,
     companionSignalWrites: [],
     features: {},
@@ -86,6 +88,17 @@ vi.mock('../store/db', () => ({
       where: () => ({
         equals: (parentId: string) => ({
           toArray: async () => state.relaxSessionsByParent[parentId] ?? [],
+        }),
+      }),
+    },
+    roomSessions: {
+      orderBy: () => ({
+        reverse: () => ({
+          limit: (n: number) => ({
+            toArray: async () => [...state.roomSessions]
+              .sort((a, b) => b.startedAt - a.startedAt)
+              .slice(0, n),
+          }),
         }),
       }),
     },
@@ -153,6 +166,7 @@ describe('loadTherapistContext', () => {
     expect(ctx.recentSessionNotes).toEqual([])
     expect(ctx.relevantMemories).toEqual([])
     expect(ctx.userProfile).toBeNull()
+    expect(ctx.recentRoomSessions).toEqual([])
     expect(ctx.personalFacts).toBeNull()
     expect(ctx.recentRelaxBreaks).toEqual([])
     expect(ctx.recentFieldNotes).toEqual([])
