@@ -685,7 +685,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     }
   }, [handleRealTalkToggle, handleSurfaceChange, startSurfaceArc, handleEndSession])
 
-  const buildRoomVoiceInstructions = useCallback(async (config: RoomConfig): Promise<string> => {
+  const buildRoomVoiceInstructions = useCallback((config: RoomConfig): string => {
     const context = contextRef.current
     const currentSession = sessionRef.current
     const base = buildTherapistSystemPrompt({

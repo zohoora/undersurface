@@ -42,6 +42,7 @@ describe('useRoomSession', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 
   it('keeps Quiet company free of microphone and Realtime startup', async () => {
@@ -107,6 +108,35 @@ describe('useRoomSession', () => {
     act(() => result.current.stay())
     expect(result.current.phase).toBe('immersing')
     expect(result.current.extendedMs).toBe(60_000)
+    unmount()
+  })
+
+  it('surfaces blocked iOS sound and retries from a fresh tap', async () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play')
+      .mockRejectedValueOnce(new Error('NotAllowedError'))
+      .mockResolvedValue(undefined)
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+    const { result, unmount } = renderHook(() => useRoomSession({
+      parentSessionId: 'session-1',
+      memoryAperture: 'pattern',
+    }))
+    await act(async () => {
+      await result.current.start({
+        approach: 'quiet_company',
+        duration: 2,
+        voiceDensity: 'quiet',
+        audioTrack: 'ocean',
+        audioVolume: 0.4,
+      }, 'unused')
+      await Promise.resolve()
+    })
+    expect(result.current.audioState).toBe('blocked')
+    await act(async () => {
+      result.current.retryAudio()
+      await Promise.resolve()
+    })
+    expect(play).toHaveBeenCalledTimes(2)
+    expect(result.current.audioState).toBe('playing')
     unmount()
   })
 })

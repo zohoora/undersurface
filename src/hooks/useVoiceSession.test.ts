@@ -43,6 +43,14 @@ async function connected() {
 }
 
 describe('useVoiceSession — Drift additions', () => {
+  it('requests the microphone before token minting so iOS keeps the initiating tap', async () => {
+    await connected()
+    const getUserMedia = navigator.mediaDevices.getUserMedia as ReturnType<typeof vi.fn>
+    expect(getUserMedia).toHaveBeenCalledOnce()
+    expect(authedPostMock).toHaveBeenCalledOnce()
+    expect(getUserMedia.mock.invocationCallOrder[0]).toBeLessThan(authedPostMock.mock.invocationCallOrder[0])
+  })
+
   it('setMicEnabled(false) disables all audio tracks and mutes deterministically', async () => {
     const { result } = await connected()
     act(() => { result.current.setMicEnabled(false) })

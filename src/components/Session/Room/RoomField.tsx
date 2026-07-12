@@ -7,7 +7,7 @@ import type { MemoryAperture, RoomApproach, RoomAudioTrack, RoomDuration, RoomVo
 interface Props {
   parentSessionId: string | null
   memoryAperture: MemoryAperture
-  buildInstructions: (config: RoomConfig) => Promise<string>
+  buildInstructions: (config: RoomConfig) => string
   rememberedConfig?: Partial<Pick<RoomConfig, 'approach' | 'duration' | 'voiceDensity' | 'audioTrack'>>
   voiceAvailable: boolean
   onUserTranscript: (text: string) => void
@@ -50,13 +50,13 @@ export function RoomField({
     audioVolume: settings.lastRoomAudioVolume,
   }), [approach, audioTrack, duration, settings.lastRoomAudioVolume, voiceDensity])
 
-  const begin = async () => {
+  const begin = () => {
     if (starting) return
     setStarting(true)
     try {
-      const instructions = await buildInstructions(config)
-      await room.start(config, instructions)
-    } finally {
+      const instructions = buildInstructions(config)
+      void room.start(config, instructions).finally(() => setStarting(false))
+    } catch {
       setStarting(false)
     }
   }
@@ -130,7 +130,7 @@ export function RoomField({
             </fieldset>
           </div>
 
-          <button type="button" className="room-primary" onClick={() => void begin()} disabled={starting}>
+          <button type="button" className="room-primary" onClick={begin} disabled={starting}>
             {starting ? tr['room.preparing'] : tr['room.begin']}
           </button>
         </div>
@@ -151,10 +151,15 @@ export function RoomField({
           {room.caption && <p className="room-caption">{room.caption}</p>}
           {room.voiceError && (
             <div className="room-voice-error">
-              <span>{tr['room.voice.error']}</span>
+              <span>{room.voiceError}</span>
+              <button type="button" onClick={() => void room.retryVoice()}>{tr['room.voice.retry']}</button>
               <button type="button" onClick={() => room.setVoiceDensity('quiet')}>{tr['room.voice.continueQuietly']}</button>
             </div>
           )}
+          {room.audioState === 'blocked' && (
+            <button type="button" className="room-audio-retry" onClick={room.retryAudio}>{tr['room.audio.retry']}</button>
+          )}
+          {room.audioState === 'loading' && <p className="room-media-loading">{tr['room.audio.loading']}</p>}
           <button type="button" className="room-primary" onClick={room.enter}>{tr['room.threshold.enter']}</button>
         </div>
       )}
@@ -163,6 +168,20 @@ export function RoomField({
         <div className="room-immersive">
           <div className={`room-breathing-field ${room.assistantSpeaking ? 'is-speaking' : ''}`} aria-hidden="true" />
           {room.caption && <p className="room-caption room-caption--immersive">{room.caption}</p>}
+          {(room.voiceError || room.voiceState === 'connecting' || room.audioState === 'loading' || room.audioState === 'blocked') && (
+            <div className="room-media-status">
+              {!room.voiceError && room.voiceState === 'connecting' && <span>{tr['room.voice.connecting']}</span>}
+              {room.audioState === 'loading' && <span>{tr['room.audio.loading']}</span>}
+              {room.voiceError && (
+                <>
+                  <span>{room.voiceError}</span>
+                  <button type="button" onClick={() => void room.retryVoice()}>{tr['room.voice.retry']}</button>
+                  <button type="button" onClick={() => room.setVoiceDensity('quiet')}>{tr['room.voice.continueQuietly']}</button>
+                </>
+              )}
+              {room.audioState === 'blocked' && <button type="button" onClick={room.retryAudio}>{tr['room.audio.retry']}</button>}
+            </div>
+          )}
           <div className="room-controls" aria-label="Room controls">
             {room.config?.voiceDensity !== 'quiet' && (
               <button type="button" onClick={() => room.setVoiceDensity(room.config?.voiceDensity === 'present' ? 'sparse' : 'quiet')}>{tr['room.controls.less']}</button>

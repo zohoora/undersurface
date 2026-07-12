@@ -158,17 +158,12 @@ export function useVoiceSession() {
     setError(null)
 
     try {
-      const token = await authedPost<TokenResponse>('/api/realtime-token', {
-        instructions: options.instructions,
-        voice: options.voice,
-      })
-      if (cancelled()) { teardown(); return }
-
       const passive = options.passive === true
 
-      // Passive mode: don't acquire the mic. The caller wants one-way
-      // narration (relaxation/hypnotherapy) — no transcription, no echo
-      // cancellation needed, and no user-facing permission prompt.
+      // Ask for active-session microphone access BEFORE the first network
+      // await. iOS Safari ties media permission to the initiating tap; doing
+      // token minting first can lose that activation and silently skip the
+      // prompt in an installed PWA. Passive callers still never request it.
       if (!passive) {
         const localStream = await navigator.mediaDevices.getUserMedia({
           audio: {
@@ -182,6 +177,12 @@ export function useVoiceSession() {
         if (cancelled()) { teardown(); return }
       }
 
+      const token = await authedPost<TokenResponse>('/api/realtime-token', {
+        instructions: options.instructions,
+        voice: options.voice,
+      })
+      if (cancelled()) { teardown(); return }
+
       const pc = new RTCPeerConnection()
       pcRef.current = pc
 
@@ -194,6 +195,10 @@ export function useVoiceSession() {
       audioEl.autoplay = true
       audioEl.muted = !passive && options.managePlayback !== true
       audioEl.setAttribute('playsinline', 'true')
+      audioEl.style.display = 'none'
+      // Detached media elements are unreliable for WebRTC playback in iOS
+      // Safari. Keep one hidden, attached element for the session lifetime.
+      document.body.appendChild(audioEl)
       audioElRef.current = audioEl
       pc.ontrack = (event) => {
         const stream = event.streams[0]

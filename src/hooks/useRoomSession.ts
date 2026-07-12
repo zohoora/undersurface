@@ -47,6 +47,7 @@ export function useRoomSession(options: UseRoomSessionOptions) {
   const [elapsedMs, setElapsedMs] = useState(0)
   const [caption, setCaption] = useState('')
   const [extendedMs, setExtendedMs] = useState(0)
+  const [audioState, setAudioState] = useState<'idle' | 'loading' | 'playing' | 'blocked'>('idle')
   const voice = useVoiceSession()
 
   const phaseRef = useRef<RoomPhase>('choosing')
@@ -61,6 +62,7 @@ export function useRoomSession(options: UseRoomSessionOptions) {
   const deliveredCuesRef = useRef(new Set<string>())
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const endingRef = useRef(false)
+  const instructionsRef = useRef('')
   const finishRef = useRef<(completed?: boolean) => void>(() => {})
 
   useEffect(() => { phaseRef.current = phase }, [phase])
@@ -95,7 +97,9 @@ export function useRoomSession(options: UseRoomSessionOptions) {
     if (!audio) return
     audio.pause()
     audio.src = ''
+    audio.remove()
     audioRef.current = null
+    setAudioState('idle')
   }, [])
 
   const startAudio = useCallback((track: RoomAudioTrack, volume: number) => {
@@ -105,9 +109,31 @@ export function useRoomSession(options: UseRoomSessionOptions) {
     audio.loop = true
     audio.preload = 'auto'
     audio.volume = Math.max(0, Math.min(1, volume))
+    audio.setAttribute('playsinline', 'true')
+    audio.style.display = 'none'
+    document.body.appendChild(audio)
     audioRef.current = audio
-    void audio.play().catch(() => { /* Room remains useful in silence */ })
+    setAudioState('loading')
+    const playback = audio.play()
+    if (playback && typeof playback.then === 'function') {
+      void playback
+        .then(() => setAudioState('playing'))
+        .catch(() => setAudioState('blocked'))
+    } else {
+      setAudioState('playing')
+    }
   }, [stopAudio])
+
+  const retryAudio = useCallback(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    const playback = audio.play()
+    if (playback && typeof playback.then === 'function') {
+      void playback
+        .then(() => setAudioState('playing'))
+        .catch(() => setAudioState('blocked'))
+    }
+  }, [])
 
   const changeSound = useCallback(() => {
     const current = configRef.current
@@ -154,6 +180,29 @@ export function useRoomSession(options: UseRoomSessionOptions) {
     persistProgress()
   }, [changeSound, persistProgress, setVoiceDensity])
 
+  const startVoice = useCallback(async (instructions: string) => {
+    await voice.start({
+      instructions,
+      managePlayback: true,
+      onUserTranscript: text => {
+        appendTranscript('user', text)
+        options.onUserTranscript?.(text)
+        const command = detectRoomCommand(text)
+        if (command) applyCommand(command)
+      },
+      onAssistantTranscript: text => {
+        appendTranscript('companion', text)
+        options.onAssistantTranscript?.(text)
+      },
+    })
+  }, [appendTranscript, applyCommand, options, voice])
+
+  const retryVoice = useCallback(async () => {
+    const current = configRef.current
+    if (!current || current.approach === 'quiet_company' || !instructionsRef.current) return
+    await startVoice(instructionsRef.current)
+  }, [startVoice])
+
   const start = useCallback(async (nextConfig: RoomConfig, instructions: string) => {
     if (phaseRef.current !== 'choosing') return
     const now = Date.now()
@@ -164,6 +213,7 @@ export function useRoomSession(options: UseRoomSessionOptions) {
     extendedMsRef.current = 0
     setExtendedMs(0)
     setCaption('')
+    instructionsRef.current = instructions
     setConfig(nextConfig)
     configRef.current = nextConfig
     const nextPhase: RoomPhase = nextConfig.approach === 'listen_first' ? 'threshold' : 'immersing'
@@ -201,22 +251,9 @@ export function useRoomSession(options: UseRoomSessionOptions) {
     persistReadyRef.current = db.roomSessions.add(record).then(() => undefined).catch(() => undefined)
 
     if (nextConfig.approach !== 'quiet_company') {
-      await voice.start({
-        instructions,
-        managePlayback: true,
-        onUserTranscript: text => {
-          appendTranscript('user', text)
-          options.onUserTranscript?.(text)
-          const command = detectRoomCommand(text)
-          if (command) applyCommand(command)
-        },
-        onAssistantTranscript: text => {
-          appendTranscript('companion', text)
-          options.onAssistantTranscript?.(text)
-        },
-      })
+      await startVoice(instructions)
     }
-  }, [appendTranscript, applyCommand, options, startAudio, voice])
+  }, [options, startAudio, startVoice])
 
   const enter = useCallback(() => {
     if (phaseRef.current !== 'threshold') return
@@ -253,6 +290,7 @@ export function useRoomSession(options: UseRoomSessionOptions) {
     configRef.current = null
     setElapsedMs(0)
     setCaption('')
+    instructionsRef.current = ''
     endingRef.current = false
   }, [stopAudio, voice])
   finishRef.current = finish
@@ -307,6 +345,7 @@ export function useRoomSession(options: UseRoomSessionOptions) {
     elapsedMs,
     extendedMs,
     caption,
+    audioState,
     voiceState: voice.state,
     voiceError: voice.error,
     assistantSpeaking: voice.assistantSpeaking,
@@ -317,6 +356,8 @@ export function useRoomSession(options: UseRoomSessionOptions) {
     finish,
     stay,
     changeSound,
+    retryAudio,
+    retryVoice,
     setVoiceDensity,
     toggleMute: voice.toggleMute,
   }
