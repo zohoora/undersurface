@@ -68,6 +68,13 @@ export function useVoiceSession() {
   // buffer above, which is used as a fallback when the API's `done` event lacks
   // a transcript). Cleared whenever a boundary fragment is flushed.
   const assistantWordBufferRef = useRef<string>('')
+  // `response.cancel` is valid only while a response is in progress. The
+  // Realtime API deliberately reports "nothing to cancel" as a recoverable
+  // error, so keep the response lifecycle locally instead of turning a quiet
+  // Room control tap into a fatal-looking voice failure.
+  const responseActiveRef = useRef(false)
+  const pendingCancelEventIdsRef = useRef(new Set<string>())
+  const clientEventSequenceRef = useRef(0)
 
   const speechStartedAtRef = useRef<number | null>(null)
   const lastUserDurationRef = useRef<number | null>(null)
@@ -131,6 +138,8 @@ export function useVoiceSession() {
 
     assistantBufferRef.current = ''
     assistantWordBufferRef.current = ''
+    responseActiveRef.current = false
+    pendingCancelEventIdsRef.current.clear()
     speechStartedAtRef.current = null
     lastUserDurationRef.current = null
     userRatesRef.current = []
@@ -298,6 +307,10 @@ export function useVoiceSession() {
     const type = event.type as string | undefined
 
     switch (type) {
+      case 'response.created': {
+        responseActiveRef.current = true
+        break
+      }
       case 'input_audio_buffer.speech_started': {
         speechStartedAtRef.current = performance.now()
         setUserSpeaking(true)
@@ -335,6 +348,7 @@ export function useVoiceSession() {
       }
       case 'response.output_audio.delta':
       case 'response.audio.delta': {
+        responseActiveRef.current = true
         setAssistantSpeaking(true)
         opts.onAssistantSpeakingChange?.(true)
         break
@@ -381,15 +395,25 @@ export function useVoiceSession() {
       case 'response.done':
       case 'response.output_audio.done':
       case 'response.audio.done': {
+        responseActiveRef.current = false
+        pendingCancelEventIdsRef.current.clear()
         setAssistantSpeaking(false)
         opts.onAssistantSpeakingChange?.(false)
         break
       }
       case 'error': {
-        const err = event.error as { message?: string; code?: string; type?: string } | undefined
+        const err = event.error as { message?: string; code?: string; type?: string; event_id?: string } | undefined
+        if (err?.event_id && pendingCancelEventIdsRef.current.delete(err.event_id)) {
+          // A response can finish in the few milliseconds between our local
+          // lifecycle check and the server receiving response.cancel. OpenAI
+          // documents this error as recoverable and the session remains live.
+          console.info('[useVoiceSession] response already quiet at cancel time')
+          break
+        }
         console.error('[useVoiceSession] server error:', err?.message ?? '(no message)', err?.code ?? '', err?.type ?? '', event)
-        // A mid-session server error is a service failure from the user's view.
-        setError(friendlyVoiceError({ message: err?.message ?? 'service failure' }))
+        // Realtime `error` events are generally recoverable and leave the
+        // session connected. Log them for diagnosis; a recoverable event must
+        // not replace a still-live conversation with a fatal-looking error.
         break
       }
     }
@@ -418,8 +442,14 @@ export function useVoiceSession() {
   // crisis floor). No-op when the data channel isn't open.
   const cancelResponse = useCallback(() => {
     const dc = dcRef.current
-    if (!dc || dc.readyState !== 'open') return
-    try { dc.send(JSON.stringify({ type: 'response.cancel' })) } catch { /* already closing */ }
+    if (!dc || dc.readyState !== 'open' || !responseActiveRef.current) return
+    const eventId = `cancel_${Date.now()}_${++clientEventSequenceRef.current}`
+    pendingCancelEventIdsRef.current.add(eventId)
+    try {
+      dc.send(JSON.stringify({ type: 'response.cancel', event_id: eventId }))
+    } catch {
+      pendingCancelEventIdsRef.current.delete(eventId)
+    }
   }, [])
 
   // Tell the connected assistant to vocalize a specific phrase. The

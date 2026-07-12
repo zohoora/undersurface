@@ -9,7 +9,13 @@ import { useVoiceSession } from './useVoiceSession'
 // Mutable per-test WebRTC doubles — start() wires localStreamRef + dcRef through
 // these, which is the only way to reach the private refs the new methods touch.
 let track: { enabled: boolean; stop: () => void; kind: string }
-let dcMock: { send: ReturnType<typeof vi.fn>; close: () => void; readyState: string; onopen: null; onmessage: null }
+let dcMock: {
+  send: ReturnType<typeof vi.fn>
+  close: () => void
+  readyState: string
+  onopen: (() => void) | null
+  onmessage: ((event: { data: string }) => void) | null
+}
 
 class MockPeerConnection {
   ontrack: ((e: unknown) => void) | null = null
@@ -42,6 +48,10 @@ async function connected() {
   return hook
 }
 
+function receiveServerEvent(event: Record<string, unknown>) {
+  act(() => { dcMock.onmessage?.({ data: JSON.stringify(event) }) })
+}
+
 describe('useVoiceSession — Drift additions', () => {
   it('requests the microphone before token minting so iOS keeps the initiating tap', async () => {
     await connected()
@@ -64,10 +74,49 @@ describe('useVoiceSession — Drift additions', () => {
     expect(result.current.muted).toBe(false)
   })
 
-  it('cancelResponse() sends response.cancel when the channel is open', async () => {
+  it('cancelResponse() only sends response.cancel while a response is active', async () => {
     const { result } = await connected()
     act(() => { result.current.cancelResponse() })
-    expect(dcMock.send).toHaveBeenCalledWith(JSON.stringify({ type: 'response.cancel' }))
+    expect(dcMock.send).not.toHaveBeenCalled()
+
+    receiveServerEvent({ type: 'response.created', response: { id: 'response-1' } })
+    act(() => { result.current.cancelResponse() })
+    expect(dcMock.send).toHaveBeenCalledOnce()
+    expect(JSON.parse(dcMock.send.mock.calls[0][0])).toEqual(expect.objectContaining({
+      type: 'response.cancel',
+      event_id: expect.stringMatching(/^cancel_/),
+    }))
+  })
+
+  it('keeps a healthy session intact when a raced cancel returns a recoverable error', async () => {
+    const { result } = await connected()
+    receiveServerEvent({ type: 'response.created', response: { id: 'response-1' } })
+    act(() => { result.current.cancelResponse() })
+    const cancelEvent = JSON.parse(dcMock.send.mock.calls[0][0]) as { event_id: string }
+
+    receiveServerEvent({
+      type: 'error',
+      error: {
+        type: 'invalid_request_error',
+        code: 'response_cancel_not_active',
+        message: 'Cancellation failed: no active response found',
+        event_id: cancelEvent.event_id,
+      },
+    })
+
+    expect(result.current.error).toBeNull()
+    expect(track.enabled).toBe(true)
+  })
+
+  it('logs an unrelated recoverable server event without presenting a fatal voice error', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { result } = await connected()
+    receiveServerEvent({
+      type: 'error',
+      error: { type: 'invalid_request_error', code: 'invalid_event', message: 'Recoverable event problem' },
+    })
+    expect(consoleError).toHaveBeenCalled()
+    expect(result.current.error).toBeNull()
   })
 
   it('cancelResponse() is a no-op (no throw) when the channel is closed', async () => {
