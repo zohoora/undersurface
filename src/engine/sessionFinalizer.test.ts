@@ -101,6 +101,44 @@ describe('finalizePreviousActiveSessions', () => {
     expect(reflect).not.toHaveBeenCalled()
   })
 
+  // TECH_ISSUES #15: another tab or device may be mid-session.
+  it('never closes a session with activity in the last 30 minutes', async () => {
+    const now = 10_000_000
+    state.sessions = [session('phone', { startedAt: now - 3 * 60 * 60_000 })]
+    state.messages.phone = [message('u1', 'user', now - 2 * 60 * 60_000), message('u2', 'user', now - 5 * 60_000)]
+
+    await finalizePreviousActiveSessions(undefined, now)
+
+    expect(update).not.toHaveBeenCalled()
+    expect(reflect).not.toHaveBeenCalled()
+  })
+
+  it('never deletes a shell younger than 30 minutes (two tabs on /session/new)', async () => {
+    const now = 10_000_000
+    state.sessions = [session('other-tab', { startedAt: now - 60_000 })]
+    state.messages['other-tab'] = [message('opener', 'therapist', now - 55_000)]
+
+    await finalizePreviousActiveSessions(undefined, now)
+
+    expect(deleteSession).not.toHaveBeenCalled()
+    expect(deleteMessage).not.toHaveBeenCalled()
+  })
+
+  it('still finalizes sessions idle past the grace window', async () => {
+    const now = 10_000_000
+    state.sessions = [
+      session('stale', { startedAt: now - 2 * 60 * 60_000 }),
+      session('stale-shell', { startedAt: now - 45 * 60_000 }),
+    ]
+    state.messages.stale = [message('u1', 'user', now - 31 * 60_000), message('a1', 'therapist', now - 31 * 60_000 + 1)]
+    state.messages['stale-shell'] = [message('opener', 'therapist', now - 45 * 60_000)]
+
+    await finalizePreviousActiveSessions(undefined, now)
+
+    expect(update).toHaveBeenCalledWith('stale', expect.objectContaining({ status: 'closed', endedAt: now - 31 * 60_000 + 1 }))
+    expect(deleteSession).toHaveBeenCalledWith('stale-shell')
+  })
+
   it('leaves the explicitly excluded active session alone', async () => {
     state.sessions = [session('current')]
     state.messages.current = [message('u1', 'user', 120)]

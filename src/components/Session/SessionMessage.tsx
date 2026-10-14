@@ -11,6 +11,14 @@ import { scrubLeakedRiskMarker } from '../../ai/openrouter'
 import { extractAmbiguityPrism } from '../../ai/ambiguityPrismParser'
 import { AmbiguityPrism } from './AmbiguityPrism'
 import { ConductorOfferCard } from './ConductorOfferCard'
+import { isConductorSurfaceArm } from '../../engine/adaptiveConductor'
+
+// Every conductor surface offer can be declined ("Not now"), including Room —
+// the most common arm. Legacy relax/drift arms persisted before Room keep
+// their decline control.
+function hasConductorDecline(arm: SessionMessageType['researchArm']): boolean {
+  return isConductorSurfaceArm(arm) || arm === 'relax_arc' || arm === 'drift_arc'
+}
 
 interface Props {
   message: SessionMessageType
@@ -109,7 +117,7 @@ export const SessionMessageBubble = memo(function SessionMessageBubble({
         {prism && prismSessionId && (
           <AmbiguityPrism message={message} sessionId={prismSessionId} hypotheses={prism} />
         )}
-        {!isUser && conductorOfferSessionId && message.researchEventId?.startsWith('conductor-') && ['journal_arc', 'speak_arc', 'relax_arc', 'drift_arc'].includes(message.researchArm ?? '') && (
+        {!isUser && conductorOfferSessionId && message.researchEventId?.startsWith('conductor-') && hasConductorDecline(message.researchArm) && (
           <ConductorOfferCard eventId={message.researchEventId} />
         )}
       </div>

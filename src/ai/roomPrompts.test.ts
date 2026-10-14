@@ -29,3 +29,24 @@ describe('buildRoomInstructions', () => {
     expect(prompt).toContain('less_voice')
   })
 })
+
+describe('buildRoomInstructions — spoken controls', () => {
+  const base = {
+    companionInstructions: 'base companion',
+    approach: 'listen_first' as const,
+    duration: 5 as const,
+    voiceDensity: 'sparse' as const,
+  }
+
+  it('tells the model the app handles controls only when local detection runs', () => {
+    expect(buildRoomInstructions(base)).toContain('The application also handles the control locally.')
+    expect(buildRoomInstructions({ ...base, localVoiceControls: true })).toContain('The application also handles the control locally.')
+  })
+
+  it('drops the local-handling claim for non-English sessions but keeps the model-side instruction', () => {
+    const prompt = buildRoomInstructions({ ...base, localVoiceControls: false })
+    expect(prompt).not.toContain('handles the control locally')
+    expect(prompt).toContain('acknowledge briefly and comply')
+    expect(prompt).toContain('on-screen controls')
+  })
+})

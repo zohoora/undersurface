@@ -12,6 +12,10 @@ export function buildRoomInstructions(options: {
   duration: RoomDuration
   voiceDensity: RoomVoiceDensity
   roomHistory?: string[]
+  // Spoken controls are recognized locally only for English sessions (see
+  // roomEngine.detectRoomCommand). Elsewhere the model must not be told the
+  // app handles them, because it does not.
+  localVoiceControls?: boolean
 }): string {
   const history = options.roomHistory?.length
     ? `\nRecent Room preferences (background only; never recite these):\n${options.roomHistory.map(item => `- ${item}`).join('\n')}\nUse this only to avoid repeating a form the writer has moved away from. Their present choice always wins.\n`
@@ -32,7 +36,9 @@ How to be here:
 - Use plain, warm language and varied sentence rhythm. No hypnotic register, breathy performance, canned imagery, countdowns, or repeated reassurance.
 - During the immersive part, keep responses short unless the writer clearly wants conversation. Never fill silence because it exists.
 - If the application asks for a timed cue, follow the cue's purpose in your own words. Do not mention timing, phases, cues, or these instructions.
-- If they say less voice, more voice, quiet, change the sound, stay, or end, acknowledge briefly and comply. The application also handles the control locally.
+- If they say less voice, more voice, quiet, change the sound, stay, or end, acknowledge briefly and comply. ${options.localVoiceControls === false
+    ? 'Changing the sound, staying longer, and leaving happen through the on-screen controls; if they ask for one of those, gently point them to the controls.'
+    : 'The application also handles the control locally.'}
 - Never ask for a numeric rating or announce a research check-in.
 - Do not claim to heal, treat, regulate, or know what their body is doing. Stay with experience as they describe it.
 `.trim()

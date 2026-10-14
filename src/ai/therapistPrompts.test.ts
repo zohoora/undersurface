@@ -886,6 +886,39 @@ describe('buildTherapistSystemPrompt — recommendations', () => {
     expect(prompt).toMatch(/never present it as treatment|acute distress|crisis/i)
   })
 
+  it('teaches only the surfaces that are available this session (no hidden Speak/Room links)', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      mode: 'standard',
+      isGrounding: false,
+      isFirstTurn: false,
+      allowRecommendations: true,
+      availableSurfaces: ['journal'],
+      availableSurfaceArcs: ['journal'],
+    })
+    expect(prompt).toContain('#switch:journal')
+    expect(prompt).toContain('#switch:journal-arc')
+    expect(prompt).not.toContain('#switch:speak')
+    expect(prompt).not.toContain('#switch:room')
+    expect(prompt).toContain('AVAILABLE SURFACES THIS SESSION: talk, journal.')
+  })
+
+  it('teaches direct switches but no arcs when arcs are unavailable (Fresh eyes)', () => {
+    const prompt = buildTherapistSystemPrompt({
+      phase: 'deepening',
+      mode: 'standard',
+      isGrounding: false,
+      isFirstTurn: false,
+      allowRecommendations: true,
+      availableSurfaces: ['journal', 'speak', 'room'],
+      availableSurfaceArcs: [],
+    })
+    expect(prompt).toContain('(#switch:speak)')
+    expect(prompt).toContain('(#switch:room)')
+    expect(prompt).not.toContain('-arc)')
+    expect(prompt).not.toMatch(/The -arc forms/)
+  })
+
   it('omits all four patterns during grounding', () => {
     const prompt = buildTherapistSystemPrompt({
       phase: 'deepening',
