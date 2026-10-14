@@ -4,6 +4,7 @@ import { clearSettings } from '../store/settings'
 import { clearJournalDraftsForUser } from '../store/journalDrafts'
 import { getAuth, signOut } from 'firebase/auth'
 import { useTranslation } from '../i18n'
+import { renderStrong } from '../utils/renderStrong'
 
 interface DeleteAccountModalProps {
   isOpen: boolean
@@ -98,7 +99,7 @@ function DeleteAccountModalContent({ onClose }: { onClose: () => void }) {
           background: 'var(--overlay-subtle)',
           borderRadius: 6,
         }}>
-          {t['delete.exportFirst']}
+          {renderStrong(t['delete.exportFirst'])}
         </div>
 
         <div style={{
@@ -106,7 +107,7 @@ function DeleteAccountModalContent({ onClose }: { onClose: () => void }) {
           color: 'var(--text-secondary)',
           marginBottom: 8,
         }}>
-          {t['delete.confirmPrompt']}
+          {renderStrong(t['delete.confirmPrompt'])}
         </div>
 
         <input

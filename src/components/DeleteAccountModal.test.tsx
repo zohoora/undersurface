@@ -30,6 +30,7 @@ vi.mock('../i18n', () => ({
 }))
 
 const { default: DeleteAccountModal } = await import('./DeleteAccountModal')
+const { renderStrong } = await import('../utils/renderStrong')
 const { readJournalDraft, writeJournalDraft } = await import('../store/journalDrafts')
 
 beforeEach(() => {
@@ -52,5 +53,18 @@ describe('DeleteAccountModal', () => {
     expect(deleteAccountMock).toHaveBeenCalledOnce()
     expect(readJournalDraft('uid-deleting', 'session-a')).toBeNull()
     expect(readJournalDraft('uid-other', 'session-b')?.text).toBe('not mine')
+  })
+
+  it('renders <strong> markup in translated copy as bold elements, not literal tags', () => {
+    const { container } = render(<p>{renderStrong('Type <strong>delete</strong> to confirm')}</p>)
+    expect(container.textContent).toBe('Type delete to confirm')
+    expect(container.querySelector('strong')?.textContent).toBe('delete')
+    expect(container.innerHTML).not.toContain('&lt;strong&gt;')
+  })
+
+  it('leaves copy without markup unchanged and never interprets other HTML', () => {
+    const { container } = render(<p>{renderStrong('Plain <em>text</em>')}</p>)
+    expect(container.textContent).toBe('Plain <em>text</em>')
+    expect(container.querySelector('em')).toBeNull()
   })
 })
