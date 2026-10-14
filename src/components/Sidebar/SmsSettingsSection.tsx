@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import {
   createSmsLinkCode,
   getSmsStatus,
+  isSmsDisabledError,
   unlinkSms,
   type SmsLinkCodeResult,
   type SmsStatus,
 } from '../../api/accountApi'
 import { useTranslation } from '../../i18n'
+import { useGlobalConfig } from '../../store/globalConfig'
 import { FieldWindowSettings } from './FieldWindowSettings'
 
 const buttonStyle = {
@@ -34,6 +36,11 @@ export function SmsSettingsSection({ isOpen }: { isOpen: boolean }) {
   const [loading, setLoading] = useState(false)
   const [unlinking, setUnlinking] = useState(false)
   const [error, setError] = useState(false)
+  const [pausedByServer, setPausedByServer] = useState(false)
+  // The admin kill switch (features.smsEnabled === false) covers linking too:
+  // accountApi refuses new link codes, and the webhook answers LINK with a
+  // paused reply. Disconnecting a linked phone always stays available.
+  const smsPaused = useGlobalConfig()?.features?.smsEnabled === false || pausedByServer
 
   useEffect(() => {
     if (!isOpen) return
@@ -69,14 +76,16 @@ export function SmsSettingsSection({ isOpen }: { isOpen: boolean }) {
     setError(false)
     try {
       const result = await createSmsLinkCode()
+      setPausedByServer(false)
       setLinkCode(result)
       setStatus(current => current ?? {
         linked: false,
         phoneNumber: result.phoneNumber,
         phoneNumberE164: result.phoneNumberE164,
       })
-    } catch {
-      setError(true)
+    } catch (createError) {
+      if (isSmsDisabledError(createError)) setPausedByServer(true)
+      else setError(true)
     } finally {
       setLoading(false)
     }
@@ -104,6 +113,11 @@ export function SmsSettingsSection({ isOpen }: { isOpen: boolean }) {
       <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 8 }}>
         {t['settings.sms.description']}
       </div>
+      {smsPaused && (
+        <div role="status" style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 8 }}>
+          {t['settings.sms.paused']}
+        </div>
+      )}
 
       {loading && !status ? (
         <div style={{ fontSize: 11, color: 'var(--text-ghost)' }}>{t['settings.sms.loading']}</div>
@@ -125,7 +139,7 @@ export function SmsSettingsSection({ isOpen }: { isOpen: boolean }) {
             {unlinking ? t['settings.sms.unlinking'] : t['settings.sms.unlink']}
           </button>
         </div>
-      ) : linkCode ? (
+      ) : smsPaused ? null : linkCode ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
             {interpolate(t['settings.sms.linkInstruction'], {

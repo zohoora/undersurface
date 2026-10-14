@@ -77,6 +77,37 @@ export const MAX_REQUEST_BYTES = 512 * 1024
 export const CLASSIFIER_MAX_SYSTEM_CHARS = 24_000
 export const CLASSIFIER_MAX_USER_CHARS = 4_000
 
+// Autocorrect (task: 'autocorrect') corrects one finished sentence on the
+// small model. Same pinned [system, user] shape as the classifiers, sized for
+// its short prompt (~450 chars plus a language line) and one sentence of at
+// most ~1k chars inside <user_sentence> tags (src/ai/llmCorrect.ts).
+export const AUTOCORRECT_MAX_SYSTEM_CHARS = 1_200
+export const AUTOCORRECT_MAX_USER_CHARS = 1_200
+// Minimal reasoning still spends some hidden tokens; 600 covers that plus a
+// corrected sentence. A cut-off reply fails the client's length check and is
+// dropped, never applied.
+export const AUTOCORRECT_MAX_TOKENS = 600
+
+/** A route whose request shape is pinned to exactly [system, user]. */
+export interface PinnedShape {
+  maxSystemChars: number
+  maxUserChars: number
+  /** Error code for a request that is not exactly [system, user]. */
+  invalidCode: string
+}
+
+export const CLASSIFIER_SHAPE: PinnedShape = {
+  maxSystemChars: CLASSIFIER_MAX_SYSTEM_CHARS,
+  maxUserChars: CLASSIFIER_MAX_USER_CHARS,
+  invalidCode: 'invalid_classifier_request',
+}
+
+export const AUTOCORRECT_SHAPE: PinnedShape = {
+  maxSystemChars: AUTOCORRECT_MAX_SYSTEM_CHARS,
+  maxUserChars: AUTOCORRECT_MAX_USER_CHARS,
+  invalidCode: 'invalid_autocorrect_request',
+}
+
 type ChatRole = 'system' | 'user' | 'assistant'
 interface ChatMessage {
   role: ChatRole
@@ -100,7 +131,7 @@ function reject(status: number, error: string, code?: string): ChatValidation {
 // enforced: the companion does not answer every pause, so real sessions
 // contain consecutive user turns (and deterministic companion messages create
 // consecutive assistant turns). buildTherapistMessages forwards them as-is.
-export function validateChatMessages(raw: unknown, isClassifierTask: boolean): ChatValidation {
+export function validateChatMessages(raw: unknown, pinned: PinnedShape | null): ChatValidation {
   if (!Array.isArray(raw) || raw.length === 0) return reject(400, 'Invalid messages')
   if (raw.length > MAX_MESSAGES) return reject(400, `Too many messages (max ${MAX_MESSAGES})`)
 
@@ -118,13 +149,13 @@ export function validateChatMessages(raw: unknown, isClassifierTask: boolean): C
     messages.push({ role: candidate.role as ChatRole, content: candidate.content })
   }
 
-  if (isClassifierTask) {
+  if (pinned) {
     if (messages.length !== 2 || messages[0].role !== 'system' || messages[1].role !== 'user') {
-      return reject(400, 'Invalid classifier request', 'invalid_classifier_request')
+      return reject(400, 'Invalid request shape', pinned.invalidCode)
     }
-    if (messages[0].content.length > CLASSIFIER_MAX_SYSTEM_CHARS
-      || messages[1].content.length > CLASSIFIER_MAX_USER_CHARS) {
-      return reject(413, 'Classifier request too large', 'request_too_large')
+    if (messages[0].content.length > pinned.maxSystemChars
+      || messages[1].content.length > pinned.maxUserChars) {
+      return reject(413, 'Request too large', 'request_too_large')
     }
     return { ok: true, messages }
   }
@@ -264,7 +295,9 @@ export const chat = onRequest(
     //
     // `task` is an optional routing parameter. 'crisis_check' switches to the
     // smaller classifier model with structured-output enforcement and forces
-    // non-streaming. Anything else falls through to the standard chat path.
+    // non-streaming. 'autocorrect' also runs on the small model, non-streamed,
+    // with minimal reasoning and a small token cap. Anything else falls
+    // through to the standard chat path.
     const { messages, max_tokens, stream, reasoning_effort, task } = req.body || {}
     const ALLOWED_REASONING = new Set(['none', 'low', 'medium', 'high', 'xhigh'])
     const resolvedReasoning = typeof reasoning_effort === 'string' && ALLOWED_REASONING.has(reasoning_effort)
@@ -275,7 +308,15 @@ export const chat = onRequest(
     // schema, non-streaming) but with its own prompt + schema.
     const isSignalCheck = task === 'signal_check'
     const isClassifierTask = isCrisisCheck || isSignalCheck
-    const validation = validateChatMessages(messages, isClassifierTask)
+    // Autocorrect used to send a client `model` this function ignores, so it
+    // ran on the main model and spent quota on gpt-5.5. Unlike the
+    // classifiers it is a user-facing convenience, so it stays quota-counted.
+    const isAutocorrect = task === 'autocorrect'
+    const isSmallModelTask = isClassifierTask || isAutocorrect
+    const validation = validateChatMessages(
+      messages,
+      isClassifierTask ? CLASSIFIER_SHAPE : isAutocorrect ? AUTOCORRECT_SHAPE : null,
+    )
     if (!validation.ok) {
       if (validation.body.code) {
         console.warn(`[chat] rejected uid=${uid.slice(0, 8)} task=${task ?? 'chat'} code=${validation.body.code ?? 'invalid'}`)
@@ -285,14 +326,16 @@ export const chat = onRequest(
     }
     const sanitizedMessages = validation.messages
 
-    const modelForRequest = isClassifierTask ? OPENAI_CRISIS_MODEL : OPENAI_CHAT_MODEL
-    const streamForRequest = !isClassifierTask && !!stream
+    const modelForRequest = isSmallModelTask ? OPENAI_CRISIS_MODEL : OPENAI_CHAT_MODEL
+    const streamForRequest = !isSmallModelTask && !!stream
     const resolvedMaxTokens = isClassifierTask
       ? CRISIS_MAX_TOKENS
-      : Math.min(
-        typeof max_tokens === 'number' && max_tokens > 0 ? max_tokens : 150,
-        MAX_TOKENS_CAP,
-      )
+      : isAutocorrect
+        ? AUTOCORRECT_MAX_TOKENS
+        : Math.min(
+          typeof max_tokens === 'number' && max_tokens > 0 ? max_tokens : 150,
+          MAX_TOKENS_CAP,
+        )
     const reqStart = Date.now()
     const tag = `uid=${uid.slice(0, 8)} model=${modelForRequest} task=${task ?? 'chat'} stream=${streamForRequest} max_tokens=${resolvedMaxTokens} reasoning=${resolvedReasoning ?? 'default'}`
     console.log(`[chat] start ${tag}`)
@@ -371,10 +414,10 @@ export const chat = onRequest(
           // streamed turn was charged its whole reservation (#16). The extra
           // final chunk has `choices: []`, which the client already ignores.
           ...(streamForRequest ? { stream_options: { include_usage: true } } : {}),
-          // Classifier tasks hardcode reasoning_effort='minimal' (smaller
-          // model needs the budget for visible output, not hidden reasoning).
-          // Other tasks pass the client-supplied value through unchanged.
-          ...(isClassifierTask
+          // Small-model tasks hardcode reasoning_effort='minimal' (the
+          // budget is for visible output, not hidden reasoning). Other tasks
+          // pass the client-supplied value through unchanged.
+          ...(isSmallModelTask
             ? { reasoning_effort: CRISIS_REASONING }
             : (resolvedReasoning ? { reasoning_effort: resolvedReasoning } : {})),
           ...(isCrisisCheck ? { response_format: CRISIS_RESPONSE_FORMAT } : {}),

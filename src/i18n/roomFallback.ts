@@ -63,4 +63,6 @@ export const roomFallback = {
   'session.journal.draftRetry': 'Try again',
   'session.journal.draftCopy': 'Copy words',
   'session.journal.draftCopied': 'Copied',
+  // SMS kill switch (S5).
+  'settings.sms.paused': 'SMS is paused for now. You can still disconnect a linked phone.',
 } as const

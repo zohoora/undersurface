@@ -32,6 +32,10 @@ function docRef(path: string): FakeDocRef {
       const existing = store.get(path)
       store.set(path, options?.merge && existing ? { ...existing, ...fields } : { ...fields })
     },
+    create: async (fields: Fields) => {
+      if (store.has(path)) throw Object.assign(new Error('already exists'), { code: 6 })
+      store.set(path, { ...fields })
+    },
     delete: async () => { store.delete(path) },
     collection: (name: string) => collectionRef(`${path}/${name}`),
     listCollections: async () => {
@@ -50,6 +54,7 @@ interface FakeDocRef {
   path: string
   get: () => Promise<{ exists: boolean; data: () => Fields | undefined; get: (f: string) => unknown }>
   set: (fields: Fields, options?: { merge?: boolean }) => Promise<void>
+  create: (fields: Fields) => Promise<void>
   delete: () => Promise<void>
   collection: (name: string) => ReturnType<typeof collectionRef>
   listCollections: () => Promise<ReturnType<typeof collectionRef>[]>
@@ -66,6 +71,7 @@ function query(collectionPath: string, filters: [string, unknown][] = [], max = 
     limit: (n: number) => query(collectionPath, filters, n),
     select: () => query(collectionPath, filters, max),
     get: async () => ({
+      empty: run().length === 0,
       docs: run().map(([key, fields]) => ({
         id: segments(key).at(-1)!,
         ref: docRef(key),
@@ -170,7 +176,14 @@ vi.mock('./sms/state.js', async (importOriginal) => ({
   revokeFieldWindowConsent,
 }))
 
-const { handleDeleteAccount, handleUnlinkSms, deleteTwilioMessages, ACCOUNT_DELETION_STATUS } = await import('./account')
+const {
+  handleCreateSmsLinkCode,
+  handleDeleteAccount,
+  handleUnlinkSms,
+  deleteTwilioMessages,
+  ACCOUNT_DELETION_STATUS,
+  SMS_DISABLED_CODE,
+} = await import('./account')
 
 const SID_IN = 'SM' + 'a'.repeat(32)
 const SID_MMS = 'MM' + 'b'.repeat(32)
@@ -350,6 +363,37 @@ describe('handleUnlinkSms', () => {
     seedFullAccount('u-del')
     await handleDeleteAccount('u-del', {}, makeRes())
     expect(revokeFieldWindowConsent).not.toHaveBeenCalled()
+  })
+})
+
+describe('handleCreateSmsLinkCode — SMS kill switch', () => {
+  const linkCodes = () => [...store.keys()].filter(key => key.startsWith('smsLinkCodes/'))
+
+  it('refuses a new link code with 403 sms_disabled while SMS is paused', async () => {
+    store.set('appConfig/global', { features: { smsEnabled: false } })
+    const res = makeRes()
+    await handleCreateSmsLinkCode('u-paused', {}, res)
+    expect(res.status).toHaveBeenCalledWith(403)
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: SMS_DISABLED_CODE }))
+    expect(linkCodes()).toEqual([])
+  })
+
+  it('creates a code when the switch is on or unset', async () => {
+    const res = makeRes()
+    await handleCreateSmsLinkCode('u-on', {}, res)
+    expect(res.status).not.toHaveBeenCalled()
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: expect.any(String), expiresAt: expect.any(Number) }))
+    expect(linkCodes()).toHaveLength(1)
+  })
+
+  it('still lets a writer unlink while SMS is paused', async () => {
+    store.set('appConfig/global', { features: { smsEnabled: false } })
+    store.set('users/u-p/smsSettings/current', { phoneHash: 'hash-p' })
+    store.set('smsPhoneLinks/hash-p', { uid: 'u-p' })
+    const res = makeRes()
+    await handleUnlinkSms('u-p', {}, res)
+    expect(store.has('smsPhoneLinks/hash-p')).toBe(false)
+    expect(res.json).toHaveBeenCalledWith({ success: true })
   })
 })
 

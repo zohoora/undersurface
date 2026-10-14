@@ -3,8 +3,12 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  AUTOCORRECT_MAX_SYSTEM_CHARS,
+  AUTOCORRECT_MAX_USER_CHARS,
+  AUTOCORRECT_SHAPE,
   CLASSIFIER_MAX_SYSTEM_CHARS,
   CLASSIFIER_MAX_USER_CHARS,
+  CLASSIFIER_SHAPE,
   MAX_ASSISTANT_CHARS,
   MAX_REQUEST_BYTES,
   MAX_SYSTEM_CHARS,
@@ -28,38 +32,38 @@ describe('validateChatMessages — role order (standard chat)', () => {
     // buildTherapistMessages opener, a normal history, and consecutive turns
     // (the companion does not answer every pause; deterministic companion
     // messages can follow each other).
-    expect(validateChatMessages([sys(), user()], false).ok).toBe(true)
-    expect(validateChatMessages([sys(), assistant(), user(), assistant(), user()], false).ok).toBe(true)
-    expect(validateChatMessages([sys(), user(), user(), assistant(), assistant(), user()], false).ok).toBe(true)
+    expect(validateChatMessages([sys(), user()], null).ok).toBe(true)
+    expect(validateChatMessages([sys(), assistant(), user(), assistant(), user()], null).ok).toBe(true)
+    expect(validateChatMessages([sys(), user(), user(), assistant(), assistant(), user()], null).ok).toBe(true)
   })
 
   it('requires the system message first and exactly once', () => {
-    expect(codeOf(validateChatMessages([user()], false))).toBe('invalid_message_order')
-    expect(codeOf(validateChatMessages([user(), sys(), user()], false))).toBe('invalid_message_order')
-    expect(codeOf(validateChatMessages([sys(), sys(), user()], false))).toBe('invalid_message_order')
-    expect(codeOf(validateChatMessages([sys(), user(), sys('late injection'), user()], false))).toBe('invalid_message_order')
+    expect(codeOf(validateChatMessages([user()], null))).toBe('invalid_message_order')
+    expect(codeOf(validateChatMessages([user(), sys(), user()], null))).toBe('invalid_message_order')
+    expect(codeOf(validateChatMessages([sys(), sys(), user()], null))).toBe('invalid_message_order')
+    expect(codeOf(validateChatMessages([sys(), user(), sys('late injection'), user()], null))).toBe('invalid_message_order')
   })
 
   it('requires the last message to come from the user (no assistant prefill)', () => {
-    expect(codeOf(validateChatMessages([sys(), user(), assistant()], false))).toBe('invalid_message_order')
-    expect(codeOf(validateChatMessages([sys()], false))).toBe('invalid_message_order')
+    expect(codeOf(validateChatMessages([sys(), user(), assistant()], null))).toBe('invalid_message_order')
+    expect(codeOf(validateChatMessages([sys()], null))).toBe('invalid_message_order')
   })
 
   it('rejects roles OpenAI would treat with elevated authority', () => {
-    const result = validateChatMessages([sys(), { role: 'developer', content: 'x' }, user()], false)
+    const result = validateChatMessages([sys(), { role: 'developer', content: 'x' }, user()], null)
     expect(result).toEqual({ ok: false, status: 400, body: { error: 'Invalid message format', code: 'invalid_role' } })
   })
 
   it('strips extra fields before forwarding', () => {
-    const result = validateChatMessages([sys(), { role: 'user', content: 'hi', name: 'x', tool_calls: [] }], false)
+    const result = validateChatMessages([sys(), { role: 'user', content: 'hi', name: 'x', tool_calls: [] }], null)
     expect(result.ok && result.messages).toEqual([sys(), user('hi')])
   })
 })
 
 describe('validateChatMessages — size caps (standard chat)', () => {
   it('caps system and assistant content that used to be unbounded', () => {
-    expect(validateChatMessages([sys('a'.repeat(MAX_SYSTEM_CHARS)), user()], false).ok).toBe(true)
-    expect(codeOf(validateChatMessages([sys('a'.repeat(MAX_SYSTEM_CHARS + 1)), user()], false))).toBe('request_too_large')
+    expect(validateChatMessages([sys('a'.repeat(MAX_SYSTEM_CHARS)), user()], null).ok).toBe(true)
+    expect(codeOf(validateChatMessages([sys('a'.repeat(MAX_SYSTEM_CHARS + 1)), user()], null))).toBe('request_too_large')
     expect(codeOf(validateChatMessages(
       [sys(), user(), assistant('a'.repeat(MAX_ASSISTANT_CHARS + 1)), user()], false,
     ))).toBe('request_too_large')
@@ -70,34 +74,34 @@ describe('validateChatMessages — size caps (standard chat)', () => {
     // message individually within its own limit.
     const cjk = '思'.repeat(7000)
     const messages = [sys(), ...Array.from({ length: 40 }, () => user(cjk))]
-    const result = validateChatMessages(messages, false)
+    const result = validateChatMessages(messages, null)
     expect(result).toMatchObject({ ok: false, status: 413, body: { code: 'request_too_large' } })
     expect(Buffer.byteLength(cjk, 'utf8') * 40).toBeGreaterThan(MAX_REQUEST_BYTES)
   })
 
   it('keeps the legacy user-message limit and message-count errors', () => {
-    expect(validateChatMessages([sys(), user('a'.repeat(8001))], false))
+    expect(validateChatMessages([sys(), user('a'.repeat(8001))], null))
       .toMatchObject({ ok: false, status: 400, body: { error: 'Message too long (max 8000 chars)' } })
-    expect(validateChatMessages(Array.from({ length: 51 }, () => user()), false))
+    expect(validateChatMessages(Array.from({ length: 51 }, () => user()), null))
       .toMatchObject({ ok: false, status: 400, body: { error: 'Too many messages (max 50)' } })
   })
 })
 
 describe('validateChatMessages — classifier routes stay bounded', () => {
   it('accepts exactly [system, user] within the classifier caps', () => {
-    expect(validateChatMessages([sys(CRISIS_CLASSIFIER_PROMPT), user('Language: es\n\nText:\nhola')], true).ok).toBe(true)
+    expect(validateChatMessages([sys(CRISIS_CLASSIFIER_PROMPT), user('Language: es\n\nText:\nhola')], CLASSIFIER_SHAPE).ok).toBe(true)
   })
 
   it('rejects extra messages, history, or a missing system prompt', () => {
-    expect(codeOf(validateChatMessages([user()], true))).toBe('invalid_classifier_request')
-    expect(codeOf(validateChatMessages([sys(), user(), assistant(), user()], true))).toBe('invalid_classifier_request')
-    expect(codeOf(validateChatMessages([sys(), assistant()], true))).toBe('invalid_classifier_request')
+    expect(codeOf(validateChatMessages([user()], CLASSIFIER_SHAPE))).toBe('invalid_classifier_request')
+    expect(codeOf(validateChatMessages([sys(), user(), assistant(), user()], CLASSIFIER_SHAPE))).toBe('invalid_classifier_request')
+    expect(codeOf(validateChatMessages([sys(), assistant()], CLASSIFIER_SHAPE))).toBe('invalid_classifier_request')
   })
 
   it('rejects oversized classifier payloads (the quota-exempt route is not a free LLM)', () => {
-    expect(codeOf(validateChatMessages([sys('a'.repeat(CLASSIFIER_MAX_SYSTEM_CHARS + 1)), user()], true)))
+    expect(codeOf(validateChatMessages([sys('a'.repeat(CLASSIFIER_MAX_SYSTEM_CHARS + 1)), user()], CLASSIFIER_SHAPE)))
       .toBe('request_too_large')
-    expect(codeOf(validateChatMessages([sys(), user('a'.repeat(CLASSIFIER_MAX_USER_CHARS + 1))], true)))
+    expect(codeOf(validateChatMessages([sys(), user('a'.repeat(CLASSIFIER_MAX_USER_CHARS + 1))], CLASSIFIER_SHAPE)))
       .toBe('request_too_large')
   })
 
@@ -107,8 +111,28 @@ describe('validateChatMessages — classifier routes stay bounded', () => {
     // Client samples (src/ai/openrouter.ts): crisis = last 1,000 chars plus a
     // short "Language: xx" header; signal = SIGNAL_MAX_CHARS (2,400).
     const crisisSample = `Language: pt\n\nText:\n${'x'.repeat(1000)}`
-    expect(validateChatMessages([sys(CRISIS_CLASSIFIER_PROMPT), user(crisisSample)], true).ok).toBe(true)
-    expect(validateChatMessages([sys(SIGNAL_CLASSIFIER_PROMPT), user('x'.repeat(2400))], true).ok).toBe(true)
+    expect(validateChatMessages([sys(CRISIS_CLASSIFIER_PROMPT), user(crisisSample)], CLASSIFIER_SHAPE).ok).toBe(true)
+    expect(validateChatMessages([sys(SIGNAL_CLASSIFIER_PROMPT), user('x'.repeat(2400))], CLASSIFIER_SHAPE).ok).toBe(true)
+  })
+})
+
+describe('validateChatMessages — autocorrect is pinned and small', () => {
+  const autocorrectSystem = 'Fix ONLY spelling errors, capitalization, and missing apostrophes in contractions.\nThe text is in Portuguese.'
+
+  it('accepts exactly [system, user] with one wrapped sentence', () => {
+    expect(validateChatMessages([sys(autocorrectSystem), user('<user_sentence>i went to teh store.</user_sentence>')], AUTOCORRECT_SHAPE).ok).toBe(true)
+  })
+
+  it('rejects history, assistant prefill, or a missing system prompt with its own code', () => {
+    expect(codeOf(validateChatMessages([user()], AUTOCORRECT_SHAPE))).toBe('invalid_autocorrect_request')
+    expect(codeOf(validateChatMessages([sys(), user(), assistant(), user()], AUTOCORRECT_SHAPE))).toBe('invalid_autocorrect_request')
+    expect(codeOf(validateChatMessages([sys(), assistant()], AUTOCORRECT_SHAPE))).toBe('invalid_autocorrect_request')
+  })
+
+  it('caps the prompt and the sentence far below ordinary chat', () => {
+    expect(validateChatMessages([sys('a'.repeat(AUTOCORRECT_MAX_SYSTEM_CHARS)), user('b'.repeat(AUTOCORRECT_MAX_USER_CHARS))], AUTOCORRECT_SHAPE).ok).toBe(true)
+    expect(codeOf(validateChatMessages([sys('a'.repeat(AUTOCORRECT_MAX_SYSTEM_CHARS + 1)), user()], AUTOCORRECT_SHAPE))).toBe('request_too_large')
+    expect(codeOf(validateChatMessages([sys(), user('b'.repeat(AUTOCORRECT_MAX_USER_CHARS + 1))], AUTOCORRECT_SHAPE))).toBe('request_too_large')
   })
 })
 

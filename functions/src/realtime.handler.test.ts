@@ -131,10 +131,18 @@ describe('realtimeTokenApi — feature flags', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('mints for Room when only the legacy relax flag makes Room effective', async () => {
-    appConfig = { features: { relaxEnabled: true } }
-    stubOpenAi()
-    expect((await mint('flags-room-legacy')).statusCode).toBe(200)
+  it('refuses when only Room is on: without voiceEnabled Room never offers voice', async () => {
+    const cases = [{ roomEnabled: true }, { relaxEnabled: true }, { voiceEnabled: false, roomEnabled: true }]
+    for (const [index, features] of cases.entries()) {
+      appConfig = { features }
+      resetFeatureFlagsCacheForTests()
+      const fetchMock = stubOpenAi()
+      const res = await mint(`flags-room-${index}`)
+      expect(res.statusCode).toBe(403)
+      expect(res.body).toMatchObject({ code: 'voice_disabled' })
+      expect(fetchMock).not.toHaveBeenCalled()
+      vi.unstubAllGlobals()
+    }
   })
 
   it('rejects with 403 voice_disabled when neither Speak nor Room is on, without calling OpenAI', async () => {

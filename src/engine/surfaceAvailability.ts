@@ -4,9 +4,11 @@ type Features = Partial<GlobalConfig['features']> | null | undefined
 
 /**
  * Effective Room availability (cross-agent contract with the admin toggle and
- * the server-side realtime-token check): an explicit `roomEnabled` wins; when it
- * is unset, Room stays derived from the legacy Relax/Drift flags so no config
- * migration is needed before deploy.
+ * its server twin in functions/src/shared/featureFlags.ts): an explicit
+ * `roomEnabled` wins; when it is unset, Room stays derived from the legacy
+ * Relax/Drift flags so no config migration is needed before deploy. Room's
+ * voice approaches additionally need `voiceEnabled` (isVoiceEnabled), which is
+ * also the server's rule for minting a Realtime secret.
  */
 export function isRoomEnabled(features: Features): boolean {
   const roomEnabled = features?.roomEnabled

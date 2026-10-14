@@ -16,9 +16,13 @@ export function isRoomEnabled(features: FeatureFlags | null | undefined): boolea
   return features?.relaxEnabled === true || features?.driftEnabled === true
 }
 
-// Realtime client secrets back two surfaces: Speak (voiceEnabled) and Room.
+// Realtime client secrets back Speak and Room's voice approaches. The client
+// offers voice in either only when voiceEnabled is on: with it off, Room shows
+// Quiet company alone, which never mints a secret (RoomField `voiceAvailable`
+// = isVoiceEnabled). So the server mints under exactly that rule; Room being
+// enabled is not enough.
 export function isRealtimeVoiceAllowed(features: FeatureFlags | null | undefined): boolean {
-  return features?.voiceEnabled === true || isRoomEnabled(features)
+  return features?.voiceEnabled === true
 }
 
 // Cached in-instance like the chat quota config: 60s TTL means an admin toggle

@@ -103,9 +103,9 @@ export const realtimeTokenApi = onRequest(
       return
     }
 
-    // Server-side flag enforcement. The client hides Speak and Room when their
-    // flags are off, but any signed-in user can call this endpoint directly.
-    // Fail closed when the config can't be read.
+    // Server-side flag enforcement. The client offers voice (Speak, and Room's
+    // voice approaches) only when voiceEnabled is on, but any signed-in user
+    // can call this endpoint directly. Fail closed when the config can't be read.
     const now = new Date()
     let voiceAllowed: boolean
     try {

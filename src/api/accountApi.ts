@@ -27,6 +27,15 @@ export async function getSmsStatus(): Promise<SmsStatus> {
   return authedPost<SmsStatus>('/api/account', { action: 'getSmsStatus' })
 }
 
+// accountApi's SMS kill-switch code (functions/src/account.ts SMS_DISABLED_CODE).
+export const SMS_DISABLED_CODE = 'sms_disabled'
+
+/** True when a request failed because SMS is paused (403 sms_disabled). */
+export function isSmsDisabledError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '')
+  return message.includes(`"${SMS_DISABLED_CODE}"`)
+}
+
 export async function createSmsLinkCode(): Promise<SmsLinkCodeResult> {
   return authedPost<SmsLinkCodeResult>('/api/account', { action: 'createSmsLinkCode' })
 }

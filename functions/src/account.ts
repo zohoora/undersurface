@@ -14,7 +14,11 @@ import {
   getSmsStatus,
   unlinkSms,
 } from './sms/linking.js'
-import { revokeFieldWindowConsent } from './sms/state.js'
+import { isSmsEnabled, revokeFieldWindowConsent } from './sms/state.js'
+
+// Machine-readable code for the SMS kill switch (features.smsEnabled === false).
+// The client matches on it, never on the message text.
+export const SMS_DISABLED_CODE = 'sms_disabled'
 
 // Deletion tombstone, written to users/{uid} before anything is deleted:
 //   { status: 'deleting', deletedAt: <ms epoch> }
@@ -265,7 +269,14 @@ async function handleGetSmsStatus(uid: string, _params: Record<string, unknown>,
   res.json(await getSmsStatus(uid))
 }
 
-async function handleCreateSmsLinkCode(uid: string, _params: Record<string, unknown>, res: Response): Promise<void> {
+// The kill switch covers phone linking: no new link codes while SMS is
+// paused (the webhook already answers LINK with the paused reply). Status and
+// unlink stay available so a writer can always see and remove a link.
+export async function handleCreateSmsLinkCode(uid: string, _params: Record<string, unknown>, res: Response): Promise<void> {
+  if (!await isSmsEnabled()) {
+    res.status(403).json({ error: 'SMS is paused right now.', code: SMS_DISABLED_CODE })
+    return
+  }
   res.json(await createSmsLinkCode(uid))
 }
 

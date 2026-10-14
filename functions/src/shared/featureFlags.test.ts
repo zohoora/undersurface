@@ -17,13 +17,15 @@ describe('isRoomEnabled (cross-agent contract)', () => {
 })
 
 describe('isRealtimeVoiceAllowed', () => {
-  it('allows Speak via voiceEnabled', () => {
+  it('allows Speak and Room voice via voiceEnabled', () => {
     expect(isRealtimeVoiceAllowed({ voiceEnabled: true })).toBe(true)
+    expect(isRealtimeVoiceAllowed({ voiceEnabled: true, roomEnabled: true })).toBe(true)
   })
 
-  it('allows Room voice via an effective Room flag', () => {
-    expect(isRealtimeVoiceAllowed({ roomEnabled: true })).toBe(true)
-    expect(isRealtimeVoiceAllowed({ relaxEnabled: true })).toBe(true)
+  it('denies when only Room is on: without voiceEnabled Room offers Quiet company alone', () => {
+    expect(isRealtimeVoiceAllowed({ roomEnabled: true })).toBe(false)
+    expect(isRealtimeVoiceAllowed({ relaxEnabled: true })).toBe(false)
+    expect(isRealtimeVoiceAllowed({ voiceEnabled: false, roomEnabled: true })).toBe(false)
   })
 
   it('denies when neither surface is on, including a missing config', () => {
