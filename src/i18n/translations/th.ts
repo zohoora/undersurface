@@ -437,6 +437,13 @@ const thBase = {
   'export.room.density.present': 'อยู่ด้วยตลอด',
   'export.yes': 'ใช่',
   'export.no': 'ไม่',
+
+  // Journal drafts kept on the device (English source in roomFallback)
+  'session.journal.draftNotAdded': 'ยังไม่ได้เพิ่มถ้อยคำใน “บันทึก” ของคุณ ถ้อยคำเหล่านั้นยังเก็บไว้ตรงนี้',
+  'session.journal.draftClosed': 'เซสชันนี้ปิดไปก่อนที่ถ้อยคำใน “บันทึก” ของคุณจะถูกเพิ่ม ถ้อยคำเหล่านั้นยังเก็บไว้ตรงนี้',
+  'session.journal.draftRetry': 'ลองอีกครั้ง',
+  'session.journal.draftCopy': 'คัดลอกถ้อยคำ',
+  'session.journal.draftCopied': 'คัดลอกแล้ว',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

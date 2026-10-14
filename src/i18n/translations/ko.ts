@@ -437,6 +437,13 @@ const koBase = {
   'export.room.density.present': '함께함',
   'export.yes': '예',
   'export.no': '아니요',
+
+  // Journal drafts kept on the device (English source in roomFallback)
+  'session.journal.draftNotAdded': '일기 글이 아직 추가되지 않았습니다. 글은 여기에 그대로 남아 있습니다.',
+  'session.journal.draftClosed': '일기 글이 추가되기 전에 이 세션이 닫혔습니다. 글은 여기에 그대로 남아 있습니다.',
+  'session.journal.draftRetry': '다시 시도',
+  'session.journal.draftCopy': '글 복사하기',
+  'session.journal.draftCopied': '복사됨',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

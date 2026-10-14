@@ -437,6 +437,13 @@ const hiBase = {
   'export.room.density.present': 'मौजूद',
   'export.yes': 'हाँ',
   'export.no': 'नहीं',
+
+  // Journal drafts kept on the device (English source in roomFallback)
+  'session.journal.draftNotAdded': 'डायरी में लिखे आपके शब्द अभी जोड़े नहीं गए हैं। वे यहीं रखे गए हैं।',
+  'session.journal.draftClosed': 'डायरी में लिखे आपके शब्द जुड़ने से पहले ही यह सत्र बंद हो गया। वे यहीं रखे गए हैं।',
+  'session.journal.draftRetry': 'फिर से कोशिश करें',
+  'session.journal.draftCopy': 'शब्द कॉपी करें',
+  'session.journal.draftCopied': 'कॉपी हो गया',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

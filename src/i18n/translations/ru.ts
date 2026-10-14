@@ -437,6 +437,13 @@ const ruBase = {
   'export.room.density.present': 'присутствует',
   'export.yes': 'да',
   'export.no': 'нет',
+
+  // Journal drafts kept on the device (English source in roomFallback)
+  'session.journal.draftNotAdded': 'Твои слова из Дневника пока не добавлены. Они сохранены здесь.',
+  'session.journal.draftClosed': 'Эта сессия закрылась раньше, чем твои слова из Дневника были добавлены. Они сохранены здесь.',
+  'session.journal.draftRetry': 'Попробовать снова',
+  'session.journal.draftCopy': 'Скопировать текст',
+  'session.journal.draftCopied': 'Скопировано',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

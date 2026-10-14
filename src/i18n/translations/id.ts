@@ -437,6 +437,13 @@ const idBase = {
   'export.room.density.present': 'hadir',
   'export.yes': 'ya',
   'export.no': 'tidak',
+
+  // Journal drafts kept on the device (English source in roomFallback)
+  'session.journal.draftNotAdded': 'Kata-kata di jurnalmu belum ditambahkan. Kata-kata itu tetap ada di sini.',
+  'session.journal.draftClosed': 'Sesi ini ditutup sebelum kata-kata di jurnalmu ditambahkan. Kata-kata itu tetap ada di sini.',
+  'session.journal.draftRetry': 'Coba lagi',
+  'session.journal.draftCopy': 'Salin kata-kata',
+  'session.journal.draftCopied': 'Tersalin',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

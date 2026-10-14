@@ -437,6 +437,13 @@ const jaBase = {
   'export.room.density.present': 'あり',
   'export.yes': 'はい',
   'export.no': 'いいえ',
+
+  // Journal drafts kept on the device (English source in roomFallback)
+  'session.journal.draftNotAdded': '日記の言葉はまだ追加されていません。ここに残してあります。',
+  'session.journal.draftClosed': '日記の言葉が追加される前に、このセッションは終了しました。言葉はここに残してあります。',
+  'session.journal.draftRetry': 'もう一度試す',
+  'session.journal.draftCopy': '言葉をコピー',
+  'session.journal.draftCopied': 'コピーしました',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

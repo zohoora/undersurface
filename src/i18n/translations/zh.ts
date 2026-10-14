@@ -437,6 +437,13 @@ const zhBase = {
   'export.room.density.present': '持续',
   'export.yes': '是',
   'export.no': '否',
+
+  // Journal drafts kept on the device (English source in roomFallback)
+  'session.journal.draftNotAdded': '你在日记中写的文字还没有添加进来，已为你保留在这里。',
+  'session.journal.draftClosed': '在你的日记文字添加进来之前，这次会话已经结束。文字已为你保留在这里。',
+  'session.journal.draftRetry': '重试',
+  'session.journal.draftCopy': '复制文字',
+  'session.journal.draftCopied': '已复制',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

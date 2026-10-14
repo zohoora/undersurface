@@ -437,6 +437,13 @@ const esBase = {
   'export.room.density.present': 'presente',
   'export.yes': 'sí',
   'export.no': 'no',
+
+  // Journal drafts kept on the device (English source in roomFallback)
+  'session.journal.draftNotAdded': 'Tus palabras del Diario aún no se han añadido. Siguen aquí.',
+  'session.journal.draftClosed': 'Esta sesión se cerró antes de que se añadieran tus palabras del Diario. Siguen aquí.',
+  'session.journal.draftRetry': 'Intentar de nuevo',
+  'session.journal.draftCopy': 'Copiar texto',
+  'session.journal.draftCopied': 'Copiado',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

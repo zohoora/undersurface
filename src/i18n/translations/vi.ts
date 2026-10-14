@@ -437,6 +437,13 @@ const viBase = {
   'export.room.density.present': 'hiện diện',
   'export.yes': 'có',
   'export.no': 'không',
+
+  // Journal drafts kept on the device (English source in roomFallback)
+  'session.journal.draftNotAdded': 'Những gì bạn viết trong Nhật ký chưa được thêm vào. Chúng vẫn được giữ ở đây.',
+  'session.journal.draftClosed': 'Phiên này đã đóng trước khi những gì bạn viết trong Nhật ký được thêm vào. Chúng vẫn được giữ ở đây.',
+  'session.journal.draftRetry': 'Thử lại',
+  'session.journal.draftCopy': 'Sao chép đoạn viết',
+  'session.journal.draftCopied': 'Đã sao chép',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

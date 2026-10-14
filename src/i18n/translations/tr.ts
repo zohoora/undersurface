@@ -437,6 +437,13 @@ const trBase = {
   'export.room.density.present': 'belirgin',
   'export.yes': 'evet',
   'export.no': 'hayır',
+
+  // Journal drafts kept on the device (English source in roomFallback)
+  'session.journal.draftNotAdded': 'Günlük’te yazdıkların henüz eklenmedi. Burada duruyorlar.',
+  'session.journal.draftClosed': 'Bu oturum, Günlük’te yazdıkların eklenmeden kapandı. Burada duruyorlar.',
+  'session.journal.draftRetry': 'Tekrar dene',
+  'session.journal.draftCopy': 'Yazdıklarını kopyala',
+  'session.journal.draftCopied': 'Kopyalandı',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no
