@@ -5,6 +5,76 @@
 **Method:** read-only source audit (frontend and functions, run in parallel) plus spot verification. Items marked **Verified** were re-read and confirmed independently by a second pass. Items marked **PLAUSIBLE** need a reproduction before fixing.
 **Companion file:** `docs/vision/2026-10-14-the-deep.md` (the creative direction; not part of this fix list).
 
+## Fix status (branch `fix/audit-2026-10-14`)
+
+All items below were fixed on the branch on 2026-10-14. Nothing is deployed. The owner steps at the end of this section remain.
+
+| # | Status | Commit(s) |
+|---|---|---|
+| 1 | Fixed: grounding is read at call time; deterministic offers re-check it and fall back to a model turn | 5d7da34 |
+| 2 | Fixed: accurate processor disclosure in 17 locales (owner: verify the OpenAI retention sentence) | i18n commits (see below) |
+| 3 | Fixed: client writes `lastGroundingAt`; server records SMS risk; 72h suppression of proactive texts; SMS turns grounded | 5d7da34, 1e3116e, b5d7e59 |
+| 4 | Fixed: anchored ≤6-word English-only grammar; skipped on L1/grounding | 5d7da34 |
+| 5 | Fixed: pills intent forms, negation, distant-past guards (owner: run `npm run test:crisis` before deploy) | 56c7110 |
+| 6 | Confirmed by Realtime docs and fixed: cues sent as system conversation items | 1fc776d |
+| 7 | Fixed | 1fc776d |
+| 8 | Fixed; crisis reply additionally resends once on an ambiguous failure | 1e3116e, 52082ee |
+| 9–10 | Fixed | b5d7e59 |
+| 11 | Fixed | 399d433 |
+| 12 | Fixed | 5d7da34, 399d433 |
+| 13 | Fixed | 5d7da34 |
+| 14 | Fixed for Room/Voice; the app-level lazy loader is completed in the sweep (S1) | 399d433 + sweep |
+| 15 | Fixed | 5d7da34, 399d433 |
+| 16–17 | Fixed (chat usage metering, prompt-token tracking, request caps, voice flag enforcement + daily budget, SMS kill switch + daily budget) | ceecff5, 1e3116e |
+| 18 | Fixed in code (owner: enable the `smsInbound` TTL policy) | 1e3116e, 0398dff |
+| 19 | Fixed: components localized; translations win over English fallbacks; untranslated-English test | 71d22eb + i18n commits |
+| 20 | Fixed: single `roomEnabled` (falls back to legacy flags when unset) and `smsEnabled` toggles | db94253, 0398dff, 2f0e75d |
+| 21–26 | Fixed | 1e3116e, b5d7e59, dc4a396, 52082ee |
+| 27 | Fixed (recursiveDelete, token revocation, Twilio cleanup, processor tombstone check). Residual: an open tab can write for up to about an hour after deletion because the rules don't check the tombstone (owner decision) | 0398dff, 1e3116e |
+| 28 | Fixed: soundscapeApi removed (owner: optionally delete the ElevenLabs secret and old cache objects) | 0398dff |
+| 29 | Fixed | b5d7e59 |
+| 30 | Fixed: unreachable UI deleted, 275 dead i18n keys removed, `test:drift` retired | db94253, 95b2509 |
+| 31 | Fixed | 399d433 |
+| 32 | Fixed | 71d22eb, 399d433 |
+| 33 | Confirmed real and fixed | 1fc776d |
+| 34–35 | Fixed (single voice-instruction builder) | 399d433, 1fc776d |
+| 36 | Fixed per owner decision: one web CSP that allows Google Ads; native builds inject their own | ebe31ee |
+| 37 | Fixed per owner decision: letters visible in the settings sheet | 3bec245 |
+| 38 | Fixed | 12f7236 |
+| 39 | Fixed: precache 2.69 MB → 1.93 MB | ebe31ee |
+| 40 | Fixed (scheduler/dispatcher/sweeper/processor tests; emulator rules tests) | b5d7e59, dc4a396 |
+| PLAUSIBLE webhook `set()` | Fixed (`create()`) | 1e3116e |
+
+**Added from the second (Codex) review, `docs/reviews/2026-10-14-technical-handoff.md`:**
+
+| ID | Issue | Status |
+|---|---|---|
+| T1 | Journal drafts can disappear or attach to the wrong session | Fixed: device-local drafts owned by (uid, session), exactly-once append to the owning session (95f1b98) |
+| T2 | Room can outlive its parent session | Fixed: lifetime token, late transcripts fenced (399d433) |
+| T3 | Room finish overwrote recorded choices | Fixed: immutable snapshots, per-Room write queue (399d433) |
+| T4 | Ordinary speech parsed as Room commands | Same as #4 |
+| T5 | Talk → Room/Speak dropped the current conversation | Fixed: bounded seed of current-session turns; Fresh eyes keeps them (1fc776d) |
+| T6 | Room had no keyboard boundary | Same as #32: dialog, focus trap, inert background, Escape (399d433) |
+| Export | Room visits missing from the Markdown export | Fixed (8b51d93) |
+
+**Found during the fixes:**
+
+| ID | Issue | Status |
+|---|---|---|
+| F1 | Ending a session from Journal hid the closing message | Fixed (3e68fba) |
+| F2 | Dead Relax/Drift device settings | Removed (95b2509) |
+| S1 | App-level `lazyWithRetry` reloads unconditionally (offline loop), and it wraps CrisisResources | Sweep commit |
+| S2–S8 | Dead voice override, no-op admin settings, Room ignoring the admin voice, autocorrect on the main model, kill-switch gaps on phone linking, possible second conductor move, dangling `outcomeId`, field-window timezone/mosaic/budget-refund details | Sweep commit |
+
+Known, not changed (product decision): the July 10 "make personal science ambient" change already left the transfer ladder and personal-protocol creation dormant. Nothing creates `personalProtocols` any more, and several outcome writers are test-only.
+
+**Owner steps before or at deploy:**
+1. `OPENAI_API_KEY=… npm run test:crisis`, and approve the new L1 cases in `functions/src/shared/crisisFloor.test.ts`.
+2. Deploy order: `firebase deploy --only firestore:indexes` → `firestore:rules` → functions → hosting. Admin saves of `roomEnabled`/`smsEnabled` fail until the functions schema is live. The next functions deploy deletes `soundscapeApi`.
+3. `gcloud firestore fields ttls update expireAt --collection-group=smsInbound --enable-ttl --project=undersurfaceme`
+4. Native builds must use `npm run build:native` (all `cap:*` scripts do).
+5. Have a native speaker review the translated privacy policy, and verify the OpenAI retention sentence.
+
 ## Current gate status (2026-10-14)
 
 | Gate | Result |
