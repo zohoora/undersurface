@@ -707,12 +707,22 @@ export async function processSmsInbound(ref: FirebaseFirestore.DocumentReference
 
     await ref.update({ sendState: 'sending', updatedAt: Date.now() })
     let outboundSid: string
+    const send = () => twilioClient().messages.create({
+      from: TWILIO_PHONE_NUMBER,
+      to: queued.from,
+      body: plan.reply,
+    })
     try {
-      const outbound = await twilioClient().messages.create({
-        from: TWILIO_PHONE_NUMBER,
-        to: queued.from,
-        body: plan.reply,
-      })
+      let outbound: Awaited<ReturnType<typeof send>>
+      try {
+        outbound = await send()
+      } catch (firstError) {
+        // The fixed crisis reply is the one message where a duplicate is far
+        // better than a miss: on an ambiguous failure, send it once more now.
+        if (plan.risk !== 2 || classifyTwilioSendError(firstError) !== 'ambiguous') throw firstError
+        console.error(`[sms] crisis send ambiguous; resending once category=${twilioErrorCategory(firstError)}`)
+        outbound = await send()
+      }
       outboundSid = outbound.sid
     } catch (error) {
       const failure = classifyTwilioSendError(error)

@@ -563,7 +563,7 @@ export interface ResearchEvent {
   protocolId: ResearchProtocolId
   protocolVersion: number
   assignmentKind: 'randomized' | 'observational' | 'personalized'
-  status: 'shadow' | 'assigned' | 'delivered' | 'overridden' | 'cancelled'
+  status: 'shadow' | 'assigned' | 'delivered' | 'overridden' | 'cancelled' | 'failed'
   source: 'sms' | SessionSurface
   sessionId?: string
   sourceId?: string

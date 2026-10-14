@@ -14,6 +14,7 @@ import {
   getSmsStatus,
   unlinkSms,
 } from './sms/linking.js'
+import { revokeFieldWindowConsent } from './sms/state.js'
 
 // Deletion tombstone, written to users/{uid} before anything is deleted:
 //   { status: 'deleting', deletedAt: <ms epoch> }
@@ -268,8 +269,11 @@ async function handleCreateSmsLinkCode(uid: string, _params: Record<string, unkn
   res.json(await createSmsLinkCode(uid))
 }
 
-async function handleUnlinkSms(uid: string, _params: Record<string, unknown>, res: Response): Promise<void> {
+export async function handleUnlinkSms(uid: string, _params: Record<string, unknown>, res: Response): Promise<void> {
   await unlinkSms(uid)
+  // Disconnecting in Settings revokes proactive consent exactly like texting
+  // STOP, so re-linking later never silently resumes field windows.
+  await revokeFieldWindowConsent(uid, Date.now())
   res.json({ success: true })
 }
 

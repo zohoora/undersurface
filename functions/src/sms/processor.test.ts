@@ -252,6 +252,29 @@ describe('SMS inbound processor', () => {
     expect(fakeDb.read(`users/${UID}/smsSettings/riskState`)).toMatchObject({ lastRiskLevel: 2 })
   })
 
+  it('resends the fixed crisis reply once when the first send is ambiguous', async () => {
+    seedJob({ body: 'I am going to kill myself tonight' })
+    mocks.create
+      .mockRejectedValueOnce(Object.assign(new Error('socket hang up'), { name: 'Error' }))
+      .mockResolvedValueOnce({ sid: 'SMreply000002' })
+
+    await processSmsInbound(queueRef())
+
+    expect(mocks.create).toHaveBeenCalledTimes(2)
+    expect(sentBodies().every(body => body.includes('988'))).toBe(true)
+    expect(queue()).toMatchObject({ status: 'completed', outboundSid: 'SMreply000002' })
+  })
+
+  it('never resends an ordinary reply after an ambiguous failure', async () => {
+    seedJob()
+    mocks.create.mockRejectedValueOnce(Object.assign(new Error('socket hang up'), { name: 'Error' }))
+
+    await processSmsInbound(queueRef())
+
+    expect(mocks.create).toHaveBeenCalledTimes(1)
+    expect(queue()).toMatchObject({ status: 'terminal_failed', lastError: 'ambiguous_send' })
+  })
+
   it('logs a classifier fail-open distinctly from a genuine 0', async () => {
     seedJob()
     mocks.classify.mockResolvedValue({ risk: 0, failOpen: 'http_error' })

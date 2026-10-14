@@ -164,7 +164,13 @@ vi.mock('twilio', () => ({
   },
 }))
 
-const { handleDeleteAccount, deleteTwilioMessages, ACCOUNT_DELETION_STATUS } = await import('./account')
+const revokeFieldWindowConsent = vi.fn(async () => undefined)
+vi.mock('./sms/state.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./sms/state.js')>()),
+  revokeFieldWindowConsent,
+}))
+
+const { handleDeleteAccount, handleUnlinkSms, deleteTwilioMessages, ACCOUNT_DELETION_STATUS } = await import('./account')
 
 const SID_IN = 'SM' + 'a'.repeat(32)
 const SID_MMS = 'MM' + 'b'.repeat(32)
@@ -324,6 +330,26 @@ describe('handleDeleteAccount', () => {
     await expect(handleDeleteAccount('u1', {}, res2)).resolves.toBeUndefined()
     expect(res2.json).toHaveBeenCalledWith({ success: true })
     expect(keysFor('u1')).toEqual([])
+  })
+})
+
+describe('handleUnlinkSms', () => {
+  it('revokes field-window consent like SMS STOP, so a re-link never resumes proactive texts', async () => {
+    revokeFieldWindowConsent.mockClear()
+    store.set('users/u-unlink/smsSettings/current', { phoneHash: 'hash-1' })
+    store.set('smsPhoneLinks/hash-1', { uid: 'u-unlink' })
+    const res = makeRes()
+    await handleUnlinkSms('u-unlink', {}, res)
+    expect(store.has('smsPhoneLinks/hash-1')).toBe(false)
+    expect(revokeFieldWindowConsent).toHaveBeenCalledWith('u-unlink', expect.any(Number))
+    expect(res.json).toHaveBeenCalledWith({ success: true })
+  })
+
+  it('does not revoke consent during account deletion (the whole tree is erased instead)', async () => {
+    revokeFieldWindowConsent.mockClear()
+    seedFullAccount('u-del')
+    await handleDeleteAccount('u-del', {}, makeRes())
+    expect(revokeFieldWindowConsent).not.toHaveBeenCalled()
   })
 })
 
