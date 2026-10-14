@@ -8,9 +8,12 @@ function PrivacyPolicy() {
   const t = useTranslation()
   return (
     <div>
-      <h2 style={{ fontFamily: "'Spectral', serif", fontSize: 20, fontWeight: 400, marginBottom: 16, color: 'var(--text-primary)' }}>
+      <h2 style={{ fontFamily: "'Spectral', serif", fontSize: 20, fontWeight: 400, marginBottom: 4, color: 'var(--text-primary)' }}>
         {t['policy.privacyTitle']}
       </h2>
+      <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: 'var(--text-ghost)', margin: '0 0 16px' }}>
+        {t['policy.lastUpdated']}
+      </p>
 
       <Section title={t['policy.whatWeStore']}>
         {t['policy.whatWeStoreBody']}
@@ -20,8 +23,24 @@ function PrivacyPolicy() {
         {t['policy.howAiWorksBody']}
       </Section>
 
+      <Section title={t['policy.voice']}>
+        {t['policy.voiceBody']}
+      </Section>
+
+      <Section title={t['policy.sms']}>
+        {t['policy.smsBody']}
+      </Section>
+
+      <Section title={t['policy.biometrics']}>
+        {t['policy.biometricsBody']}
+      </Section>
+
       <Section title={t['policy.whoCanSee']}>
         {t['policy.whoCanSeeBody']}
+      </Section>
+
+      <Section title={t['policy.providers']}>
+        {t['policy.providersBody']}
       </Section>
 
       <Section title={t['policy.devicePreferences']}>
