@@ -128,6 +128,19 @@ const personalScienceEnglish = {
   'letters.fromParts': 'From your inner voices',
   'letters.unread': 'Unread',
   'letters.back': 'All letters',
+  'export.room': 'Room',
+  'export.room.approach': 'Approach',
+  'export.room.length': 'Planned length',
+  'export.room.sound': 'Sound',
+  'export.room.voiceDensity': 'Voice at the end',
+  'export.room.elapsed': 'Time in Room',
+  'export.room.completed': 'Completed',
+  'export.room.transcript': 'Transcript',
+  'export.room.density.quiet': 'quiet',
+  'export.room.density.sparse': 'sparse',
+  'export.room.density.present': 'present',
+  'export.yes': 'yes',
+  'export.no': 'no',
 } as const
 
 // Session-first product and biometric-consent copy kept together so every
