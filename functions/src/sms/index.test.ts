@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import twilio from 'twilio'
 import { TWILIO_PHONE_NUMBER, TWILIO_WEBHOOK_URL } from './field'
+import { fakeDb, FakeTimestamp } from './testing/fakeFirestore'
 
 const TEST_AUTH_TOKEN = 'twilio-test-auth-token'
 const mockGetLinkedUid = vi.fn()
@@ -16,9 +17,7 @@ vi.mock('firebase-functions/v2/https', () => ({
 vi.mock('firebase-functions/v2/firestore', () => ({
   onDocumentCreated: (_opts: unknown, handler: unknown) => handler,
 }))
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: vi.fn(),
-}))
+vi.mock('firebase-admin/firestore', async () => (await import('./testing/fakeFirestore')).fakeFirestoreModule())
 vi.mock('./linking', () => ({
   getLinkedUid: mockGetLinkedUid,
   linkPhoneByCode: mockLinkPhoneByCode,
@@ -52,9 +51,10 @@ function signedRequest(
   bodyText: string,
   sid = 'SM1234567890abcdef1234567890abcdef',
   extra: Record<string, string> = {},
+  from = '+14165550123',
 ) {
   const params = {
-    From: '+14165550123',
+    From: from,
     To: TWILIO_PHONE_NUMBER,
     Body: bodyText,
     MessageSid: sid,
@@ -69,9 +69,11 @@ function signedRequest(
 }
 
 beforeEach(() => {
+  fakeDb.reset()
   mockGetLinkedUid.mockReset()
   mockLinkPhoneByCode.mockReset()
   mockUnlinkPhone.mockReset()
+  mockUnlinkPhone.mockResolvedValue(null)
 })
 
 describe('Twilio webhook envelope', () => {
@@ -130,6 +132,99 @@ describe('Twilio webhook envelope', () => {
 
     expect(mockLinkPhoneByCode).toHaveBeenCalledWith('+14165550123', 'AB23XY', expect.any(Number))
     expect(res.body).toContain('UnderSurface is connected')
+  })
+})
+
+describe('opt-out and account controls', () => {
+  function seedFieldWindowConsent(uid: string) {
+    fakeDb.seed(`users/${uid}/companionPreferences/current`, {
+      id: 'current',
+      fieldMosaicEnabled: true,
+      fieldWindows: { enabled: true, timezone: 'America/Toronto', maxPerWeek: 2, consentAt: 5, windows: [], updatedAt: 5 },
+    })
+  }
+
+  it.each(['STOP', 'stop', 'OPTOUT', 'REVOKE', 'UNSUBSCRIBE', 'QUIT'])(
+    '%s unlinks the phone and revokes proactive-SMS consent server-side',
+    async keyword => {
+      mockUnlinkPhone.mockResolvedValue('u1')
+      seedFieldWindowConsent('u1')
+      const res = makeRes()
+
+      await handleSmsWebhook(signedRequest(keyword), res)
+
+      expect(mockUnlinkPhone).toHaveBeenCalledWith('+14165550123')
+      expect(res.body).toContain('<Response></Response>')
+      const preferences = fakeDb.read('users/u1/companionPreferences/current') as { fieldWindows: Record<string, unknown> }
+      expect(preferences.fieldWindows.enabled).toBe(false)
+      expect(preferences.fieldWindows).not.toHaveProperty('consentAt')
+      expect(fakeDb.read('users/u1/smsSettings/optOut')).toMatchObject({ optedOutAt: expect.any(Number) })
+    },
+  )
+
+  it('UNLINK also revokes field-window consent', async () => {
+    mockUnlinkPhone.mockResolvedValue('u1')
+    seedFieldWindowConsent('u1')
+    const res = makeRes()
+
+    await handleSmsWebhook(signedRequest('UNLINK'), res)
+
+    expect(res.body).toContain('disconnected')
+    expect((fakeDb.read('users/u1/companionPreferences/current') as { fieldWindows: Record<string, unknown> }).fieldWindows.enabled).toBe(false)
+  })
+
+  it('honors STOP even after the sender hit the rate limit', async () => {
+    const from = '+14165550999'
+    mockGetLinkedUid.mockResolvedValue(null)
+    for (let index = 0; index < 31; index++) {
+      await handleSmsWebhook(signedRequest('hello', `SMratelimit${String(index).padStart(8, '0')}`, {}, from), makeRes())
+    }
+    const limited = makeRes()
+    await handleSmsWebhook(signedRequest('hello', 'SMratelimitlast0001', {}, from), limited)
+    expect(limited.body).toContain('Too many messages')
+
+    const res = makeRes()
+    await handleSmsWebhook(signedRequest('STOP', 'SMratelimitstop0001', {}, from), res)
+
+    expect(mockUnlinkPhone).toHaveBeenCalledWith(from)
+    expect(res.body).not.toContain('Too many messages')
+  })
+
+  it('replies with a fixed paused message while the kill switch is off, but still honors STOP', async () => {
+    fakeDb.seed('appConfig/global', { features: { smsEnabled: false } })
+    mockGetLinkedUid.mockResolvedValue('u1')
+
+    const paused = makeRes()
+    await handleSmsWebhook(signedRequest('A moment from my day', 'SMpaused000000000001', {}, '+14165550777'), paused)
+    expect(paused.body).toContain('paused')
+    expect(fakeDb.paths('smsInbound/')).toEqual([])
+
+    mockUnlinkPhone.mockResolvedValue('u1')
+    await handleSmsWebhook(signedRequest('STOP', 'SMpaused000000000002', {}, '+14165550777'), makeRes())
+    expect(mockUnlinkPhone).toHaveBeenCalled()
+  })
+
+  it('never overwrites a processed inbound message on webhook redelivery', async () => {
+    mockGetLinkedUid.mockResolvedValue('u1')
+    const sid = 'SMredelivery00000000000000000001'
+    fakeDb.seed(`users/u1/smsMessages/${sid}`, {
+      id: sid, direction: 'inbound', body: 'original', status: 'processed', risk: 1, fieldNote: 'kept note', createdAt: 1,
+    })
+
+    await handleSmsWebhook(signedRequest('original', sid, {}, '+14165550555'), makeRes())
+
+    expect(fakeDb.read(`users/u1/smsMessages/${sid}`)).toMatchObject({ status: 'processed', risk: 1, fieldNote: 'kept note' })
+  })
+
+  it('stamps queued messages with a TTL expiry', async () => {
+    mockGetLinkedUid.mockResolvedValue('u1')
+    const sid = 'SMttl000000000000000000000000001'
+
+    await handleSmsWebhook(signedRequest('A moment', sid, {}, '+14165550444'), makeRes())
+
+    const queued = fakeDb.read(`smsInbound/${sid}`) as { expireAt: FakeTimestamp; receivedAt: number }
+    expect(queued.expireAt).toBeInstanceOf(FakeTimestamp)
+    expect(queued.expireAt.toMillis() - queued.receivedAt).toBe(30 * 86_400_000)
   })
 })
 

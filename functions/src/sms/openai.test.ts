@@ -25,12 +25,52 @@ describe('SMS OpenAI adapter', () => {
     expect(body.reasoning_effort).toBe('minimal')
   })
 
-  it('fails open when the classifier is unavailable or malformed', async () => {
+  it('fails open when the classifier is unavailable or malformed, and says so', async () => {
     const unavailable = vi.fn().mockResolvedValue(response({}, false, 503))
     const malformed = vi.fn().mockResolvedValue(response({ choices: [{ message: { content: 'nope' } }] }))
+    const outOfRange = vi.fn().mockResolvedValue(response({ choices: [{ message: { content: '{"risk":7}' } }] }))
+    const empty = vi.fn().mockResolvedValue(response({ choices: [] }))
+    const network = vi.fn().mockRejectedValue(new Error('ECONNRESET'))
 
-    await expect(classifySmsCrisis('text', 'key', unavailable as typeof fetch)).resolves.toEqual({ risk: 0 })
-    await expect(classifySmsCrisis('text', 'key', malformed as typeof fetch)).resolves.toEqual({ risk: 0 })
+    await expect(classifySmsCrisis('text', 'key', unavailable as typeof fetch)).resolves.toEqual({ risk: 0, failOpen: 'http_error' })
+    await expect(classifySmsCrisis('text', 'key', malformed as typeof fetch)).resolves.toEqual({ risk: 0, failOpen: 'malformed' })
+    await expect(classifySmsCrisis('text', 'key', outOfRange as typeof fetch)).resolves.toEqual({ risk: 0, failOpen: 'malformed' })
+    await expect(classifySmsCrisis('text', 'key', empty as typeof fetch)).resolves.toEqual({ risk: 0, failOpen: 'empty' })
+    await expect(classifySmsCrisis('text', 'key', network as typeof fetch)).resolves.toEqual({ risk: 0, failOpen: 'unavailable' })
+  })
+
+  it('reports a genuine 0 without a fail-open marker', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response({
+      choices: [{ message: { content: '{"risk":0,"reason":"ordinary"}' } }],
+    }))
+    const result = await classifySmsCrisis('A long day', 'key', fetchMock as typeof fetch)
+    expect(result).toEqual({ risk: 0, reason: 'ordinary' })
+    expect(result).not.toHaveProperty('failOpen')
+  })
+
+  it('passes grounding and the writer timezone into the SMS system prompt', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response({
+      choices: [{ message: { content: JSON.stringify({
+        reply: 'I am here.', save: false, field_note: null, visual_risk: 0, response_mode: 'witness',
+      }) } }],
+    }))
+
+    await generateSmsTurn({
+      text: 'Hi',
+      risk: 0,
+      history: [],
+      companionContext: { activeValues: [{ name: 'craft', description: 'doing careful work' }] },
+      grounding: true,
+      timezone: 'America/Toronto',
+      now: Date.parse('2026-10-14T12:00:00Z'),
+      apiKey: 'test-key',
+      fetchImpl: fetchMock as typeof fetch,
+    })
+
+    const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body))
+    expect(body.messages[0].content).toContain('EXPERIENCE POLICY DURING GROUNDING')
+    expect(body.messages[0].content).not.toContain('doing careful work')
+    expect(body.messages[0].content).toContain('(America/Toronto)')
   })
 
   it('lets gpt-5.5 choose SMS length and a durable field note through structured output', async () => {

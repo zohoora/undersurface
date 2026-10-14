@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { CRISIS_EVAL_NEGATIVES } from '../../../src/engine/crisisClassifier.eval'
 import { detectCrisisKeywords } from '../shared/crisisFloor'
 import {
+  SMS_DAILY_LIMIT_RESPONSE,
+  SMS_EMERGENCY_LINE,
   SMS_HELP,
+  SMS_PAUSED_RESPONSE,
+  SMS_UNAVAILABLE_RESPONSE,
   normalizePhone,
   parseSmsBody,
   renderTwiml,
@@ -23,6 +27,20 @@ describe('SMS field grammar', () => {
     })
     expect(parseSmsBody('HELP')).toEqual({ kind: 'help' })
     expect(parseSmsBody('STOP')).toEqual({ kind: 'opt_out' })
+  })
+
+  it('recognizes every standard opt-out keyword, including OPTOUT and REVOKE', () => {
+    for (const keyword of ['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT', 'OPTOUT', 'REVOKE', ' revoke ', 'OptOut']) {
+      expect(parseSmsBody(keyword)).toEqual({ kind: 'opt_out' })
+    }
+    expect(parseSmsBody('I want to stop overthinking')).toEqual({ kind: 'message', text: 'I want to stop overthinking' })
+  })
+
+  it('keeps an emergency line in every fixed reply that stands in for the companion', () => {
+    for (const reply of [SMS_UNAVAILABLE_RESPONSE, SMS_PAUSED_RESPONSE, SMS_DAILY_LIMIT_RESPONSE]) {
+      expect(reply).toContain(SMS_EMERGENCY_LINE)
+      expect(reply).toContain('988')
+    }
   })
 
   it('accepts only normalized E.164 provider phone numbers', () => {
