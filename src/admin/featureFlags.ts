@@ -21,12 +21,28 @@ export function effectiveSmsEnabled(features: Features | null | undefined): bool
 /**
  * Feature keys that no longer control anything. Older saved configs may still
  * carry them, so they are stripped before an admin save instead of being
- * round-tripped back to the server.
+ * round-tripped back to the server. `emergencyGrounding` was only ever read by
+ * the admin UI: grounding is always on through the crisis stack. The server
+ * still accepts it so a stale admin bundle can save.
  */
-export const RETIRED_FEATURE_KEYS: readonly string[] = ['customSoundscapesEnabled']
+export const RETIRED_FEATURE_KEYS: readonly string[] = ['customSoundscapesEnabled', 'emergencyGrounding']
+
+/**
+ * Grounding tuning keys nothing reads. `intensityThreshold` drove the retired
+ * emotion-check → grounding path; the L2 classifier owns grounding now.
+ */
+export const RETIRED_GROUNDING_KEYS: readonly string[] = ['intensityThreshold']
+
+function without<T extends object>(value: T, keys: readonly string[]): T {
+  const next: Record<string, unknown> = { ...(value as Record<string, unknown>) }
+  for (const key of keys) delete next[key]
+  return next as T
+}
 
 export function withoutRetiredFeatures<T extends object>(features: T): T {
-  const next: Record<string, unknown> = { ...(features as Record<string, unknown>) }
-  for (const key of RETIRED_FEATURE_KEYS) delete next[key]
-  return next as T
+  return without(features, RETIRED_FEATURE_KEYS)
+}
+
+export function withoutRetiredGrounding<T extends object>(grounding: T | undefined): T | undefined {
+  return grounding ? without(grounding, RETIRED_GROUNDING_KEYS) : grounding
 }

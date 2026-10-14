@@ -393,6 +393,13 @@ describe('SessionView — 2026-10-14 audit regressions (source contracts)', () =
     const src = (await import('./SessionView?raw')).default
     expect(src).toContain('inert={overlayOpen || undefined}')
   })
+
+  it('a grounding-interrupted arc discards its outcome AND unlinks the research event', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain('discardSurfaceArcOutcome(activeArc.outcomeId, activeArc.researchEventId)')
+    expect(src).not.toContain('db.interventionOutcomes.delete(')
+    expect(src).toContain('setActiveArc({ surface: next, outcomeId, researchEventId, startedAt: now, ambientReturn: conductorArc })')
+  })
 })
 
 describe('SessionView — journal drafts are session-owned and durable (T1)', () => {

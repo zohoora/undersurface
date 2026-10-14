@@ -11,6 +11,7 @@ import { useSettings, updateSettings } from '../../store/settings'
 import { getGlobalConfig, useGlobalConfig } from '../../store/globalConfig'
 import { SessionBottomBar, type SessionSurface } from './SessionBottomBar'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../../store/db'
+import { discardSurfaceArcOutcome } from '../../store/personalScience'
 import { SessionOrchestrator } from '../../engine/sessionOrchestrator'
 import { SessionRuntime, type SessionTicket } from '../../engine/sessionRuntime'
 import { useSessionVoice } from '../../hooks/useSessionVoice'
@@ -105,7 +106,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const roomEnabled = isRoomEnabled(globalConfig?.features)
   const [surface, setSurface] = useState<SessionSurface>('talk')
   const uid = useAuth().user?.uid ?? null
-  const [activeArc, setActiveArc] = useState<{ surface: SessionSurface; outcomeId: string; startedAt: number; ambientReturn?: boolean } | null>(null)
+  const [activeArc, setActiveArc] = useState<{ surface: SessionSurface; outcomeId: string; researchEventId: string; startedAt: number; ambientReturn?: boolean } | null>(null)
   const [returnedArc, setReturnedArc] = useState<{ surface: SessionSurface; outcomeId: string } | null>(null)
   const [conductorReturn, setConductorReturn] = useState<Exclude<SessionSurface, 'talk' | 'relax' | 'drift'> | null>(null)
   const handleAutocorrect = useAutocorrect({
@@ -581,7 +582,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       ? sourceMessage.researchEventId
       : undefined
     const researchEventId = existingResearchEventId ?? `research-arc-${outcomeId}`
-    setActiveArc({ surface: next, outcomeId, startedAt: now, ambientReturn: conductorArc })
+    setActiveArc({ surface: next, outcomeId, researchEventId, startedAt: now, ambientReturn: conductorArc })
     void db.interventionOutcomes.add({
       id: outcomeId,
       source: 'talk',
@@ -632,7 +633,8 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     }
     if (activeArc.surface === 'journal') void commitJournalDraft()
     if (activeArc.surface === 'speak' && voiceState !== 'idle') voiceStop()
-    void db.interventionOutcomes.delete(activeArc.outcomeId)
+    void discardSurfaceArcOutcome(activeArc.outcomeId, activeArc.researchEventId)
+      .catch(() => { /* research telemetry; the safety return already happened */ })
     setActiveArc(null)
     setReturnedArc(null)
     setSurface('talk')

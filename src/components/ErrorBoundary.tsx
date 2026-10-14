@@ -2,6 +2,7 @@ import { Component } from 'react'
 import type { ReactNode, ErrorInfo } from 'react'
 import * as Sentry from '@sentry/react'
 import { t } from '../i18n'
+import { isDOMManipulationError } from '../utils/domManipulationError'
 
 interface Props {
   children: ReactNode
@@ -9,11 +10,6 @@ interface Props {
 
 interface State {
   hasError: boolean
-}
-
-function isDOMManipulationError(error: Error): boolean {
-  const msg = error.message || ''
-  return msg.includes('removeChild') || msg.includes('insertBefore') || msg.includes('nextSibling')
 }
 
 export class ErrorBoundary extends Component<Props, State> {

@@ -1,23 +1,16 @@
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { BreathingBackground } from './components/Atmosphere/BreathingBackground'
 import { CursorGlow } from './components/Atmosphere/CursorGlow'
 import { BilateralPulse } from './components/Atmosphere/BilateralPulse'
 import { EntriesList } from './components/Sidebar/EntriesList'
 import { LoginScreen } from './components/LoginScreen'
 import { AnnouncementBanner } from './components/AnnouncementBanner'
+import { ChunkErrorBoundary } from './components/ChunkErrorBoundary'
+// Crisis resources are part of the main bundle on purpose: they must render
+// offline and after a broken deploy, when a lazy chunk may never arrive.
+import { CrisisResources } from './components/CrisisResources'
 import { useAuth } from './auth/useAuth'
 import { initializeDB, db } from './store/db'
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function lazyWithRetry<T extends React.ComponentType<any>>(factory: () => Promise<{ default: T }>) {
-  return lazy(() => factory().catch(() => {
-    window.location.reload()
-    return new Promise<{ default: T }>(() => {})
-  }))
-}
-
-const AdminDashboard = lazyWithRetry(() => import('./admin/AdminDashboard'))
-const SessionView = lazyWithRetry(() => import('./components/Session/SessionView'))
 import { useSettings } from './store/settings'
 import { initGlobalConfig, teardownGlobalConfig, useGlobalConfig, useNewVersionAvailable } from './store/globalConfig'
 import { useTheme } from './hooks/useTheme'
@@ -29,16 +22,22 @@ import { useGroundingMode } from './hooks/useGroundingMode'
 import { InnerWeather } from './components/InnerWeather'
 import { getWeatherEngine } from './store/weatherStore'
 import type { RitualEngine } from './engine/ritualEngine'
-const Onboarding = lazyWithRetry(() => import('./components/Onboarding').then(m => ({ default: m.Onboarding })))
-const CrisisResources = lazyWithRetry(() => import('./components/CrisisResources').then(m => ({ default: m.CrisisResources })))
 import { trackEvent } from './services/analytics'
 import { t, useTranslation } from './i18n'
 import { getSettings } from './store/settings'
 import type { InnerWeather as InnerWeatherType } from './types'
+import { lazyWithRetry } from './utils/lazyWithRetry'
 
 import { isAdmin } from './admin/isAdmin'
 import { hasRequiredConsent } from './auth/consentGate'
 import { getAuth } from 'firebase/auth'
+
+// Shared guarded loader: retry once, then reload at most once per chunk
+// (sessionStorage guard). A chunk that still fails reaches ChunkErrorBoundary,
+// never an endless reload loop.
+const AdminDashboard = lazyWithRetry(() => import('./admin/AdminDashboard'), 'admin-dashboard')
+const SessionView = lazyWithRetry(() => import('./components/Session/SessionView'), 'session-view')
+const Onboarding = lazyWithRetry(() => import('./components/Onboarding').then(m => ({ default: m.Onboarding })), 'onboarding')
 
 function EditorSkeleton() {
   return (
@@ -263,7 +262,11 @@ function App() {
 
   const isAdminRoute = routePath.startsWith('/admin') && isAdmin(user.email)
   if (isAdminRoute) {
-    return <Suspense fallback={<SplashScreen />}><AdminDashboard /></Suspense>
+    return (
+      <ChunkErrorBoundary area="admin" variant="page">
+        <Suspense fallback={<SplashScreen />}><AdminDashboard /></Suspense>
+      </ChunkErrorBoundary>
+    )
   }
 
   const isSessionRoute = routePath.startsWith('/session')
@@ -279,7 +282,11 @@ function App() {
       navigateTo('/session/new')
       trackEvent('onboarding_complete')
     }
-    return <Suspense fallback={<SplashScreen />}><Onboarding onComplete={handleOnboardingComplete} /></Suspense>
+    return (
+      <ChunkErrorBoundary area="onboarding" variant="page">
+        <Suspense fallback={<SplashScreen />}><Onboarding onComplete={handleOnboardingComplete} /></Suspense>
+      </ChunkErrorBoundary>
+    )
   }
 
   if (initError) {
@@ -379,18 +386,22 @@ function App() {
       <div className="inner-weather-shell">
         <InnerWeather weather={weather} />
       </div>
-      <Suspense fallback={null}><CrisisResources visible={isGrounding} /></Suspense>
+      <CrisisResources visible={isGrounding} />
       {isSessionRoute && (
-        <Suspense fallback={<EditorSkeleton />}>
-          <SessionView
-            sessionId={sessionIdFromPath}
-            openingMethod="auto"
-            onSessionCreated={(id) => {
-              window.history.replaceState(null, '', `/session/${id}`)
-              setRoutePath(`/session/${id}`)
-            }}
-          />
-        </Suspense>
+        // Inline, so a session chunk that cannot load leaves the sidebar and
+        // the crisis resources card on screen.
+        <ChunkErrorBoundary area="session" messageKey="surface.error.body">
+          <Suspense fallback={<EditorSkeleton />}>
+            <SessionView
+              sessionId={sessionIdFromPath}
+              openingMethod="auto"
+              onSessionCreated={(id) => {
+                window.history.replaceState(null, '', `/session/${id}`)
+                setRoutePath(`/session/${id}`)
+              }}
+            />
+          </Suspense>
+        </ChunkErrorBoundary>
       )}
     </>
   )

@@ -7,6 +7,7 @@ const room = vi.hoisted(() => ({
   config: null as null | { approach: string; voiceDensity: string; audioTrack: string },
   voiceError: null as string | null,
   finish: vi.fn(),
+  start: vi.fn(async () => {}),
   continueQuietly: vi.fn(),
   retryVoice: vi.fn(async () => {}),
   setVoiceDensity: vi.fn(),
@@ -29,7 +30,7 @@ vi.mock('../../../hooks/useRoomSession', () => ({
       assistantSpeaking: false,
       userSpeaking: false,
       muted: false,
-      start: vi.fn(async () => {}),
+      start: room.start,
       enter: vi.fn(),
       finish: room.finish,
       stay: vi.fn(),
@@ -61,13 +62,13 @@ const { RoomField } = await import('./RoomField')
 
 void React
 
-function roomElement(onClose: () => void) {
+function roomElement(onClose: () => void, voiceAvailable = true) {
   return (
     <RoomField
       parentSessionId="sess-1"
       memoryAperture="pattern"
       buildInstructions={() => 'room'}
-      voiceAvailable
+      voiceAvailable={voiceAvailable}
       onUserTranscript={vi.fn()}
       onAssistantTranscript={vi.fn()}
       onClose={onClose}
@@ -180,5 +181,20 @@ describe('RoomField — keyboard boundary (Codex review T6)', () => {
     dialog.focus()
     fireEvent.keyDown(dialog, { key: 'Tab' })
     expect(document.activeElement).toBe(buttons[0])
+  })
+})
+
+describe('RoomField — voice availability', () => {
+  it('offers only Quiet company when voice is off', () => {
+    render(roomElement(vi.fn(), false))
+    expect(screen.getAllByRole('radio')).toHaveLength(1)
+    expect(screen.getByRole('radio', { name: /t:room.approach.quiet.title/ })).toBeTruthy()
+  })
+
+  it('never starts a voice Room after the voice flag switches off on the choose screen', () => {
+    const view = render(roomElement(vi.fn(), true))
+    view.rerender(roomElement(vi.fn(), false))
+    fireEvent.click(screen.getByRole('button', { name: 't:room.begin' }))
+    expect(room.start).toHaveBeenCalledWith(expect.objectContaining({ approach: 'quiet_company', voiceDensity: 'quiet' }), 'room')
   })
 })

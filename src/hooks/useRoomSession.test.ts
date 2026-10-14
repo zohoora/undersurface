@@ -42,6 +42,9 @@ vi.mock('../store/db', () => ({
 }))
 
 vi.mock('../store/settings', () => ({ updateSettings: vi.fn() }))
+
+const globalConfigMock = vi.hoisted(() => ({ value: null as { voice?: { defaultVoice?: string } } | null }))
+vi.mock('../store/globalConfig', () => ({ getGlobalConfig: () => globalConfigMock.value }))
 vi.mock('../native/keepAwake', () => ({ acquireWakeLock, releaseWakeLock, reacquireWakeLockIfVisible }))
 
 const languageMock = vi.hoisted(() => ({ code: 'en' }))
@@ -125,8 +128,28 @@ describe('useRoomSession', () => {
     expect(voiceStart).toHaveBeenCalledWith(expect.objectContaining({
       instructions: 'organic room instructions',
       managePlayback: true,
+      voice: 'marin',
     }))
     expect(result.current.phase).toBe('threshold')
+  })
+
+  it('uses the admin-configured voice, like Speak', async () => {
+    globalConfigMock.value = { voice: { defaultVoice: 'cedar' } }
+    try {
+      const { result } = renderRoom()
+      await act(async () => {
+        await result.current.start({
+          approach: 'lead_me',
+          duration: 5,
+          voiceDensity: 'sparse',
+          audioTrack: 'none',
+          audioVolume: 0.4,
+        }, 'room instructions')
+      })
+      expect(voiceStart).toHaveBeenCalledWith(expect.objectContaining({ voice: 'cedar' }))
+    } finally {
+      globalConfigMock.value = null
+    }
   })
 
   it('moves into return on the score clock and can stay another minute', async () => {

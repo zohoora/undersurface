@@ -28,8 +28,6 @@ export interface GlobalConfig {
     paragraphFade?: boolean
     inkWeight?: boolean
     breathingBackground?: boolean
-    // Safety
-    emergencyGrounding?: boolean
     // Companion signals (rupture repair + rumination pivot)
     /** Explicit alliance-rupture repair at the next session's opener. */
     ruptureRepair?: boolean
@@ -118,7 +116,6 @@ export interface GlobalConfig {
     autoExitMinutes?: number
     selfRoleScoreBonus?: number
     otherRolePenalty?: number
-    intensityThreshold?: number
   }
 
   voice?: {

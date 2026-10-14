@@ -35,7 +35,12 @@ export function RoomField({
   const tr = useTranslation()
   const settings = useSettings()
   const rememberedApproach = rememberedConfig?.approach ?? settings.lastRoomApproach
-  const [approach, setApproach] = useState<RoomApproach>(voiceAvailable ? rememberedApproach : 'quiet_company')
+  const [chosenApproach, setApproach] = useState<RoomApproach>(rememberedApproach)
+  // Voice-backed approaches exist only while Speak's voice flag is on (the
+  // server mints Realtime secrets under the same rule). Derived rather than
+  // stored, so a flag switched off while this screen is open can never start
+  // a voice Room.
+  const approach: RoomApproach = voiceAvailable ? chosenApproach : 'quiet_company'
   const [duration, setDuration] = useState<RoomDuration>(rememberedConfig?.duration ?? settings.lastRoomDuration)
   const [audioTrack, setAudioTrack] = useState<RoomAudioTrack>(rememberedConfig?.audioTrack ?? settings.lastRoomAudio)
   const [starting, setStarting] = useState(false)

@@ -27,7 +27,6 @@ export const ADMIN_CONFIG_DEFAULTS: GlobalConfig = {
     lettersFromParts: false,
     ritualsNotStreaks: false,
     unfinishedThreads: false,
-    emergencyGrounding: false,
     ruptureRepair: false,
     ruminationPivot: false,
     userParts: false,
@@ -80,7 +79,6 @@ export const ADMIN_CONFIG_DEFAULTS: GlobalConfig = {
     autoExitMinutes: 5,
     selfRoleScoreBonus: 40,
     otherRolePenalty: 30,
-    intensityThreshold: 3,
   },
   voice: {
     defaultVoice: 'marin',

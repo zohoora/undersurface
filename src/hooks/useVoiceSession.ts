@@ -7,11 +7,6 @@ export type VoiceSessionState = 'idle' | 'connecting' | 'connected' | 'error'
 export interface VoiceSessionOptions {
   instructions: string
   voice?: string
-  // Passive (one-way assistant → user) mode for relaxation/hypnotherapy.
-  // Skips getUserMedia entirely (no mic prompt), uses a recvonly transceiver,
-  // and skips the user-pace adaptation logic. Caller still receives assistant
-  // transcripts.
-  passive?: boolean
   // Active voice normally leaves playback to VoiceField's analyser graph.
   // Room has no VoiceField, so it asks this hook to play the remote stream.
   managePlayback?: boolean
@@ -57,10 +52,6 @@ export function useVoiceSession() {
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
-  // Silent AudioContext used in passive mode to synthesize a muted audio
-  // track. The Realtime API rejects recvonly SDP, so we send a silent
-  // sendrecv track instead and close the context on teardown.
-  const silentCtxRef = useRef<AudioContext | null>(null)
   const audioElRef = useRef<HTMLAudioElement | null>(null)
   const optsRef = useRef<VoiceSessionOptions | null>(null)
   const assistantBufferRef = useRef<string>('')
@@ -129,11 +120,6 @@ export function useVoiceSession() {
       localStreamRef.current = null
     }
 
-    if (silentCtxRef.current) {
-      try { void silentCtxRef.current.close() } catch { /* noop */ }
-      silentCtxRef.current = null
-    }
-
     if (audioElRef.current) {
       audioElRef.current.pause()
       audioElRef.current.srcObject = null
@@ -189,24 +175,20 @@ export function useVoiceSession() {
     setError(null)
 
     try {
-      const passive = options.passive === true
-
-      // Ask for active-session microphone access BEFORE the first network
-      // await. iOS Safari ties media permission to the initiating tap; doing
-      // token minting first can lose that activation and silently skip the
-      // prompt in an installed PWA. Passive callers still never request it.
-      if (!passive) {
-        const localStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        })
-        localStreamRef.current = localStream
-        // The mic just went hot — if we were cancelled mid-prompt, stop it now.
-        if (cancelled()) { teardown(); return }
-      }
+      // Ask for microphone access BEFORE the first network await. iOS Safari
+      // ties media permission to the initiating tap; doing token minting
+      // first can lose that activation and silently skip the prompt in an
+      // installed PWA.
+      const localStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      })
+      localStreamRef.current = localStream
+      // The mic just went hot — if we were cancelled mid-prompt, stop it now.
+      if (cancelled()) { teardown(); return }
 
       const token = await authedPost<TokenResponse>('/api/realtime-token', {
         instructions: options.instructions,
@@ -234,14 +216,13 @@ export function useVoiceSession() {
         }
       }
 
-      // The <audio> element receives the remote stream. In active (two-way)
-      // mode it stays muted because VoiceField's Web Audio graph handles
-      // playback and the analyser tap (single playback path, lossless
-      // analyser). In passive mode there is no VoiceField rendering — the
-      // element must play the stream directly or the user hears nothing.
+      // The <audio> element receives the remote stream. For Speak it stays
+      // muted because VoiceField's Web Audio graph handles playback and the
+      // analyser tap (single playback path, lossless analyser). Room has no
+      // VoiceField (managePlayback), so the element plays the stream itself.
       const audioEl = document.createElement('audio')
       audioEl.autoplay = true
-      audioEl.muted = !passive && options.managePlayback !== true
+      audioEl.muted = options.managePlayback !== true
       audioEl.setAttribute('playsinline', 'true')
       audioEl.style.display = 'none'
       // Detached media elements are unreliable for WebRTC playback in iOS
@@ -252,37 +233,13 @@ export function useVoiceSession() {
         const stream = event.streams[0]
         audioEl.srcObject = stream
         setRemoteStream(stream)
-        if (passive || options.managePlayback === true) {
+        if (options.managePlayback === true) {
           void audioEl.play().catch(() => { /* browser may complete autoplay on the next packet */ })
         }
       }
 
-      if (passive) {
-        // The Realtime API rejects recvonly SDP — it expects bidirectional
-        // (sendrecv) audio negotiation. We synthesize a silent track and
-        // send that, so the SDP exchange succeeds but no real audio leaves
-        // the device. No mic permission prompt either.
-        const w = window as Window & { webkitAudioContext?: typeof AudioContext }
-        const Ctx = window.AudioContext ?? w.webkitAudioContext
-        if (Ctx) {
-          const ctx = new Ctx()
-          silentCtxRef.current = ctx
-          const dst = ctx.createMediaStreamDestination()
-          const osc = ctx.createOscillator()
-          const gain = ctx.createGain()
-          gain.gain.value = 0
-          osc.connect(gain).connect(dst)
-          osc.start()
-          localStreamRef.current = dst.stream
-          for (const track of dst.stream.getTracks()) {
-            pc.addTrack(track, dst.stream)
-          }
-        }
-        setMuted(true)
-      } else {
-        for (const track of localStreamRef.current!.getTracks()) {
-          pc.addTrack(track, localStreamRef.current!)
-        }
+      for (const track of localStream.getTracks()) {
+        pc.addTrack(track, localStream)
       }
 
       const dc = pc.createDataChannel('oai-events')
@@ -486,7 +443,7 @@ export function useVoiceSession() {
     setMuted(nextMuted)
   }, [muted])
 
-  // Deterministic mic gate for Drift (unlike toggleMute's flip): disables/enables
+  // Deterministic mic gate for Room (unlike toggleMute's flip): disables/enables
   // all local audio tracks and forces `muted` to match, regardless of prior state.
   const setMicEnabled = useCallback((enabled: boolean) => {
     const stream = localStreamRef.current
@@ -495,8 +452,8 @@ export function useVoiceSession() {
     setMuted(!enabled)
   }, [])
 
-  // Interrupt an in-flight assistant response (Drift mic gating + transcript
-  // crisis floor). No-op when the data channel isn't open.
+  // Interrupt an in-flight assistant response (Room quiet/mute controls).
+  // No-op when the data channel isn't open.
   const cancelResponse = useCallback(() => {
     const dc = dcRef.current
     if (!dc || dc.readyState !== 'open' || !responseActiveRef.current) return
@@ -509,33 +466,10 @@ export function useVoiceSession() {
     }
   }, [])
 
-  // Tell the connected assistant to vocalize a specific phrase. The
-  // `instructions` override scopes to this single response — the session-level
-  // persona stays intact. Used by passive (one-way) callers like Relax mode
-  // to pace pre-scripted hypnotherapy cues.
-  const speak = useCallback((text: string) => {
-    const dc = dcRef.current
-    if (!dc || dc.readyState !== 'open') return
-    try {
-      const escaped = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-      // Realtime API default output_modalities is ["audio"]; omit the field
-      // and rely on the session-level audio config. The old `modalities`
-      // shape was rejected by gpt-realtime as an unknown parameter.
-      dc.send(JSON.stringify({
-        type: 'response.create',
-        response: {
-          instructions: `Say exactly this, slowly and softly with natural pauses, in a calm hypnotic voice. Add nothing. Phrase to speak: "${escaped}"`,
-        },
-      }))
-    } catch (err) {
-      console.warn('[useVoiceSession] speak failed', err)
-    }
-  }, [])
-
   // Ask the connected model for an organic response scoped to one purpose.
-  // Unlike speak(), this deliberately does not prescribe exact wording or a
-  // vocal performance. Room uses it for sparse score cues while the model
-  // retains the conversation and its ordinary voice.
+  // It deliberately does not prescribe exact wording or a vocal performance.
+  // Room uses it for sparse score cues while the model retains the
+  // conversation and its ordinary voice.
   //
   // The cue travels as a system-role conversation item followed by a bare
   // response.create. Per the Realtime API reference, `response.instructions`
@@ -585,7 +519,6 @@ export function useVoiceSession() {
     userSpeaking,
     start,
     stop,
-    speak,
     promptAssistant,
     toggleMute,
     setMicEnabled,

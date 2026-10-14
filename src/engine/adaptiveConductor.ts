@@ -178,7 +178,11 @@ export function planAdaptiveConductor(
 
   const recentEvents = (options.recentEvents ?? []).filter(event => event.protocolId === 'adaptive-conductor-v1')
   const thisSession = recentEvents.filter(event => event.sessionId === session.id)
-  if (thisSession.length >= 2 || thisSession.some(event => event.status === 'delivered' || event.status === 'overridden')) return null
+  // At most one live move per session (spec 2026-07-11). Any non-shadow event
+  // is that move, whatever happened to it afterwards: the in-memory cache
+  // (turnResponder) still says 'assigned' after delivery, and a cancelled or
+  // overridden move was still the session's one attempt.
+  if (thisSession.length >= 2 || thisSession.some(event => event.status !== 'shadow')) return null
 
   const lastUser = userMessages.at(-1)
   if (!lastUser) return null

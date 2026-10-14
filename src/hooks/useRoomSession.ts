@@ -12,6 +12,7 @@ import { acquireWakeLock, reacquireWakeLockIfVisible, releaseWakeLock } from '..
 import { getAuth } from 'firebase/auth'
 import { db, generateId } from '../store/db'
 import { updateSettings } from '../store/settings'
+import { getGlobalConfig } from '../store/globalConfig'
 import { isGroundingActive } from '../store/groundingState'
 import { detectCrisisKeywords } from '../../functions/src/shared/crisisFloor'
 import { getLanguageCode } from '../i18n'
@@ -362,6 +363,10 @@ export function useRoomSession(options: UseRoomSessionOptions) {
     if (!lifetime || lifetime.ended) return
     await voiceRef.current.start({
       instructions,
+      // The admin-configured voice, exactly as Speak sends it
+      // (useSessionVoice). A synchronous read: nothing may await before the
+      // mic request on iOS. The server validates it and falls back to marin.
+      voice: getGlobalConfig()?.voice?.defaultVoice ?? 'marin',
       managePlayback: true,
       onUserTranscript: text => handleUserTranscript(lifetime, text),
       onAssistantTranscript: text => {

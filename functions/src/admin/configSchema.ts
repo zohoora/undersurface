@@ -14,6 +14,9 @@ const FEATURE_KEYS = new Set([
   'silenceAsResponse', 'quietOneEnabled', 'bodyMap', 'bilateralStimulation',
   'echoes', 'innerWeather', 'lettersFromParts', 'ritualsNotStreaks',
   'unfinishedThreads', 'paragraphFade', 'inkWeight', 'breathingBackground',
+  // emergencyGrounding controls nothing (grounding is always on via the crisis
+  // stack) and the admin UI no longer shows it. Still accepted so stored
+  // configs and older admin bundles keep validating.
   'emergencyGrounding', 'ruptureRepair', 'ruminationPivot', 'userParts',
   'sessionIntentions', 'stanceAdaptation', 'userValues', 'companionInteriority',
   'companionPresence', 'earnedHumor', 'storyArcs', 'webcamHrv', 'polarH10',
@@ -47,6 +50,8 @@ const NUMBER_SECTION_KEYS: Record<string, ReadonlySet<string>> = {
     'letterTriggerEntries', 'letterMinParts', 'ritualDetectionWindow',
     'threadMaxAge', 'threadChance',
   ]),
+  // intensityThreshold is read by nothing (the retired emotion → grounding
+  // path); accepted so stored configs keep validating.
   grounding: new Set([
     'autoExitMinutes', 'selfRoleScoreBonus', 'otherRolePenalty', 'intensityThreshold',
   ]),

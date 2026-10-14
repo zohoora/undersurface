@@ -488,39 +488,29 @@ export function AdminSettings() {
         onToggle={() => toggle('safety')}
         style={sectionStyle}
       >
-        <ToggleRow
-          label="Emergency Grounding"
-          checked={!!config.features.emergencyGrounding}
-          onChange={(v) => setFeature('emergencyGrounding', v)}
+        {/* Grounding itself is always on (the L1/L2 crisis stack); these
+            tune how it behaves once active. There is no on/off switch. */}
+        <div style={{ fontSize: 11, color: '#A09A94', marginBottom: 8, lineHeight: 1.5 }}>
+          Grounding is always on through the crisis checks. These settings tune it once active.
+        </div>
+        <SliderRow
+          label="Grounding Auto-Exit Timeout (min)"
+          value={config.grounding?.autoExitMinutes ?? 5}
+          min={1} max={15} step={1}
+          onChange={(v) => setGround('autoExitMinutes', v)}
         />
-        {config.features.emergencyGrounding && (
-          <>
-            <SliderRow
-              label="Auto-Exit Timeout (min)"
-              value={config.grounding?.autoExitMinutes ?? 5}
-              min={1} max={15} step={1}
-              onChange={(v) => setGround('autoExitMinutes', v)}
-            />
-            <SliderRow
-              label="Self-Role Score Bonus"
-              value={config.grounding?.selfRoleScoreBonus ?? 40}
-              min={10} max={80} step={5}
-              onChange={(v) => setGround('selfRoleScoreBonus', v)}
-            />
-            <SliderRow
-              label="Other Role Penalty"
-              value={config.grounding?.otherRolePenalty ?? 30}
-              min={10} max={60} step={5}
-              onChange={(v) => setGround('otherRolePenalty', v)}
-            />
-            <SliderRow
-              label="Intensity Threshold"
-              value={config.grounding?.intensityThreshold ?? 3}
-              min={1} max={8} step={1}
-              onChange={(v) => setGround('intensityThreshold', v)}
-            />
-          </>
-        )}
+        <SliderRow
+          label="Grounding Self-Role Score Bonus"
+          value={config.grounding?.selfRoleScoreBonus ?? 40}
+          min={10} max={80} step={5}
+          onChange={(v) => setGround('selfRoleScoreBonus', v)}
+        />
+        <SliderRow
+          label="Grounding Other Role Penalty"
+          value={config.grounding?.otherRolePenalty ?? 30}
+          min={10} max={60} step={5}
+          onChange={(v) => setGround('otherRolePenalty', v)}
+        />
         <ToggleRow
           label="Rupture Repair (opener acknowledgment)"
           checked={!!config.features.ruptureRepair}

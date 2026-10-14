@@ -257,3 +257,16 @@ describe('useVoiceSession — promptAssistant (TECH_ISSUES #6, #31)', () => {
     expect(dcMock.send).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('useVoiceSession — no session-prompt override path', () => {
+  it('exposes no speak(): a response.instructions override would replace the session prompt and its safety rules', async () => {
+    const { result } = await connected()
+    expect(result.current).not.toHaveProperty('speak')
+    expect(Object.keys(result.current)).toContain('promptAssistant')
+  })
+
+  it('always negotiates the real microphone track (the passive silent-track mode is gone)', async () => {
+    await connected()
+    expect(lastPc?.addTrack).toHaveBeenCalledWith(track, expect.anything())
+  })
+})

@@ -99,6 +99,34 @@ describe('AdminSettings: Room', () => {
   })
 })
 
+describe('AdminSettings: Safety & Wellbeing', () => {
+  it('shows no Emergency Grounding switch or Intensity Threshold (neither controls anything)', async () => {
+    serve(storedConfig({}))
+    render(<AdminSettings />)
+    await openSection('Safety & Wellbeing')
+
+    expect(screen.queryByRole('checkbox', { name: /Emergency Grounding/ })).toBeNull()
+    expect(screen.queryByText(/Intensity Threshold/)).toBeNull()
+    // The grounding tuning that is actually read stays visible.
+    expect(screen.getByText(/Auto-Exit Timeout/)).toBeInTheDocument()
+    expect(screen.getByText(/Self-Role Score Bonus/)).toBeInTheDocument()
+    expect(screen.getByText(/Other Role Penalty/)).toBeInTheDocument()
+  })
+
+  it('never round-trips emergencyGrounding or grounding.intensityThreshold from a stored config', async () => {
+    const config = storedConfig({ emergencyGrounding: true } as Partial<GlobalConfig['features']>)
+    config.grounding = { autoExitMinutes: 7, intensityThreshold: 3 } as GlobalConfig['grounding']
+    serve(config)
+    render(<AdminSettings />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Save Settings' }))
+    await waitFor(() => expect(savedFeatures()).not.toHaveProperty('emergencyGrounding'))
+    const call = adminFetchMock.mock.calls.find(c => c[0] === 'updateConfig')
+    const grounding = (call?.[1] as { config: GlobalConfig }).config.grounding as Record<string, unknown>
+    expect(grounding).not.toHaveProperty('intensityThreshold')
+    expect(grounding.autoExitMinutes).toBe(7)
+  })
+})
+
 describe('AdminSettings: SMS field channel', () => {
   it('shows SMS as on when the flag is absent and writes smsEnabled when switched off', async () => {
     const config = storedConfig({})
