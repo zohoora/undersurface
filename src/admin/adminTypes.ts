@@ -28,8 +28,6 @@ export interface GlobalConfig {
     paragraphFade?: boolean
     inkWeight?: boolean
     breathingBackground?: boolean
-    // Safety
-    emergencyGrounding?: boolean
     // Companion signals (rupture repair + rumination pivot)
     /** Explicit alliance-rupture repair at the next session's opener. */
     ruptureRepair?: boolean
@@ -57,12 +55,14 @@ export interface GlobalConfig {
     polarH10?: boolean
     // Voice (OpenAI Realtime)
     voiceEnabled?: boolean
-    // Relax session surface
+    // Legacy Relax / Drift flags. Room replaced both surfaces on 2026-07-11;
+    // while `roomEnabled` is unset, either of these still turns Room on.
     relaxEnabled?: boolean
-    // Custom soundscape generation in Relax mode (text prompt → ElevenLabs)
-    customSoundscapesEnabled?: boolean
-    // Drift — bilateral noticing practice (text + voice)
     driftEnabled?: boolean
+    /** Room surface. Effective state: see `effectiveRoomEnabled`. */
+    roomEnabled?: boolean
+    /** SMS field channel. Enabled unless explicitly `false`. */
+    smsEnabled?: boolean
   }
   announcement: {
     message: string
@@ -116,7 +116,6 @@ export interface GlobalConfig {
     autoExitMinutes?: number
     selfRoleScoreBonus?: number
     otherRolePenalty?: number
-    intensityThreshold?: number
   }
 
   voice?: {

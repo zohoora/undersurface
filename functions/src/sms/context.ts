@@ -5,9 +5,16 @@ import type {
   SharedPersonalFacts,
   SharedProfile,
 } from '../shared/companionKernel.js'
+import { parseLocalDate, timezoneFromPreferences } from './localTime.js'
 
 const MEMORY_SOURCE_PARTS = new Set(['open', 'weaver', 'still'])
 const FIELD_NOTE_MAX_AGE_MS = 14 * 86_400_000
+
+export interface LoadedSmsCompanionContext {
+  context: SharedCompanionContext
+  /** The writer's IANA timezone when known (from field-window preferences). */
+  timezone: string | null
+}
 
 export interface SmsContextDocuments {
   sessions: DocumentData[]
@@ -182,12 +189,15 @@ export function deriveSmsCompanionContext(
   const activePromises = interiorityOn
     ? docs.promises.filter(promise => promise.status === 'active' && typeof promise.text === 'string')
     : []
+  // A promise due "2026-10-14" means that calendar day where the writer is,
+  // not UTC midnight (the previous evening in the Americas).
+  const timezone = timezoneFromPreferences(docs.preferences)
   const day = 86_400_000
   const duePromises = activePromises
     .filter(promise => {
       if (promise.dueKind === 'next_session') return true
       if (typeof promise.dueDate !== 'string') return false
-      const due = new Date(promise.dueDate).getTime()
+      const due = parseLocalDate(promise.dueDate, timezone)
       return Number.isFinite(due) && due - now < 3 * day && now - due < 7 * day
     })
     .slice(0, 2)
@@ -197,7 +207,7 @@ export function deriveSmsCompanionContext(
     }))
   const missed = activePromises.find(promise => {
     if (promise.dueKind !== 'date' || typeof promise.dueDate !== 'string') return false
-    const due = new Date(promise.dueDate).getTime()
+    const due = parseLocalDate(promise.dueDate, timezone)
     return Number.isFinite(due) && now - due >= 7 * day
   })
 
@@ -279,7 +289,8 @@ async function documentData(
 export async function loadSmsCompanionContext(
   uid: string,
   db: Firestore = getFirestore(),
-): Promise<SharedCompanionContext> {
+  now = Date.now(),
+): Promise<LoadedSmsCompanionContext> {
   const configSnap = await db.collection('appConfig').doc('global').get()
   const rawFeatures = configSnap.data()?.features
   const features = rawFeatures && typeof rawFeatures === 'object'
@@ -309,7 +320,7 @@ export async function loadSmsCompanionContext(
     collectionData(db, uid, 'livingHypotheses', 16, 'updatedAt'),
   ])
 
-  return deriveSmsCompanionContext({
+  const context = deriveSmsCompanionContext({
     sessions,
     memories,
     profile,
@@ -324,5 +335,6 @@ export async function loadSmsCompanionContext(
     outcomes,
     personalProtocols,
     livingHypotheses,
-  }, features)
+  }, features, now)
+  return { context, timezone: timezoneFromPreferences(preferences) }
 }

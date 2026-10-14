@@ -12,6 +12,7 @@ import {
   getCountFromServer,
   where,
   deleteDoc,
+  deleteField,
   onSnapshot,
 } from 'firebase/firestore'
 import type { DocumentData } from 'firebase/firestore'
@@ -58,6 +59,13 @@ function createCollectionProxy<T extends DocumentData = DocumentData>(name: stri
 
     async update(id: string, partial: Partial<T>) {
       await updateDoc(userDoc(name, id), partial as DocumentData)
+    },
+
+    /** Remove optional fields (Firestore deleteField) and apply `extra` in the same write. */
+    async deleteFields(id: string, fields: Array<keyof T & string>, extra: Partial<T> = {}) {
+      const update: DocumentData = { ...(extra as DocumentData) }
+      for (const field of fields) update[field] = deleteField()
+      await updateDoc(userDoc(name, id), update)
     },
 
     async delete(id: string) {
@@ -132,6 +140,15 @@ function createCollectionProxy<T extends DocumentData = DocumentData>(name: stri
           return {
             async toArray(): Promise<T[]> {
               const q = query(userCollection(name), where(field, '==', value))
+              const snap = await getDocs(q)
+              return snap.docs.map((d) => d.data() as T)
+            },
+            /**
+             * Newest-first page of the matches. Online this needs a composite
+             * index (field ASC, orderField DESC) in firestore.indexes.json.
+             */
+            async newest(orderField: string, n: number): Promise<T[]> {
+              const q = query(userCollection(name), where(field, '==', value), orderBy(orderField, 'desc'), limit(n))
               const snap = await getDocs(q)
               return snap.docs.map((d) => d.data() as T)
             },

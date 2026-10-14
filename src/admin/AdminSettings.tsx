@@ -1,92 +1,7 @@
 import { useState } from 'react'
-import type { GlobalConfig } from './adminTypes'
 import { useAdminConfig } from './useAdminConfig'
-
-const DEFAULTS: GlobalConfig = {
-  defaultResponseSpeed: 1.0,
-  features: {
-    partsEnabled: true,
-    visualEffectsEnabled: true,
-    autocorrectEnabled: true,
-    timeAwareAtmosphere: false,
-    seasonalShifts: false,
-    flowStateVisuals: false,
-    handwritingMode: false,
-    partsQuoting: false,
-    partsDisagreeing: false,
-    partQuietReturn: false,
-    partCatchphrases: false,
-    silenceAsResponse: false,
-    quietOneEnabled: false,
-    bodyMap: false,
-    bilateralStimulation: false,
-    echoes: false,
-    innerWeather: false,
-    lettersFromParts: false,
-    ritualsNotStreaks: false,
-    unfinishedThreads: false,
-    emergencyGrounding: false,
-    ruptureRepair: false,
-    ruminationPivot: false,
-    userParts: false,
-    sessionIntentions: false,
-    stanceAdaptation: false,
-    userValues: false,
-    companionInteriority: false,
-    companionPresence: false,
-    earnedHumor: false,
-    storyArcs: false,
-    webcamHrv: false,
-    polarH10: false,
-    voiceEnabled: false,
-    relaxEnabled: false,
-    customSoundscapesEnabled: false,
-    driftEnabled: false,
-  },
-  atmosphere: {
-    timeShiftIntensity: 0.3,
-    seasonalIntensity: 0.3,
-    seasonOverride: 'auto',
-    flowThresholdSeconds: 60,
-    flowGlowIntensity: 0.5,
-    handwritingFont: 'Caveat',
-    handwritingEffectBoost: 1.5,
-  },
-  partIntelligence: {
-    quoteMinAge: 3,
-    quoteChance: 0.15,
-    disagreeChance: 0.1,
-    disagreeMinParts: 3,
-    quietThresholdDays: 5,
-    returnBonusMultiplier: 2.0,
-    catchphraseMaxPerPart: 3,
-    silenceFlowThreshold: 120,
-    silenceChance: 0.2,
-  },
-  engagement: {
-    echoMaxAge: 90,
-    echoChance: 0.1,
-    echoMaxPerSession: 3,
-    weatherUpdateInterval: 5,
-    letterTriggerEntries: 10,
-    letterMinParts: 2,
-    ritualDetectionWindow: 14,
-    threadMaxAge: 30,
-    threadChance: 0.15,
-  },
-  grounding: {
-    autoExitMinutes: 5,
-    selfRoleScoreBonus: 40,
-    otherRolePenalty: 30,
-    intensityThreshold: 3,
-  },
-  voice: {
-    defaultVoice: 'marin',
-  },
-  announcement: null,
-  updatedAt: 0,
-  updatedBy: '',
-}
+import { ADMIN_CONFIG_DEFAULTS as DEFAULTS } from './adminDefaults'
+import { effectiveRoomEnabled, effectiveSmsEnabled } from './featureFlags'
 
 export function AdminSettings() {
   const {
@@ -97,7 +12,7 @@ export function AdminSettings() {
     message,
     save: handleSave,
     signalUpdate: handleSignalUpdate,
-    resetDefaults: handleResetDefaults,
+    resetDefaults,
     updateSection,
   } = useAdminConfig(DEFAULTS)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
@@ -113,6 +28,15 @@ export function AdminSettings() {
   const setEngage = (key: string, value: unknown) => updateSection('engagement', key, value)
   const setGround = (key: string, value: unknown) => updateSection('grounding', key, value)
   const setVoice = (key: string, value: unknown) => updateSection('voice', key, value)
+  // Saves merge into appConfig/global, so a Room flag that is merely absent
+  // from the defaults would survive a reset. Write it off explicitly.
+  const handleResetDefaults = () => {
+    resetDefaults()
+    setFeature('roomEnabled', false)
+  }
+  const roomOn = effectiveRoomEnabled(config.features)
+  const roomFromLegacy = roomOn && config.features.roomEnabled === undefined
+  const smsOn = effectiveSmsEnabled(config.features)
 
   const inputStyle = {
     padding: '8px 12px',
@@ -564,39 +488,29 @@ export function AdminSettings() {
         onToggle={() => toggle('safety')}
         style={sectionStyle}
       >
-        <ToggleRow
-          label="Emergency Grounding"
-          checked={!!config.features.emergencyGrounding}
-          onChange={(v) => setFeature('emergencyGrounding', v)}
+        {/* Grounding itself is always on (the L1/L2 crisis stack); these
+            tune how it behaves once active. There is no on/off switch. */}
+        <div style={{ fontSize: 11, color: '#A09A94', marginBottom: 8, lineHeight: 1.5 }}>
+          Grounding is always on through the crisis checks. These settings tune it once active.
+        </div>
+        <SliderRow
+          label="Grounding Auto-Exit Timeout (min)"
+          value={config.grounding?.autoExitMinutes ?? 5}
+          min={1} max={15} step={1}
+          onChange={(v) => setGround('autoExitMinutes', v)}
         />
-        {config.features.emergencyGrounding && (
-          <>
-            <SliderRow
-              label="Auto-Exit Timeout (min)"
-              value={config.grounding?.autoExitMinutes ?? 5}
-              min={1} max={15} step={1}
-              onChange={(v) => setGround('autoExitMinutes', v)}
-            />
-            <SliderRow
-              label="Self-Role Score Bonus"
-              value={config.grounding?.selfRoleScoreBonus ?? 40}
-              min={10} max={80} step={5}
-              onChange={(v) => setGround('selfRoleScoreBonus', v)}
-            />
-            <SliderRow
-              label="Other Role Penalty"
-              value={config.grounding?.otherRolePenalty ?? 30}
-              min={10} max={60} step={5}
-              onChange={(v) => setGround('otherRolePenalty', v)}
-            />
-            <SliderRow
-              label="Intensity Threshold"
-              value={config.grounding?.intensityThreshold ?? 3}
-              min={1} max={8} step={1}
-              onChange={(v) => setGround('intensityThreshold', v)}
-            />
-          </>
-        )}
+        <SliderRow
+          label="Grounding Self-Role Score Bonus"
+          value={config.grounding?.selfRoleScoreBonus ?? 40}
+          min={10} max={80} step={5}
+          onChange={(v) => setGround('selfRoleScoreBonus', v)}
+        />
+        <SliderRow
+          label="Grounding Other Role Penalty"
+          value={config.grounding?.otherRolePenalty ?? 30}
+          min={10} max={60} step={5}
+          onChange={(v) => setGround('otherRolePenalty', v)}
+        />
         <ToggleRow
           label="Rupture Repair (opener acknowledgment)"
           checked={!!config.features.ruptureRepair}
@@ -673,46 +587,43 @@ export function AdminSettings() {
         </div>
       </CollapsibleSection>
 
-      {/* Relax surface */}
+      {/* Room surface */}
       <CollapsibleSection
-        title="Relax Mode"
-        isExpanded={!!expanded.relax}
-        onToggle={() => toggle('relax')}
+        title="Room"
+        isExpanded={!!expanded.room}
+        onToggle={() => toggle('room')}
         style={sectionStyle}
       >
         <ToggleRow
-          label="Enable Relax Mode (Session)"
-          checked={!!config.features.relaxEnabled}
-          onChange={(v) => setFeature('relaxEnabled', v)}
+          label="Enable Room (Session surface)"
+          checked={roomOn}
+          onChange={(v) => setFeature('roomEnabled', v)}
         />
         <div style={{ fontSize: 11, color: '#A09A94', marginTop: 12, lineHeight: 1.5 }}>
-          A meditation/biofeedback/hypnotherapy surface inside Sessions. Adapts to webcam HRV when available; works without it. Background audio + voice guidance are user-toggleable per session.
+          A timed, immersive voice room inside Sessions: the writer picks a length and how much voice they want, and the companion keeps quiet company with ambient sound. Hidden under grounding.
         </div>
-
-        {config.features.relaxEnabled && (
-          <>
-            <div style={{ marginTop: 16 }}>
-              <ToggleRow
-                label="Custom soundscapes (Relax)"
-                checked={!!config.features.customSoundscapesEnabled}
-                onChange={(v) => setFeature('customSoundscapesEnabled', v)}
-              />
-            </div>
-            <div style={{ fontSize: 11, color: '#A09A94', marginTop: 12, lineHeight: 1.5 }}>
-              Lets users describe a soundscape (e.g. "rain on a tin roof") and the system generates a 30s loop via ElevenLabs Sound Effects. Cached globally by content hash. Per-user limits: 5 generations / hour, 60 requests / hour.
-            </div>
-            <div style={{ marginTop: 16 }}>
-              <ToggleRow
-                label="Drift (bilateral noticing practice)"
-                checked={!!config.features.driftEnabled}
-                onChange={(v) => setFeature('driftEnabled', v)}
-              />
-            </div>
-            <div style={{ fontSize: 11, color: '#A09A94', marginTop: 12, lineHeight: 1.5 }}>
-              A guided dual-attention practice with slow bilateral stimulation, launched from Relax. Text + voice. Always resolves toward settling; suppressed under grounding.
-            </div>
-          </>
+        {roomFromLegacy && (
+          <div style={{ fontSize: 11, color: '#8A6D3B', marginTop: 8, lineHeight: 1.5 }}>
+            On through the legacy Relax / Drift flags (the Room flag is unset). Toggling this writes the Room flag, which then takes precedence.
+          </div>
         )}
+      </CollapsibleSection>
+
+      {/* SMS field channel */}
+      <CollapsibleSection
+        title="SMS Field Channel"
+        isExpanded={!!expanded.sms}
+        onToggle={() => toggle('sms')}
+        style={sectionStyle}
+      >
+        <ToggleRow
+          label="Enable SMS field channel"
+          checked={smsOn}
+          onChange={(v) => setFeature('smsEnabled', v)}
+        />
+        <div style={{ fontSize: 11, color: '#A09A94', marginTop: 12, lineHeight: 1.5 }}>
+          Phone linking in Settings plus Twilio SMS/MMS replies and field windows. On unless switched off here.
+        </div>
       </CollapsibleSection>
 
       {/* Voice Mode (Conversation / Therapist only) */}

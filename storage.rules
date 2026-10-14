@@ -1,10 +1,11 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Soundscapes are content-addressed by sha256(normalized prompt). The
-    // cache is shared across the userbase. Reads require auth as
-    // defense-in-depth in case a signed URL leaks; writes are Admin-SDK
-    // only (the soundscapeApi Cloud Function).
+    // Legacy custom-soundscape cache, content-addressed by sha256(normalized
+    // prompt) and shared across the userbase. Its only writer, the
+    // soundscapeApi Cloud Function, was removed on 2026-10-14; the existing
+    // objects were left in place for the owner. Reads require auth as
+    // defense-in-depth in case a signed URL leaks; client writes are denied.
     match /soundscapes/{file} {
       allow read: if request.auth != null;
       allow write: if false;

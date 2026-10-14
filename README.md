@@ -1,21 +1,21 @@
 # UnderSurface
 
-A session-first reflective companion app. Opening the app starts (or resumes) a daily session with an AI companion. Within a session the user can move between four surfaces — Talk, Journal, Speak, and Room — while the companion carries context across them.
+A session-first reflective companion app. Opening the app starts (or resumes) a daily session with an AI companion. Within a session the user can move between four surfaces — Talk, Journal, Speak, and Room — while the companion carries context across them. An optional SMS/MMS field channel carries the same companion between sessions.
 
 **Live at [undersurface.me](https://undersurface.me)**
 
 ## How It Works
 
-Visiting the app routes straight into a session: today's active session if one exists, otherwise a new one. Each session offers five surfaces, switched from the bottom bar:
+Visiting the app routes straight into a session: today's active session if one exists, otherwise a new one. Each session offers four surfaces, switched from the bottom bar:
 
-- **Talk** — streamed text conversation with the companion (OpenAI `gpt-5.5`). Replies can include tappable recommendations (e.g. a breathing break).
+- **Talk** — streamed text conversation with the companion (OpenAI `gpt-5.5`). Replies can include tappable recommendations (open Journal, Speak or Room for a while, then return).
 - **Journal** — a quiet TipTap writing page inside the session. An optional "Inner voices" toggle activates the parts pipeline: when the writer pauses, slows down, or trails off, an IFS-inspired inner "part" responds on the page.
 - **Speak** — live voice conversation over WebRTC via OpenAI Realtime (`gpt-realtime-2`), tuned for an unhurried reflective register.
-- **Room** — an ambient space where an organic two-way voice conversation can dissolve into sound and silence. The writer chooses Listen first, Lead me, or Quiet company; one deterministic score keeps timing and atmosphere coherent while the companion remains interruptible.
+- **Room** — an ambient space where an organic two-way voice conversation can dissolve into sound and silence. The writer chooses Listen first, Lead me, or Quiet company (sound and light only, no microphone) and 2, 5 or 10 minutes; one deterministic score keeps timing and atmosphere coherent while the companion remains interruptible. Room replaced the earlier Relax and Drift surfaces.
 
-A **◇ Real Talk** toggle switches the companion's tone to one that names coping moves (avoidance, intellectualization, minimization, …) — not nice, but kind and constructive. It is automatically disabled whenever grounding (crisis) mode is active.
+**Fresh eyes** (per session, before the first message) lets the companion meet the writer without past-session memory. A **◇ Real Talk** toggle switches the companion's tone to one that names coping moves (avoidance, intellectualization, minimization, …) — not nice, but kind and constructive. It is automatically disabled whenever grounding (crisis) mode is active.
 
-Crisis safety is layered: a synchronous keyword floor plus an LLM risk classifier, both feeding a grounding mode that softens the companion, silences parts, and surfaces crisis resources.
+Crisis safety is layered: a synchronous keyword floor plus an LLM risk classifier, both feeding a grounding mode that softens the companion, silences parts, closes Room, and surfaces crisis resources. A recent crisis also grounds SMS replies and pauses proactive texts for 72 hours.
 
 Optional biometrics (webcam rPPG or a Polar H10 chest strap over Web Bluetooth) feed live heart-rate variability into the companion's context.
 
@@ -36,7 +36,7 @@ Seven seeded parts — The Watcher, The Tender, The Still, The Spark, The Weaver
 | AI — chat | OpenAI `gpt-5.5` via Cloud Function proxy (`/api/chat`) |
 | AI — crisis | OpenAI `gpt-5-nano` (structured output, `task: 'crisis_check'`) |
 | AI — voice | OpenAI Realtime `gpt-realtime-2` over WebRTC |
-| Soundscapes | ElevenLabs via `soundscapeApi` (+ Firestore cache) |
+| SMS/MMS | Twilio (webhook + Firestore-triggered processor + scheduled field windows) |
 | Biometrics | Webcam rPPG (CHROM, Web Worker, MediaPipe FaceLandmarker) + Polar H10 (Web Bluetooth) |
 | Hosting | Firebase Hosting (rewrites → Cloud Functions, Node 22) |
 | PWA | vite-plugin-pwa + Workbox |
@@ -54,10 +54,11 @@ undersurface/
 │   │   ├── therapistPrompts.ts    # THERAPIST_CORE + REAL_TALK_CORE + SAFETY_RULES
 │   │   ├── partPrompts.ts         # 7 seeded parts + SHARED_INSTRUCTIONS + emergence/reflection/growth
 │   │   ├── crisisClassifierPrompt.ts
+│   │   ├── voiceInstructions.ts   # One Realtime prompt builder for Speak + Room
 │   │   ├── roomPrompts.ts         # Organic, interruptible Room voice contract
 │   │   └── llmCorrect.ts          # LLM autocorrect
 │   ├── engine/                    # Core logic (sessionOrchestrator, partOrchestrator,
-│   │                              #   pauseDetector, hrvEngine, polarH10Engine, relaxEngine, …)
+│   │                              #   pauseDetector, turnResponder, roomEngine, hrvEngine, …)
 │   ├── hooks/                     # useSessionStream, useSessionVoice, useVoiceSession,
 │   │                              #   useHrvSession, usePolarH10Session, useRoomSession, …
 │   ├── components/
@@ -68,20 +69,20 @@ undersurface/
 │   │   ├── ThinkingOutLoud/       # Multi-turn dialogue with parts
 │   │   └── Atmosphere/            # Breathing background, cursor glow, pause ripple
 │   ├── admin/                     # Admin dashboard (lazy-loaded, admin users only)
-│   ├── api/                       # apiBase (native origin handling), authedFetch, soundscape client
+│   ├── api/                       # apiBase (native origin handling), authedFetch, accountApi
 │   ├── auth/                      # Firebase authentication
 │   ├── engine/                    # (see above)
 │   ├── i18n/                      # 17 languages + key-parity tests
-│   ├── native/                    # Capacitor glue (back button, keep-awake, share)
+│   ├── native/                    # Capacitor glue (back button, keep-awake)
 │   ├── store/                     # db.ts (Firestore wrapper), settings, globalConfig, dataExport
 │   ├── extensions/                # TipTap extensions (inkWeight, paragraphSettle)
 │   └── App.tsx                    # Auth gate + session-first routing
 ├── functions/                     # Firebase Cloud Functions (Node 22)
-│   └── src/                       # chat, realtime, soundscapeApi (+soundscape/), account,
-│                                  #   admin/, mcp, sms/, shared/ (auth, crisis, secrets, models)
-├── public/                        # Static assets (PWA manifest, icons, soundscape audio)
-├── firebase.json                  # Hosting rewrites + CSP/Permissions-Policy headers
-├── firestore.rules                # Firestore security rules
+│   └── src/                       # chat, realtime, account, admin/, mcp,
+│                                  #   sms/ (webhook, processor, field windows), shared/
+├── public/                        # Static assets (PWA manifest, icons, logos)
+├── firebase.json                  # Hosting rewrites + the single web CSP/Permissions-Policy headers
+├── firestore.rules                # Firestore security rules (+ storage.rules, firestore.indexes.json)
 └── .github/workflows/ci.yml      # CI pipeline
 ```
 
@@ -117,7 +118,7 @@ useSessionVoice → POST /api/realtime-token → realtimeTokenApi
   → useVoiceSession opens WebRTC directly to api.openai.com
 ```
 
-Room reuses the same stack in active, managed-playback mode. Quiet company does not create a Realtime session or request microphone access.
+Speak and Room share one prompt builder (`src/ai/voiceInstructions.ts`), which also carries this session's recent turns so a change of medium keeps the thread. Room steers its timed cues with system conversation items rather than `response.create` instruction overrides (which would replace the session prompt and its safety rules). Quiet company does not create a Realtime session or request microphone access. The token endpoint enforces the voice/Room flags server-side and a daily per-user mint budget.
 
 ### SMS field flow
 
@@ -129,6 +130,8 @@ Settings creates link code → user texts LINK <code> to +1 289-778-0589
   → shared crisis stack → GPT-5.5 chooses reply length + optional field note
   → Twilio SMS reply; only selected notes enter later Talk/Speak context
 ```
+
+Replies are idempotent (a reply that may already have gone out is never resent), crisis-aware (a recent SMS risk or in-app grounding grounds the reply), budgeted (40 generated turns per day), and retention-bounded (message bodies cleared on completion, MMS media deleted at Twilio). Admins can pause the whole channel (`smsEnabled`). With consent, **field windows** send at most a few short, randomized check-ins per week inside writer-chosen windows (`fieldWindowScheduler` + `fieldWindowDispatcher`); STOP or unlinking revokes consent.
 
 Writers text naturally or attach up to four JPEG, PNG, WEBP, or GIF images—there are no save, depth, or app-handoff content commands. GPT-5.5 is explicitly prompted for the carrier-SMS/MMS medium: concise by default, longer only when the moment warrants it, with a hard 1,200-character backstop. It separately returns a structured decision about whether a source-grounded text or image detail is useful enough to carry into a later session. Image bytes are passed ephemerally to the model; the transcript stores attachment metadata, not a second image copy.
 
@@ -152,7 +155,6 @@ Writers text naturally or attach up to four JPEG, PNG, WEBP, or GIF images—the
 | `/api/account` | `accountApi` |
 | `/api/mcp` | `mcpApi` |
 | `/api/realtime-token` | `realtimeTokenApi` |
-| `/api/soundscape` | `soundscapeApi` |
 | `/api/sms` | `smsApi` |
 | `**` | `/index.html` (SPA fallback) |
 
@@ -174,19 +176,20 @@ Writers text naturally or attach up to four JPEG, PNG, WEBP, or GIF images—the
 | `fossils`, `letters`, `sessionLog`, `innerWeather` | Ritual/engagement subsystems |
 | `consent` | Terms + camera + Bluetooth consent records |
 | `hrvSessions` | HRV archives (`source: 'camera' \| 'polarH10'`, signal dumps) |
-| `relaxSessions` | Relax surface session records |
 | `roomSessions` | Unified Room choices, controls, elapsed time, and transcript |
+| `relaxSessions`, `driftSessions` | Legacy Relax/Drift records (kept for export and deletion) |
+| `companionPreferences`, `fieldMoments`, `interventionOutcomes`, `researchEvents`, `personalProtocols`, `livingHypotheses` | Alliance preferences + field-window consent, field moments, outcome and research provenance, hypotheses |
 | `diagnostics` | Client diagnostic events |
 | `apiKeys` | Hashed keys for the MCP server |
 | `entries` | **Legacy** diary entries — no writers anymore; read by echo/quote/reflection engines and MCP tools |
 | `smsMessages` | Inbound/outbound SMS/MMS transcript, attachment metadata, and model-selected field notes; transcript exported, selected notes loaded as weak recent context |
-| `smsSettings` | Server-maintained phone-link status (phone hash + last four only) |
+| `smsSettings` | Server-owned SMS state: phone-link status (phone hash + last four only), risk state, opt-out time, daily usage |
 
-Security rule: users can only read/write their own data (`request.auth.uid == userId`).
+Security rules: users can only read their own data. They can write their own collections except `smsSettings`, `smsMessages` and the `users/{uid}` root doc, which only Cloud Functions write. The full registry is `functions/src/shared/collections.ts`.
 
 ### Global config — `appConfig/global`
 
-A single Firestore document with app-wide defaults and feature flags (typed as `GlobalConfig` in `src/admin/adminTypes.ts`): core and experimental flags covering atmosphere, part intelligence, memory/engagement, safety, biometrics (`webcamHrv`, `polarH10`), voice (`voiceEnabled`), and the legacy restorative flags used to enable Room (`relaxEnabled` or `driftEnabled`), plus tuning sections and an announcement banner. Readable by all authenticated users; writable only through `adminApi`; listened to in real-time via `onSnapshot` in `src/store/globalConfig.ts`.
+A single Firestore document with app-wide defaults and feature flags (typed as `GlobalConfig` in `src/admin/adminTypes.ts`): core and experimental flags covering atmosphere, part intelligence, memory/engagement, safety, biometrics (`webcamHrv`, `polarH10`), voice (`voiceEnabled`), Room (`roomEnabled`; while unset, the legacy `relaxEnabled`/`driftEnabled` flags still turn it on), the SMS kill switch (`smsEnabled`, on unless false), plus tuning sections and an announcement banner. Readable by all authenticated users; writable only through `adminApi`; listened to in real-time via `onSnapshot` in `src/store/globalConfig.ts`.
 
 ## Settings System
 
@@ -196,7 +199,7 @@ User preferences follow a 3-tier priority cascade:
 user localStorage  >  appConfig/global defaults  >  hardcoded DEFAULTS
 ```
 
-Defaults live in `src/store/settings.ts` (response speed, autocorrect, theme, language, timezone, last session mode, and Room preferences; legacy Relax/Drift settings remain for old records). When `appConfig/global` updates, `invalidateSettingsCache()` propagates new defaults; explicit localStorage overrides win. Reactive via `useSettings()` / `useGlobalConfig()` (`useSyncExternalStore`); `getSettings()` / `getGlobalConfig()` for non-React code.
+Defaults live in `src/store/settings.ts` (response speed, autocorrect, theme, language, timezone, last session mode, and the last Room choices). When `appConfig/global` updates, `invalidateSettingsCache()` propagates new defaults; explicit localStorage overrides win. Reactive via `useSettings()` / `useGlobalConfig()` (`useSyncExternalStore`); `getSettings()` / `getGlobalConfig()` for non-React code.
 
 ## Development
 
@@ -244,18 +247,19 @@ npm run smoke-test   # Post-deploy smoke test against the live site
 
 ## Cloud Functions
 
-Eight deployable functions in `functions/src/` (shared helpers in `shared/`):
+Nine deployable functions in `functions/src/` (shared helpers in `shared/`):
 
 | Function | File | Purpose | Config |
 |----------|------|---------|--------|
-| `chat` | `chat.ts` | OpenAI proxy — `gpt-5.5` therapist/journal turns, `gpt-5-nano` crisis route, SSE streaming | 512MiB, minInstances 1, 300s |
-| `realtimeTokenApi` | `realtime.ts` | Mints OpenAI Realtime client secrets | 256MiB, minInstances 1, 30s |
-| `soundscapeApi` | `soundscapeApi.ts` + `soundscape/` | ElevenLabs soundscape generation + Firestore cache | 256MiB, 60s |
-| `accountApi` | `account.ts` | Account deletion, contact form, and SMS phone-link actions | 256MiB, 60s |
+| `chat` | `chat.ts` | OpenAI proxy — `gpt-5.5` therapist/journal turns, `gpt-5-nano` crisis/signal routes, SSE streaming, request validation, metered token quota | 512MiB, minInstances 1, 300s |
+| `realtimeTokenApi` | `realtime.ts` | Mints OpenAI Realtime client secrets (flag-gated, daily budget) | 256MiB, minInstances 1, 30s |
+| `accountApi` | `account.ts` | Account deletion (incl. Twilio copies), contact form, and SMS phone-link actions | 256MiB, 300s |
 | `adminApi` | `admin/` | Admin dashboard backend (11 actions) | 512MiB, 120s |
 | `mcpApi` | `mcp.ts` | MCP server, 4 read-only tools, API-key auth | 256MiB, 30s |
 | `smsApi` | `sms/index.ts` | Twilio SMS/MMS webhook, account controls, media descriptors, queue admission | 256MiB, 30s |
-| `smsInboundProcessor` | `sms/index.ts` | Protected media fetch, multimodal crisis handling, adaptive response + note selection, Twilio delivery | 256MiB, 120s |
+| `smsInboundProcessor` | `sms/index.ts` | Protected media fetch, multimodal crisis handling, adaptive response + note selection, idempotent Twilio delivery | 256MiB, 120s |
+| `fieldWindowScheduler` | `sms/fieldWindows.ts` | Every 15 minutes: schedules proactive field-window texts, sweeps stale dispatches | 256MiB, 120s |
+| `fieldWindowDispatcher` | `sms/fieldWindows.ts` | Sends one queued field-window text after a final recheck | 256MiB, 60s |
 
 The chat model is pinned server-side in `functions/src/shared/models.ts` (`OPENAI_CHAT_MODEL`); the client never sends a model field. SSE streaming requires `X-Accel-Buffering: no` and `Cache-Control: no-cache, no-transform`.
 
@@ -273,6 +277,8 @@ OPENAI_API_KEY=... npm run test:release-evals
 Ordinary `npm run build` never contacts Sentry. Use `build:release` only for an
 actual release; it requires `SENTRY_AUTH_TOKEN` and uploads hidden source maps.
 
+Deploy order when several pieces change: Firestore indexes → rules → functions → hosting.
+
 ### Deploy everything (most common)
 
 ```bash
@@ -285,8 +291,9 @@ npm run build:release && cd functions && npx tsc && cd .. && firebase deploy
 |---|---|---|
 | Anything in `src/` | `npm run build:release` | `firebase deploy --only hosting` |
 | Anything in `functions/src/` | `cd functions && npx tsc` | `firebase deploy --only functions` |
-| `firestore.rules` | — | `firebase deploy --only firestore:rules` |
-| Both | Both build steps | `firebase deploy` |
+| `firestore.rules` / `storage.rules` | — | `firebase deploy --only firestore:rules,storage` |
+| `firestore.indexes.json` | — | `firebase deploy --only firestore:indexes` |
+| Several | All build steps | `firebase deploy` |
 
 After deploying, run `npm run smoke-test`. Note `chat`'s `minInstances: 1` requires `firebase deploy --force`.
 
@@ -296,7 +303,6 @@ Provider credentials are Firebase secrets (Google Secret Manager), not config fi
 
 ```bash
 echo "sk-..." | firebase functions:secrets:set OPENAI_API_KEY
-echo "..."    | firebase functions:secrets:set ELEVENLABS_API_KEY
 echo "AC..."  | firebase functions:secrets:set TWILIO_ACCOUNT_SID
 echo "..."    | firebase functions:secrets:set TWILIO_AUTH_TOKEN
 cd functions && npx tsc && cd .. && firebase deploy --only functions
@@ -344,7 +350,7 @@ DNS is managed in Cloudflare (DNS-only mode, proxy OFF for A records). Firebase 
 
 ## Known Gotchas & Further Docs
 
-The authoritative, regularly-updated gotcha list (Firebase/CSP, crisis-safety invariants, HRV signal processing, Polar PMD protocol, build caveats) lives in **`CLAUDE.md`**. Deeper references live in `.Codex/docs/`. Current review findings include `APP_REVIEW_TREE_AND_FOREST_2026-07-09.md`; the active remediation plan is `docs/superpowers/plans/2026-07-03-full-remediation-master.md`.
+The authoritative, regularly-updated gotcha list (Firebase/CSP, crisis-safety invariants, HRV signal processing, Polar PMD protocol, build caveats) lives in **`CLAUDE.md`**. Deeper references live in `.claude/docs/`. The current technical fix list is `TECH_ISSUES_2026-10-14.md`; earlier review findings include `APP_REVIEW_TREE_AND_FOREST_2026-07-09.md`.
 
 ## Infrastructure
 

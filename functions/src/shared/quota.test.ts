@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { resolveCap, periodKey, decideReservation, type QuotaConfig } from './quota'
+import {
+  resolveCap,
+  periodKey,
+  decideReservation,
+  computeReconcileUpdate,
+  dayKey,
+  decideDailyBudget,
+  type QuotaConfig,
+} from './quota'
 
 describe('resolveCap', () => {
   const base: QuotaConfig = { enabled: true, monthlyTokenCap: 1000 }
@@ -61,5 +69,50 @@ describe('decideReservation', () => {
     // Last month's usage was maxed out, but this month starts fresh.
     expect(decideReservation({ period: '2026-06', tokensUsed: 999_999 }, KEY, 1000, 200))
       .toEqual({ allowed: true, used: 0 })
+  })
+})
+
+describe('computeReconcileUpdate', () => {
+  const KEY = '2026-10'
+
+  it('refunds unused completion reservation and meters prompt tokens separately', () => {
+    // Regression for TECH_ISSUES_2026-10-14 #16: streamed turns now report
+    // usage, so a 4000-token reservation settles to the real 300.
+    expect(computeReconcileUpdate({ period: KEY, tokensUsed: 4000 }, KEY, 4000, 300, 9000))
+      .toEqual({ tokensUsed: 300, promptTokensUsed: 9000 })
+  })
+
+  it('adds prompt tokens to the existing monthly input meter without touching the cap unit', () => {
+    expect(computeReconcileUpdate({ period: KEY, tokensUsed: 500, promptTokensUsed: 1000 }, KEY, 200, 200, 50))
+      .toEqual({ promptTokensUsed: 1050 })
+  })
+
+  it('charges the full reservation when actual usage is unknown (caller passes reserved)', () => {
+    expect(computeReconcileUpdate({ period: KEY, tokensUsed: 4000 }, KEY, 4000, 4000, 0)).toBeNull()
+  })
+
+  it('never drives tokensUsed negative', () => {
+    expect(computeReconcileUpdate({ period: KEY, tokensUsed: 10 }, KEY, 4000, 0, 0)).toEqual({ tokensUsed: 0 })
+  })
+
+  it('leaves a rolled-over period alone', () => {
+    expect(computeReconcileUpdate({ period: '2026-09', tokensUsed: 4000 }, KEY, 4000, 10, 100)).toBeNull()
+  })
+})
+
+describe('daily budgets', () => {
+  it('keys days in UTC', () => {
+    expect(dayKey(new Date('2026-10-14T23:59:59Z'))).toBe('2026-10-14')
+    expect(dayKey(new Date('2026-10-15T00:00:01Z'))).toBe('2026-10-15')
+  })
+
+  it('admits until the limit and rejects at it', () => {
+    expect(decideDailyBudget(undefined, '2026-10-14', 30)).toEqual({ allowed: true, used: 0 })
+    expect(decideDailyBudget({ day: '2026-10-14', count: 29 }, '2026-10-14', 30)).toEqual({ allowed: true, used: 29 })
+    expect(decideDailyBudget({ day: '2026-10-14', count: 30 }, '2026-10-14', 30)).toEqual({ allowed: false, used: 30 })
+  })
+
+  it('resets on a new UTC day', () => {
+    expect(decideDailyBudget({ day: '2026-10-13', count: 30 }, '2026-10-14', 30)).toEqual({ allowed: true, used: 0 })
   })
 })

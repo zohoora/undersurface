@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { GlobalConfig } from './adminTypes'
 import { adminFetch } from './adminApi'
+import { withoutRetiredFeatures, withoutRetiredGrounding } from './featureFlags'
 
 export interface AdminConfigMessage {
   type: 'success' | 'error'
@@ -10,11 +11,11 @@ export interface AdminConfigMessage {
 export function editableConfigUpdate(config: GlobalConfig): Partial<GlobalConfig> {
   return {
     defaultResponseSpeed: config.defaultResponseSpeed,
-    features: config.features,
+    features: withoutRetiredFeatures(config.features),
     atmosphere: config.atmosphere,
     partIntelligence: config.partIntelligence,
     engagement: config.engagement,
-    grounding: config.grounding,
+    grounding: withoutRetiredGrounding(config.grounding),
     voice: config.voice,
     announcement: config.announcement,
   }

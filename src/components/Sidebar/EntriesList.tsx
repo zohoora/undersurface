@@ -1,14 +1,13 @@
-import { useState, useCallback, useEffect, useMemo, lazy, Suspense } from 'react'
+import { useState, useCallback, useEffect, useMemo, Suspense } from 'react'
 import { db } from '../../store/db'
 import { SettingsPanel } from './SettingsPanel'
 import { useTranslation, getLanguageCode } from '../../i18n'
 import { useGlobalConfig } from '../../store/globalConfig'
 import type { Session } from '../../types'
+import { lazyWithRetry } from '../../utils/lazyWithRetry'
+import { ChunkErrorBoundary } from '../ChunkErrorBoundary'
 
-const BodyMapTab = lazy(() => import('../BodyMap/BodyMapTab').then(m => ({ default: m.BodyMapTab })).catch(() => {
-  window.location.reload()
-  return new Promise(() => {})
-}))
+const BodyMapTab = lazyWithRetry(() => import('../BodyMap/BodyMapTab').then(m => ({ default: m.BodyMapTab })), 'body-map-tab')
 
 interface Props {
   navigateTo: (path: string) => void
@@ -181,9 +180,11 @@ export function EntriesList({ navigateTo, currentPath }: Props) {
           )}
 
           {activeTab === 'body' && showBodyMap ? (
-            <Suspense fallback={null}>
-              <BodyMapTab />
-            </Suspense>
+            <ChunkErrorBoundary area="body-map" variant="compact">
+              <Suspense fallback={null}>
+                <BodyMapTab />
+              </Suspense>
+            </ChunkErrorBoundary>
           ) : (
             <>
               <div className="sidebar-new-buttons">

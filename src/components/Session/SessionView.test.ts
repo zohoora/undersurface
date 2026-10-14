@@ -181,6 +181,12 @@ describe('SessionView — recommendation rendering integration', () => {
     expect(src.default).toContain('onRecommendationTap')
   })
 
+  it('ending a session from Journal returns to Talk, where the closing message renders', async () => {
+    const src = (await import('./SessionView?raw')).default
+    const end = src.slice(src.indexOf('const handleEndSession'), src.indexOf('generateTherapistMessage(currentMessages, currentSession)'))
+    expect(end).toContain("setSurface(prev => (prev === 'journal' ? 'talk' : prev))")
+  })
+
   it('SessionView source contains handleRecommendationTap', async () => {
     const src = await import('./SessionView?raw')
     expect(src.default).toContain('handleRecommendationTap')
@@ -306,9 +312,9 @@ describe('SessionView — surface switching (Journal & Speak)', () => {
     expect(src.default).toMatch(/case\s+'speak'[\s\S]{0,80}handleSurfaceChange\('speak'\)/)
   })
 
-  it('handleSurfaceChange flushes journal text via appendUserMessage on exit', async () => {
+  it('handleSurfaceChange contributes the journal draft on exit (exactly once, owner-bound)', async () => {
     const src = await import('./SessionView?raw')
-    expect(src.default).toContain('appendUserMessage(journalDraft.trim()')
+    expect(src.default).toMatch(/surface === 'journal' && next !== 'journal'\) void commitJournalDraft\(\)/)
   })
 
   it('handleSurfaceChange starts voice on Speak entry via useSessionVoice', async () => {
@@ -324,5 +330,115 @@ describe('SessionView — surface switching (Journal & Speak)', () => {
   it('voice-idle effect auto-reverts surface to talk', async () => {
     const src = await import('./SessionView?raw')
     expect(src.default).toMatch(/voice\.state[\s\S]{0,60}setSurface\('talk'\)/)
+  })
+})
+
+describe('SessionView — 2026-10-14 audit regressions (source contracts)', () => {
+  it('delegates turn planning to turnResponder, which reads grounding at call time (#1)', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain("from '../../engine/turnResponder'")
+    // The render-time grounding value must not gate conductor/research planning.
+    expect(src).not.toMatch(/planAdaptiveConductor\(/)
+    expect(src).not.toMatch(/planResearchTurn\(/)
+  })
+
+  it('gates Speak/Room in BOTH the surface switch and the recommendation tap (#12)', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toMatch(/const handleSurfaceChange = useCallback\(\(next: SessionSurface\) => \{[\s\S]{0,400}canOpenSurface\(next,/)
+    expect(src).toMatch(/const handleRecommendationTap = useCallback\(\(target: string\) => \{[\s\S]{0,400}canOpenSurface\(target,/)
+  })
+
+  it('renders VoiceField for any live voice state, independent of the flag (#12)', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain("{voice.state !== 'idle' && (")
+    expect(src).not.toContain("voiceEnabled && voice.state !== 'idle'")
+  })
+
+  it('loads Room and Voice with lazyWithRetry inside local error boundaries (#14)', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toMatch(/const VoiceField = lazyWithRetry\(/)
+    expect(src).toMatch(/const RoomField = lazyWithRetry\(/)
+    expect(src).not.toMatch(/= lazy\(/)
+    expect(src).toContain('<SurfaceErrorBoundary surface="voice"')
+    expect(src).toContain('<SurfaceErrorBoundary surface="room"')
+  })
+
+  it('builds Room voice instructions from the shared builder with live grounding (#35)', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain('buildVoiceCompanionInstructions(')
+    expect(src).toContain('grounded: isGroundingActive()')
+    expect(src).not.toContain('isGrounding: false')
+  })
+
+  it('derives Room availability from the effective roomEnabled formula', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain('isRoomEnabled(globalConfig?.features)')
+    expect(src).not.toContain('relaxEnabled || driftEnabled')
+  })
+
+  it('seeds Room voice with the current session turns (T5)', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toMatch(/buildVoiceCompanionInstructions\(\{[\s\S]{0,200}messages: messagesRef\.current/)
+  })
+
+  it('fences Room transcripts to the session the Room started in and ends voice on a session change (T2)', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain('onUserTranscript={handleRoomUserTranscript}')
+    expect(src).toContain('onAssistantTranscript={handleRoomAssistantTranscript}')
+    expect(src).toMatch(/isRoomOwnerCurrent\(ownerSessionId\)\) return\s+void appendUserMessage\(text, 'voice', 'room'\)/)
+    expect(src).toMatch(/previous === null \|\| currentSessionId === null \|\| previous === currentSessionId\) return/)
+  })
+
+  it('makes the Talk composer inert while Room or Speak is open (#32)', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain('inert={overlayOpen || undefined}')
+  })
+
+  it('a grounding-interrupted arc discards its outcome AND unlinks the research event', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain('discardSurfaceArcOutcome(activeArc.outcomeId, activeArc.researchEventId)')
+    expect(src).not.toContain('db.interventionOutcomes.delete(')
+    expect(src).toContain('setActiveArc({ surface: next, outcomeId, researchEventId, startedAt: now, ambientReturn: conductorArc })')
+  })
+})
+
+describe('SessionView — journal drafts are session-owned and durable (T1)', () => {
+  it('keeps the draft in the owner-bound hook, not in bare React state', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain('useJournalDraft({ uid, sessionId: session?.id ?? null, append: appendJournalDraft })')
+    expect(src).not.toContain("useState<string>('')")
+    // The draft is never cleared before its append succeeds.
+    expect(src).not.toContain("setJournalDraft('')")
+  })
+
+  it('appends only to the owning session, re-reading a remote close first', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toMatch(/current\.id !== owner\.sessionId \|\| current\.status !== 'active'\) return false/)
+    expect(src).toContain('db.sessions.get(owner.sessionId)')
+    expect(src).toMatch(/appendUserMessage\(text, 'text', 'journal', \{\s+ownerSessionId: owner\.sessionId,\s+messageId: owner\.messageId,/)
+  })
+
+  it('remounts the Journal editor per draft owner and fences stale editor writes', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain('key={journalScope}')
+    expect(src).toContain('onChange={text => setJournalText(text, journalScope)}')
+  })
+
+  it('contributes the draft before closing, and grounding still flushes journal words as user text', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toMatch(/const handleEndSession = useCallback\(async \(\) => \{[\s\S]{0,600}await commitJournalDraft\(\)[\s\S]{0,600}const currentMessages = messagesRef\.current/)
+    expect(src).toContain("if (activeArc.surface === 'journal') void commitJournalDraft()")
+  })
+
+  it('offers retry and copy when a draft has not reached the conversation', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain('<JournalDraftNotice')
+    expect(src).toContain("mode={isClosed ? 'closed' : 'failed'}")
+  })
+
+  it('App keeps one SessionView across /session/new adopting its id (no key remount)', async () => {
+    const app = (await import('../../App?raw')).default
+    expect(app).toMatch(/<SessionView\s+sessionId=\{sessionIdFromPath\}/)
+    expect(app).not.toMatch(/<SessionView[^>]*\bkey=/)
   })
 })

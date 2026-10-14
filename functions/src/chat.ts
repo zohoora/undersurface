@@ -58,6 +58,127 @@ const MAX_TOKENS_CAP = 4000
 const MAX_MESSAGE_CHARS = 8000
 const MAX_MESSAGES = 50
 
+// Request-size bounds (TECH_ISSUES_2026-10-14 #17). Input tokens are billed,
+// so app-built system/assistant content needs a ceiling too. Sized well above
+// real traffic: the therapist system prompt is ~20-30k chars (Room voice
+// instructions built from it were observed at ~24k), history is windowed to
+// 48 turns, and user turns are already capped at MAX_MESSAGE_CHARS.
+export const MAX_SYSTEM_CHARS = 64_000
+export const MAX_ASSISTANT_CHARS = 32_000
+// UTF-8 bytes across all message contents. Bytes, not chars, so CJK-heavy
+// sessions are measured by what is actually sent.
+export const MAX_REQUEST_BYTES = 512 * 1024
+
+// Classifier routes (crisis_check / signal_check) stay quota-exempt, so their
+// shape is pinned: exactly [system, user]. The crisis prompt is ~11k chars and
+// the client samples at most ~1k (crisis) / 2.4k (signal) chars of writing.
+// The crisis prompt must stay under CLASSIFIER_MAX_SYSTEM_CHARS or L2 would
+// fail open; crisisClassifier size is pinned by a test.
+export const CLASSIFIER_MAX_SYSTEM_CHARS = 24_000
+export const CLASSIFIER_MAX_USER_CHARS = 4_000
+
+// Autocorrect (task: 'autocorrect') corrects one finished sentence on the
+// small model. Same pinned [system, user] shape as the classifiers, sized for
+// its short prompt (~450 chars plus a language line) and one sentence of at
+// most ~1k chars inside <user_sentence> tags (src/ai/llmCorrect.ts).
+export const AUTOCORRECT_MAX_SYSTEM_CHARS = 1_200
+export const AUTOCORRECT_MAX_USER_CHARS = 1_200
+// Minimal reasoning still spends some hidden tokens; 600 covers that plus a
+// corrected sentence. A cut-off reply fails the client's length check and is
+// dropped, never applied.
+export const AUTOCORRECT_MAX_TOKENS = 600
+
+/** A route whose request shape is pinned to exactly [system, user]. */
+export interface PinnedShape {
+  maxSystemChars: number
+  maxUserChars: number
+  /** Error code for a request that is not exactly [system, user]. */
+  invalidCode: string
+}
+
+export const CLASSIFIER_SHAPE: PinnedShape = {
+  maxSystemChars: CLASSIFIER_MAX_SYSTEM_CHARS,
+  maxUserChars: CLASSIFIER_MAX_USER_CHARS,
+  invalidCode: 'invalid_classifier_request',
+}
+
+export const AUTOCORRECT_SHAPE: PinnedShape = {
+  maxSystemChars: AUTOCORRECT_MAX_SYSTEM_CHARS,
+  maxUserChars: AUTOCORRECT_MAX_USER_CHARS,
+  invalidCode: 'invalid_autocorrect_request',
+}
+
+type ChatRole = 'system' | 'user' | 'assistant'
+interface ChatMessage {
+  role: ChatRole
+  content: string
+}
+const CHAT_ROLES: ReadonlySet<string> = new Set<ChatRole>(['system', 'user', 'assistant'])
+
+export type ChatValidation =
+  | { ok: true; messages: ChatMessage[] }
+  | { ok: false; status: number; body: { error: string; code?: string } }
+
+function reject(status: number, error: string, code?: string): ChatValidation {
+  return { ok: false, status, body: code ? { error, code } : { error } }
+}
+
+// Pure request validation. Returns sanitized {role, content} messages so extra
+// client-supplied fields never reach OpenAI.
+//
+// Role order: exactly one system message, first; the last message must come
+// from the user. Strict user/assistant alternation is deliberately NOT
+// enforced: the companion does not answer every pause, so real sessions
+// contain consecutive user turns (and deterministic companion messages create
+// consecutive assistant turns). buildTherapistMessages forwards them as-is.
+export function validateChatMessages(raw: unknown, pinned: PinnedShape | null): ChatValidation {
+  if (!Array.isArray(raw) || raw.length === 0) return reject(400, 'Invalid messages')
+  if (raw.length > MAX_MESSAGES) return reject(400, `Too many messages (max ${MAX_MESSAGES})`)
+
+  const messages: ChatMessage[] = []
+  for (const msg of raw as unknown[]) {
+    const candidate = msg as { role?: unknown; content?: unknown } | null
+    if (!candidate || typeof candidate.role !== 'string' || typeof candidate.content !== 'string') {
+      return reject(400, 'Invalid message format')
+    }
+    if (!CHAT_ROLES.has(candidate.role)) return reject(400, 'Invalid message format', 'invalid_role')
+    // User-authored turns keep their original limit and error.
+    if (candidate.role === 'user' && candidate.content.length > MAX_MESSAGE_CHARS) {
+      return reject(400, `Message too long (max ${MAX_MESSAGE_CHARS} chars)`)
+    }
+    messages.push({ role: candidate.role as ChatRole, content: candidate.content })
+  }
+
+  if (pinned) {
+    if (messages.length !== 2 || messages[0].role !== 'system' || messages[1].role !== 'user') {
+      return reject(400, 'Invalid request shape', pinned.invalidCode)
+    }
+    if (messages[0].content.length > pinned.maxSystemChars
+      || messages[1].content.length > pinned.maxUserChars) {
+      return reject(413, 'Request too large', 'request_too_large')
+    }
+    return { ok: true, messages }
+  }
+
+  let totalBytes = 0
+  for (const msg of messages) {
+    if (msg.role === 'system' && msg.content.length > MAX_SYSTEM_CHARS) {
+      return reject(413, 'Request too large', 'request_too_large')
+    }
+    if (msg.role === 'assistant' && msg.content.length > MAX_ASSISTANT_CHARS) {
+      return reject(413, 'Request too large', 'request_too_large')
+    }
+    totalBytes += Buffer.byteLength(msg.content, 'utf8')
+  }
+  if (totalBytes > MAX_REQUEST_BYTES) return reject(413, 'Request too large', 'request_too_large')
+
+  const systemCount = messages.filter(m => m.role === 'system').length
+  if (messages[0].role !== 'system' || systemCount !== 1 || messages[messages.length - 1].role !== 'user') {
+    return reject(400, 'Invalid message order', 'invalid_message_order')
+  }
+  return { ok: true, messages }
+}
+
 const checkRateLimit = makeRateLimiter({ windowMs: 60_000, max: 30 })
 
 // Quota config is read from appConfig/global and cached in-instance so we don't
@@ -87,17 +208,20 @@ async function loadQuotaConfig(nowMs: number): Promise<QuotaConfig> {
   return value
 }
 
-interface StreamCounters {
+export interface StreamCounters {
   contentTokens: number
   finishReason: string | null
   completionTokens: number | null
+  promptTokens: number | null
   reasoningTokens: number | null
 }
 
-// Updates the diagnostic counters in-place from one parsed SSE data line.
-// Silently ignores malformed JSON — the raw bytes are forwarded to the client
-// regardless; counters are best-effort observability, not correctness.
-function ingestStreamLine(line: string, counters: StreamCounters): void {
+// Updates the counters in-place from one parsed SSE data line. Silently
+// ignores malformed JSON — the raw bytes are forwarded to the client
+// regardless. The `usage` frame only arrives because streamed requests set
+// stream_options.include_usage; it carries the real completion and prompt
+// token counts that settle the quota reservation.
+export function ingestStreamLine(line: string, counters: StreamCounters): void {
   const trimmed = line.trim()
   if (!trimmed.startsWith('data: ')) return
   const data = trimmed.slice(6)
@@ -106,9 +230,10 @@ function ingestStreamLine(line: string, counters: StreamCounters): void {
   let parsed: {
     choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>
     usage?: {
+      prompt_tokens?: number
       completion_tokens?: number
       completion_tokens_details?: { reasoning_tokens?: number }
-    }
+    } | null
   }
   try {
     parsed = JSON.parse(data)
@@ -126,6 +251,9 @@ function ingestStreamLine(line: string, counters: StreamCounters): void {
   if (!usage) return
   if (typeof usage.completion_tokens === 'number') {
     counters.completionTokens = usage.completion_tokens
+  }
+  if (typeof usage.prompt_tokens === 'number') {
+    counters.promptTokens = usage.prompt_tokens
   }
   const rt = usage.completion_tokens_details?.reasoning_tokens
   if (typeof rt === 'number') counters.reasoningTokens = rt
@@ -167,7 +295,9 @@ export const chat = onRequest(
     //
     // `task` is an optional routing parameter. 'crisis_check' switches to the
     // smaller classifier model with structured-output enforcement and forces
-    // non-streaming. Anything else falls through to the standard chat path.
+    // non-streaming. 'autocorrect' also runs on the small model, non-streamed,
+    // with minimal reasoning and a small token cap. Anything else falls
+    // through to the standard chat path.
     const { messages, max_tokens, stream, reasoning_effort, task } = req.body || {}
     const ALLOWED_REASONING = new Set(['none', 'low', 'medium', 'high', 'xhigh'])
     const resolvedReasoning = typeof reasoning_effort === 'string' && ALLOWED_REASONING.has(reasoning_effort)
@@ -178,37 +308,34 @@ export const chat = onRequest(
     // schema, non-streaming) but with its own prompt + schema.
     const isSignalCheck = task === 'signal_check'
     const isClassifierTask = isCrisisCheck || isSignalCheck
-    if (!Array.isArray(messages) || messages.length === 0) {
-      res.status(400).json({ error: 'Invalid messages' })
+    // Autocorrect used to send a client `model` this function ignores, so it
+    // ran on the main model and spent quota on gpt-5.5. Unlike the
+    // classifiers it is a user-facing convenience, so it stays quota-counted.
+    const isAutocorrect = task === 'autocorrect'
+    const isSmallModelTask = isClassifierTask || isAutocorrect
+    const validation = validateChatMessages(
+      messages,
+      isClassifierTask ? CLASSIFIER_SHAPE : isAutocorrect ? AUTOCORRECT_SHAPE : null,
+    )
+    if (!validation.ok) {
+      if (validation.body.code) {
+        console.warn(`[chat] rejected uid=${uid.slice(0, 8)} task=${task ?? 'chat'} code=${validation.body.code ?? 'invalid'}`)
+      }
+      res.status(validation.status).json(validation.body)
       return
     }
+    const sanitizedMessages = validation.messages
 
-    if (messages.length > MAX_MESSAGES) {
-      res.status(400).json({ error: `Too many messages (max ${MAX_MESSAGES})` })
-      return
-    }
-
-    for (const msg of messages) {
-      if (typeof msg.role !== 'string' || typeof msg.content !== 'string') {
-        res.status(400).json({ error: 'Invalid message format' })
-        return
-      }
-      // Only enforce length limit on user-authored messages — system/assistant
-      // prompts are built by the app and legitimately exceed 8k chars
-      if (msg.role === 'user' && msg.content.length > MAX_MESSAGE_CHARS) {
-        res.status(400).json({ error: `Message too long (max ${MAX_MESSAGE_CHARS} chars)` })
-        return
-      }
-    }
-
-    const modelForRequest = isClassifierTask ? OPENAI_CRISIS_MODEL : OPENAI_CHAT_MODEL
-    const streamForRequest = !isClassifierTask && !!stream
+    const modelForRequest = isSmallModelTask ? OPENAI_CRISIS_MODEL : OPENAI_CHAT_MODEL
+    const streamForRequest = !isSmallModelTask && !!stream
     const resolvedMaxTokens = isClassifierTask
       ? CRISIS_MAX_TOKENS
-      : Math.min(
-        typeof max_tokens === 'number' && max_tokens > 0 ? max_tokens : 150,
-        MAX_TOKENS_CAP,
-      )
+      : isAutocorrect
+        ? AUTOCORRECT_MAX_TOKENS
+        : Math.min(
+          typeof max_tokens === 'number' && max_tokens > 0 ? max_tokens : 150,
+          MAX_TOKENS_CAP,
+        )
     const reqStart = Date.now()
     const tag = `uid=${uid.slice(0, 8)} model=${modelForRequest} task=${task ?? 'chat'} stream=${streamForRequest} max_tokens=${resolvedMaxTokens} reasoning=${resolvedReasoning ?? 'default'}`
     console.log(`[chat] start ${tag}`)
@@ -238,13 +365,17 @@ export const chat = onRequest(
         }
       }
     }
-    // Refund the unused part of the reservation once we know actual usage.
-    const settleQuota = (actualCompletionTokens: number | null) => {
+    // Refund the unused part of the reservation once we know actual usage,
+    // and meter the prompt tokens (tracked separately, not capped; see
+    // shared/quota.ts). Unknown completion usage (client disconnect before
+    // the usage frame) keeps the full reservation, the safe direction.
+    const settleQuota = (actualCompletionTokens: number | null, promptTokens: number | null) => {
       if (!quotaReservation?.reserved) return
       void reconcile({
         uid,
         reservedTokens: quotaReservation.reserved,
         actualTokens: actualCompletionTokens ?? quotaReservation.reserved,
+        promptTokens,
         now,
       })
     }
@@ -276,13 +407,17 @@ export const chat = onRequest(
         },
         body: JSON.stringify({
           model: modelForRequest,
-          messages,
+          messages: sanitizedMessages,
           max_completion_tokens: resolvedMaxTokens,
           stream: streamForRequest,
-          // Classifier tasks hardcode reasoning_effort='minimal' (smaller
-          // model needs the budget for visible output, not hidden reasoning).
-          // Other tasks pass the client-supplied value through unchanged.
-          ...(isClassifierTask
+          // Without this a streamed response carries no usage, so every
+          // streamed turn was charged its whole reservation (#16). The extra
+          // final chunk has `choices: []`, which the client already ignores.
+          ...(streamForRequest ? { stream_options: { include_usage: true } } : {}),
+          // Small-model tasks hardcode reasoning_effort='minimal' (the
+          // budget is for visible output, not hidden reasoning). Other tasks
+          // pass the client-supplied value through unchanged.
+          ...(isSmallModelTask
             ? { reasoning_effort: CRISIS_REASONING }
             : (resolvedReasoning ? { reasoning_effort: resolvedReasoning } : {})),
           ...(isCrisisCheck ? { response_format: CRISIS_RESPONSE_FORMAT } : {}),
@@ -296,7 +431,7 @@ export const chat = onRequest(
     if (!openAiResponse.ok) {
       const errorBody = await openAiResponse.text().catch(() => '')
       console.error(`[chat] error ${tag} status=${openAiResponse.status} headersMs=${headersMs}`, errorBody)
-      settleQuota(0) // upstream refused — refund the whole reservation
+      settleQuota(0, null) // upstream refused — refund the whole reservation
       res.status(openAiResponse.status).json({
         error: 'AI service temporarily unavailable',
       })
@@ -315,6 +450,7 @@ export const chat = onRequest(
         contentTokens: 0,
         finishReason: null,
         completionTokens: null,
+        promptTokens: null,
         reasoningTokens: null,
       }
       const decoder = new TextDecoder()
@@ -360,13 +496,15 @@ export const chat = onRequest(
         }
         if (!res.writableEnded) res.end()
       }
-      settleQuota(counters.completionTokens)
+      // A final frame without a trailing newline still carries usage.
+      if (buffer) ingestStreamLine(buffer, counters)
+      settleQuota(counters.completionTokens, counters.promptTokens)
       const empty = counters.contentTokens === 0
       const logFn = empty ? console.warn : console.log
       logFn(
         `[chat] done ${tag} bytes=${totalBytes} totalMs=${Date.now() - reqStart}` +
         ` contentTokens=${counters.contentTokens} finish=${counters.finishReason}` +
-        ` compTok=${counters.completionTokens} reasonTok=${counters.reasoningTokens}` +
+        ` promptTok=${counters.promptTokens} compTok=${counters.completionTokens} reasonTok=${counters.reasoningTokens}` +
         (empty ? ' EMPTY_COMPLETION' : ''),
       )
     } else {
@@ -374,7 +512,10 @@ export const chat = onRequest(
       const finishReason = data?.choices?.[0]?.finish_reason
       const contentLen = (data?.choices?.[0]?.message?.content || '').length
       const usage = data?.usage
-      settleQuota(typeof usage?.completion_tokens === 'number' ? usage.completion_tokens : null)
+      settleQuota(
+        typeof usage?.completion_tokens === 'number' ? usage.completion_tokens : null,
+        typeof usage?.prompt_tokens === 'number' ? usage.prompt_tokens : null,
+      )
       console.log(`[chat] done ${tag} headersMs=${headersMs} totalMs=${Date.now() - reqStart} finish=${finishReason} contentLen=${contentLen} promptTok=${usage?.prompt_tokens} compTok=${usage?.completion_tokens} reasonTok=${usage?.completion_tokens_details?.reasoning_tokens}`)
       res.json(data)
     }

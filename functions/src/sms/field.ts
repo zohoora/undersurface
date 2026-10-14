@@ -12,7 +12,9 @@ export type ParsedSmsIntent =
   | { kind: 'message'; text: string }
 
 const LINK_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{6}$/
-const OPT_OUT_WORDS = new Set(['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT'])
+// Carrier/Twilio standard opt-out keywords. Twilio blocks further messages to
+// the sender on its side; the webhook also revokes consent and unlinks.
+const OPT_OUT_WORDS = new Set(['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT', 'OPTOUT', 'REVOKE'])
 
 export function normalizePhone(value: string): string | null {
   const trimmed = value.trim()
@@ -84,8 +86,18 @@ export const SMS_HELP =
 export const SMS_CRISIS_RESPONSE =
   `I'm concerned you may be in immediate danger. If you might act now or can't stay safe, call local emergency services now. In Canada or the U.S., call or text 988. If you can, move away from anything you could use to hurt yourself and contact someone who can stay with you.`
 
+/** Appended to every fixed reply that stands in for the companion. */
+export const SMS_EMERGENCY_LINE =
+  `If you're in danger, call or text 988 or your local emergency number.`
+
 export const SMS_UNAVAILABLE_RESPONSE =
-  `I couldn't reach the companion just now. Your message is saved. You can continue in UnderSurface: ${UNDERSURFACE_SESSION_URL}`
+  `I couldn't reach the companion just now. Your message is saved. You can continue in UnderSurface: ${UNDERSURFACE_SESSION_URL} ${SMS_EMERGENCY_LINE}`
+
+export const SMS_PAUSED_RESPONSE =
+  `UnderSurface SMS is paused right now. You can continue in the app: ${UNDERSURFACE_SESSION_URL} ${SMS_EMERGENCY_LINE}`
+
+export const SMS_DAILY_LIMIT_RESPONSE =
+  `You've reached today's SMS limit for UnderSurface. Your message is saved, and you can continue in the app: ${UNDERSURFACE_SESSION_URL} ${SMS_EMERGENCY_LINE}`
 
 export const SMS_MEDIA_UNAVAILABLE_RESPONSE =
   `I couldn't read that image. Please try sending it again as a JPEG, PNG, WEBP, or GIF.`

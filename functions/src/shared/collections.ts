@@ -1,9 +1,9 @@
-// Single source of truth for the per-user Firestore subcollections under
-// users/{uid}. Account deletion iterates this list. User-visible collections
-// should also appear in the client db proxy and export; server support
-// collections such as smsSettings need deletion coverage but not a client API.
-// `sessions` additionally has a `messages` subcollection handled explicitly
-// (subcollections are deleted before their parent docs).
+// Registry of the per-user Firestore subcollections under users/{uid}.
+// User-visible collections should also appear in the client db proxy and
+// export. Account deletion no longer depends on this list: since 2026-10-14 it
+// uses recursiveDelete over users/{uid}, which also covers nested collections
+// (sessions/{id}/messages) and any collection missing from here. The account
+// tests seed every entry to prove that.
 export const USER_SUBCOLLECTIONS = [
   'entries',
   'parts',

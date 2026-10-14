@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { db } from '../../store/db'
 import { useTranslation } from '../../i18n'
+import { CARD_TAP_TARGET } from './cardControls'
 import type { UserPart } from '../../types'
 
 interface Props {
@@ -14,6 +15,7 @@ interface Props {
 // Spec: docs/superpowers/specs/2026-07-04-user-parts-model-design.md
 export function PartProposalCard({ partId }: Props) {
   const tr = useTranslation()
+  const inputId = useId()
   const [part, setPart] = useState<UserPart | null>(null)
   const [name, setName] = useState('')
   const [settled, setSettled] = useState<'kept' | 'dismissed' | null>(null)
@@ -76,7 +78,7 @@ export function PartProposalCard({ partId }: Props) {
   return (
     <div
       role="group"
-      aria-label={tr['parts.card.hint']}
+      aria-labelledby={`${inputId}-label`}
       style={{
         margin: '4px 0 20px',
         padding: '10px 12px',
@@ -86,23 +88,26 @@ export function PartProposalCard({ partId }: Props) {
         maxWidth: 420,
       }}
     >
-      <div style={{
+      <label id={`${inputId}-label`} htmlFor={inputId} style={{
+        display: 'block',
         fontFamily: "'Inter', sans-serif",
-        fontSize: 11,
+        fontSize: 12,
         color: 'var(--text-secondary)',
         marginBottom: 8,
       }}>
         {tr['parts.card.hint']}
-      </div>
+      </label>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          aria-label={tr['parts.card.hint']}
+          id={inputId}
           style={{
             flex: 1,
             minWidth: 160,
-            padding: '6px 10px',
+            minHeight: CARD_TAP_TARGET,
+            boxSizing: 'border-box',
+            padding: '0 10px',
             borderRadius: 8,
             border: '1px solid var(--border-subtle)',
             background: 'transparent',
@@ -112,9 +117,11 @@ export function PartProposalCard({ partId }: Props) {
           }}
         />
         <button
+          type="button"
           onClick={keep}
           style={{
-            padding: '6px 12px',
+            minHeight: CARD_TAP_TARGET,
+            padding: '0 14px',
             borderRadius: 8,
             border: '1px solid var(--border-subtle)',
             background: 'rgba(176,142,96,0.12)',
@@ -127,9 +134,11 @@ export function PartProposalCard({ partId }: Props) {
           {tr['parts.card.keep']}
         </button>
         <button
+          type="button"
           onClick={dismiss}
           style={{
-            padding: '6px 12px',
+            minHeight: CARD_TAP_TARGET,
+            padding: '0 14px',
             borderRadius: 8,
             border: '1px solid transparent',
             background: 'transparent',

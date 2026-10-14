@@ -51,4 +51,13 @@ describe('AmbiguityPrism', () => {
       hypotheses: hypotheses.map(item => ({ ...item, fit: 'not_this' })),
     })))
   })
+
+  it('keeps text legible and every control at a full-size touch target', () => {
+    render(<AmbiguityPrism message={message} sessionId="s1" hypotheses={hypotheses} />)
+    for (const button of screen.getAllByRole('button')) {
+      expect(button.style.minHeight).toBe('44px')
+      expect(parseInt(button.style.fontSize, 10)).toBeGreaterThanOrEqual(12)
+    }
+    expect(screen.getByRole('textbox', { name: /A better frame/i }).style.minHeight).toBe('44px')
+  })
 })

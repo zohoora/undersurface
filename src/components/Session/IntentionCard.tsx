@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { db } from '../../store/db'
 import { createIntention } from '../../engine/intentionTracker'
 import { useTranslation } from '../../i18n'
+import { CARD_TAP_TARGET } from './cardControls'
 
 interface Props {
   phrase: string
@@ -35,6 +36,7 @@ function skipKey(sessionId: string, phrase: string): string {
 // Spec: docs/superpowers/specs/2026-07-04-intentions-and-stance-design.md
 export function IntentionCard({ phrase, sessionId }: Props) {
   const tr = useTranslation()
+  const inputId = useId()
   const [text, setText] = useState(phrase)
   const [settled, setSettled] = useState<'kept' | 'skipped' | null>(() =>
     sessionStorage.getItem(skipKey(sessionId, phrase)) ? 'skipped' : null,
@@ -68,7 +70,7 @@ export function IntentionCard({ phrase, sessionId }: Props) {
   return (
     <div
       role="group"
-      aria-label={tr['intentions.card.hint']}
+      aria-labelledby={`${inputId}-label`}
       style={{
         margin: '4px 0 20px',
         padding: '10px 12px',
@@ -78,23 +80,26 @@ export function IntentionCard({ phrase, sessionId }: Props) {
         maxWidth: 420,
       }}
     >
-      <div style={{
+      <label id={`${inputId}-label`} htmlFor={inputId} style={{
+        display: 'block',
         fontFamily: "'Inter', sans-serif",
-        fontSize: 11,
+        fontSize: 12,
         color: 'var(--text-secondary)',
         marginBottom: 8,
       }}>
         {tr['intentions.card.hint']}
-      </div>
+      </label>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          aria-label={tr['intentions.card.hint']}
+          id={inputId}
           style={{
             flex: 1,
             minWidth: 160,
-            padding: '6px 10px',
+            minHeight: CARD_TAP_TARGET,
+            boxSizing: 'border-box',
+            padding: '0 10px',
             borderRadius: 8,
             border: '1px solid var(--border-subtle)',
             background: 'transparent',
@@ -104,9 +109,11 @@ export function IntentionCard({ phrase, sessionId }: Props) {
           }}
         />
         <button
+          type="button"
           onClick={keep}
           style={{
-            padding: '6px 12px',
+            minHeight: CARD_TAP_TARGET,
+            padding: '0 14px',
             borderRadius: 8,
             border: '1px solid var(--border-subtle)',
             background: 'rgba(176,142,96,0.12)',
@@ -119,9 +126,11 @@ export function IntentionCard({ phrase, sessionId }: Props) {
           {tr['intentions.card.keep']}
         </button>
         <button
+          type="button"
           onClick={skip}
           style={{
-            padding: '6px 12px',
+            minHeight: CARD_TAP_TARGET,
+            padding: '0 14px',
             borderRadius: 8,
             border: '1px solid transparent',
             background: 'transparent',

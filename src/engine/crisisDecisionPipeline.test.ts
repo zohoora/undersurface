@@ -49,6 +49,38 @@ describe('crisis decision pipeline — L1 precision contract', () => {
     }
   })
 
+  // TECH_ISSUES_2026-10-14 #5. The full both-directions table lives next to
+  // the shared floor in functions/src/shared/crisisFloor.test.ts; this pins
+  // the browser re-export to the same contract.
+  it('defers routine medication, negated, and recovered-past statements to L2', () => {
+    const deferred = [
+      'I forgot to take the pills this morning',
+      'I would never kill myself, I just hate this job',
+      'Five years ago I tried to end my life. I am doing much better now.',
+      "I'm not going to kill myself, I promise",
+      'I used to want to kill myself, but therapy helped.',
+      'My mom is going to want to kill me when she sees my grades',
+    ]
+
+    for (const text of deferred) {
+      expect(detectCrisisKeywords(text), text).toBe(false)
+    }
+  })
+
+  it('still hard-grounds sincere intent around those guards', () => {
+    const sincere = [
+      "I'm going to take all the pills tonight",
+      'I just took all my pills',
+      "I'm not sure I won't kill myself tonight",
+      'Five years ago I tried to end my life and now I want to do it again',
+      "I would never kill myself. Actually I'm going to end my life tonight.",
+    ]
+
+    for (const text of sincere) {
+      expect(detectCrisisKeywords(text), text).toBe(true)
+    }
+  })
+
   it('defers contextual language and slang to L2', () => {
     const contextual = [
       'I want to die. This dentist appointment is taking forever.',

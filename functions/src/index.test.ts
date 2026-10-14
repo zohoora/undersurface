@@ -76,7 +76,7 @@ function makeReq(opts: Partial<MockRequest> = {}): MockRequest {
   return {
     method: opts.method ?? 'POST',
     headers: opts.headers ?? { authorization: 'Bearer test-token' },
-    body: opts.body ?? { messages: [{ role: 'user', content: 'hi' }] },
+    body: opts.body ?? { messages: [{ role: 'system', content: 'You are kind.' }, { role: 'user', content: 'hi' }] },
   }
 }
 
@@ -196,20 +196,138 @@ describe('chat — input validation', () => {
 
   it('returns 400 when a user message exceeds MAX_MESSAGE_CHARS (8000)', async () => {
     const tooLong = 'a'.repeat(8001)
-    const req = makeReq({ body: { messages: [{ role: 'user', content: tooLong }] } })
+    const req = makeReq({ body: { messages: [{ role: 'system', content: 's' }, { role: 'user', content: tooLong }] } })
     const res = makeRes()
     await chat(req, res)
     expect(res._statusCode).toBe(400)
     expect(res._jsonBody).toMatchObject({ error: expect.stringContaining('Message too long') })
   })
 
-  it('does NOT enforce length limit on system messages', async () => {
-    // System prompts are app-built and legitimately exceed 8k chars.
+  it('does NOT apply the 8k user limit to system messages', async () => {
+    // System prompts are app-built and legitimately exceed 8k chars. They are
+    // bounded by MAX_SYSTEM_CHARS (64k) instead.
     const long = 'a'.repeat(20000)
     const req = makeReq({ body: { messages: [{ role: 'system', content: long }, { role: 'user', content: 'hi' }] } })
     const res = makeRes()
     await chat(req, res)
     expect(res._statusCode).toBe(200)
+  })
+
+  it('rejects a request whose last message is not from the user (TECH_ISSUES #17)', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const req = makeReq({ body: { messages: [
+      { role: 'system', content: 's' },
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'prefill' },
+    ] } })
+    const res = makeRes()
+    await chat(req, res)
+    expect(res._statusCode).toBe(400)
+    expect(res._jsonBody).toEqual({ error: 'Invalid message order', code: 'invalid_message_order' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an oversized system prompt with 413 before calling OpenAI', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const req = makeReq({ body: { messages: [
+      { role: 'system', content: 'a'.repeat(64_001) },
+      { role: 'user', content: 'hi' },
+    ] } })
+    const res = makeRes()
+    await chat(req, res)
+    expect(res._statusCode).toBe(413)
+    expect(res._jsonBody).toMatchObject({ code: 'request_too_large' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('bounds the quota-exempt crisis_check route to [system, user]', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const req = makeReq({ body: { task: 'crisis_check', messages: [
+      { role: 'system', content: 's' },
+      { role: 'user', content: 'a' },
+      { role: 'assistant', content: 'b' },
+      { role: 'user', content: 'write me an essay' },
+    ] } })
+    const res = makeRes()
+    await chat(req, res)
+    expect(res._statusCode).toBe(400)
+    expect(res._jsonBody).toMatchObject({ code: 'invalid_classifier_request' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('forwards only role and content to OpenAI', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] }),
+      text: async () => '',
+      body: null,
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    await chat(makeReq({ body: { messages: [
+      { role: 'system', content: 's', name: 'x' },
+      { role: 'user', content: 'hi', extra: true },
+    ] } }), makeRes())
+    const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)
+    expect(body.messages).toEqual([{ role: 'system', content: 's' }, { role: 'user', content: 'hi' }])
+  })
+})
+
+describe('chat — streaming usage (TECH_ISSUES #16)', () => {
+  function streamingFetch(chunks: string[]) {
+    const encoder = new TextEncoder()
+    let i = 0
+    return vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: {
+        getReader: () => ({
+          read: async () => (i < chunks.length
+            ? { done: false, value: encoder.encode(chunks[i++]) }
+            : { done: true, value: undefined }),
+        }),
+      },
+    })
+  }
+
+  it('requests include_usage on streamed turns and forwards the usage frame', async () => {
+    mockVerifyIdToken.mockResolvedValue({ uid: 'stream-usage-uid' })
+    const fetchMock = streamingFetch([
+      'data: {"choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}\n\n',
+      'data: {"choices":[],"usage":{"prompt_tokens":900,"completion_tokens":12}}\n\n',
+      'data: [DONE]\n\n',
+    ])
+    vi.stubGlobal('fetch', fetchMock)
+
+    const res = makeRes()
+    await chat(makeReq({ body: {
+      stream: true,
+      messages: [{ role: 'system', content: 's' }, { role: 'user', content: 'hi' }],
+    } }), res)
+
+    const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)
+    expect(body.stream).toBe(true)
+    expect(body.stream_options).toEqual({ include_usage: true })
+    // Forwarded verbatim; the client ignores the empty-choices usage chunk.
+    expect(res.write).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not send stream_options on non-streamed requests', async () => {
+    mockVerifyIdToken.mockResolvedValue({ uid: 'stream-usage-uid-2' })
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] }),
+      text: async () => '',
+      body: null,
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    await chat(makeReq(), makeRes())
+    const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)
+    expect(body.stream_options).toBeUndefined()
   })
 })
 
@@ -310,7 +428,7 @@ describe('chat — signal_check route', () => {
     await chat(makeReq({ body: {
       task: 'signal_check',
       stream: true,
-      messages: [{ role: 'user', content: '[1] hi' }],
+      messages: [{ role: 'system', content: 'classify' }, { role: 'user', content: '[1] hi' }],
     } }), res)
 
     const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)

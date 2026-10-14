@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:release": "SENTRY_UPLOAD_SOURCEMAPS=1 npm run build",
+    "build:native": "CAPACITOR_BUILD=1 npm run build",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -20,14 +21,13 @@
     "test:intentions": "RUN_INTENTIONS_EVAL=1 vitest run src/engine/intentionExtraction.live.test.ts",
     "test:stance": "RUN_STANCE_EVAL=1 vitest run src/engine/stanceObservation.live.test.ts",
     "test:depth": "RUN_DEPTH_EVAL=1 vitest run src/engine/companionDepth.live.test.ts",
-    "test:drift": "RUN_DRIFT_EVAL=1 vitest run src/engine/driftCompanion.live.test.ts",
     "test:release-evals": "node scripts/run-release-evals.mjs",
     "smoke-test": "bash scripts/smoke-test.sh",
-    "cap:sync": "npm run build && npx cap sync",
-    "cap:ios": "npm run build && npx cap sync ios && npx cap open ios",
-    "cap:android": "npm run build && npx cap sync android && npx cap open android",
-    "cap:run:ios": "npm run build && npx cap sync ios && npx cap run ios",
-    "cap:run:android": "npm run build && npx cap sync android && npx cap run android"
+    "cap:sync": "npm run build:native && npx cap sync",
+    "cap:ios": "npm run build:native && npx cap sync ios && npx cap open ios",
+    "cap:android": "npm run build:native && npx cap sync android && npx cap open android",
+    "cap:run:ios": "npm run build:native && npx cap sync ios && npx cap run ios",
+    "cap:run:android": "npm run build:native && npx cap sync android && npx cap run android"
   },
   "dependencies": {
     "@capacitor-firebase/authentication": "^8.2.0",

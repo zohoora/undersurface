@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense, type ReactNode } from 'react'
+import { useState, useEffect, useRef, Suspense, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useSettings, updateSettings } from '../../store/settings'
 import type { AppSettings } from '../../store/settings'
@@ -15,10 +15,13 @@ import { db } from '../../store/db'
 import PolicyModal from '../PolicyModal'
 import { SmsSettingsSection } from './SmsSettingsSection'
 import { CompanionPreferencesSection } from './CompanionPreferencesSection'
+import { LettersSection } from './LettersSection'
 import { timezoneLabel, timezoneOptions } from './timezoneOptions'
 import { useModalA11y } from '../../hooks/useModalA11y'
+import { lazyWithRetry } from '../../utils/lazyWithRetry'
+import { ChunkErrorBoundary } from '../ChunkErrorBoundary'
 
-const DeleteAccountModal = lazy(() => import('../DeleteAccountModal').catch(() => { window.location.reload(); return new Promise(() => {}) }))
+const DeleteAccountModal = lazyWithRetry(() => import('../DeleteAccountModal'), 'delete-account-modal')
 
 const dataButtonBase = {
   fontSize: 11,
@@ -252,6 +255,9 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
 
           {/* What matters to you (userValues flag) */}
           <UserValuesSection isOpen={isOpen} />
+
+          {/* Letters from parts (renders nothing until one exists, or under grounding) */}
+          {user && <LettersSection isOpen={isOpen} />}
 
           {/* Language */}
           <div className="settings-section">
@@ -569,8 +575,14 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
           </div>
           <Suspense fallback={null}>
             {policyOpen && <PolicyModal isOpen={policyOpen} onClose={() => setPolicyOpen(false)} />}
-            {deleteOpen && <DeleteAccountModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} />}
           </Suspense>
+          {deleteOpen && (
+            <ChunkErrorBoundary area="delete-account" variant="compact">
+              <Suspense fallback={null}>
+                <DeleteAccountModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} />
+              </Suspense>
+            </ChunkErrorBoundary>
+          )}
             </div>
         </SettingsSheetShell>
       ), document.body)}

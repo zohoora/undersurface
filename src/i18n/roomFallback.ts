@@ -1,8 +1,8 @@
-// English fallback for Room while native translations are prepared. Keeping
-// the full key set in every locale prevents raw keys from reaching the UI.
+// English source for Room and session-shell keys. English uses it directly.
+// Every other locale spreads it FIRST, as a safety net: it only fills a key
+// that the locale has not translated yet (so raw keys never reach the UI), and
+// the i18n tests flag any such key. It never overrides a real translation.
 export const roomFallback = {
-  'onboarding.step1.body': 'UnderSurface opens into a private reflection session. You can talk with your companion, write quietly in Journal, speak aloud, or enter Room for voice, sound, and quiet company.',
-  'landing.feature2': 'Move naturally between voice, sound, and quiet in Room',
   'session.bottomBar.room': 'Room',
   'room.aria': 'Room — ambient voice and sound space',
   'room.choose.eyebrow': 'Room',
@@ -32,7 +32,6 @@ export const roomFallback = {
   'room.voice.connecting': 'Bringing your companion in…',
   'room.voice.listening': 'listening',
   'room.voice.speaking': 'with you',
-  'room.voice.error': 'Voice could not join. You can continue with quiet company.',
   'room.voice.retry': 'try voice again',
   'room.voice.continueQuietly': 'Continue quietly',
   'room.audio.retry': 'Tap for sound',
@@ -49,5 +48,23 @@ export const roomFallback = {
   'room.return.done': 'done for now',
   'conductor.offer.room': 'Another reply may be less useful than a change of atmosphere. [Open Room for voice, sound, or quiet company, then return here if you want](#switch:room-arc).',
   'conductor.return.room': 'You are back from Room. Let whatever shifted have a little room before finding words.',
-  'ps.arm.room_arc': 'a Room arc',
+  // Session shell + voice reliability (2026-10-14 audit fixes). English
+  // fallback in every locale until translated.
+  'room.controls.aria': 'Room controls',
+  'voice.error.disconnected': 'The voice connection dropped. You can try again.',
+  'voice.error.budget': 'You have reached today’s voice limit. It resets at midnight UTC.',
+  'voice.error.rateLimited': 'Too many voice starts in a short time. Please wait a moment and try again.',
+  'voice.error.disabled': 'Voice is not available right now.',
+  'surface.error.body': 'This part of the session couldn’t load. Your words are safe.',
+  'surface.error.back': 'Back to Talk',
+  // Journal drafts that have not reached the conversation yet (T1).
+  'session.journal.draftNotAdded': 'Your journal words weren’t added yet. They’re kept here.',
+  'session.journal.draftClosed': 'This session closed before your journal words were added. They’re kept here.',
+  'session.journal.draftRetry': 'Try again',
+  'session.journal.draftCopy': 'Copy words',
+  'session.journal.draftCopied': 'Copied',
+  // SMS kill switch (S5).
+  'settings.sms.paused': 'SMS is paused for now. You can still disconnect a linked phone.',
+  // Field windows: a stored timezone the scheduler cannot use (S8).
+  'ps.field.timezoneInvalid': 'This timezone isn’t recognized, so no windows can be scheduled. Choose one from the list.',
 } as const

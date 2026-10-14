@@ -1,157 +1,190 @@
 # Key Files Reference
 
-## AI & Engines
+## AI & Prompts
 
 | File | Purpose |
 |------|---------|
-| `src/ai/openrouter.ts` | Client-side API calls to `/api/chat`; `analyzeEmotionAndDistress()` for combined emotion + distress check |
+| `src/ai/openrouter.ts` | Client-side API calls to `/api/chat` (legacy filename — calls the OpenAI proxy). `classifyCrisisRisk` (L2), `<<RISK:N;…>>` preamble parsing/stripping, `analyzeEmotionAndDistress()` (emotion tag; distress level is informational only) |
+| `src/ai/therapistPrompts.ts` | Therapist companion prompts — `THERAPIST_CORE` (warm), `REAL_TALK_CORE` (calling-out coping patterns), `SAFETY_RULES`, `buildTherapistSystemPrompt` / `buildTherapistMessages`, session note + reflection prompts, the recommendation block (teaches only available surfaces). Mode swap is gated on `mode==='real_talk' && !isGrounding` — grounding always reverts to the warm core |
+| `src/ai/voiceInstructions.ts` | `buildVoiceCompanionInstructions` — the single Realtime prompt for Speak and Room (live grounding, lexicon, HRV, flag gating) + `buildCurrentSessionSeed` (≤ 16 recent turns of THIS session, ≤ 6k chars, untrusted-wrapped; kept in Fresh eyes). Pure + synchronous so Room can reach `getUserMedia` inside the tap on iOS |
+| `src/ai/roomPrompts.ts` | `buildRoomInstructions` — wraps the voice companion prompt with Room's approach/length/density contract; drops the "handled locally" claim for non-English sessions |
+| `src/ai/partPrompts.ts` | System prompts for 7 seeded parts + `SHARED_INSTRUCTIONS` + emergence, reflection, growth, grounding prompts + `languageDirective()` |
+| `src/ai/crisisClassifierPrompt.ts` / `signalClassifierPrompt.ts` | Browser-side builders for the `crisis_check` and `signal_check` classifier routes |
+| `src/ai/therapistRecommendationParser.ts` | Parses `[phrase](#switch:target)` and `[phrase](#end:session)` into tappable segments |
+| `src/ai/ambiguityPrismParser.ts` | Validates the three `[text](#prism:h1..h3)` lines of an ambiguity-prism turn |
+| `src/ai/partProposalParser.ts` / `intentionOfferParser.ts` / `promiseParser.ts` | Marker parsers for part/value proposals, intention offers, companion promises |
+| `src/ai/promptSafety.ts` | Prompt-injection defenses: `wrapUserContent`, `sanitizeForPrompt` |
+| `src/ai/registerTiers.ts` | Register tiers + therapy-jargon bans |
+| `src/ai/llmCorrect.ts` | LLM-based autocorrect — sentence-level correction. All languages with sentence-ending punctuation. Exports `shouldTriggerAutocorrect()`, `isCJK()`, `SENTENCE_END_PUNCT`, `CJK_SENTENCE_END` |
 | `functions/src/shared/crisisClassifier.ts` | Canonical calibrated L2 prompt + structured-output schema shared by browser chat and SMS |
-| `functions/src/shared/crisisFloor.ts` | Canonical narrow L1 explicit-method floor shared by every channel |
-| `functions/src/shared/companionKernel.ts` | Pure cross-channel companion contract: shared behavior, Talk/Voice/SMS capability matrix, stable continuity types and renderer |
-| `src/ai/partPrompts.ts` | System prompts for 7 seeded parts + `SHARED_INSTRUCTIONS` + emergence, reflection, growth, grounding, intention prompts + `languageDirective()` for multilingual AI response directives |
-| `src/ai/sessionPrompts.ts` | Session mode prompts for parts — `SESSION_INSTRUCTIONS`, `buildSessionMessages()`, `buildSessionNotePrompt()` |
-| `src/ai/therapistPrompts.ts` | Therapist companion prompts — `THERAPIST_CORE` (warm), `REAL_TALK_CORE` (calling-out coping patterns), `buildTherapistMessages()`, `buildTherapistSessionNotePrompt()`, `buildSessionReflectionPrompt()`. Mode swap is gated on `mode==='real_talk' && !isGrounding` — grounding always reverts to warm core |
-| `src/engine/partOrchestrator.ts` | Selects which part responds (role-based scoring); distress detection; intention passing; pre-warms DB caches in `loadParts()` |
+| `functions/src/shared/crisisFloor.ts` | Canonical narrow L1 floor (`detectCrisisKeywords`) shared by every channel, with the pills-intent, negation and distant-past precision guards |
+| `functions/src/shared/companionKernel.ts` | Pure cross-channel companion contract: shared principles, response modes, web/voice/SMS capability matrix, memory aperture, alliance preferences, continuity blocks (incl. living hypotheses), grounding policy |
+
+## Engines
+
+| File | Purpose |
+|------|---------|
+| `src/engine/sessionOrchestrator.ts` | Session phase detection, L1 `checkCrisisKeywords` (activates grounding), emotion check, session note |
+| `src/engine/turnResponder.ts` | `respondToUserTurn`: conductor → research → model routing; reads `isGroundingActive()` at call time and after every await, cancels research arms under grounding |
+| `src/engine/adaptiveConductor.ts` | `planAdaptiveConductor` — shadow/live response-mode and surface-arm selection (`adaptive-conductor-v1`) |
+| `src/engine/personalScience.ts` | `planResearchTurn`, research arms/protocols, transfer ladder, half-life/finding derivations (several now test-only) |
+| `src/engine/freshEyes.ts` | `isFreshEyesSession`, `normalizeSessionMemoryAperture` |
+| `src/engine/surfaceAvailability.ts` | `isRoomEnabled` (effective Room flag), `isVoiceEnabled`, `canOpenSurface` (surface + `#switch:` target gate, Room never under grounding) |
+| `src/engine/roomEngine.ts` | Room clock: `buildRoomScore` (arrival/company/return cues), `roomCuesInWindow`, `ROOM_CUE_GRACE_MS`, `roomCueInstruction` (cue purposes), `detectRoomCommand` (English-only anchored spoken controls), `roomVoiceDensityAfter` |
+| `src/engine/sessionFinalizer.ts` | Closes other active sessions when a new one starts, skipping any with activity in the last 30 minutes |
+| `src/engine/sessionContextLoader.ts` | Browser-side bounded companion context: memories, profile, facts, recent notes, field notes, parts, intentions, stance, values, promises, protocols, hypotheses, recent Room visits, preferences |
+| `src/engine/sessionReflectionEngine.ts` | Post-session reflection — memories, profile, somatic signals, personal facts, part/value/intention/stance observations, field moments, ambient assessment; triggers part growth and letters |
+| `src/engine/partOrchestrator.ts` | Selects which part responds in Journal (role-based scoring); journal-mode crisis checks; pre-warms DB caches in `loadParts()` |
 | `src/engine/pauseDetector.ts` | Detects writing pauses from keystroke timing |
 | `src/engine/emergenceEngine.ts` | Detects new parts emerging from writing |
-| `src/engine/reflectionEngine.ts` | Entry reflection — creates memories, summaries, profile updates on entry switch |
-| `src/engine/partGrowthEngine.ts` | Part evolution — updates prompts, keywords, emotions every 5 entries |
-| `src/ai/llmCorrect.ts` | LLM-based autocorrect — sentence-level spelling/capitalization correction via small model. All languages with sentence-ending punctuation. Exports `shouldTriggerAutocorrect()`, `isCJK()`, `SENTENCE_END_PUNCT`, `CJK_SENTENCE_END` |
-| `src/engine/sessionOrchestrator.ts` | Session phase detection, shared narrow crisis hard floor, emotion check with grounding activation |
-| `src/engine/sessionReflectionEngine.ts` | Post-session reflection — extracts memories, profile updates, somatic signals, personal facts (people, dates, context, current threads) from session transcripts |
-| `src/engine/sessionContextLoader.ts` | Browser-side bounded companion context loader: memories, profile, facts, recent notes, field notes, parts, intentions, stance, values, and promises |
+| `src/engine/partGrowthEngine.ts` | Part evolution — updates prompts, keywords, emotions (run from session reflection) |
+| `src/engine/ruptureDetector.ts` / `signalTracker.ts` | Companion signals: deterministic rupture facts; hysteresis/cooldown for the per-turn signal classifier |
+| `src/engine/userPartTracker.ts` / `userValueTracker.ts` / `intentionTracker.ts` / `storyArc.ts` | Companion depth state machines |
+| `src/engine/letterEngine.ts` | Letters from parts after sessions close. Feature-flagged (`lettersFromParts`) |
 | `src/engine/weatherEngine.ts` | Inner weather tracking from emotional tone shifts |
 | `src/engine/ritualEngine.ts` | Session logging for ritual detection (writing habits) |
-| `src/engine/fossilEngine.ts` | Resurfaces old entry commentary. Lazy-loaded on first entry switch |
-| `src/engine/explorationEngine.ts` | AI-generated writing prompts. Lazy-loaded on first new entry |
-| `src/engine/blankPageEngine.ts` | Opening thought on new blank entries. Feature-flagged (`blankPageSpeaks`) |
-| `src/engine/letterEngine.ts` | Periodic letters from parts. Feature-flagged (`lettersFromParts`) |
-| `src/engine/disagreementEngine.ts` | Parts respectfully disagree. Feature-flagged (`partsDisagreeing`). Uses `ROLE_OPPOSITION` mapping (protector<>exile, manager<>firefighter) |
-| `src/engine/echoEngine.ts` | Resurfaces patterns from past entries. Feature-flagged (`echoes`) |
-| `src/engine/threadEngine.ts` | Resumes unfinished themes across sessions. Feature-flagged (`threads`) |
-| `src/engine/bodyMapEngine.ts` | Computes HomunculusState from somatic memories — emotion-to-color mapping, region sizing, dominant emotions |
-| `src/engine/quoteEngine.ts` | Highlights meaningful quotes. Feature-flagged |
+| `src/engine/disagreementEngine.ts` | Parts respectfully disagree. Feature-flagged (`partsDisagreeing`) |
+| `src/engine/echoEngine.ts` / `threadEngine.ts` / `quoteEngine.ts` | Echoes, unfinished threads, quotes (flag-gated; read legacy `entries`) |
+| `src/engine/bodyMapEngine.ts` | Computes HomunculusState from somatic memories |
+| `src/engine/memoryPruner.ts` | Bounded pruning of high-growth collections after reflection |
 | `src/engine/quietTracker.ts` | Tracks periods of silence/no writing |
-| `src/engine/hrvEngine.ts` | Webcam HRV — `getUserMedia` + ROI extraction + Web Worker spawn. Session-mode only, feature-flagged (`webcamHrv`) |
-| `src/engine/hrvSignalWorker.ts` | Web Worker — CHROM rPPG, Butterworth bandpass, FFT, peak detection, derived metrics (SDNN/pNN50/LF-HF/Baevsky/coherence), respiratory bandpass. Exports `computeHrvMetrics` / `classifyAutonomicState` / `computeDerivedMetrics` / `respiratoryBandpass` — reused by H10 path |
-| `src/engine/hrvTimeline.ts` | Source-agnostic — accepts `HrvMeasurement` from any source. Autonomic-shift detection, behavioral correlations, prompt-context builder for `hrvContext` |
-| `src/engine/polarH10Engine.ts` | Polar H10 via Web Bluetooth — HR Measurement (0x2A37) parser, PMD ACC frame parser (raw + delta), streaming bandpass on accel magnitude → live `breathingScale`, zero-crossing → respiratory rate. Feature-flagged (`polarH10`) |
-| `src/hooks/useHrvSession.ts` | Webcam HRV session lifecycle — consent gate, engine wiring, 10s Firestore flush |
-| `src/hooks/usePolarH10Session.ts` | Polar H10 session lifecycle — mirrors `useHrvSession` surface, exposes `getBreathingScale` stable getter for animation rAF polling |
-| `src/engine/driftEngine.ts` | Drift — pure reducer (`driftReduce`), the single flow authority: monotonic phases (never returns to the starting material), parameterized lengths (`DRIFT_LENGTHS`: 3/5/7 waves × 12s → `state.limits`), softening counters (`softerStreak`/`softerTotal` → `passMsForSoftening()` BLS pacing), `outcomeForReason()`, deterministic lexical `selectInterweave()` (one-exchange cooldown), `blsPan()` sweep math. No React/Firestore. Feature-flagged (`driftEnabled`) |
-| `src/ai/driftPrompts.ts` | Drift text + voice system prompts — `buildDriftSystemPrompt` / `buildDriftVoiceInstructions`, interweave fragments (rain/defusion/parts/focusing), `DRIFT_DECLINE_LOOP` no-return teaching, `SETTLE_BIAS`. Never names the technique; embeds `SAFETY_RULES` |
+| `src/engine/hrvEngine.ts` | Webcam HRV — `getUserMedia` + ROI extraction + Web Worker spawn. Feature-flagged (`webcamHrv`) |
+| `src/engine/hrvSignalWorker.ts` | Web Worker — CHROM rPPG, Butterworth bandpass, FFT, derived metrics, respiratory bandpass. Exports `computeHrvMetrics` / `classifyAutonomicState` / `computeDerivedMetrics` / `respiratoryBandpass` — reused by the H10 path |
+| `src/engine/hrvTimeline.ts` | Source-agnostic timeline: autonomic shifts, behavioral correlations, `hrvContext` builder |
+| `src/engine/polarH10Engine.ts` | Polar H10 via Web Bluetooth — HRM parser, PMD ACC parser, streaming breathing extractor. Feature-flagged (`polarH10`) |
 
 ## TipTap Extensions
 
 | File | Purpose |
 |------|---------|
-| `src/extensions/colorBleed.ts` | Tints recent text with part color; disabled in dark mode (returns `DecorationSet.empty`) |
-| `src/extensions/marginTraces.ts` | Visual traces/marks in the editor margin |
 | `src/extensions/inkWeight.ts` | Varies text weight based on writing intensity |
 | `src/extensions/paragraphSettle.ts` | Visual settling animation for paragraphs |
-| `src/extensions/typewriterScroll.ts` | Typewriter-style scroll (admin-controlled via `defaultTypewriterScroll`) |
 
 ## Store & Config
 
 | File | Purpose |
 |------|---------|
 | `src/store/db.ts` | Firestore wrapper for user collections and nested session messages |
-| `src/store/settings.ts` | User settings in localStorage (3-tier cascade: hardcoded < globalConfig < localStorage) |
-| `src/store/globalConfig.ts` | Real-time listener on `appConfig/global` Firestore doc, `useGlobalConfig()` hook |
+| `src/store/settings.ts` | User settings in localStorage (3-tier cascade: hardcoded < globalConfig < localStorage); Room choices as `lastRoom*` |
+| `src/store/globalConfig.ts` | Real-time listener on `appConfig/global`, `useGlobalConfig()` hook |
+| `src/store/groundingState.ts` | Grounding state, auto-exit, `isGroundingActive()`, `onGroundingActivated` sinks; first-party diagnostics only (never GA) |
+| `src/store/groundingPersistence.ts` | Merges `lastGroundingAt` into `companionPreferences/current` on every activation (installed in `main.tsx`) |
+| `src/store/personalScience.ts` / `interventionOutcomes.ts` / `ambiguityPrism.ts` | Research-event, outcome and prism-feedback writers |
+| `src/store/dataExport.ts` | `exportAllData()` → Markdown export (incl. Room visits, letters, session transcripts) |
 | `src/firebase.ts` | Firebase/Firestore initialization with offline persistence |
 
 ## i18n
 
 | File | Purpose |
 |------|---------|
-| `src/i18n/index.ts` | `t()` for non-React, `useTranslation()` hook, `getLanguageCode()`, `getLLMLanguageName()`, `getPartDisplayName()` |
+| `src/i18n/index.ts` | `t()` for non-React, `useTranslation()` hook, `getLanguageCode()`, `getLLMLanguageName()`, `getPartDisplayName()`, `preloadLanguage` |
 | `src/i18n/languages.ts` | 17 supported languages + `detectBrowserLanguage()` |
-| `src/i18n/translations/en.ts` | English translations (~199 keys) — source of truth for `TranslationKey` type |
-| `src/i18n/translations/*.ts` | 16 non-English files (lazy-loaded, ~4-5KB each) |
+| `src/i18n/translations/en.ts` | English source of truth for `TranslationKey` |
+| `src/i18n/translations/*.ts` | 16 non-English files (lazy-loaded as `locale-<lang>-<hash>.js`) |
+
+Each locale is assembled as `{ ...personalScienceEnglish, ...roomFallback, ...<lang>Base, ...sessionCopy.<lang> }`: English fallbacks come first so a real translation always wins. `src/i18n/untranslated.test.ts` fails when a non-English locale value equals English (with a reasoned allowlist); `src/i18n/policy.test.ts` pins the privacy-policy processor disclosure.
 
 ## Auth & Services
 
 | File | Purpose |
 |------|---------|
-| `src/auth/AuthContext.tsx` | Auth provider — Google + Email/Password + password reset; sets Sentry + analytics user context |
+| `src/auth/AuthContext.tsx` | Auth provider — Google + Email/Password + password reset; sets Sentry + analytics user context; fires the Ads sign-up conversion |
 | `src/auth/authContext.ts` | `AuthContextValue` interface |
 | `src/auth/useAuth.ts` | Hook for consuming auth context |
+| `src/auth/consentGate.ts` | First-run consent check |
 | `src/services/analytics.ts` | Firebase Analytics wrapper — lazy-initializes on first `trackEvent()` |
+| `src/services/diagnostics.ts` | First-party `engineLog` diagnostics (cooldown-limited) |
 | `src/api/accountApi.ts` | Client-side account API caller, including SMS link/status/unlink actions |
+| `src/api/apiBase.ts` / `authedFetch.ts` | Native origin prefixing; authenticated fetch |
+| `src/security/contentSecurityPolicy.ts` | Derives the native meta CSP from the `firebase.json` header |
+| `src/utils/lazyWithRetry.ts` | Retry-once-then-reload-once lazy import (sessionStorage loop guard) |
+| `src/utils/connectionBanner.ts` | Pre-React IndexedDB/auth failure banner, removed once auth resolves |
 
 ## Components
 
 | File | Purpose |
 |------|---------|
-| `src/components/LoginScreen.tsx` | Two-section landing page: hero (animated demo, 5 examples) + auth section. Designed for Google Ads |
+| `src/components/LoginScreen.tsx` | Landing page (hero + auth section) |
 | `src/components/Onboarding.tsx` | Post-signup consent flow |
-| `src/components/Editor/LivingEditor.tsx` | TipTap rich text editor. Lazy-loaded — default export |
-| `src/components/Editor/IntentionInput.tsx` | Per-entry intention input (ghost button -> inline edit, 120 char max) |
-| `src/components/Editor/ExplorationCard.tsx` | Clickable exploration prompt card |
-| `src/components/Editor/PartThoughtBubble.tsx` | Part thought rendering in editor margin |
-| `src/components/Editor/HandwritingText.tsx` | Handwriting font text rendering |
-| `src/components/ThinkingOutLoud/ThinkingSpace.tsx` | "Thinking Out Loud" UI for user-part conversations |
-| `src/components/Atmosphere/BreathingBackground.tsx` | Breathing background animation |
-| `src/components/Atmosphere/CursorGlow.tsx` | Visual glow effect around cursor |
-| `src/components/Atmosphere/BilateralPulse.tsx` | Bilateral stimulation edge pulses — rhythm adapts to emotional tone |
-| `src/components/Atmosphere/PauseRipple.tsx` | Visual ripple during writing pauses |
-| `src/components/Atmosphere/usePauseRipple.ts` | Pause ripple hook (co-located with component) |
-| `src/components/BodyMap/BodyMapTab.tsx` | Body Map tab container — loads somatic memories, computes HomunculusState, handles dormant state |
-| `src/components/BodyMap/HomunculusSVG.tsx` | SVG homunculus figure with 10 animated body regions (Framer Motion), click-to-select, breathing animation |
-| `src/components/BodyMap/RegionDetail.tsx` | Region detail panel — emotion pills, recent somatic quotes, entry dates |
-| `src/components/Session/SessionView.tsx` | Session/conversation mode UI — therapist companion chat with crisis keyword detection before LLM generation. Accepts `initialMode` prop (`'standard' \| 'real_talk'`) for new sessions, persists `mode` field on the Session doc, threads it into every prompt builder call, and renders a `◆ Real Talk` badge in the header |
-| `src/components/Session/Drift/DriftField.tsx` | Full-screen Drift overlay (v2) — one begin screen (chips/lengths/anchor), waves with progress dots + warmth layer, scripted micro-lines; mounted from `SessionView` as the `drift` surface. Flow authority stays in the engine. Timers/unmount cleanup keyed on stable handlers, not the `drift` object |
-| `src/components/Session/Drift/BilateralStimulus.tsx` | Bilateral stimulation for Drift — Web Audio panned ticks or a visual sweeping dot, driven by `blsPan()`; sweep slows as the writer softens (`passMsForSoftening`) |
-| `src/components/Session/Drift/DriftExchange.tsx` | v2 check-in — directional pills (softer/same/stronger) submit ON TAP; optional "add a word" input routes the typed path. No numeric distress scale |
-| `src/components/Session/Drift/DriftClosing.tsx` | Drift closure copy per reason (settle/user/stuck/cap/crisis) — fixed i18n strings |
-| `src/components/Sidebar/EntriesList.tsx` | Unified sidebar — entries + sessions in one chronological list with Body Map tab (when `bodyMap` feature flag enabled) |
-| `src/components/Sidebar/SettingsPanel.tsx` | Settings panel — slide-up overlay above gear button |
-| `src/components/Sidebar/SmsSettingsSection.tsx` | Creates expiring link codes, polls link state, opens SMS composer, and disconnects phones |
-| `src/components/Sidebar/ModelSelector.tsx` | LLM model selection dropdown |
-| `src/components/SessionClosing.tsx` | Session closing overlay — The Weaver's closing thought |
+| `src/components/Session/SessionView.tsx` | Session shell — Talk composer, surface switching (`canOpenSurface`), recommendation taps, surface arcs, Room/Voice mounting, biometrics, end-session. Accepts `initialMode` for new sessions and persists `session.mode` |
+| `src/components/Session/SessionBottomBar.tsx` | Surface pills (Talk, Journal, Speak, Room) + options menu (Fresh eyes, Inner voices, Real Talk) |
+| `src/components/Session/SessionMessage.tsx` | Message rendering: recommendation segments, prism card, conductor offer, proposal/intention cards |
+| `src/components/Session/SessionJournalSurface.tsx` | In-session TipTap journal + parts |
+| `src/components/Session/Room/RoomField.tsx` | Room modal dialog (portaled, focus-trapped, `#root` inert): choose screen, immersion, controls |
+| `src/components/Session/VoiceField.tsx` | Speak overlay; rendered for any non-idle voice state |
+| `src/components/Session/SurfaceErrorBoundary.tsx` | Local error boundary around Room and Voice |
+| `src/components/Session/ConductorOfferCard.tsx` | Conductor surface offer + "Not now" (`markResearchOverridden`) |
+| `src/components/Session/AmbiguityPrism.tsx` | Prism feedback card (fits / maybe / not this, rewrite) |
+| `src/components/Session/FieldMosaic.tsx` | Unreviewed field moments at the top of a fresh session |
+| `src/components/Session/SurfaceArc.tsx` | `SurfaceArcGuide` (Journal timer) + `SurfaceArcReturn` (outcome on return) |
+| `src/components/Session/PartProposalCard.tsx` / `ValueProposalCard.tsx` / `IntentionCard.tsx` | Consent cards for parts, values, intentions |
+| `src/components/Session/cardControls.ts` | Shared 44px-target / minimum-font styles for session cards |
+| `src/components/Session/HrvAmbientBar.tsx` | `BiometricsBar` (HR, HRV, H10 respiration panel) |
+| `src/components/Session/HrvConsentDialog.tsx` / `PolarH10ConsentDialog.tsx` / `PolarH10ConnectButton.tsx` | Biometric consent + connect |
+| `src/components/Editor/useJournalParts.ts` / `PartThoughtBubble.tsx` / `HandwritingText.tsx` | Journal parts pipeline + rendering |
+| `src/components/ThinkingOutLoud/ThinkingSpace.tsx` | "Thinking Out Loud" multi-turn part dialogue |
+| `src/components/Atmosphere/*` | Breathing background, cursor glow, bilateral pulse, pause ripple |
+| `src/components/BodyMap/*` | Body Map tab, homunculus SVG, region detail (`bodyMap` flag) |
+| `src/components/Sidebar/EntriesList.tsx` | Session list (100 newest, live) + Body Map tab |
+| `src/components/Sidebar/SettingsPanel.tsx` | Settings sheet |
+| `src/components/Sidebar/SmsSettingsSection.tsx` | Expiring link codes, link state, SMS composer, disconnect; mounts `FieldWindowSettings` when linked |
+| `src/components/Sidebar/FieldWindowSettings.tsx` | Field-window editor (≥ 15-minute windows, consent stamp) |
+| `src/components/Sidebar/CompanionPreferencesSection.tsx` | Companion memory review, Field Mosaic toggle, alliance preferences |
+| `src/components/Sidebar/LettersSection.tsx` | Letters from parts (hidden under grounding / until one exists) |
+| `src/components/Sidebar/UserPartsSection.tsx` / `UserValuesSection.tsx` | "Parts of you" / "What matters to you" |
 | `src/components/InnerWeather.tsx` | Inner weather display widget |
 | `src/components/AnnouncementBanner.tsx` | Banner from global config, dismissible via sessionStorage |
 | `src/components/CrisisResources.tsx` | Crisis helpline links shown during grounding |
 | `src/components/DeleteAccountModal.tsx` | Account deletion confirmation. Lazy-loaded — default export |
-| `src/components/PolicyContent.tsx` | Privacy policy + disclaimer, fully translated |
-| `src/components/PolicyModal.tsx` | Modal wrapper for policy content — default export |
-| `src/components/ErrorBoundary.tsx` | Only class component — `Sentry.captureException()` in `componentDidCatch` |
+| `src/components/PolicyContent.tsx` / `PolicyModal.tsx` | Privacy policy + disclaimer (processor disclosure: OpenAI, Twilio, Firebase, Sentry, Google Analytics/Ads; pinned by `policy.test.ts`) |
+| `src/components/ErrorBoundary.tsx` | Root error boundary — `Sentry.captureException()` in `componentDidCatch` |
 
 ## Hooks
 
 | File | Purpose |
 |------|---------|
-| `src/hooks/useTheme.ts` | Theme resolution (light/dark/system), sets `data-theme` on `<html>` |
+| `src/hooks/useSessionStream.ts` | Message lifecycle: append queue, L1 + raced L2 on every user turn, streaming, preamble handling, research delivery, deterministic companion messages (re-check grounding) |
+| `src/hooks/useSessionVoice.ts` | Speak lifecycle over `useVoiceSession`; `connecting` while instructions are prepared |
+| `src/hooks/useVoiceSession.ts` | Realtime WebRTC hook — `start`/`stop`/`toggleMute`/`setMicEnabled`/`cancelResponse`/`promptAssistant` (system item + bare `response.create`); connection-drop handling. `speak()` and the `passive` option are unused leftovers |
+| `src/hooks/voiceErrors.ts` | Maps `realtime-token` error codes and Realtime failures to friendly errors; `isFatalRealtimeServerError` |
+| `src/hooks/useRoomSession.ts` | One running Room: lifetime token, per-Room write queue, clock + cue delivery, spoken controls, audio ducking, wake lock |
+| `src/hooks/useSessionBiometrics.ts` | Camera/Polar selection + mutex; builds the `BiometricSource` |
+| `src/hooks/useHrvSession.ts` / `usePolarH10Session.ts` | Biometric session lifecycles (consent, flush, `getBreathingScale`) |
 | `src/hooks/useGroundingMode.ts` | Grounding state via `useSyncExternalStore`, sets `data-grounding` on `<html>` |
-| `src/hooks/useFlowState.ts` | Flow state from keystroke timing, sets `data-flow` + `--flow-intensity` on `<html>` |
-| `src/hooks/useTimeAwarePalette.ts` | Time-of-day hue shifts |
-| `src/hooks/useSeasonalPalette.ts` | Seasonal color shifts |
-| `src/hooks/useHandwritingMode.ts` | Handwriting font mode |
-| `src/hooks/useVoiceSession.ts` | Realtime WebRTC session hook (shared by Speak, Relax, Drift) — `start`/`stop`/`speak`/`toggleMute`/`setMicEnabled`/`cancelResponse`; mints a client secret via `/api/realtime-token`, browser↔OpenAI direct |
-| `src/hooks/useDriftSession.ts` | Drives `driftEngine` — v2 `begin()` orchestrates the opening phases from one screen (typed focus crisis-checked, chips not), `submitNoticeTap` for instant tap-only check-ins (no LLM), typed `submitNotice` unchanged (eval-verified), 1s tick + timers, two-layer crisis stack, persists `driftSessions`. Feature-flagged (`driftEnabled`) |
-| `src/hooks/useDriftVoice.ts` | Drift voice adapter over `useVoiceSession` — mic gating during BLS sets, one scripted cue per phase (gated on `connected`, retried on connect), transcript crisis floor. Utterances route via `submitNotice(text,'skipped')` |
+| `src/hooks/useModalA11y.ts` | Escape, focus trap, initial focus and focus restore for dialogs |
+| `src/hooks/useAutocorrect.ts` | Autocorrect + Backspace undo for composer/journal |
+| `src/hooks/useTheme.ts` / `useTimeAwarePalette.ts` / `useSeasonalPalette.ts` / `useFlowState.ts` / `useHandwritingMode.ts` | Theme and atmosphere |
 
 ## Admin
 
 | File | Purpose |
 |------|---------|
-| `src/admin/adminTypes.ts` | TypeScript types for admin API + `GlobalConfig` + rich metric types (WritingHabits, EmotionalLandscape, FeatureAdoption, AdminSession, AdminWeather, AdminLetter, AdminFossil) |
+| `src/admin/adminTypes.ts` | Admin API types + `GlobalConfig` |
+| `src/admin/adminDefaults.ts` | `ADMIN_CONFIG_DEFAULTS` (no `roomEnabled`, so an unset flag keeps deriving) |
+| `src/admin/featureFlags.ts` | `effectiveRoomEnabled`, `effectiveSmsEnabled`, `RETIRED_FEATURE_KEYS` stripping |
 | `src/admin/adminApi.ts` | Client-side admin API caller (`adminFetch(action, params)`) |
 | `src/admin/AdminDashboard.tsx` | Admin shell with 6 tabs. Lazy-loaded — default export |
-| `src/admin/AdminOverview.tsx` | Live user count + cached metric cards + writing habits, emotional landscape, feature adoption sections + recent activity |
-| `src/admin/AdminUsers.tsx` | Sortable user table (9 columns: user, entries, thoughts, interactions, words, parts, sessions, signup, last active) |
-| `src/admin/AdminUserDetail.tsx` | 8-tab user detail view (entries, parts, thoughts, profile, sessions, weather, letters, fossils) |
-| `src/admin/Admin{Analytics,Messages,Insights,Settings}.tsx` | Analytics charts, contact messages, AI insights, global config editor |
+| `src/admin/AdminUserDetail.tsx` | 11-tab user detail view |
+| `src/admin/Admin{Overview,Users,Analytics,Messages,Insights,Settings}.tsx` | Dashboard tabs |
 
-## Config & Build
+## Functions, Config & Build
 
 | File | Purpose |
 |------|---------|
-| `functions/src/index.ts` | Cloud Function exports, including `smsApi` + `smsInboundProcessor` |
-| `functions/src/sms/` | Twilio SMS/MMS webhook, server-side shared-context loader, protected-media fetch/validation, multimodal adaptive prompt + structured note/visual-risk decision, crisis pipeline, async delivery processor, and unit tests |
-| `firebase.json` | Hosting config + API rewrites, including `/api/sms` |
-| `firestore.rules` | Security rules |
-| `vite.config.ts` | Vite + React + Tailwind v4 + VitePWA + Sentry source maps; `manualChunks` splits editor + sentry |
+| `functions/src/index.ts` | Exports the nine functions |
+| `functions/src/chat.ts` / `realtime.ts` / `account.ts` / `mcp.ts` | Chat proxy, Realtime mint, account actions, MCP server |
+| `functions/src/admin/configSchema.ts` | `appConfig/global` validation (`FEATURE_KEYS`, retired keys) |
+| `functions/src/shared/featureFlags.ts` | Server reads of `features` (60s cache), `isRoomEnabled`, `isRealtimeVoiceAllowed` |
+| `functions/src/shared/quota.ts` | Monthly token quota + per-day budgets in `quotas/{uid}` |
+| `functions/src/sms/index.ts` | `smsApi` webhook + `smsInboundProcessor` |
+| `functions/src/sms/state.ts` | Server-owned SMS state: risk, opt-out, consent revocation, daily budget, kill switch, deletion checks |
+| `functions/src/sms/delivery.ts` | Twilio error classification (429 retry / 4xx terminal / else ambiguous) |
+| `functions/src/sms/fieldWindows.ts` / `fieldWindowLogic.ts` | Field-window scheduler, dispatcher, sweeper / pure validation + decisions |
+| `functions/src/sms/context.ts` / `prompts.ts` / `openai.ts` / `localTime.ts` | SMS context loader, prompt (writer-local time), model calls, timezone math |
+| `functions/src/sms/linking.ts` / `field.ts` / `media.ts` / `moments.ts` / `research.ts` | Phone linking, intents + fixed copy, Twilio media, field moments, research events |
+| `firebase.json` | Hosting rewrites, the single web CSP + Permissions-Policy headers, functions predeploy build |
+| `firestore.rules` / `storage.rules` / `firestore.indexes.json` | Security rules + indexes (`tests/` covers all three) |
+| `vite.config.ts` | Vite + React + Tailwind v4 + VitePWA (trimmed precache, runtime cache) + native meta CSP plugin + Sentry source maps; `manualChunks` splits firebase, react-vendor, editor, sentry |
 | `vitest.config.ts` | Test config — finds `src/**/*.test.{ts,tsx}` |
 | `eslint.config.js` | Flat config with TypeScript ESLint, React Hooks, React Refresh |
 | `src/types/tiptap.d.ts` | TipTap editor.storage type augmentation |

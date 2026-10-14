@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -11,10 +11,13 @@ import { useSettings, updateSettings } from '../../store/settings'
 import { getGlobalConfig, useGlobalConfig } from '../../store/globalConfig'
 import { SessionBottomBar, type SessionSurface } from './SessionBottomBar'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../../store/db'
+import { discardSurfaceArcOutcome } from '../../store/personalScience'
 import { SessionOrchestrator } from '../../engine/sessionOrchestrator'
 import { SessionRuntime, type SessionTicket } from '../../engine/sessionRuntime'
 import { useSessionVoice } from '../../hooks/useSessionVoice'
 import { useSessionStream } from '../../hooks/useSessionStream'
+import { useJournalDraft, type JournalDraftOwner } from '../../hooks/useJournalDraft'
+import { useAuth } from '../../auth/useAuth'
 import { loadTherapistContext } from '../../engine/sessionContextLoader'
 import { maybeBackfillUserParts } from '../../engine/userPartsBackfill'
 import { maybeGenerateStoryArc } from '../../engine/storyArc'
@@ -24,28 +27,31 @@ import { getWeatherEngine } from '../../store/weatherStore'
 import { trackEvent } from '../../services/analytics'
 import { SessionMessageBubble } from './SessionMessage'
 import { SessionJournalSurface } from './SessionJournalSurface'
-import { useGroundingMode } from '../../hooks/useGroundingMode'
+import { JournalDraftNotice } from './JournalDraftNotice'
+import { isGroundingActive, useGroundingMode } from '../../hooks/useGroundingMode'
 import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
 import { PolarH10ConsentDialog } from './PolarH10ConsentDialog'
 import { PolarH10ConnectButton } from './PolarH10ConnectButton'
-import type { ResearchArm, Session, SessionMessage, SessionMode } from '../../types'
-import { useTranslation } from '../../i18n'
+import type { Session, SessionMessage, SessionMode } from '../../types'
+import { getLanguageCode, useTranslation } from '../../i18n'
 import type { MemoryAperture } from '../../types'
 import { FieldMosaic } from './FieldMosaic'
 import { SurfaceArcGuide, SurfaceArcReturn } from './SurfaceArc'
-import { assignmentFromEvent, planResearchTurn } from '../../engine/personalScience'
-import { persistResearchAssignment } from '../../store/personalScience'
+import { assignmentFromEvent } from '../../engine/personalScience'
 import { isFreshEyesSession, normalizeSessionMemoryAperture } from '../../engine/freshEyes'
 import { finalizePreviousActiveSessions } from '../../engine/sessionFinalizer'
-import { planAdaptiveConductor } from '../../engine/adaptiveConductor'
-import { engineLog } from '../../services/diagnostics'
-import { buildTherapistSystemPrompt } from '../../ai/therapistPrompts'
+import { respondToUserTurn as respondToTurn } from '../../engine/turnResponder'
+import { canOpenSurface, isRoomEnabled, isVoiceEnabled } from '../../engine/surfaceAvailability'
+import { roomVoiceCommandsSupported } from '../../engine/roomEngine'
+import { buildVoiceCompanionInstructions, consumeVoiceRepair } from '../../ai/voiceInstructions'
 import { buildRoomInstructions } from '../../ai/roomPrompts'
 import type { RoomConfig } from '../../hooks/useRoomSession'
+import { lazyWithRetry } from '../../utils/lazyWithRetry'
+import { SurfaceErrorBoundary } from './SurfaceErrorBoundary'
 
-const VoiceField = lazy(() => import('./VoiceField').then(module => ({ default: module.VoiceField })))
-const RoomField = lazy(() => import('./Room/RoomField'))
+const VoiceField = lazyWithRetry(() => import('./VoiceField').then(module => ({ default: module.VoiceField })), 'voice-field')
+const RoomField = lazyWithRetry(() => import('./Room/RoomField'), 'room-field')
 
 interface Props {
   sessionId: string | null
@@ -91,21 +97,16 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const runtimeRef = useRef(new SessionRuntime())
   const handleSendRef = useRef<() => void>(() => {})
 
-  const voiceEnabled = getGlobalConfig()?.features?.voiceEnabled === true
-  const relaxEnabled = getGlobalConfig()?.features?.relaxEnabled === true
-
   const globalConfig = useGlobalConfig()
+  const voiceEnabled = isVoiceEnabled(globalConfig?.features)
   // Room absorbs the old Relax and Drift entries. It is unavailable while
-  // grounding owns the session.
+  // grounding owns the session. An explicit `roomEnabled` flag wins; unset, it
+  // stays derived from the legacy relaxEnabled/driftEnabled flags.
   const grounding = useGroundingMode()
-  const driftEnabled = globalConfig?.features?.driftEnabled === true
-  // Room replaces the two old restorative entries without requiring a config
-  // migration before deploy: either existing flag makes the unified surface
-  // available.
-  const roomEnabled = relaxEnabled || driftEnabled
+  const roomEnabled = isRoomEnabled(globalConfig?.features)
   const [surface, setSurface] = useState<SessionSurface>('talk')
-  const [journalDraft, setJournalDraft] = useState<string>('')
-  const [activeArc, setActiveArc] = useState<{ surface: SessionSurface; outcomeId: string; startedAt: number; ambientReturn?: boolean } | null>(null)
+  const uid = useAuth().user?.uid ?? null
+  const [activeArc, setActiveArc] = useState<{ surface: SessionSurface; outcomeId: string; researchEventId: string; startedAt: number; ambientReturn?: boolean } | null>(null)
   const [returnedArc, setReturnedArc] = useState<{ surface: SessionSurface; outcomeId: string } | null>(null)
   const [conductorReturn, setConductorReturn] = useState<Exclude<SessionSurface, 'talk' | 'relax' | 'drift'> | null>(null)
   const handleAutocorrect = useAutocorrect({
@@ -274,86 +275,73 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     runtime: runtimeRef.current,
   })
 
+  // Another tab or device may close this session (TECH_ISSUES #15). Merge a
+  // remote close into the local view so nothing keeps writing into it.
+  const adoptRemoteClose = useCallback((sessionId: string, remote: Session) => {
+    setSession(prev => prev && prev.id === sessionId ? {
+      ...prev,
+      status: 'closed',
+      endedAt: remote.endedAt ?? prev.endedAt,
+      sessionNote: remote.sessionNote ?? prev.sessionNote,
+      phase: remote.phase ?? prev.phase,
+    } : prev)
+  }, [])
+
+  // A Journal draft belongs to the session it was written in, captured by the
+  // draft itself. It is contributed only to that session, only while it is
+  // the one on screen and still open (re-read, since another tab may have
+  // closed it); otherwise the append is refused and the words stay saved.
+  const appendJournalDraft = useCallback(async (text: string, owner: JournalDraftOwner): Promise<boolean> => {
+    const current = sessionRef.current
+    if (!current || current.id !== owner.sessionId || current.status !== 'active') return false
+    const remote = await db.sessions.get(owner.sessionId).catch(() => undefined)
+    if (remote?.status === 'closed') {
+      adoptRemoteClose(owner.sessionId, remote)
+      return false
+    }
+    const result = await appendUserMessage(text, 'text', 'journal', {
+      ownerSessionId: owner.sessionId,
+      messageId: owner.messageId,
+    })
+    return result !== null
+  }, [appendUserMessage, adoptRemoteClose])
+
+  // Saved on this device as the writer types; restored when Journal opens for
+  // the same session. `/session/new` adopts its real id without losing words.
+  const journalDraft = useJournalDraft({ uid, sessionId: session?.id ?? null, append: appendJournalDraft })
+  const commitJournalDraft = journalDraft.commit
+  const setJournalText = journalDraft.setText
+
+  // Conductor / research planning lives in turnResponder, which reads
+  // grounding at call time: L1 fires DURING the awaited user append, so the
+  // render-time `grounding` value here would be stale (TECH_ISSUES #1).
   const respondToUserTurn = useCallback(async (
     updatedMessages: SessionMessage[],
     currentSession: Session,
-  ): Promise<SessionMessage[]> => {
-    const conductor = planAdaptiveConductor(currentSession, updatedMessages, {
-      grounding,
-      availableSurfaces: [
-        'talk',
-        'journal',
-        ...(voiceEnabled ? ['speak' as const] : []),
-        ...(roomEnabled ? ['room' as const] : []),
-      ],
-      recentEvents: contextRef.current?.recentConductorEvents,
-      protocols: contextRef.current?.activePersonalProtocols,
-    })
-    if (conductor) {
-      let persisted = false
-      try {
-        await persistResearchAssignment(conductor.event)
-        persisted = true
-      } catch {
-        engineLog('warn', 'conductor.persistence_failed', 'conductor provenance could not be persisted', { sessionId: currentSession.id })
-      }
-      if (persisted && contextRef.current) {
-        contextRef.current.recentConductorEvents = [
-          conductor.event,
-          ...contextRef.current.recentConductorEvents.filter(event => event.id !== conductor.event.id),
-        ].slice(0, 40)
-      }
-      if (persisted && conductor.assignment) {
-        if (conductor.assignment.delivery === 'fixed_surface_offer') {
-          const key = ({
-            journal_arc: 'conductor.offer.journal',
-            speak_arc: 'conductor.offer.speak',
-            relax_arc: 'conductor.offer.relax',
-            drift_arc: 'conductor.offer.drift',
-            room_arc: 'conductor.offer.room',
-          } as const)[conductor.event.assignedArm as Extract<ResearchArm, 'journal_arc' | 'speak_arc' | 'relax_arc' | 'drift_arc' | 'room_arc'>]
-          if (key) return await appendDeterministicCompanionMessage(tr[key], conductor.event) ?? updatedMessages
-        }
-        return generateTherapistMessage(updatedMessages, currentSession, conductor.assignment)
-      }
-    }
-
-    const assignment = grounding
-      ? null
-      : planResearchTurn(currentSession, updatedMessages, contextRef.current?.companionPreferences ?? undefined, {
-          grounding,
-          protocols: contextRef.current?.activePersonalProtocols,
-        })
-    if (!assignment) return generateTherapistMessage(updatedMessages, currentSession)
-
-    try {
-      await persistResearchAssignment(assignment.event)
-    } catch {
-      // Never deliver an experimental arm without its provenance record.
-      return generateTherapistMessage(updatedMessages, currentSession)
-    }
-
-    // Designed silence is retired. Old persisted assignments can still carry
-    // its legacy delivery value, so degrade them to an ordinary model turn.
-    if (assignment.delivery === 'fixed_silence') {
-      return generateTherapistMessage(updatedMessages, currentSession)
-    }
-    if (assignment.delivery === 'fixed_journal_offer') {
-      return await appendDeterministicCompanionMessage(
-        `[${tr['ps.fixed.journal']}](#switch:journal-arc).`,
-        assignment.event,
-      ) ?? updatedMessages
-    }
-    if (assignment.delivery === 'fixed_transfer') {
-      const content = assignment.event.transferLevel === 'user_first'
-        ? tr['ps.transfer.fixed.userFirst']
-        : assignment.event.transferLevel === 'minimal_cue'
-          ? tr['ps.transfer.fixed.minimalCue']
-          : tr['ps.transfer.fixed.independent']
-      return await appendDeterministicCompanionMessage(content, assignment.event) ?? updatedMessages
-    }
-    return generateTherapistMessage(updatedMessages, currentSession, assignment)
-  }, [appendDeterministicCompanionMessage, generateTherapistMessage, grounding, tr, voiceEnabled, roomEnabled])
+  ): Promise<SessionMessage[]> => respondToTurn({
+    context: contextRef.current,
+    availableSurfaces: [
+      'talk',
+      'journal',
+      ...(voiceEnabled ? ['speak' as const] : []),
+      ...(roomEnabled ? ['room' as const] : []),
+    ],
+    copy: {
+      conductorOffer: {
+        journal_arc: tr['conductor.offer.journal'],
+        speak_arc: tr['conductor.offer.speak'],
+        relax_arc: tr['conductor.offer.relax'],
+        drift_arc: tr['conductor.offer.drift'],
+        room_arc: tr['conductor.offer.room'],
+      },
+      journalOffer: tr['ps.fixed.journal'],
+      transferUserFirst: tr['ps.transfer.fixed.userFirst'],
+      transferMinimalCue: tr['ps.transfer.fixed.minimalCue'],
+      transferIndependent: tr['ps.transfer.fixed.independent'],
+    },
+    appendDeterministicCompanionMessage,
+    generateTherapistMessage,
+  }, updatedMessages, currentSession), [appendDeterministicCompanionMessage, generateTherapistMessage, tr, voiceEnabled, roomEnabled])
 
   const voice = useSessionVoice({
     sessionRef,
@@ -421,9 +409,18 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   }, [isStreaming, appendUserMessage, respondToUserTurn])
 
   const handleEndSession = useCallback(async () => {
+    const startingSession = sessionRef.current
+    if (!startingSession || startingSession.status === 'closed' || isStreaming) return
+    // Journal words written in this session belong in its transcript before
+    // the closing turn reads it. If they cannot be added they stay saved on
+    // this device (with a copy affordance) rather than blocking the close.
+    await commitJournalDraft()
     const currentSession = sessionRef.current
+    if (!currentSession || currentSession.id !== startingSession.id || currentSession.status === 'closed') return
+    // The closing companion message and session note render in Talk; ending
+    // from Journal used to leave the writer on a page where neither appeared.
+    setSurface(prev => (prev === 'journal' ? 'talk' : prev))
     const currentMessages = messagesRef.current
-    if (!currentSession || currentSession.status === 'closed' || isStreaming) return
     const freshEyes = isFreshEyesSession(currentSession)
 
     // Generate closing therapist message — returns updated messages array
@@ -484,7 +481,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       message_count: finalMessages.length,
       duration_ms: endedAt - currentSession.startedAt,
     })
-  }, [isStreaming, generateTherapistMessage, stopAndFlushBiometrics, weatherEngine])
+  }, [isStreaming, commitJournalDraft, generateTherapistMessage, stopAndFlushBiometrics, weatherEngine])
 
   const updateSession = useCallback(async (patch: Partial<Session>) => {
     if (!session?.id) return
@@ -541,12 +538,13 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const voiceStop = voice.stop
   const voiceHandleStart = voice.handleStart
   const handleSurfaceChange = useCallback((next: SessionSurface) => {
-    // Leaving Journal with non-empty text: append it as a user message so the
-    // therapist receives it as context on her next turn.
-    if (surface === 'journal' && next !== 'journal' && journalDraft.trim()) {
-      void appendUserMessage(journalDraft.trim(), 'text', 'journal')
-      setJournalDraft('')
-    }
+    // A surface that is not available must never open: a #switch:speak link
+    // with voice disabled used to start a hidden Realtime session.
+    if (!canOpenSurface(next, { voiceEnabled, roomEnabled, grounding: isGroundingActive() })) return
+    // Leaving Journal: contribute the draft as a user message so the companion
+    // receives it as context on her next turn. Exactly once, to the session
+    // that owns the draft; it is cleared only after the append succeeds.
+    if (surface === 'journal' && next !== 'journal') void commitJournalDraft()
     if (surface !== 'speak' && next === 'speak') {
       void voiceHandleStart()
     }
@@ -569,10 +567,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       setActiveArc(null)
     }
     setSurface(next)
-  }, [surface, journalDraft, appendUserMessage, voiceHandleStart, voiceState, voiceStop, activeArc])
+  }, [surface, commitJournalDraft, voiceHandleStart, voiceState, voiceStop, activeArc, voiceEnabled, roomEnabled])
 
   const startSurfaceArc = useCallback((next: Exclude<SessionSurface, 'talk'>) => {
-    if (!session || grounding || isFreshEyesSession(session)) return
+    if (!session || isGroundingActive() || isFreshEyesSession(session)) return
     if (next === 'speak' && !voiceEnabled) return
     if (next === 'room' && !roomEnabled) return
     if ((next === 'relax' || next === 'drift') && !roomEnabled) return
@@ -584,7 +582,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       ? sourceMessage.researchEventId
       : undefined
     const researchEventId = existingResearchEventId ?? `research-arc-${outcomeId}`
-    setActiveArc({ surface: next, outcomeId, startedAt: now, ambientReturn: conductorArc })
+    setActiveArc({ surface: next, outcomeId, researchEventId, startedAt: now, ambientReturn: conductorArc })
     void db.interventionOutcomes.add({
       id: outcomeId,
       source: 'talk',
@@ -622,7 +620,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       })
     }
     handleSurfaceChange(next)
-  }, [session, handleSurfaceChange, grounding, voiceEnabled, roomEnabled])
+  }, [session, handleSurfaceChange, voiceEnabled, roomEnabled])
 
   // A crisis/grounding transition returns every ambient surface to Talk.
   // Preserve journal words; never show an outcome card for a safety-forced
@@ -633,18 +631,19 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       if (surface === 'room') setSurface('talk')
       return
     }
-    if (activeArc.surface === 'journal' && journalDraft.trim()) {
-      void appendUserMessage(journalDraft.trim(), 'text', 'journal')
-      setJournalDraft('')
-    }
+    if (activeArc.surface === 'journal') void commitJournalDraft()
     if (activeArc.surface === 'speak' && voiceState !== 'idle') voiceStop()
-    void db.interventionOutcomes.delete(activeArc.outcomeId)
+    void discardSurfaceArcOutcome(activeArc.outcomeId, activeArc.researchEventId)
+      .catch(() => { /* research telemetry; the safety return already happened */ })
     setActiveArc(null)
     setReturnedArc(null)
     setSurface('talk')
-  }, [grounding, activeArc, journalDraft, appendUserMessage, voiceState, voiceStop, surface])
+  }, [grounding, activeArc, commitJournalDraft, voiceState, voiceStop, surface])
 
   const handleRecommendationTap = useCallback((target: string) => {
+    // Links can outlive the flags they were written under (history, a model
+    // that ignored the availability list): drop taps on unavailable surfaces.
+    if (!canOpenSurface(target, { voiceEnabled, roomEnabled, grounding: isGroundingActive() })) return
     switch (target) {
       case 'real-talk-on':
         void handleRealTalkToggle(true)
@@ -683,45 +682,34 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         console.warn(`[unifiedSession] Unknown recommendation target: "${target}"`)
         return
     }
-  }, [handleRealTalkToggle, handleSurfaceChange, startSurfaceArc, handleEndSession])
+  }, [handleRealTalkToggle, handleSurfaceChange, startSurfaceArc, handleEndSession, voiceEnabled, roomEnabled])
 
+  // Room shares Speak's companion prompt (one builder): live grounding — never
+  // a hardcoded false — plus the same lexicon, HRV and flag gating. Kept
+  // synchronous so getUserMedia still runs inside the initiating tap on iOS.
   const buildRoomVoiceInstructions = useCallback((config: RoomConfig): string => {
     const context = contextRef.current
     const currentSession = sessionRef.current
-    const base = buildTherapistSystemPrompt({
-      channel: 'voice',
-      phase: currentSession?.phase ?? 'opening',
-      memoryAperture: currentSession?.memoryAperture ?? context?.memoryAperture ?? 'pattern',
-      recentSessionNotes: context?.recentSessionNotes,
-      recentFieldNotes: context?.recentFieldNotes,
-      relevantMemories: context?.relevantMemories,
-      profile: context?.userProfile,
-      personalFacts: context?.personalFacts,
-      mode: currentSession?.mode ?? 'standard',
-      isGrounding: false,
-      allowRecommendations: false,
-      includeRiskPreamble: false,
-      currentInputMode: 'voice',
-      outcomeContext: context?.outcomeContext,
-      alliancePreferences: context?.alliancePreferences,
-      personalProtocols: context?.activePersonalProtocols,
-      livingHypotheses: context?.livingHypotheses,
-      activeUserParts: currentSession?.memoryAperture === 'fresh' ? undefined : context?.activeUserParts,
-      openIntentions: currentSession?.memoryAperture === 'fresh' ? undefined : context?.openIntentions,
-      stanceContext: currentSession?.memoryAperture === 'fresh' ? undefined : context?.stanceEntries,
-      activeValues: currentSession?.memoryAperture === 'fresh' ? undefined : context?.activeValues,
-      duePromises: currentSession?.memoryAperture === 'fresh' ? undefined : context?.duePromises,
+    const { instructions, usedRepair } = buildVoiceCompanionInstructions({
+      context,
+      session: currentSession,
+      messages: messagesRef.current,
+      grounded: isGroundingActive(),
+      hrvContext: biometricSource.buildPromptContext(),
+      features: getGlobalConfig()?.features,
     })
+    if (usedRepair) consumeVoiceRepair(context)
     return buildRoomInstructions({
-      companionInstructions: base,
+      companionInstructions: instructions,
       approach: config.approach,
       duration: config.duration,
       voiceDensity: config.voiceDensity,
+      localVoiceControls: roomVoiceCommandsSupported(getLanguageCode()),
       roomHistory: currentSession?.memoryAperture === 'fresh'
         ? undefined
         : context?.recentRoomSessions.map(room => `${room.approach}, ${room.duration} minutes, ${room.voiceDensity} voice, ${room.audioTrack}; controls used: ${room.commands.join(', ') || 'none'}`),
     })
-  }, [])
+  }, [biometricSource])
 
   const inputEditor = useEditor({
     extensions: [
@@ -800,8 +788,64 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     }
   }, [voice.state, surface])
 
+  // An already-running Room or Speak session belongs to the session it
+  // started in. When the selected session changes underneath it (browser
+  // history, the sidebar), end it rather than letting it write into the next
+  // session. `/session/new` adopting its real id is not a change (null → id).
+  const ownerSessionIdRef = useRef<string | null>(null)
+  const currentSessionId = session?.id ?? null
+  useEffect(() => {
+    const previous = ownerSessionIdRef.current
+    ownerSessionIdRef.current = currentSessionId
+    if (previous === null || currentSessionId === null || previous === currentSessionId) return
+    if (voiceState !== 'idle') voiceStop()
+    if (surface === 'room' || surface === 'speak') setSurface('talk')
+    // An arc that began in the previous session must not surface its return
+    // note or outcome card in this one.
+    setActiveArc(null)
+    setReturnedArc(null)
+    setConductorReturn(null)
+  }, [currentSessionId, surface, voiceState, voiceStop])
+
+  // Another tab or device may close this session (TECH_ISSUES #15). When the
+  // page becomes visible again, re-read the status so the composer does not
+  // keep writing into a session that has already been closed elsewhere.
+  useEffect(() => {
+    const recheck = () => {
+      if (document.visibilityState !== 'visible') return
+      const current = sessionRef.current
+      if (!current || current.status !== 'active') return
+      void db.sessions.get(current.id).then(remote => {
+        if (remote?.status === 'closed') adoptRemoteClose(current.id, remote)
+      }).catch(() => { /* offline: keep the local view */ })
+    }
+    document.addEventListener('visibilitychange', recheck)
+    return () => document.removeEventListener('visibilitychange', recheck)
+  }, [adoptRemoteClose])
+
   const isClosed = session?.status === 'closed'
   const canEnd = !isStreaming && messages.length >= 2 && !isClosed
+  const roomOpen = roomEnabled && surface === 'room' && !grounding
+  const overlayOpen = roomOpen || voice.state !== 'idle'
+  const voiceHandleEnd = voice.handleEnd
+  const endVoiceAndReturn = useCallback(() => {
+    voiceHandleEnd()
+    if (surface === 'speak') handleSurfaceChange('talk')
+  }, [voiceHandleEnd, surface, handleSurfaceChange])
+  const closeRoom = useCallback(() => handleSurfaceChange('talk'), [handleSurfaceChange])
+  // Room transcripts belong to the session the Room started in. The append
+  // helpers write into whichever session is current, so a late callback after
+  // the route changed must be dropped, never appended to the new session.
+  const isRoomOwnerCurrent = useCallback((ownerSessionId: string | null) =>
+    ownerSessionId === null || sessionRef.current?.id === ownerSessionId, [])
+  const handleRoomUserTranscript = useCallback((text: string, ownerSessionId: string | null) => {
+    if (!isRoomOwnerCurrent(ownerSessionId)) return
+    void appendUserMessage(text, 'voice', 'room')
+  }, [appendUserMessage, isRoomOwnerCurrent])
+  const handleRoomAssistantTranscript = useCallback((text: string, ownerSessionId: string | null) => {
+    if (!isRoomOwnerCurrent(ownerSessionId)) return
+    void appendRealtimeCompanionMessage(text, 'room')
+  }, [appendRealtimeCompanionMessage, isRoomOwnerCurrent])
 
   // `left` intentionally lives in CSS (.session-back-btn) so a media query can
   // shift the button clear of the mobile sidebar hamburger, which occupies the
@@ -826,6 +870,8 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
   const freshEyes = isFreshEyesSession(session)
   const journalPartsOn = session?.journalPartsEnabled !== false && !freshEyes
+  const journalScope = journalDraft.scope
+  const hasJournalDraft = journalDraft.text.trim() !== ''
 
   return (
     <>
@@ -917,7 +963,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         </div>
       </div>
     )}
-    <div className="session-container">
+    {/* While a full-screen overlay (Room or Speak) is open, the Talk composer
+        and controls behind it are inert: not tabbable, not clickable, hidden
+        from assistive tech. */}
+    <div className="session-container" inert={overlayOpen || undefined}>
       {onBack && (
         <button onClick={onBack} className="session-back-btn" style={backButtonStyle} aria-label="Back">
           ←
@@ -988,12 +1037,25 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         />
       )}
 
+      {/* Journal words that have not reached the conversation. Leaving the
+          Journal retries on its own, so the open-session notice stays out of
+          the writer's way while they are still writing. */}
+      {(isClosed ? hasJournalDraft : journalDraft.failed && surface !== 'journal') && (
+        <JournalDraftNotice
+          mode={isClosed ? 'closed' : 'failed'}
+          text={journalDraft.text}
+          sending={journalDraft.sending}
+          onRetry={() => { void commitJournalDraft() }}
+        />
+      )}
+
       {surface === 'journal' ? (
         <>
           {activeArc?.surface === 'journal' && <SurfaceArcGuide surface="journal" startedAt={activeArc.startedAt} onReturn={() => handleSurfaceChange('talk')} />}
           <SessionJournalSurface
-            initialContent={journalDraft}
-            onChange={setJournalDraft}
+            key={journalScope}
+            initialContent={journalDraft.text}
+            onChange={text => setJournalText(text, journalScope)}
             partsEnabled={journalPartsOn}
             sessionId={session?.id ?? ''}
           />
@@ -1054,7 +1116,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
           {!freshEyes && !grounding && conductorReturn && (
             <div style={{ margin: '8px 0 20px', padding: '12px 14px', borderLeft: '2px solid var(--accent-warm)', color: 'var(--text-secondary)', font: "italic 15px/1.55 'Cormorant Garamond', serif" }}>
               <span>{tr[`conductor.return.${conductorReturn}` as keyof typeof tr]}</span>
-              <button type="button" aria-label="Dismiss" onClick={() => setConductorReturn(null)} style={{ float: 'right', border: 0, background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer' }}>×</button>
+              <button type="button" aria-label={tr['common.dismiss']} onClick={() => setConductorReturn(null)} style={{ float: 'right', border: 0, background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer' }}>×</button>
             </div>
           )}
           {messages.map((msg) => (
@@ -1218,46 +1280,49 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       )}
     </div>
 
-    {/* Voice session overlay — full-screen field visualization */}
-    {voiceEnabled && voice.state !== 'idle' && (
-      <Suspense fallback={null}>
-        <VoiceField
-          state={voice.state}
-          error={voice.error}
-          muted={voice.muted}
-          assistantSpeaking={voice.assistantSpeaking}
-          userSpeaking={voice.userSpeaking}
-          remoteStream={voice.remoteStream}
-          dominantEmotion={weatherEngine.getCurrentDominantEmotion()}
-          onToggleMute={voice.toggleMute}
-          onEnd={() => {
-            voice.handleEnd()
-            if (surface === 'speak') handleSurfaceChange('talk')
-          }}
-        />
-      </Suspense>
+    {/* Voice session overlay — full-screen field visualization. Rendered for
+        ANY live voice state (not only when the flag is on): a running mic must
+        always have a visible stop control. */}
+    {voice.state !== 'idle' && (
+      <SurfaceErrorBoundary surface="voice" onExit={endVoiceAndReturn}>
+        <Suspense fallback={null}>
+          <VoiceField
+            state={voice.state}
+            error={voice.error}
+            muted={voice.muted}
+            assistantSpeaking={voice.assistantSpeaking}
+            userSpeaking={voice.userSpeaking}
+            remoteStream={voice.remoteStream}
+            dominantEmotion={weatherEngine.getCurrentDominantEmotion()}
+            onToggleMute={voice.toggleMute}
+            onEnd={endVoiceAndReturn}
+          />
+        </Suspense>
+      </SurfaceErrorBoundary>
     )}
 
     {/* Room is the single restorative surface. One score owns its audiovisual
         arc; optional voice is the same organic two-way Realtime companion. */}
-    {roomEnabled && surface === 'room' && !grounding && (
-      <Suspense fallback={null}>
-        <RoomField
-          parentSessionId={session?.id ?? null}
-          memoryAperture={session?.memoryAperture ?? 'pattern'}
-          buildInstructions={buildRoomVoiceInstructions}
-          voiceAvailable={voiceEnabled}
-          rememberedConfig={contextRef.current?.recentRoomSessions[0] ? {
-            approach: contextRef.current.recentRoomSessions[0].approach,
-            duration: contextRef.current.recentRoomSessions[0].duration,
-            voiceDensity: contextRef.current.recentRoomSessions[0].voiceDensity,
-            audioTrack: contextRef.current.recentRoomSessions[0].audioTrack,
-          } : undefined}
-          onUserTranscript={text => { void appendUserMessage(text, 'voice', 'room') }}
-          onAssistantTranscript={text => { void appendRealtimeCompanionMessage(text, 'room') }}
-          onClose={() => handleSurfaceChange('talk')}
-        />
-      </Suspense>
+    {roomOpen && (
+      <SurfaceErrorBoundary surface="room" onExit={closeRoom}>
+        <Suspense fallback={null}>
+          <RoomField
+            parentSessionId={session?.id ?? null}
+            memoryAperture={session?.memoryAperture ?? 'pattern'}
+            buildInstructions={buildRoomVoiceInstructions}
+            voiceAvailable={voiceEnabled}
+            rememberedConfig={contextRef.current?.recentRoomSessions[0] ? {
+              approach: contextRef.current.recentRoomSessions[0].approach,
+              duration: contextRef.current.recentRoomSessions[0].duration,
+              voiceDensity: contextRef.current.recentRoomSessions[0].voiceDensity,
+              audioTrack: contextRef.current.recentRoomSessions[0].audioTrack,
+            } : undefined}
+            onUserTranscript={handleRoomUserTranscript}
+            onAssistantTranscript={handleRoomAssistantTranscript}
+            onClose={closeRoom}
+          />
+        </Suspense>
+      </SurfaceErrorBoundary>
     )}
     </>
   )

@@ -94,6 +94,38 @@ describe('adaptive conductor', () => {
     expect(planAdaptiveConductor(session(), messages(), { ...options, recentEvents: twoShadows })).toBeNull()
   })
 
+  it('never makes a second live move after the first is delivered, using the cache turnResponder keeps', () => {
+    // Turn 2: a live move. turnResponder caches the event as persisted
+    // ('assigned'); the delivered status only ever reaches Firestore.
+    let cache: ResearchEvent[] = shadowHistory()
+    const first = planAdaptiveConductor(session(), messages(), { ...options, recentEvents: cache, forcePhase: 'live' })
+    expect(first?.event.status).toBe('assigned')
+    cache = [first!.event, ...cache]
+
+    // Turn 3 carries the conductor-delivered reply (consecutive guard), turn 4
+    // follows an ordinary reply — the window where a second move slipped in.
+    const rows: SessionMessage[] = [
+      ...messages(),
+      { id: 'a2', speaker: 'therapist', partId: null, partName: null, content: 'Offer.', timestamp: 4, phase: 'deepening', isEmergence: false, researchEventId: first!.event.id, researchArm: first!.event.assignedArm },
+      { id: 'u3', speaker: 'user', partId: null, partName: null, content: 'Not now.', timestamp: 5, phase: 'deepening', isEmergence: false },
+      { id: 'a3', speaker: 'therapist', partId: null, partName: null, content: 'Okay.', timestamp: 6, phase: 'deepening', isEmergence: false },
+      { id: 'u4', speaker: 'user', partId: null, partName: null, content: 'I keep circling the same worry about work.', timestamp: 7, phase: 'deepening', isEmergence: false },
+    ]
+    expect(planAdaptiveConductor(session(), rows, { ...options, recentEvents: cache, forcePhase: 'live' })).toBeNull()
+    expect(planAdaptiveConductor(session(), rows, { ...options, recentEvents: cache })).toBeNull()
+  })
+
+  it('counts a cancelled live move as the session\'s one move', () => {
+    const cancelled = { ...shadowHistory(1)[0], id: 'conductor-cancelled', sessionId: 'session-1', assignmentKind: 'randomized' as const, status: 'cancelled' as const }
+    expect(planAdaptiveConductor(session(), messages(), { ...options, recentEvents: [...shadowHistory(), cancelled], forcePhase: 'live' })).toBeNull()
+  })
+
+  it('still records a second shadow decision after a first shadow one', () => {
+    const shadowHere = { ...shadowHistory(1)[0], id: 'conductor-here', sessionId: 'session-1' }
+    const plan = planAdaptiveConductor(session(), messages(), { ...options, recentEvents: [shadowHere] })
+    expect(plan?.event.status).toBe('shadow')
+  })
+
   it('turns a graduated protocol into lighter self-led candidates', () => {
     const protocol: PersonalProtocol = {
       id: 'p1', findingKey: 'f1', title: 'Find my own next sentence', protocolId: 'response-grammar-v1',

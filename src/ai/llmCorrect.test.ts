@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { extractCompletedSentence, correctSentence, _resetThrottle, isCJK, shouldTriggerAutocorrect } from './llmCorrect'
+import { AUTOCORRECT_MAX_SENTENCE_CHARS, extractCompletedSentence, correctSentence, _resetThrottle, isCJK, shouldTriggerAutocorrect } from './llmCorrect'
 
 // Mock firebase/auth
 const mockGetAuth = vi.fn(() => ({
@@ -426,5 +426,36 @@ describe('correctSentence', () => {
     // Verify the system prompt includes the language hint
     const fetchBody = JSON.parse(mockFetch.mock.calls[0][1].body)
     expect(fetchBody.messages[0].content).toContain('The text is in Spanish.')
+  })
+
+  it('asks the server for the small-model autocorrect route and names no model', async () => {
+    _resetThrottle()
+    mockApiResponse('I went to the store yesterday.')
+    await correctSentence('I went to teh store yestreday.')
+    expect(mockFetch.mock.calls[0][0]).toBe('/api/chat')
+    const fetchBody = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(fetchBody.task).toBe('autocorrect')
+    expect(fetchBody).not.toHaveProperty('model')
+    expect(fetchBody).not.toHaveProperty('stream')
+    expect(fetchBody.messages).toHaveLength(2)
+    expect(fetchBody.messages[1]).toEqual({ role: 'user', content: '<user_sentence>I went to teh store yestreday.</user_sentence>' })
+  })
+
+  it('stays inside the server autocorrect shape (functions/src/chat.ts AUTOCORRECT_MAX_*_CHARS = 1,200)', async () => {
+    _resetThrottle()
+    mockGetLLMLanguageName.mockReturnValueOnce('Portuguese (Brazilian)')
+    const longest = `${'a'.repeat(AUTOCORRECT_MAX_SENTENCE_CHARS - 1)}.`
+    mockApiResponse(longest)
+    await correctSentence(longest)
+    const fetchBody = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(fetchBody.messages[0].content.length).toBeLessThanOrEqual(1_200)
+    expect(fetchBody.messages[1].content.length).toBeLessThanOrEqual(1_200)
+  })
+
+  it('skips a sentence longer than the server accepts instead of sending it', async () => {
+    _resetThrottle()
+    const long = `${'word '.repeat(AUTOCORRECT_MAX_SENTENCE_CHARS / 5)}end.`
+    expect(await correctSentence(long)).toBeNull()
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 })

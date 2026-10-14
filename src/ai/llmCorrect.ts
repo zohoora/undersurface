@@ -1,10 +1,16 @@
 import { getAuth } from 'firebase/auth'
+import { apiUrl } from '../api/apiBase'
 import { getLLMLanguageName } from '../i18n'
 import { wrapUserContent } from './promptSafety'
 
-// Hardcoded model for autocorrect — cheap, fast, good at following instructions.
-// NOT getModel() — autocorrect always uses a small model regardless of user settings.
-const AUTOCORRECT_MODEL = 'qwen/qwen-2.5-7b-instruct'
+// The model is chosen server-side: `task: 'autocorrect'` routes to the small
+// model with minimal reasoning and a small token cap (functions/src/chat.ts).
+// A client `model` field was always ignored, which ran autocorrect on the
+// main model.
+
+// The server pins the wrapped sentence to AUTOCORRECT_MAX_USER_CHARS (1,200);
+// longer "sentences" are skipped here rather than rejected there.
+export const AUTOCORRECT_MAX_SENTENCE_CHARS = 1_000
 
 const SYSTEM_PROMPT = `Fix ONLY spelling errors, capitalization, and missing apostrophes in contractions.
 Return ONLY the corrected text. If no corrections needed, return the input exactly.
@@ -139,6 +145,8 @@ export function shouldTriggerAutocorrect(key: string, textBefore: string): boole
  * Returns the corrected text, or null if no correction is needed or on error.
  */
 export async function correctSentence(sentence: string): Promise<string | null> {
+  if (sentence.length > AUTOCORRECT_MAX_SENTENCE_CHARS) return null
+
   // Throttle: skip if another call is in-flight or too recent
   const now = Date.now()
   if (inFlight || now - lastCallTime < MIN_CALL_INTERVAL_MS) return null
@@ -162,21 +170,18 @@ export async function correctSentence(sentence: string): Promise<string | null> 
 
     let response: Response
     try {
-      response = await fetch('/api/chat', {
+      response = await fetch(apiUrl('/api/chat'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: AUTOCORRECT_MODEL,
+          task: 'autocorrect',
           messages: [
             { role: 'system', content: systemContent },
             { role: 'user', content: wrapUserContent(sentence, 'sentence') },
           ],
-          temperature: 0,
-          max_tokens: 200,
-          reasoning_effort: 'none',
         }),
         signal: controller.signal,
       })

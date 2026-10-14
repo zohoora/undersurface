@@ -1,19 +1,21 @@
 # Subsystem Details
 
+Room, the July 10–11 companion programs, SMS and field windows are documented in `CLAUDE.md`.
+
 ## Dark mode
 
-Light, dark, and system-follow themes via `[data-theme="dark"]` on `<html>`. All colors are CSS custom properties in `atmosphere.css`. Dark mode uses warm charcoals, not blue-blacks. Each of 9 emotions has dark variants. Components with inline styles use `var(--bg-primary)` etc. Color bleed is disabled in dark mode. Part thought alpha is boosted from `'25'` to `'30'` in dark mode via `boostAlpha()`.
+Light, dark, and system-follow themes via `[data-theme="dark"]` on `<html>`. All colors are CSS custom properties in `atmosphere.css`. Dark mode uses warm charcoals, not blue-blacks. Each of 9 emotions has dark variants. Components with inline styles use `var(--bg-primary)` etc. Part thought alpha is boosted from `'25'` to `'30'` in dark mode via `boostAlpha()`.
 
 Adding new themed components: use CSS `var()` for all colors. For React inline styles: `style={{ background: 'var(--bg-primary)' }}`. The `[data-theme="dark"]` block in `atmosphere.css` handles the rest.
 
 ## Adaptive parts system
 
-Parts learn through five layers:
+Parts (Journal surface only) learn through five layers:
 1. **Dynamic scoring** — `partOrchestrator.ts` uses `ifsRole`-based lookup tables, so emerged parts score correctly out of the box
 2. **Observation memories** — every thought creates a `type: 'observation'` memory; TOL interactions create `type: 'interaction'` memories
-3. **Reflection engine** — on entry switch, analyzes full entry + thoughts. Produces summaries, reflection/pattern memories, keyword suggestions, profile updates (~1 API call)
-4. **Enhanced prompts** — `buildPartMessages()` injects categorized memories, user profile, entry summaries
-5. **Part growth** — every 5 entries, evolves parts: updates `systemPromptAddition`, `learnedKeywords`, `learnedEmotions` (~1 API call)
+3. **Session reflection** — `sessionReflectionEngine.ts` runs after a session closes (skipped in Fresh eyes) and produces summaries, reflection/pattern/somatic memories, profile updates
+4. **Enhanced prompts** — `buildPartMessages()` injects categorized memories, user profile, summaries
+5. **Part growth** — `partGrowthEngine.ts`, triggered from session reflection, evolves `systemPromptAddition`, `learnedKeywords`, `learnedEmotions`
 
 Key types: `PartMemory.type` (`'observation' | 'interaction' | 'reflection' | 'pattern' | 'somatic'`), `EntrySummary`, `UserProfile`, `Part.learnedKeywords`, `Part.systemPromptAddition`.
 
@@ -21,19 +23,14 @@ Key types: `PartMemory.type` (`'observation' | 'interaction' | 'reflection' | 'p
 
 ## i18n
 
-17 LTR languages. No library — flat key-value objects per language. `t(key)` for non-React, `useTranslation()` hook for React. English bundled inline, others lazy-loaded (~4-5KB each).
+17 LTR languages. No library — flat key-value objects per language. `t(key)` for non-React, `useTranslation()` hook for React. English bundled inline; others lazy-loaded as `locale-<lang>-<hash>.js` chunks (runtime-cached by the service worker, not precached). `preloadLanguage` never rejects.
 
-- AI system prompts stay English; `languageDirective()` appends response language to user-facing prompts (parts, fossils, letters, blank page, session closing)
+- AI system prompts stay English; `languageDirective()` appends the response language to user-facing prompts
 - Internal prompts (reflection, growth, emotion) stay English because output feeds back into English-keyed logic
-- Autocorrect is LLM-based and works in all languages
 - Seeded part names translated via `getPartDisplayName()`; emerged parts keep LLM-generated names
-- Distress detection is LLM-based via `analyzeEmotionAndDistress()` — works in any language
+- Room's spoken controls are English-only (`roomVoiceCommandsSupported`); other languages use the on-screen controls
 
-### Adding a new translation key
-
-1. Add key + English text to `src/i18n/translations/en.ts`
-2. Add to all 16 other language files
-3. Use `t('key')` in non-React or `useTranslation()` hook in React
+English fallback blocks (`personalScienceEnglish` in `src/i18n/translations/sessionCopy.ts`, and `src/i18n/roomFallback.ts`) are spread FIRST in every locale, so a locale's own translation always wins. New keys: add English to the fallback (or `en.ts`) and a real translation to each locale. `untranslated.test.ts` fails on values identical to English unless allowlisted with a reason; key parity across all 17 locales is also enforced.
 
 ### Adding a new language
 
@@ -43,153 +40,97 @@ Key types: `PartMemory.type` (`'observation' | 'interaction' | 'reflection' | 'p
 
 ## Emergency grounding
 
-Controlled by `features.emergencyGrounding`. LLM-based distress detection via `analyzeEmotionAndDistress()` (piggybacked on emotion check, zero additional API calls). Distress level 0-3; activates at `intensityThreshold` (default 2).
+Grounding is activated by the crisis stack on any surface: L1 (`detectCrisisKeywords`) and the raced L2 classifier on every user turn (Talk, Journal, voice transcripts), plus the in-stream `<<RISK:2>>` preamble. It is not gated by a flag: `features.emergencyGrounding` is only read by the admin UI. State lives in `src/store/groundingState.ts` (`activateGrounding`, `isGroundingActive()`, `onGroundingActivated` sinks).
 
-- Grounding state sets `data-grounding="true"` on `<html>` — desaturated greens, slower breathing, overrides emotion atmosphere
-- Self-role parts score +40, others -30
-- Grounding prompt overrides intention in `buildPartMessages`
-- Auto-exits after `autoExitMinutes` (default 5)
-- Manual toggle in Settings when feature enabled
-- `CrisisResources.tsx` renders helpline links during grounding
+While grounding is active:
+- `data-grounding="true"` on `<html>` — desaturated greens, slower breathing, overrides emotion atmosphere
+- The therapist prompt is built with `isGrounding: true` (Real Talk off; repair/pivot/soften, proposals, offers, experiments, `#end:session` and surface handoffs suppressed)
+- Journal parts are silenced (`SessionJournalSurface` gate); `partOrchestrator.ts` also keeps the grounding score shift (self-role +40, others -30 via `grounding.selfRoleScoreBonus` / `otherRolePenalty`)
+- Room is hidden and closed, the conductor/research/prism/Field Mosaic/arcs are suppressed, letters are hidden
+- `CrisisResources.tsx` renders helpline links
+- Every activation merges `lastGroundingAt` into `companionPreferences/current` so SMS grounds replies and suppresses proactive texts for 72h
+- Auto-exits after `grounding.autoExitMinutes` (default 5); a re-trigger resets the timer
 
-Tuning: admin Settings -> Safety & Wellbeing -> `GlobalConfig.grounding`.
+Grounding events go to first-party diagnostics only, never to Google Analytics (GA shares a property with Ads conversions).
 
-## Crisis keyword detection (defense-in-depth)
+Tuning: admin Settings → Safety & Wellbeing → `GlobalConfig.grounding`.
 
-Fast synchronous keyword check in `sessionOrchestrator.ts` — 20 regex patterns for suicidal ideation, self-harm, and passive death wishes. Runs BEFORE therapist LLM response generation in session mode.
+## Crisis keyword floor (L1)
 
-- **No cooldown** — always runs on every message (unlike emotion check which has 30s cooldown)
-- **No feature flag gate** — always active regardless of `emergencyGrounding` setting
-- **Activates grounding immediately** — `activateGrounding('auto')` before LLM generates response, so `isGrounding: true` is passed to therapist prompt
-- **Catches metaphor escalation** — patterns include "rest forever", "with Jesus", "don't want to be alive", "should I die"
-- **Pure function available** — `detectCrisisKeywords()` exported for use without side effects (e.g., in tests)
-- Works alongside async LLM-based emotion detection as defense-in-depth
+`detectCrisisKeywords` in `functions/src/shared/crisisFloor.ts` (re-exported to the browser via `sessionOrchestrator.ts`) is a synchronous, NFKC-normalized check for sincere, present, first-person methods/plans and unmistakable farewell-note framing. It deliberately does not catch passive death wishes, metaphor, grief or hyperbole — those are L2's job. It runs before generation in Talk, on voice/Room transcripts, in journal mode and as the first SMS check.
 
-All three prompt files (`partPrompts.ts`, `sessionPrompts.ts`, `therapistPrompts.ts`) include hardened safety instructions: never affirm death wishes, detect metaphor escalation, ask when unsure about "rest" meaning.
+- **No cooldown, no feature flag** — runs on every user turn
+- **Precision guards** (2026-10-14): pill patterns need an intent/overdose form; negation that directly governs the method defers unless doubted or conditional; clearly historical attempts (past framing + distance marker, no recency marker) defer
+- **On SMS an L1 hit replaces the whole reply** with the fixed emergency text, so false positives are costly
+- Changes require `npm run test:crisis` (live) on top of `crisisFloor.test.ts`
+
+All prompt files (`partPrompts.ts`, `therapistPrompts.ts`) include hardened safety instructions: never affirm death wishes, treat "rest forever"/"be with God" style metaphor as possible ideation, ask when unsure.
 
 ## Bundle splitting
 
-Main chunk ~228KB gzipped.
+**manualChunks** (`vite.config.ts`): `firebase`, `react-vendor` (react, react-dom, framer-motion), `editor` (`@tiptap` + `prosemirror`), `sentry`.
 
-**manualChunks**: `@tiptap`+`prosemirror` -> `editor` (~119KB), `@sentry` -> `sentry` (~30KB).
-
-**Lazy-loaded components** (React.lazy, require default exports):
-- `LivingEditor` — after auth + consent
-- `AdminDashboard` — /admin route
-- `DeleteAccountModal` — settings click
-
-**Lazy-loaded engines/components** (dynamic import):
-- `FossilEngine` — first entry switch
-- `ExplorationEngine` — first new entry with feature enabled
-- `BodyMapTab` — sidebar Body tab selection (when `bodyMap` feature enabled)
+**Lazy-loaded components:**
+- `SessionView`, `AdminDashboard`, `Onboarding`, `CrisisResources` — `App.tsx` (its own local retry-then-reload wrapper)
+- `VoiceField`, `RoomField` — `SessionView.tsx` via `src/utils/lazyWithRetry.ts`
+- `DeleteAccountModal` — settings click; `BodyMapTab` — sidebar Body tab (`bodyMap` flag)
 
 **Lazy-loaded translations**: 16 non-English files via `import.meta.glob`.
 
-## Intentions
+## PWA updates
 
-Per-entry writing intentions that persist and influence AI responses. Controlled by `features.intentionsEnabled`.
-
-- `IntentionInput.tsx` renders above the editor (ghost button -> text input, 120 char max). The "set an intention" prompt only shows on blank pages; once an intention is set, it persists while writing
-- Stored as `intention` field on entry document (accessed via cast, not in `DiaryEntry` interface)
-- `buildPartMessages` appends intention guidance (skipped during grounding)
-- `reflectionEngine.ts` prepends intention to entry text for summaries
-
-## Guided explorations
-
-AI-generated personalized writing prompts on new blank entries. Controlled by `features.guidedExplorations`.
-
-- `explorationEngine.ts` uses profile + recent summaries to generate prompts
-- Selecting a prompt sets it as the entry's intention
-- Suppressed during grounding. Single-shot guard (`hasSuggested`) prevents duplicate API calls
-- Tuning: `GlobalConfig.explorations` -> `maxPrompts`, `triggerOnNewEntry`
+`vite-plugin-pwa` with `skipWaiting` + `clientsClaim`. The precache leaves out locale chunks, `AdminDashboard-*`, `vision_bundle-*` (MediaPipe) and marketing images (`globIgnores`); those hashed chunks are cached on first use (`CacheFirst`, `on-demand-assets`, 40 entries, 60 days). After a deploy an open tab can fail to import an old-hash chunk: `lazyWithRetry` retries once and then reloads once per chunk (sessionStorage guard), `main.tsx` reloads once on `vite:preloadError`, and Room/Voice sit inside `SurfaceErrorBoundary` so a failure there doesn't take down the session. Native builds skip service-worker registration.
 
 ## Session closing
 
-A warm closing ritual via "end session" button, fixed-positioned at top-right (always visible even when scrolled).
-
-- Saves current entry, sends last ~600 chars to The Weaver via `chatCompletion` (max 80 tokens, 15s timeout)
-- `SessionClosing.tsx` renders full-screen overlay with fade-in animation
-- Fallback: "You showed up today. That matters."
-- Uses The Weaver specifically (hardcoded prompt, not part ID lookup)
+"End session" (or a tapped `[phrase](#end:session)` optimal-ending link) runs `handleEndSession` in `SessionView.tsx`: one closing companion turn, then the session note (skipped in Fresh eyes), `status: 'closed'`, post-session reflection and weather persistence (both skipped in Fresh eyes), and a biometric flush.
 
 ## Autocorrect
 
-`src/ai/llmCorrect.ts` — LLM-based sentence-level correction. Works in all languages with sentence-ending punctuation.
+`src/ai/llmCorrect.ts` — LLM-based sentence-level correction, wired via `useAutocorrect` into the session composer and journal. Works in all languages with sentence-ending punctuation.
 
 - Triggers on sentence-ending punctuation (`.!?।。！？`) — Latin/Hindi + space, CJK fullwidth punctuation without space (via `shouldTriggerAutocorrect()`)
-- Uses `qwen/qwen-2.5-7b-instruct` model; adds language hint to system prompt for non-English text
-- `extractCompletedSentence()` finds the last completed sentence, skipping abbreviations (multilingual: Dr., Mme., Sra., z.b., etc.), ellipsis, and short sentences (< 3 words for Latin/Hindi, < 4 chars for CJK)
-- `correctSentence()` calls the LLM with temperature 0 and validates the response (word count for Latin/Hindi, length-only for CJK, <30% length change)
-- CJK (Chinese, Japanese): fullwidth punctuation `。！？` triggers without trailing space; word-count validation skipped (no whitespace-based segmentation)
-- Hindi: danda `।` recognized as sentence-ending punctuation; space-delimited so word count works normally
-- Thai: no standard sentence-ending punctuation — autocorrect silently does nothing (acceptable; segmentation library not worth adding)
-- Throttled: min 3s between calls, skips if a call is in-flight
-- Undo on Backspace: `lastAutocorrectRef` in `LivingEditor.tsx` and `SessionView.tsx` (single-shot, cleared on any other keypress)
-- Shown in Settings for all languages (no English-only guard)
+- The client sends `model: 'qwen/qwen-2.5-7b-instruct'`, but the chat function ignores client model fields, so autocorrect actually runs on the pinned chat model
+- `extractCompletedSentence()` finds the last completed sentence, skipping abbreviations (multilingual), ellipsis, and short sentences (< 3 words for Latin/Hindi, < 4 chars for CJK)
+- `correctSentence()` validates the response (word count for Latin/Hindi, length-only for CJK, <30% length change)
+- Thai: no standard sentence-ending punctuation — autocorrect silently does nothing
+- Throttled: min 3s between calls, skips if a call is in flight
+- Undo on Backspace (`useAutocorrect`, single-shot, cleared on any other keypress)
 
 ## Body map (emotional homunculus)
 
 A persistent SVG visualization of the user's somatic emotional life, rendered as a homunculus figure in the sidebar. Controlled by `features.bodyMap`.
 
-- Somatic memories detected by `reflectionEngine.ts` during entry reflection (no extra API calls). Stored in `memories` collection with `type: 'somatic'` and `partId: '_somatic'`
+- Somatic memories come from session reflection (`sessionReflectionEngine.ts`, no extra API call), stored in `memories` with `type: 'somatic'`
 - `bodyMapEngine.ts` computes `HomunculusState` client-side (never persisted) — maps emotions to 7 color families, normalizes region sizes (0.6-1.8) based on signal count
-- `BodyMapTab.tsx` loads somatic memories, shows dormant state when < 5 signals ("Write. I'll take shape.")
+- `BodyMapTab.tsx` loads somatic memories and shows a dormant state with few signals
 - `HomunculusSVG.tsx` renders 10 body regions as animated SVG paths (Framer Motion), chest has breathing animation
 - `RegionDetail.tsx` shows emotion pills and recent quotes when a region is tapped
-- Sidebar shows Entries | Body tab bar when feature enabled; settings gear remains at bottom
-- Somatic memories capped at 100 (pruned oldest-first)
 
 ## Bilateral stimulation
 
-Subtle visual bilateral stimulation via alternating left/right edge pulses. EMDR-informed but not clinical. Controlled by `features.bilateralStimulation` + user toggle in Settings.
+Subtle visual bilateral stimulation via alternating left/right edge pulses (`BilateralPulse.tsx`, mounted in `App.tsx`). Controlled by `features.bilateralStimulation` + user toggle in Settings.
 
-- `BilateralPulse.tsx` renders two fixed-position bars at screen edges
-- `requestAnimationFrame` drives smooth sine-wave opacity alternation
-- Rhythm adapts to current emotion: 4.5s (calm) to 1.8s (angry)
-- During grounding, locks to slowest speed (4.5s)
-- Requires both admin flag and user setting enabled
-- Uses `var(--atmo-2)` so color automatically matches emotional atmosphere and dark mode
+- Two fixed-position bars at screen edges; `requestAnimationFrame` drives sine-wave opacity alternation
+- Rhythm adapts to current emotion: 4.5s (calm) to 1.8s (angry); during grounding, locks to the slowest speed
+- Uses `var(--atmo-2)` so color matches the emotional atmosphere and dark mode
 
 ## Data export
 
-`exportAllData()` in `db.ts` exports all user data as a human-readable Markdown document. Includes: user profile, parts with reflections, journal entries with thoughts/TOL/summaries/fossils, letters, writing sessions. Part IDs resolved to names.
+`exportAllData()` in `src/store/dataExport.ts` exports user data as a human-readable Markdown document: profile, parts, legacy journal entries with thoughts/summaries, session transcripts (`sessions/{id}/messages`), Room visits (approach, length, sound, density, time spent, transcript), letters, SMS messages, and the experience/science collections. Part IDs resolved to names. Server-owned state (`smsSettings`, `quotas`) is not exported.
 
 ## HRV biofeedback (Session Mode)
 
-Two interchangeable signal sources both emit the same `HrvMeasurement` shape; the downstream timeline, prompt context, and Relax animation are source-agnostic.
+Two interchangeable signal sources both emit the same `HrvMeasurement` shape; the downstream timeline and prompt context (Talk, Speak and Room voice) are source-agnostic.
 
-**Webcam (`features.webcamHrv`)** — CHROM rPPG on skin-colored pixels from forehead + cheeks, processed in a Web Worker with windowed CHROM + Butterworth bandpass (1.2–2.5 Hz) + FFT. Camera auto-exposure / white-balance locked to manual. Respiratory rate via 0.15–0.45 Hz bandpass on the same CHROM signal. Accuracy ±5–15 BPM of Apple Watch. Files: `hrvEngine.ts` (camera + ROI), `hrvSignalWorker.ts` (CHROM + FFT + derived metrics + respiratory bandpass), `HrvConsentDialog.tsx`.
+**Webcam (`features.webcamHrv`)** — CHROM rPPG on skin-colored pixels from forehead + cheeks, processed in a Web Worker with windowed CHROM + Butterworth bandpass (1.2–2.5 Hz) + FFT. Camera auto-exposure / white-balance locked to manual. Respiration from a MediaPipe FaceLandmarker motion channel. Accuracy ±5–15 BPM of Apple Watch. Files: `hrvEngine.ts` (camera + ROI), `hrvSignalWorker.ts` (CHROM + FFT + derived metrics + respiratory bandpass), `HrvConsentDialog.tsx`.
 
-**Polar H10 (`features.polarH10`)** — Web Bluetooth. Standard Heart Rate service (0x180D) yields HR + RR intervals at 1/1024-s resolution; Polar's proprietary PMD service streams 50 Hz / 16-bit accelerometer for chest-motion respiration. Magnitude → `respiratoryBandpass` (0.1–0.5 Hz, reused from worker) → envelope-normalized `breathingScale ∈ [0,1]` → rising zero-crossings give breath onsets → median of inter-crossing intervals = respiratory rate. Only works on Chrome/Edge/Opera/Samsung Internet; hidden on Safari/iOS. Files: `polarH10Engine.ts` (BLE lifecycle + HRM parser + PMD ACC parser + streaming breathing extractor), `usePolarH10Session.ts` (consent + Firestore flush + `getBreathingScale` stable getter), `PolarH10ConnectButton.tsx`, `PolarH10ConsentDialog.tsx`.
+**Polar H10 (`features.polarH10`)** — Web Bluetooth. Standard Heart Rate service (0x180D) yields HR + RR intervals at 1/1024-s resolution; Polar's proprietary PMD service streams 50 Hz / 16-bit accelerometer for chest-motion respiration. Magnitude → `respiratoryBandpass` (0.1–0.5 Hz, reused from worker) → envelope-normalized `breathingScale ∈ [0,1]` → rising zero-crossings give breath onsets → median of inter-crossing intervals = respiratory rate. Only works on Chrome/Edge/Opera/Samsung Internet; hidden on Safari/iOS. Files: `polarH10Engine.ts`, `usePolarH10Session.ts` (consent + Firestore flush + `getBreathingScale` stable getter), `PolarH10ConnectButton.tsx`, `PolarH10ConsentDialog.tsx`.
 
-**Mutex.** H10 takes priority. When `polar.enabled` becomes true, SessionView's `useEffect` stops any running webcam stream; the webcam toggle is hidden while H10 is active. The reverse can't arise. Both paths feed `useSessionStream` / `useSessionVoice` through a `BiometricSource` bridge in SessionView so the stream is source-agnostic.
+**Mutex.** H10 takes priority. `useSessionBiometrics.ts` stops any running webcam stream when `polar.enabled` becomes true; the webcam toggle is hidden while H10 is active. The same hook builds the `BiometricSource` that `useSessionStream`, `useSessionVoice` and Room's voice instructions read.
 
-**Shared math.** `hrvSignalWorker.ts` exports `computeHrvMetrics`, `classifyAutonomicState`, `computeDerivedMetrics`, `respiratoryBandpass` — both engine paths import them; H10 doesn't duplicate any HRV math. `HrvTimeline` consumes `HrvMeasurement` regardless of origin.
+**Shared math.** `hrvSignalWorker.ts` exports `computeHrvMetrics`, `classifyAutonomicState`, `computeDerivedMetrics`, `respiratoryBandpass` — both engine paths import them. `HrvTimeline` consumes `HrvMeasurement` regardless of origin.
 
-**Animation sync.** When polar is paired, `RelaxBreathCircle` follows the live `getBreathingScale()` getter via rAF polling (50 ms smoothing) instead of running its internal breath pacer. `BiometricsBar` expanded view shows an H10 respiration panel with a live position bar driven by the same getter.
+**Animation sync.** The `BiometricsBar` expanded view shows an H10 respiration panel with a live position bar driven by `getBreathingScale()` (rAF polling). Nothing else follows the chest signal since Relax was retired.
 
-**Persistence.** `HrvSessionData` written to `hrvSessions/{sessionId}` every 10s with optional `source: 'camera' | 'polarH10'`. Webcam path stores signal dumps (raw RGB/CHROM/FFT) for offline algo analysis; H10 path leaves `signalDumps: []` (transient).
-
-## Drift (bilateral dual-attention regulation practice)
-
-A short bilateral dual-attention regulation practice, **its own session surface since v2 (2026-07-09)** — a bottom-bar pill (entry hidden while grounding is active; a mounted DriftField stays mounted mid-crisis so the scripted crisis closure can run), in text and voice. No longer inside Relax. Flag-gated (`features.driftEnabled`, default OFF). Specs: `docs/superpowers/specs/2026-07-04-drift-design.md` (safety architecture, authoritative) + `2026-07-09-drift-v2-webapp-redesign.md` (experience layer). Live eval: `npm run test:drift`. v1 shipped dark 2026-07-05; v2 redesigned the experience for webapp pacing.
-
-**v2 experience layer.** One begin screen: "What's stirring?" chips (app-authored copy, never crisis-checked) + optional typed focus (full crisis stack), 2/4/6-minute lengths (`DRIFT_LENGTHS`: 3/5/7 waves × 12s, fixed at BEGIN into `state.limits`), one-tap anchor (default feet). Tap-first check-ins: the softer/same/stronger pills submit ON TAP (`submitNoticeTap` — no LLM, nothing to classify); typing is an optional "add a word" that routes through the unchanged, eval-verified LLM path. Tap-only check-ins get rotating scripted micro-lines (`drift.micro.*`, deterministic by wave count). Visible progression: wave dots, a warmth layer that deepens per wave, and the BLS sweep slowing as the writer softens (`passMsForSoftening` over the engine's `softerStreak`). Closure names the arc from `softerTotal` ("softened" vs "stayed with it") — scripted templates, never a score.
-
-**Engine is the single flow authority.** `driftEngine.ts` is a pure reducer (`driftReduce`) — no React, no Firestore imports. Its phases (`arrive < anchor < choose < baseline < set = notice = settle < closure < closed`) form a **monotonic order**: the set/notice/settle band cycles among itself, every other transition only advances, and nothing ever returns to an earlier phase. That no-return invariant is the defining inversion vs the EMDR-resourcing / SE-pendulation lineage it draws from — Drift always converges toward settling and never re-invokes the starting material; a "run it again" request is honored in one sentence, then declined toward the anchor. Caps live in the reducer (6 set target / 8 hard cap, ~12 min session) and converge to closure. `outcomeForReason()` maps the closure reason to a `DriftOutcome` (`settled` / `eased_early` / `aborted_to_grounding`).
-
-**Between-set companion.** `useDriftSession` drives the engine — owns the 1s tick + timers, streams between-set exchanges through the existing `/api/chat` path with `buildDriftSystemPrompt` (`driftPrompts.ts`), and persists to `driftSessions`. The companion FOLLOWS the writer's noticing and settles; it never sends them back into the material. `NOTICE_MAX_TOKENS` is 400 — below Talk's ~300 floor, gpt-5.x reasoning ate the budget and returned empty completions.
-
-**Interweave selection is deterministic.** `selectInterweave()` (in `driftEngine.ts`) is lexical / client-side — priority parts > rain > defusion > focusing, with a one-exchange cooldown owned by the engine (`state.lastInterweave`). The model renders the chosen move (one prompt fragment appended for that turn); it never picks the move. Never fires under grounding. The parts fragment names a mapped part only if the writer used its name *just now* (privacy guard).
-
-**Crisis stack mirrors Talk.** Two layers, both dispatching `CRISIS` → closure: L1 `detectCrisisKeywords` (synchronous floor, before generation) + raced L2 `classifyCrisisRisk` (gpt-5-nano; risk=2 aborts the in-flight reply and hands off; risk=1 or a `stronger` notice pendulates toward the anchor). Grounding from ANY source dispatches `CRISIS`. Scripted safety copy (arrive/anchor/settle/closure/abort) is fixed i18n strings, never LLM output. No numeric distress scale — directional pills only (softer / same / stronger).
-
-**Voice** reuses the Realtime adapter. `useDriftVoice` + `useVoiceSession`'s `setMicEnabled` / `cancelResponse`: mic muted during BLS sets, one scripted cue per phase entry, transcript crisis floor. Voice utterances route through `submitNotice(text, 'skipped')` (direction is not parsed from speech). The phase cue is gated on the data channel being `connected` and retried when the session reaches it — `speak()` no-ops before the channel opens, so the first cue would otherwise be dropped.
-
-**BLS** is `BilateralStimulus.tsx` — Web Audio panned ticks (audio channel) or a visual sweeping dot, driven by `blsPan()` (continuous sine sweep in [-1, 1], no wrap discontinuity).
-
-**React hygiene (load-bearing).** `useDriftSession` returns a fresh API object literal each render and `reduceTick` returns new state every second, so `DriftField`'s timers and unmount cleanup depend on the **stable `useCallback` handlers** (`completeSet` / `settleDone` / `abandon` / `requestClose`), NOT the whole `drift` object. Keying an effect on the object reset the 25s set/settle timers every tick (sets never auto-advanced) and fired the abandon cleanup on every re-render (persisting `outcome: 'abandoned'` on an active session). Regression-tested in `DriftField.test.tsx` (its mock returns a fresh object per render to mirror the real hook) and `useDriftVoice.test.ts` (connecting→connected).
-
-**Load-bearing constraint:** the string "EMDR" appears nowhere in product UI strings or prompts — code comments / docs / spec only (enforced by a prompt test). Writes `driftSessions` (wired into the data-export and account-deletion paths).
-
-Files: `src/engine/driftEngine.ts` (reducer + interweave selector + BLS pan math), `src/ai/driftPrompts.ts` (text + voice prompts), `src/hooks/useDriftSession.ts` (engine driver + crisis stack + persistence), `src/hooks/useDriftVoice.ts` (Realtime voice adapter), `src/components/Session/Drift/` (`DriftField`, `BilateralStimulus`, `DriftExchange`, `DriftClosing`).
+**Persistence.** `HrvSessionData` written to `hrvSessions/{sessionId}` every 10s with optional `source: 'camera' | 'polarH10'`. Webcam path stores signal dumps (raw RGB/CHROM/FFT) for offline algo analysis; H10 path leaves `signalDumps: []`.

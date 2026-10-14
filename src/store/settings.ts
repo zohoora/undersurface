@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { getGlobalConfig } from './globalConfig'
 import { detectBrowserLanguage } from '../i18n/languages'
-import type { DriftBlsChannel, RelaxAudioTrack, RelaxSessionType, RelaxVisualMode, RoomApproach, RoomAudioTrack, RoomDuration, RoomVoiceDensity, SessionMode } from '../types'
+import type { RoomApproach, RoomAudioTrack, RoomDuration, RoomVoiceDensity, SessionMode } from '../types'
 
 export interface AppSettings {
   // Part responsiveness (0.5 = slower, 2.0 = faster)
@@ -26,27 +26,6 @@ export interface AppSettings {
   // Last-used session tone — new sessions start in this mode so the user
   // doesn't have to re-pick Real Talk every time.
   lastSessionMode: SessionMode
-
-  // Last-chosen Relax mode preferences. Pre-populate the settings panel so
-  // the user can begin a session in two taps.
-  lastRelaxDuration: 5 | 10 | 20
-  lastRelaxType: RelaxSessionType
-  lastRelaxAudio: RelaxAudioTrack
-  lastRelaxAudioVolume: number  // 0..1
-  lastRelaxVoiceEnabled: boolean
-  lastRelaxVisualMode: RelaxVisualMode
-  // Last-used custom soundscape prompt. Pre-fills the textarea when user
-  // re-enters Relax mode so they don't have to retype.
-  lastRelaxCustomPrompt?: string
-
-  // Last-chosen Drift preferences (device-local).
-  lastDriftBlsChannel: DriftBlsChannel
-  lastDriftAudioVolume: number  // 0..1
-  lastDriftVoice: boolean
-  // Literal union (not the engine's DriftLength) so the store stays engine-free.
-  lastDriftLength: 'quick' | 'short' | 'full'
-  lastDriftAnchorKind: 'feet' | 'calm_place'
-  driftHasCompleted: boolean
 
   // Last Room shape. Room is intentionally easy to repeat: it remembers the
   // accompaniment, length, and sound that fit on this device.
@@ -77,18 +56,6 @@ const DEFAULTS: AppSettings = {
   language: detectBrowserLanguage(),
   timezone: detectTimezone(),
   lastSessionMode: 'standard',
-  lastRelaxDuration: 10,
-  lastRelaxType: 'breathwork',
-  lastRelaxAudio: 'ocean',
-  lastRelaxAudioVolume: 0.5,
-  lastRelaxVoiceEnabled: false,
-  lastRelaxVisualMode: 'full',
-  lastDriftBlsChannel: 'visual',
-  lastDriftAudioVolume: 0.5,
-  lastDriftVoice: false,
-  lastDriftLength: 'short',
-  lastDriftAnchorKind: 'feet',
-  driftHasCompleted: false,
   lastRoomApproach: 'listen_first',
   lastRoomDuration: 5,
   lastRoomVoiceDensity: 'sparse',

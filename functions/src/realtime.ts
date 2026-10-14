@@ -3,6 +3,8 @@ import { ALLOWED_ORIGINS } from './shared/cors.js'
 import { makeRateLimiter } from './shared/rateLimit.js'
 import { openAiKey } from './shared/secrets.js'
 import { verifyAuth } from './shared/auth.js'
+import { isRealtimeVoiceAllowed, loadFeatureFlags } from './shared/featureFlags.js'
+import { consumeDailyBudget, refundDailyBudget } from './shared/quota.js'
 
 const REALTIME_VOICES = new Set(['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'])
 const REALTIME_DEFAULT_VOICE = 'marin'
@@ -40,6 +42,23 @@ VOICE DELIVERY (this is a live voice conversation, not text):
 // Voice sessions are longer-lived and more expensive than chat requests.
 const checkRealtimeRateLimit = makeRateLimiter({ windowMs: 60_000, max: 10 })
 
+// Durable per-user ceiling on Realtime client-secret mints per UTC day, stored
+// in the server-owned quotas/{uid} doc (`daily.voiceMints`). The in-memory
+// limiter above only smooths bursts on one instance; this survives restarts
+// and instance fan-out. 30 covers many Speak/Room sessions a day (one secret
+// per session) while bounding a scripted abuser.
+export const VOICE_MINTS_PER_DAY = 30
+
+// Machine-readable error codes. The client matches on `code`, never on text.
+export const REALTIME_ERROR_CODES = {
+  disabled: 'voice_disabled',
+  dailyBudget: 'voice_daily_budget_exceeded',
+  rateLimited: 'voice_rate_limited',
+  configUnavailable: 'voice_config_unavailable',
+  upstream: 'voice_upstream_error',
+  invalidInstructions: 'invalid_instructions',
+} as const
+
 export const realtimeTokenApi = onRequest(
   {
     secrets: [openAiKey],
@@ -62,60 +81,115 @@ export const realtimeTokenApi = onRequest(
     }
 
     if (!checkRealtimeRateLimit(uid)) {
-      res.status(429).json({ error: 'Too many voice sessions. Please wait a moment.' })
+      res.status(429).json({
+        error: 'Too many voice sessions. Please wait a moment.',
+        code: REALTIME_ERROR_CODES.rateLimited,
+      })
       return
     }
 
     const { instructions, voice } = (req.body || {}) as { instructions?: unknown; voice?: unknown }
 
     if (typeof instructions !== 'string' || instructions.length === 0) {
-      res.status(400).json({ error: 'Missing instructions' })
+      res.status(400).json({ error: 'Missing instructions', code: REALTIME_ERROR_CODES.invalidInstructions })
       return
     }
     if (!realtimeInstructionsAllowed(instructions)) {
       console.warn('Realtime instructions rejected for length', { length: instructions.length, max: REALTIME_INSTRUCTIONS_MAX })
-      res.status(400).json({ error: `Instructions too long (max ${REALTIME_INSTRUCTIONS_MAX} chars)` })
+      res.status(400).json({
+        error: `Instructions too long (max ${REALTIME_INSTRUCTIONS_MAX} chars)`,
+        code: REALTIME_ERROR_CODES.invalidInstructions,
+      })
       return
+    }
+
+    // Server-side flag enforcement. The client offers voice (Speak, and Room's
+    // voice approaches) only when voiceEnabled is on, but any signed-in user
+    // can call this endpoint directly. Fail closed when the config can't be read.
+    const now = new Date()
+    let voiceAllowed: boolean
+    try {
+      voiceAllowed = isRealtimeVoiceAllowed(await loadFeatureFlags(now.getTime()))
+    } catch {
+      console.error('[realtime] config-unavailable')
+      res.status(503).json({ error: 'Voice is temporarily unavailable.', code: REALTIME_ERROR_CODES.configUnavailable })
+      return
+    }
+    if (!voiceAllowed) {
+      res.status(403).json({ error: 'Voice is not available right now.', code: REALTIME_ERROR_CODES.disabled })
+      return
+    }
+
+    // Consume the daily mint only after validation and flag checks, so a
+    // rejected request never costs the user a session.
+    let budget: Awaited<ReturnType<typeof consumeDailyBudget>>
+    try {
+      budget = await consumeDailyBudget({ uid, bucket: 'voiceMints', limit: VOICE_MINTS_PER_DAY, now })
+    } catch {
+      console.error('[realtime] budget-unavailable')
+      res.status(503).json({ error: 'Voice is temporarily unavailable.', code: REALTIME_ERROR_CODES.configUnavailable })
+      return
+    }
+    if (!budget.allowed) {
+      console.warn(`[realtime] daily-budget-block limit=${budget.limit}`)
+      res.status(429).json({
+        error: "You have reached today's voice limit. It resets at midnight UTC.",
+        code: REALTIME_ERROR_CODES.dailyBudget,
+      })
+      return
+    }
+
+    // An upstream failure refunds the mint and is reported as 502, never as
+    // OpenAI's own status: the client must not confuse an upstream 403/429
+    // with this endpoint's flag and budget codes.
+    const failUpstream = (status: number | 'network') => {
+      console.error(`OpenAI realtime error: ${status}`)
+      void refundDailyBudget({ uid, bucket: 'voiceMints', now })
+      res.status(502).json({ error: 'Voice service temporarily unavailable', code: REALTIME_ERROR_CODES.upstream })
     }
 
     const resolvedVoice = typeof voice === 'string' && REALTIME_VOICES.has(voice) ? voice : REALTIME_DEFAULT_VOICE
     const voiceInstructions = `${instructions}\n\n${VOICE_PACING_ADDENDUM}`
 
-    const openAiResponse = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAiKey.value()}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        session: {
-          type: 'realtime',
-          model: REALTIME_MODEL,
-          instructions: voiceInstructions,
-          audio: {
-            input: {
-              transcription: { model: REALTIME_TRANSCRIPTION_MODEL },
-              turn_detection: {
-                type: 'semantic_vad',
-                eagerness: REALTIME_VAD_EAGERNESS,
-                create_response: true,
-                interrupt_response: true,
+    let openAiResponse: Awaited<ReturnType<typeof fetch>>
+    try {
+      openAiResponse = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAiKey.value()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          session: {
+            type: 'realtime',
+            model: REALTIME_MODEL,
+            instructions: voiceInstructions,
+            audio: {
+              input: {
+                transcription: { model: REALTIME_TRANSCRIPTION_MODEL },
+                turn_detection: {
+                  type: 'semantic_vad',
+                  eagerness: REALTIME_VAD_EAGERNESS,
+                  create_response: true,
+                  interrupt_response: true,
+                },
+              },
+              output: {
+                voice: resolvedVoice,
+                speed: REALTIME_BASE_SPEED,
               },
             },
-            output: {
-              voice: resolvedVoice,
-              speed: REALTIME_BASE_SPEED,
-            },
           },
-        },
-        expires_after: { anchor: 'created_at', seconds: 600 },
-      }),
-    })
+          expires_after: { anchor: 'created_at', seconds: 600 },
+        }),
+      })
+    } catch {
+      failUpstream('network')
+      return
+    }
 
     if (!openAiResponse.ok) {
-      const errorBody = await openAiResponse.text().catch(() => '')
-      console.error(`OpenAI realtime error: ${openAiResponse.status}`, errorBody)
-      res.status(openAiResponse.status).json({ error: 'Voice service temporarily unavailable' })
+      failUpstream(openAiResponse.status)
       return
     }
 

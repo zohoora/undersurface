@@ -83,6 +83,24 @@ describe('SMS shared context derivation', () => {
     ])
   })
 
+  it('reads a promise due date as the writer-local calendar day, not UTC midnight', () => {
+    // 23:30 on Oct 20 in Toronto: six days and 23.5 hours after local midnight
+    // on Oct 14, but more than seven days after UTC midnight on Oct 14.
+    const now = Date.parse('2026-10-21T03:30:00Z')
+    const docs: SmsContextDocuments = {
+      ...documents(),
+      promises: [{ id: 'dated', status: 'active', text: 'check in about the move', dueKind: 'date', dueDate: '2026-10-14' }],
+      preferences: { fieldWindows: { timezone: 'America/Toronto' } },
+    }
+
+    const local = deriveSmsCompanionContext(docs, { companionInteriority: true }, now)
+    expect(local.duePromises?.map(item => item.id)).toEqual(['dated'])
+    expect(local.missedPromise).toBeNull()
+
+    const utc = deriveSmsCompanionContext({ ...docs, preferences: {} }, { companionInteriority: true }, now)
+    expect(utc.missedPromise?.id).toBe('dated')
+  })
+
   it('keeps foundational memory while feature-gating optional companion programs', () => {
     const result = deriveSmsCompanionContext(documents(), {}, NOW)
     expect(result.recentSessionNotes).toHaveLength(1)

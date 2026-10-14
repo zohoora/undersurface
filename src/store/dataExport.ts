@@ -2,6 +2,7 @@ import type { DocumentData } from 'firebase/firestore'
 import { db, sessionMessages } from './db'
 import type { SessionMessage } from '../types'
 import { t, getLanguageCode, getPartDisplayName } from '../i18n'
+import type { TranslationKey } from '../i18n'
 
 // ── Markdown export helpers ──
 
@@ -23,6 +24,39 @@ function fmtDuration(ms: number): string {
   const h = Math.floor(mins / 60)
   const m = mins % 60
   return m ? `${h}h ${m}min` : `${h}h`
+}
+
+// m:ss offset from the start of a Room visit.
+function fmtOffset(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000))
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+}
+
+const ROOM_APPROACH_KEYS: Record<string, TranslationKey> = {
+  listen_first: 'room.approach.listen.title',
+  lead_me: 'room.approach.lead.title',
+  quiet_company: 'room.approach.quiet.title',
+}
+
+const ROOM_SOUND_KEYS: Record<string, TranslationKey> = {
+  none: 'room.sound.none',
+  ocean: 'room.sound.ocean',
+  forest: 'room.sound.forest',
+  drone: 'room.sound.drone',
+  binaural: 'room.sound.binaural',
+}
+
+const ROOM_DENSITY_KEYS: Record<string, TranslationKey> = {
+  quiet: 'export.room.density.quiet',
+  sparse: 'export.room.density.sparse',
+  present: 'export.room.density.present',
+}
+
+// Known values render through i18n; anything unexpected is shown verbatim
+// rather than dropped.
+function label(keys: Record<string, TranslationKey>, value: unknown): string {
+  const key = typeof value === 'string' ? keys[value] : undefined
+  return key ? t(key) : String(value ?? '—')
 }
 
 function groupBy<T>(items: T[], keyFn: (item: T) => string): Map<string, T[]> {
@@ -283,6 +317,42 @@ export function buildMarkdownExport(
         const who = m.speaker === 'user' ? t('export.you') : t('export.companion')
         ln(`**${who}:** ${m.content}`)
         ln()
+      }
+    }
+  }
+
+  // ── Room visits ──
+  const roomSessions = [...(collections.roomSessions ?? [])]
+    .filter(room => typeof room.startedAt === 'number')
+    .sort((a, b) => (a.startedAt as number) - (b.startedAt as number))
+  if (roomSessions.length) {
+    ln('---')
+    ln()
+    ln(`## ${t('export.room')}`)
+    ln()
+    for (const room of roomSessions) {
+      const startedAt = room.startedAt as number
+      ln(`### ${fmtDate(startedAt)} · ${fmtTime(startedAt)}`)
+      ln()
+      ln(`- **${t('export.room.approach')}:** ${label(ROOM_APPROACH_KEYS, room.approach)}`)
+      if (typeof room.duration === 'number') ln(`- **${t('export.room.length')}:** ${fmtDuration(room.duration * 60_000)}`)
+      ln(`- **${t('export.room.sound')}:** ${label(ROOM_SOUND_KEYS, room.audioTrack)}`)
+      ln(`- **${t('export.room.voiceDensity')}:** ${label(ROOM_DENSITY_KEYS, room.voiceDensity)}`)
+      if (typeof room.actualDurationMs === 'number') ln(`- **${t('export.room.elapsed')}:** ${fmtDuration(room.actualDurationMs)}`)
+      ln(`- **${t('export.room.completed')}:** ${room.completed === true ? t('export.yes') : t('export.no')}`)
+      ln()
+      const transcript = Array.isArray(room.transcript)
+        ? (room.transcript as Array<Record<string, unknown>>).filter(item => typeof item.content === 'string' && item.content.trim())
+        : []
+      if (transcript.length) {
+        ln(`**${t('export.room.transcript')}:**`)
+        ln()
+        for (const item of transcript) {
+          const who = item.role === 'user' ? t('export.you') : t('export.companion')
+          const at = typeof item.atMs === 'number' ? ` · ${fmtOffset(item.atMs)}` : ''
+          ln(`**${who}${at}:** ${String(item.content).trim()}`)
+          ln()
+        }
       }
     }
   }

@@ -3,18 +3,49 @@ import {
   buildSharedContinuityBlocks,
   type SharedCompanionContext,
 } from '../shared/companionKernel.js'
+import {
+  formatLocalDateTime,
+  formatLocalStamp,
+  makeLocalDateFormatter,
+} from './localTime.js'
+
+export interface SmsPromptOptions {
+  /**
+   * Grounding mode: the current message carries risk, or a crisis happened
+   * recently (SMS risk or app grounding within the last 72 hours). Relational
+   * context and experimentation are dropped, mirroring the web Talk prompt.
+   */
+  grounding?: boolean
+  /** The writer's IANA timezone, when known. */
+  timezone?: string | null
+  now?: number
+}
+
+const SMS_GROUNDING_RULE = `GROUNDING: The writer has been through acute distress recently. Be gentle, slow, and grounding. Do not probe or push deeper, challenge, interpret, or suggest tasks. Offer presence, safety, and calm. Do not mention this note unless the writer raises it.`
+
+function currentTimeLine(timezone: string | null | undefined, now: number): string {
+  if (timezone) {
+    return `CURRENT LOCAL TIME FOR THE WRITER: ${formatLocalDateTime(now, timezone)} (${timezone}). Use it for words like "tonight", "this morning", or "tomorrow".`
+  }
+  return `CURRENT TIME: ${formatLocalDateTime(now, 'UTC')} UTC. The writer's timezone is unknown, so do not assume their time of day.`
+}
 
 export function buildSmsSystemPrompt(
   risk: 0 | 1,
   context: SharedCompanionContext = {},
+  options: SmsPromptOptions = {},
 ): string {
+  const now = options.now ?? Date.now()
+  const grounding = options.grounding === true || risk >= 1
   const riskRule = risk === 1
     ? `The separate classifier found ambiguous life-cessation language, but not a clear plan or method. Be warm, concrete, and gently check immediate safety in one plain question. Do not diagnose, dramatize, or flood them with resources.`
     : `Do not perform a crisis assessment unless the current message itself asks for it. A separate calibrated safety pipeline handles clear crisis language.`
+  const groundingRule = grounding && risk === 0 ? `\n\n${SMS_GROUNDING_RULE}` : ''
 
   const continuity = buildSharedContinuityBlocks(context, {
     channel: 'sms',
-    includeRelationalContext: true,
+    includeRelationalContext: !grounding,
+    formatDate: makeLocalDateFormatter(options.timezone ?? 'UTC', now),
   })
 
   return `You are UnderSurface's companion, available through SMS during ordinary life between deeper sessions.
@@ -22,6 +53,7 @@ export function buildSmsSystemPrompt(
 ${buildCompanionKernelPrompt('sms', {
   memoryAperture: context.memoryAperture,
   alliancePreferences: context.alliancePreferences,
+  grounding,
 })}
 
 The purpose of this channel is to help the writer notice, orient, or take one small next step. It is not a miniature therapy session and not an engagement loop. Decide how much response this particular moment genuinely needs.
@@ -69,17 +101,20 @@ STRUCTURED OUTPUT:
 - Set visual_risk to 2 only when an image itself shows clear evidence of immediate self-harm danger, an active attempt, a suicide method in progress, or another imminent lethal emergency. Set it to 1 for genuinely ambiguous visual concern and 0 otherwise. Scars, medication bottles without danger context, artwork, metaphor, news, and screenshots discussing distress are not visual_risk 2.
 - When visual_risk is 1, keep the reply calm and include one plain question about immediate safety. A visual_risk 2 reply is replaced server-side with fixed emergency guidance.
 
-${riskRule}${continuity.length > 0 ? `\n\nSHARED CONTINUITY FROM UNDERSURFACE:\n${continuity.join('\n\n')}` : ''}`
+${riskRule}${groundingRule}${continuity.length > 0 ? `\n\nSHARED CONTINUITY FROM UNDERSURFACE:\n${continuity.join('\n\n')}` : ''}
+
+${currentTimeLine(options.timezone, now)}`
 }
 
 export function wrapSmsHistory(
   history: Array<{ direction: 'inbound' | 'outbound'; body: string; createdAt: number }>,
+  timezone: string | null = null,
 ): string {
   if (history.length === 0) return ''
   const lines = history.slice(-8).map((message) => {
     const role = message.direction === 'inbound' ? 'writer' : 'companion'
     const safeBody = message.body.replace(/<\/?untrusted[^>]*>/gi, '').slice(0, 1600)
-    return `[${new Date(message.createdAt).toISOString()}] ${role}: ${safeBody}`
+    return `[${formatLocalStamp(message.createdAt, timezone ?? 'UTC')}${timezone ? '' : ' UTC'}] ${role}: ${safeBody}`
   })
   return `<untrusted_recent_sms_context>\n${lines.join('\n')}\n</untrusted_recent_sms_context>`
 }

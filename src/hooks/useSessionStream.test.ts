@@ -50,6 +50,7 @@ const companionSignalsUpdateMock = vi.fn(async () => {})
 const userPartsUpdateMock = vi.fn(async () => {})
 const intentionUpdateMock = vi.fn(async () => {})
 const markResearchDeliveredMock = vi.fn(async () => {})
+const markResearchCancelledMock = vi.fn(async () => {})
 const writeAmbientTurnOutcomeMock = vi.fn(async () => {})
 let idCounter = 0
 vi.mock('../store/db', () => ({
@@ -65,6 +66,7 @@ vi.mock('../store/db', () => ({
 }))
 vi.mock('../store/personalScience', () => ({
   markResearchDelivered: (...args: unknown[]) => markResearchDeliveredMock(...args),
+  markResearchCancelled: (...args: unknown[]) => markResearchCancelledMock(...args),
 }))
 vi.mock('../store/interventionOutcomes', () => ({
   writeAmbientTurnOutcome: (...args: unknown[]) => writeAmbientTurnOutcomeMock(...args),
@@ -245,6 +247,7 @@ beforeEach(() => {
   userPartsUpdateMock.mockClear()
   intentionUpdateMock.mockClear()
   markResearchDeliveredMock.mockClear()
+  markResearchCancelledMock.mockClear()
   writeAmbientTurnOutcomeMock.mockClear()
   featuresMock = {}
   isGroundingMock.mockReturnValue(false)
@@ -412,6 +415,76 @@ describe('useSessionStream — deterministic research delivery', () => {
       researchArm: 'designed_silence',
     }))
     expect(markResearchDeliveredMock).toHaveBeenCalledWith(event, 'msg-1')
+  })
+
+  // P0 (TECH_ISSUES #1): L1 fires during the user append on a turn whose
+  // conductor plan would deliver a fixed Room offer. The canned message must
+  // not be written; a grounded model turn runs instead.
+  it('falls back to a grounded model turn instead of a canned offer when grounding is active', async () => {
+    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
+      callbacks.onToken('I am here with you.')
+      callbacks.onComplete()
+    })
+    const userMsg = makeUserMsg('crisis-level text')
+    const wiring = makeWiring({ messages: [userMsg] })
+    const { result } = renderHook(() => useSessionStream(wiring))
+    const event = {
+      id: 'conductor-u1', protocolId: 'adaptive-conductor-v1', protocolVersion: 1, assignmentKind: 'randomized',
+      status: 'assigned', source: 'talk', sessionId: 'sess-1', eligibilityPoint: 'user-turn-2',
+      assignmentSeed: 'seed', assignedArm: 'room_arc', responseMode: 'handoff',
+      provider: 'deterministic', promptVersion: 'adaptive-conductor-v1', appVersion: 'test',
+      createdAt: 1, updatedAt: 1,
+    } as const
+    isGroundingMock.mockReturnValue(true)
+
+    await act(async () => {
+      const pending = result.current.appendDeterministicCompanionMessage('Your body may need a change of atmosphere. [Open Room](#switch:room-arc).', event)
+      await Promise.resolve()
+      await (wiring.typewriter as unknown as TypewriterMock).pendingComplete?.('I am here with you.')
+      await pending
+    })
+
+    const written = sessionMessageAddMock.mock.calls.map(call => (call[1] as SessionMessage).content)
+    expect(written).not.toContain('Your body may need a change of atmosphere. [Open Room](#switch:room-arc).')
+    expect(written).toEqual(['I am here with you.'])
+    expect(streamMock).toHaveBeenCalledOnce()
+    expect(buildOptionsSpy.mock.calls[0][0].isGrounding).toBe(true)
+    expect(markResearchDeliveredMock).not.toHaveBeenCalled()
+    expect(markResearchCancelledMock).toHaveBeenCalledWith('conductor-u1', 'grounding')
+  })
+
+  it('drops a research assignment from a grounded model turn and cancels it', async () => {
+    streamMock.mockImplementation(async (_p, callbacks: { onToken: (t: string) => void; onComplete: () => void }) => {
+      callbacks.onToken('Staying with you.')
+      callbacks.onComplete()
+    })
+    const wiring = makeWiring({ messages: [makeUserMsg('hard text')] })
+    const { result } = renderHook(() => useSessionStream(wiring))
+    const event = {
+      id: 'research-u1', protocolId: 'personal-science-v1', protocolVersion: 1, assignmentKind: 'randomized',
+      status: 'assigned', source: 'talk', sessionId: 'sess-1', eligibilityPoint: 'user-turn-2',
+      assignmentSeed: 'seed', assignedArm: 'single_hypothesis', responseMode: 'reflect',
+      provider: 'openai', promptVersion: 'personal-science-v1', appVersion: 'test',
+      createdAt: 1, updatedAt: 1,
+    } as const
+    isGroundingMock.mockReturnValue(true)
+
+    await act(async () => {
+      const pending = result.current.generateTherapistMessage(
+        wiring.messagesRef.current!,
+        wiring.sessionRef.current!,
+        { event, delivery: 'model', responseMode: 'reflect', directive: 'EXPERIMENT DIRECTIVE' },
+      )
+      await Promise.resolve()
+      await (wiring.typewriter as unknown as TypewriterMock).pendingComplete?.('Staying with you.')
+      await pending
+    })
+
+    expect(buildOptionsSpy.mock.calls[0][0].experimentDirective).toBeUndefined()
+    const written = sessionMessageAddMock.mock.calls[0][1] as SessionMessage
+    expect(written.researchEventId).toBeUndefined()
+    expect(markResearchDeliveredMock).not.toHaveBeenCalled()
+    expect(markResearchCancelledMock).toHaveBeenCalledWith('research-u1', 'grounding')
   })
 })
 
@@ -718,6 +791,35 @@ describe('useSessionStream — appendUserMessage', () => {
 
     expect(res).toBeNull()
     expect(sessionMessageAddMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses an owned append when the owner is not the session on screen (never redirects)', async () => {
+    const wiring = makeWiring({ session: makeSession({ id: 'sess-B' }) })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    let res: Awaited<ReturnType<typeof result.current.appendUserMessage>>
+    await act(async () => {
+      res = await result.current.appendUserMessage('words from A', 'text', 'journal', { ownerSessionId: 'sess-A' })
+    })
+
+    expect(res).toBeNull()
+    expect(sessionMessageAddMock).not.toHaveBeenCalled()
+    expect(wiring.orchestrator.checkCrisisKeywords).not.toHaveBeenCalled()
+  })
+
+  it('uses the caller-supplied message id so a retried append overwrites itself', async () => {
+    const wiring = makeWiring()
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    await act(async () => {
+      await result.current.appendUserMessage('journal words', 'text', 'journal', { ownerSessionId: 'sess-1', messageId: 'stable-id' })
+    })
+
+    const [sessionId, msg] = sessionMessageAddMock.mock.calls[0] as unknown as [string, SessionMessage]
+    expect(sessionId).toBe('sess-1')
+    expect(msg.id).toBe('stable-id')
+    expect(msg.surface).toBe('journal')
+    expect(wiring.orchestrator.checkCrisisKeywords).toHaveBeenCalledWith('journal words')
   })
 
   it('tags voice-input turns with inputMethod=voice', async () => {

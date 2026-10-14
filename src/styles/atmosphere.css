@@ -2162,7 +2162,8 @@ body {
 }
 
 .session-bottom-bar__pill {
-  padding: 4px 10px;
+  min-height: 32px;
+  padding: 4px 12px;
   border: 1px solid var(--border-subtle);
   border-radius: 999px;
   background: var(--surface-primary);
@@ -2237,24 +2238,6 @@ body {
   box-shadow: 0 16px 44px var(--overlay-medium);
 }
 
-.session-options-menu__surfaces {
-  display: none;
-  gap: 6px;
-  padding: 4px 4px 8px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--border-light);
-}
-
-.session-options-menu__surfaces button {
-  flex: 1;
-  min-height: 40px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 9px;
-  background: var(--surface-primary);
-  color: var(--text-primary);
-  cursor: pointer;
-}
-
 .session-option-state {
   font-size: 10px;
   color: var(--text-ghost);
@@ -2321,8 +2304,6 @@ body {
     font-size: 11px;
   }
 
-  .session-bottom-bar__optional-surface { display: none; }
-  .session-bottom-bar__optional-surface.session-bottom-bar__drift { display: block; }
   .session-options { flex: 0 0 20%; margin-left: 4px; }
   .session-bottom-bar__options { width: 100%; min-height: 48px; height: auto; font: 11px 'Inter', sans-serif; }
   .session-options-desktop { display: none; }
@@ -2334,8 +2315,6 @@ body {
     bottom: calc(78px + env(safe-area-inset-bottom, 0px));
     width: min(280px, calc(100vw - 24px));
   }
-  .session-options-menu__surfaces { display: flex; }
-  .session-options-menu__drift { display: none; }
 }
 
 @keyframes blink {
@@ -2352,7 +2331,9 @@ body {
 
 .room-field {
   position: fixed;
-  z-index: 40;
+  /* Above the fixed biometrics bar (z-index 50) so it can never cover the
+     close button; Room is a modal surface. */
+  z-index: 60;
   inset: 0;
   overflow: hidden;
   display: grid;
@@ -2492,7 +2473,8 @@ body {
 .room-pills button,
 .room-controls button,
 .room-return__actions button {
-  min-height: 38px;
+  min-height: 44px;
+  min-width: 44px;
   padding: 7px 13px;
   border: 1px solid rgba(255,255,255,.11);
   border-radius: 999px;
@@ -2539,7 +2521,7 @@ body {
 }
 .room-caption--immersive { position: absolute; left: 50%; bottom: 104px; width: min(600px, calc(100vw - 44px)); transform: translateX(-50%); text-align: center; }
 .room-voice-error { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; font: 11px/1.4 'Inter', sans-serif; color: rgba(244,240,232,.66); }
-.room-voice-error button { border: 0; background: transparent; color: #efd6b5; text-decoration: underline; cursor: pointer; }
+.room-voice-error button { min-height: 44px; min-width: 44px; padding: 0 8px; border: 0; background: transparent; color: #efd6b5; text-decoration: underline; cursor: pointer; }
 .room-audio-retry,
 .room-media-status {
   position: relative;
@@ -2550,7 +2532,7 @@ body {
   color: #efd6b5;
   font: 500 11px/1.3 'Inter', sans-serif;
 }
-.room-audio-retry { min-height: 42px; padding: 8px 16px; cursor: pointer; }
+.room-audio-retry { min-height: 44px; padding: 8px 16px; cursor: pointer; }
 .room-media-loading { margin: 0 0 18px; font: 500 10px/1.3 'Inter', sans-serif; color: rgba(244,240,232,.55); letter-spacing: .08em; }
 .room-media-status {
   position: absolute;
@@ -2565,7 +2547,7 @@ body {
   padding: 9px 13px;
   transform: translateX(-50%);
 }
-.room-media-status button { border: 0; background: transparent; color: #efd6b5; text-decoration: underline; cursor: pointer; }
+.room-media-status button { min-height: 44px; min-width: 44px; padding: 0 8px; border: 0; background: transparent; color: #efd6b5; text-decoration: underline; cursor: pointer; }
 
 .room-immersive { position: absolute; inset: 0; }
 .room-breathing-field {

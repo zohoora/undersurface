@@ -12,6 +12,7 @@ import { SignalTracker } from '../engine/signalTracker'
 import { validateResearchDelivery, type ResearchAssignment } from '../engine/personalScience'
 import { markResearchDelivered } from '../store/personalScience'
 import { markResearchCancelled } from '../store/personalScience'
+import { isRoomEnabled, isVoiceEnabled } from '../engine/surfaceAvailability'
 import { writeAmbientTurnOutcome } from '../store/interventionOutcomes'
 import type { TherapistContext } from '../engine/sessionContextLoader'
 import { isGroundingActive, activateGrounding } from './useGroundingMode'
@@ -62,6 +63,17 @@ export interface AppendUserMessageResult {
   updatedMessages: SessionMessage[]
   firstLine: string
   phase: SessionPhase
+}
+
+export interface AppendUserMessageOptions {
+  /**
+   * The session these words belong to, captured when they were written (a
+   * Journal draft). The append is refused, never redirected, when that
+   * session is no longer the one on screen or has closed.
+   */
+  ownerSessionId?: string
+  /** Stable id so a retried append overwrites its own earlier attempt. */
+  messageId?: string
 }
 
 // Owns the message-lifecycle side of a session: writing therapist + user
@@ -202,6 +214,12 @@ export function useSessionStream(wiring: SessionStreamWiring) {
 
         const context = contextRef.current
         const hrvContext = hrv.buildPromptContext()
+        // Read grounding live for every attempt: the crisis retry after a
+        // risk-2 preamble must rebuild without the research arm. Grounding
+        // suppresses research turns entirely, so the assignment is dropped
+        // (and cancelled at finalize) rather than delivered half-applied.
+        const groundedNow = isGroundingActive()
+        const turnAssignment = groundedNow ? undefined : activeResearchAssignment
         // Per-turn refresh of in-session relax breaks (cheap query). Lets the
         // therapist see breaks that happened mid-conversation without
         // reloading the entire context.
@@ -213,7 +231,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
         // Do not stack proposals, pivots, presence, humor, or surface markers
         // onto the assigned form; that would make both the experience and the
         // evidence uninterpretable.
-        const exclusiveResearchTurn = Boolean(activeResearchAssignment)
+        const exclusiveResearchTurn = Boolean(turnAssignment)
 
         // Rupture repair: opener-only, consume-once (cleared after the opener
         // that used it finalizes). Pivot: a live tracker arm wins; otherwise
@@ -340,16 +358,23 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           relevantMemories: context?.relevantMemories,
           profile: context?.userProfile,
           personalFacts: context?.personalFacts,
-          isGrounding: isGroundingActive(),
+          isGrounding: groundedNow,
           hrvContext,
           mode: currentSession.mode ?? 'standard',
           includeAmbientAssessment: durableContextEnabled,
           allowRecommendations: !exclusiveResearchTurn,
+          // Only teach #switch links for surfaces this session can actually
+          // open: a link to a disabled surface would start hidden voice.
+          availableSurfaces: [
+            'journal',
+            ...(isVoiceEnabled(signalFeatures) ? ['speak' as const] : []),
+            ...(isRoomEnabled(signalFeatures) ? ['room' as const] : []),
+          ],
           availableSurfaceArcs: durableContextEnabled
             ? [
                 'journal',
-                ...(signalFeatures?.voiceEnabled === true ? ['speak' as const] : []),
-                ...(signalFeatures?.relaxEnabled === true || signalFeatures?.driftEnabled === true ? ['room' as const] : []),
+                ...(isVoiceEnabled(signalFeatures) ? ['speak' as const] : []),
+                ...(isRoomEnabled(signalFeatures) ? ['room' as const] : []),
               ]
             : [],
           isFirstTurn,
@@ -367,7 +392,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           stanceContext,
           outcomeContext: context?.outcomeContext,
           alliancePreferences: context?.alliancePreferences,
-          experimentDirective: activeResearchAssignment?.directive,
+          experimentDirective: turnAssignment?.directive,
           personalProtocols: context?.activePersonalProtocols,
           livingHypotheses: context?.livingHypotheses,
           activeValues,
@@ -400,10 +425,10 @@ export function useSessionStream(wiring: SessionStreamWiring) {
           }
 
           const msgId = generateId()
-          const deliveryValidation = activeResearchAssignment
-            ? validateResearchDelivery(activeResearchAssignment, fullText)
+          const deliveryValidation = turnAssignment
+            ? validateResearchDelivery(turnAssignment, fullText)
             : null
-          const deliveredAssignment = deliveryValidation?.delivered === false ? null : activeResearchAssignment
+          const deliveredAssignment = deliveryValidation?.delivered === false ? null : turnAssignment
           const newMessage: SessionMessage = {
             id: msgId,
             speaker: 'therapist',
@@ -439,8 +464,11 @@ export function useSessionStream(wiring: SessionStreamWiring) {
               phase,
             })
 
-            if (deliveryValidation?.delivered === false && activeResearchAssignment) {
-              await markResearchCancelled(activeResearchAssignment.event.id, deliveryValidation.reason)
+            if (activeResearchAssignment && !turnAssignment) {
+              await markResearchCancelled(activeResearchAssignment.event.id, 'grounding')
+                .catch(() => { /* response persistence outranks research telemetry */ })
+            } else if (deliveryValidation?.delivered === false && turnAssignment) {
+              await markResearchCancelled(turnAssignment.event.id, deliveryValidation.reason)
                 .catch(() => { /* response persistence outranks research telemetry */ })
             } else if (deliveredAssignment) {
               await markResearchDelivered(deliveredAssignment.event, msgId)
@@ -695,6 +723,12 @@ export function useSessionStream(wiring: SessionStreamWiring) {
   // Fixed, transparent research interventions use the same serialized append
   // path as model responses. This makes designed silence and a Journal offer
   // real delivered arms without pretending the model generated them.
+  //
+  // Defense in depth for the P0 crisis path: a canned offer must never answer
+  // a grounded turn. Grounding is re-read here (and again inside the append
+  // queue, which can lag behind an L1/L2 activation); when it is active the
+  // arm is cancelled and an ordinary model turn runs instead, which rebuilds
+  // the prompt with isGrounding=true.
   const appendDeterministicCompanionMessage = useCallback(async (
     content: string,
     event: ResearchEvent,
@@ -704,7 +738,14 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     const trimmed = content.trim()
     if (!trimmed) return null
 
-    return enqueueAppend(async () => {
+    const fallBackToModelTurn = () => {
+      void markResearchCancelled(event.id, 'grounding').catch(() => { /* telemetry only */ })
+      return generateTherapistMessage(messagesRef.current, sessionRef.current ?? currentSession)
+    }
+    if (isGroundingActive()) return fallBackToModelTurn()
+
+    const delivered = await enqueueAppend(async (): Promise<SessionMessage[] | null> => {
+      if (isGroundingActive()) return null
       const phase = orchestratorRef.current.detectPhase(messagesRef.current)
       const message: SessionMessage = {
         id: generateId(),
@@ -737,7 +778,11 @@ export function useSessionStream(wiring: SessionStreamWiring) {
       }
       return updatedMessages
     })
-  }, [enqueueAppend, messagesRef, orchestratorRef, runtime, sessionRef, setMessages, setSession])
+    // Grounding activated while this append waited in the queue. The model
+    // turn is generated outside the queue (its own finalize enqueues).
+    if (delivered === null) return fallBackToModelTurn()
+    return delivered
+  }, [enqueueAppend, generateTherapistMessage, messagesRef, orchestratorRef, runtime, sessionRef, setMessages, setSession])
 
   // Realtime surfaces that are not Speak still share the parent session's
   // transcript and continuity. They can persist an organic companion turn
@@ -789,20 +834,30 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     content: string,
     inputMethod?: 'text' | 'voice',
     surface: SessionMessage['surface'] = inputMethod === 'voice' ? 'speak' : 'talk',
+    options: AppendUserMessageOptions = {},
   ): Promise<AppendUserMessageResult | null> => {
     const currentSession = sessionRef.current
     if (!currentSession || currentSession.status === 'closed') return null
+    const { ownerSessionId } = options
+    if (ownerSessionId !== undefined && currentSession.id !== ownerSessionId) return null
     const trimmed = content.trim()
     if (!trimmed) return null
 
     // Serialized so a concurrent append (e.g. a voice transcript arriving while
     // this persists) can't read the same base array and clobber this message /
     // understate messageCount. The base list is read fresh INSIDE the queue.
-    const result = await enqueueAppend(async (): Promise<AppendUserMessageResult> => {
+    const result = await enqueueAppend(async (): Promise<AppendUserMessageResult | null> => {
+      // Owned words re-check inside the queue: the session may have closed or
+      // the view moved on while earlier appends ran. The base list below is
+      // only this session's while it is still the one on screen.
+      if (ownerSessionId !== undefined) {
+        const latest = sessionRef.current
+        if (latest?.id !== ownerSessionId || latest.status === 'closed') return null
+      }
       const currentMessages = messagesRef.current
       const phase = orchestratorRef.current.detectPhase(currentMessages)
       const userMessage: SessionMessage = {
-        id: generateId(),
+        id: options.messageId ?? generateId(),
         speaker: 'user',
         partId: null,
         partName: null,
@@ -835,6 +890,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
       }
       return { updatedMessages, firstLine, phase }
     })
+    if (!result) return null
 
     // L1 runs synchronously before any response. If the narrow hard floor does
     // not fire, L2 reads context in parallel with the response. Keeping the L2

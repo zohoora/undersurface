@@ -134,4 +134,57 @@ describe('buildMarkdownExport — completeness (C-8)', () => {
     const md = buildMarkdownExport({ entries: [] }, {})
     expect(md).not.toContain('conversations')
   })
+
+  it('renders Room visits with their settings, outcome and transcript', () => {
+    const collections = {
+      roomSessions: [
+        {
+          id: 'r2', parentSessionId: 's1', startedAt: 1_700_000_600_000, endedAt: 1_700_000_660_000,
+          approach: 'quiet_company', duration: 2, voiceDensity: 'quiet', audioTrack: 'forest',
+          transcript: [], commands: [], completed: false, actualDurationMs: 60_000, memoryAperture: 'pattern',
+        },
+        {
+          id: 'r1', parentSessionId: 's1', startedAt: 1_700_000_000_000, endedAt: 1_700_000_300_000,
+          approach: 'listen_first', duration: 5, voiceDensity: 'sparse', audioTrack: 'ocean',
+          transcript: [
+            { role: 'user', content: 'My shoulders are tight.', atMs: 12_000 },
+            { role: 'companion', content: 'Let them be tight for a moment.', atMs: 75_000 },
+            { role: 'user', content: '   ', atMs: 80_000 },
+          ],
+          commands: ['less_voice'], completed: true, actualDurationMs: 300_000, memoryAperture: 'pattern',
+        },
+      ],
+    }
+
+    const md = buildMarkdownExport(collections, {})
+
+    expect(md).toContain('## room')
+    expect(md).toContain('**room.approach:** room.approach.listen.title')
+    expect(md).toContain('**room.length:** 5 min')
+    expect(md).toContain('**room.sound:** room.sound.ocean')
+    expect(md).toContain('**room.voiceDensity:** room.density.sparse')
+    expect(md).toContain('**room.elapsed:** 5 min')
+    expect(md).toContain('**room.completed:** yes')
+    expect(md).toContain('**room.transcript:**')
+    expect(md).toContain('**you · 0:12:** My shoulders are tight.')
+    expect(md).toContain('**companion · 1:15:** Let them be tight for a moment.')
+    // Visits are chronological; the ended-early visit has no transcript block.
+    expect(md.indexOf('room.sound.ocean')).toBeLessThan(md.indexOf('room.sound.forest'))
+    expect(md).toContain('**room.completed:** no')
+    expect(md.match(/room\.transcript/g)).toHaveLength(1)
+  })
+
+  it('renders letters from parts', () => {
+    const md = buildMarkdownExport({
+      parts: [{ id: 'watcher', name: 'The Watcher' }],
+      letters: [{ id: 'l1', partIds: ['watcher'], content: 'Dear you,\n\nWe noticed.', triggerType: 'milestone', createdAt: 1_700_000_000_000, isRead: false }],
+    }, {})
+    expect(md).toContain('## letters')
+    expect(md).toContain('### letterFrom The Watcher')
+    expect(md).toContain('We noticed.')
+  })
+
+  it('omits the Room section when there are no Room visits', () => {
+    expect(buildMarkdownExport({ roomSessions: [] }, {})).not.toContain('## room')
+  })
 })

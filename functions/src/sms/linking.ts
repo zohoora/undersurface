@@ -141,26 +141,35 @@ export async function getOutboundPhone(uid: string): Promise<string | null> {
   if (!settingsSnap.exists) return null
   const settings = settingsSnap.data() as SmsSettingsDoc
   if (!settings.phoneHash || settings.enabled !== true) return null
-  const linkSnap = await phoneLinkRef(settings.phoneHash).get()
-  const resolved = resolveOutboundPhone(
-    uid,
-    settings,
-    linkSnap.exists ? linkSnap.data() as SmsPhoneLinkDoc : null,
-  )
+  const linkRef = phoneLinkRef(settings.phoneHash)
+  const linkSnap = await linkRef.get()
+  const link = linkSnap.exists ? linkSnap.data() as SmsPhoneLinkDoc : null
+  const resolved = resolveOutboundPhone(uid, settings, link)
   if (resolved) return resolved
 
   // Links created before proactive windows did not retain a recoverable
-  // destination. Migrate from the existing server-owned inbound envelope;
-  // the hash check prevents a stale queue item from changing the link.
+  // destination. Backfill it from the server-owned inbound envelope, but only
+  // onto an existing, enabled link that already belongs to this uid: the
+  // fallback must never create a mapping (or a plaintext-number doc) from a
+  // phone hash it has not independently verified.
+  if (!isLegacyLinkForUid(link, uid)) return null
   const inbound = await db.collection('smsInbound').where('uid', '==', uid).limit(20).get()
   for (const doc of inbound.docs) {
-    const phone = normalizePhone(doc.data().from)
-    if (phone && hashSmsValue(phone) === settings.phoneHash) {
-      await phoneLinkRef(settings.phoneHash).set({ phoneE164: phone }, { merge: true })
-      return phone
-    }
+    const phone = normalizePhone(String(doc.data().from ?? ''))
+    if (!phone || hashSmsValue(phone) !== settings.phoneHash) continue
+    const backfilled = await db.runTransaction(async transaction => {
+      const fresh = await transaction.get(linkRef)
+      if (!fresh.exists || !isLegacyLinkForUid(fresh.data() as SmsPhoneLinkDoc, uid)) return false
+      transaction.update(linkRef, { phoneE164: phone })
+      return true
+    })
+    return backfilled ? phone : null
   }
   return null
+}
+
+function isLegacyLinkForUid(link: SmsPhoneLinkDoc | null, uid: string): boolean {
+  return Boolean(link && link.uid === uid && link.enabled === true && !link.phoneE164)
 }
 
 export async function linkPhoneByCode(

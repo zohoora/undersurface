@@ -13,8 +13,11 @@ import { PartThoughtBubble } from '../Editor/PartThoughtBubble'
 import { ThinkingSpace } from '../ThinkingOutLoud/ThinkingSpace'
 import { PauseRipple } from '../Atmosphere/PauseRipple'
 import { triggerRippleAtCursor, usePauseRipple } from '../Atmosphere/usePauseRipple'
+import { journalDraftToDoc } from '../../store/journalDrafts'
 
 interface Props {
+  // The session's saved draft (plain text). Read once when the editor is
+  // created; the parent remounts this surface when the draft's owner changes.
   initialContent: string
   onChange: (next: string) => void
   // Per-session toggle from the mode bar. When false the parts pipeline is
@@ -72,7 +75,7 @@ export function SessionJournalSurface({
       InkWeight,
       ParagraphSettle,
     ],
-    content: initialContent || '',
+    content: initialContent ? journalDraftToDoc(initialContent) : '',
     autofocus: 'end',
     editorProps: {
       attributes: {

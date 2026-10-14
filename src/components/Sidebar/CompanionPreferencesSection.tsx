@@ -79,6 +79,7 @@ async function changeLexicon(facts: PersonalFacts, index: number, value: string 
 }
 
 function MemoryLedger() {
+  const tr = useTranslation()
   const [open, setOpen] = useState(false)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [facts, setFacts] = useState<PersonalFacts | null>(null)
@@ -114,7 +115,7 @@ function MemoryLedger() {
     <div key={id} style={{ padding: '8px 0', borderTop: '1px solid var(--border-light)' }}>
       <textarea
         defaultValue={value}
-        aria-label="Remembered detail"
+        aria-label={tr['companionMemory.detailLabel']}
         rows={2}
         onBlur={(event) => {
           const next = event.target.value.trim()
@@ -123,8 +124,8 @@ function MemoryLedger() {
         style={{ width: '100%', resize: 'vertical', border: 0, background: 'transparent', color: 'var(--text-primary)', font: "11px/1.45 'Inter', sans-serif", padding: 0 }}
       />
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, color: 'var(--text-ghost)', fontSize: 9 }}>
-        <span>{source} · {date ? new Date(date).toLocaleDateString() : 'date unavailable'}</span>
-        <button onClick={onForget} style={{ border: 0, background: 'none', color: 'var(--text-secondary)', fontSize: 9, cursor: 'pointer' }}>forget</button>
+        <span>{source} · {date ? new Date(date).toLocaleDateString() : tr['companionMemory.dateUnavailable']}</span>
+        <button onClick={onForget} style={{ border: 0, background: 'none', color: 'var(--text-secondary)', fontSize: 9, cursor: 'pointer' }}>{tr['companionMemory.forget']}</button>
       </div>
     </div>
   )
@@ -132,35 +133,35 @@ function MemoryLedger() {
   return (
     <div style={{ marginTop: 10 }}>
       <button onClick={() => setOpen(value => !value)} aria-expanded={open} style={{ width: '100%', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '6px 10px', background: 'none', color: 'var(--text-primary)', fontSize: 11, cursor: 'pointer' }}>
-        {open ? 'Hide what the companion remembers' : 'Review what the companion remembers'}
+        {open ? tr['companionMemory.hide'] : tr['companionMemory.review']}
       </button>
       {open && (
         <div style={{ marginTop: 8 }}>
-          <div style={{ color: 'var(--text-ghost)', fontSize: 10, lineHeight: 1.4, marginBottom: 8 }}>These are working notes, not facts about who you are. Correct or forget anything.</div>
+          <div style={{ color: 'var(--text-ghost)', fontSize: 10, lineHeight: 1.4, marginBottom: 8 }}>{tr['companionMemory.note']}</div>
           {profile && (['recurringThemes', 'emotionalPatterns', 'avoidancePatterns', 'growthSignals'] as const).flatMap(key =>
-            profile[key].map((value, index) => row(`profile-${key}-${index}`, 'inferred across sessions', value, profile.lastUpdated, next => void updateProfileItem(key, index, next), () => void updateProfileItem(key, index, null))),
+            profile[key].map((value, index) => row(`profile-${key}-${index}`, tr['companionMemory.source.inferred'], value, profile.lastUpdated, next => void updateProfileItem(key, index, next), () => void updateProfileItem(key, index, null))),
           )}
-          {profile?.innerLandscape && row('profile-landscape', 'inferred across sessions', profile.innerLandscape, profile.lastUpdated, next => void changeInnerLandscape(profile, next).then(setProfile), () => void changeInnerLandscape(profile, '').then(setProfile))}
-          {facts && facts.people.map((item, index) => row(`person-${index}`, 'concrete detail', item.name, facts.lastUpdated, next => void updateFact('people', index, next), () => void updateFact('people', index, null)))}
-          {facts && facts.dates.map((item, index) => row(`date-${index}`, `date: ${item.date}`, item.event, facts.lastUpdated, next => void updateFact('dates', index, next), () => void updateFact('dates', index, null)))}
+          {profile?.innerLandscape && row('profile-landscape', tr['companionMemory.source.inferred'], profile.innerLandscape, profile.lastUpdated, next => void changeInnerLandscape(profile, next).then(setProfile), () => void changeInnerLandscape(profile, '').then(setProfile))}
+          {facts && facts.people.map((item, index) => row(`person-${index}`, tr['companionMemory.source.concrete'], item.name, facts.lastUpdated, next => void updateFact('people', index, next), () => void updateFact('people', index, null)))}
+          {facts && facts.dates.map((item, index) => row(`date-${index}`, tr['companionMemory.source.date'].replace('{date}', item.date), item.event, facts.lastUpdated, next => void updateFact('dates', index, next), () => void updateFact('dates', index, null)))}
           {facts && facts.context.map((item, index) => row(`context-${index}`, item.category, item.value, facts.lastUpdated, next => void updateFact('context', index, next), () => void updateFact('context', index, null)))}
-          {facts && facts.currentThreads.map((item, index) => row(`thread-${index}`, 'current thread', item.topic, item.addedAt, next => void updateFact('currentThreads', index, next), () => void updateFact('currentThreads', index, null)))}
-          {facts && (facts.lexicon ?? []).map((phrase, index) => row(`phrase-${index}`, 'your own phrase', phrase, facts.lastUpdated, next => void changeLexicon(facts, index, next).then(setFacts), () => void changeLexicon(facts, index, null).then(setFacts)))}
-          {sessions.map(session => row(`session-${session.id}`, 'session note', session.sessionNote ?? '', session.endedAt ?? session.startedAt, next => {
+          {facts && facts.currentThreads.map((item, index) => row(`thread-${index}`, tr['companionMemory.source.thread'], item.topic, item.addedAt, next => void updateFact('currentThreads', index, next), () => void updateFact('currentThreads', index, null)))}
+          {facts && (facts.lexicon ?? []).map((phrase, index) => row(`phrase-${index}`, tr['companionMemory.source.phrase'], phrase, facts.lastUpdated, next => void changeLexicon(facts, index, next).then(setFacts), () => void changeLexicon(facts, index, null).then(setFacts)))}
+          {sessions.map(session => row(`session-${session.id}`, tr['companionMemory.source.sessionNote'], session.sessionNote ?? '', session.endedAt ?? session.startedAt, next => {
             setSessions(list => list.map(item => item.id === session.id ? { ...item, sessionNote: next } : item))
             void db.sessions.update(session.id, { sessionNote: next })
           }, () => {
             setSessions(list => list.filter(item => item.id !== session.id))
             void db.sessions.update(session.id, { sessionNote: null })
           }))}
-          {memories.map(memory => row(`memory-${memory.id}`, memory.source ?? memory.type ?? 'session memory', memory.content, memory.timestamp, next => {
+          {memories.map(memory => row(`memory-${memory.id}`, memory.source ?? memory.type ?? tr['companionMemory.source.memory'], memory.content, memory.timestamp, next => {
             setMemories(list => list.map(item => item.id === memory.id ? { ...item, content: next } : item))
             void db.memories.update(memory.id, { content: next })
           }, () => {
             setMemories(list => list.filter(item => item.id !== memory.id))
             void db.memories.delete(memory.id)
           }))}
-          {!profile && !facts && memories.length === 0 && sessions.length === 0 && <div style={{ fontSize: 11, color: 'var(--text-ghost)' }}>No durable memory yet.</div>}
+          {!profile && !facts && memories.length === 0 && sessions.length === 0 && <div style={{ fontSize: 11, color: 'var(--text-ghost)' }}>{tr['companionMemory.empty']}</div>}
         </div>
       )}
     </div>
@@ -194,9 +195,9 @@ export function CompanionPreferencesSection({ isOpen }: { isOpen: boolean }) {
 
   return (
     <div className="settings-section">
-      <div className="settings-section-label">Companion memory</div>
+      <div className="settings-section-label">{tr['companionMemory.title']}</div>
       <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, color: 'var(--text-secondary)', fontSize: 11 }}>
-        Field mosaic
+        {tr['companionMemory.fieldMosaic']}
         <input type="checkbox" checked={preferences.fieldMosaicEnabled} onChange={event => change('fieldMosaicEnabled', event.target.checked)} />
       </label>
       <MemoryLedger />

@@ -1,8 +1,30 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // The user root doc carries server-written account state (the deletion
+    // tombstone). The client never writes it; only the Admin SDK does.
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+
+    // Everything under users/{uid}. Firestore unions every matching `allow`,
+    // so server-owned collections must be excluded HERE rather than denied in
+    // a separate, more specific block:
+    // - smsSettings: phone-link state, SMS risk state, opt-out time, usage
+    //   budget. Written only by the SMS functions.
+    // - smsMessages: the SMS transcript, written only by the SMS functions.
+    // The owner keeps read access to both, and keeps write access to every
+    // other collection (including companionPreferences, where the web client
+    // writes field-window consent and lastGroundingAt).
+    match /users/{userId}/{collectionId}/{document=**} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId)
+        && !(collectionId in ['smsSettings', 'smsMessages']);
     }
 
     match /appConfig/{docId} {
@@ -14,7 +36,7 @@ service cloud.firestore {
     // "remaining budget" UI) but NEVER write it — only the chat Cloud Function
     // (Admin SDK) mutates it, so a user can't reset their own cap.
     match /quotas/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
+      allow read: if isOwner(userId);
       allow write: if false;
     }
 
@@ -23,7 +45,7 @@ service cloud.firestore {
     }
 
     // Twilio linkage and delivery queues are server-owned. User-visible SMS
-    // messages live under users/{uid}/smsMessages and inherit the owner rule.
+    // messages live under users/{uid}/smsMessages (owner read-only).
     match /smsPhoneLinks/{docId} {
       allow read, write: if false;
     }
@@ -31,6 +53,9 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /smsInbound/{docId} {
+      allow read, write: if false;
+    }
+    match /fieldWindowDispatches/{docId} {
       allow read, write: if false;
     }
   }

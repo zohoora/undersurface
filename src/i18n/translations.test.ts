@@ -10,7 +10,6 @@ const TRANSLATIONS_DIR = join(__dirname, 'translations')
 // Missing keys silently fall back to English — visible to users as untranslated
 // labels — so we treat coverage as a required check, not a nice-to-have.
 const REQUIRED_KEYS = [
-  'session.mode.realTalk',
   'session.bottomBar.talk',
   'session.bottomBar.journal',
   'session.bottomBar.speak',
@@ -48,7 +47,7 @@ describe('translations coverage', () => {
         const mod = await import(`./translations/${lang}.ts`)
         const strings = mod.default as Record<string, string>
 
-        const realTalkKeys = REQUIRED_KEYS.filter(k => k.includes('realtalk') || k === 'session.mode.realTalk')
+        const realTalkKeys = REQUIRED_KEYS.filter(k => k.toLowerCase().includes('realtalk'))
         for (const key of realTalkKeys) {
           expect(strings[key]?.length, `${key} in ${lang}`).toBeGreaterThan(0)
         }

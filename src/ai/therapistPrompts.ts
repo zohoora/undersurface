@@ -192,7 +192,43 @@ VOICE — THIS IS CRITICAL:
 
 ${SAFETY_RULES}`
 
-const RECOMMENDATION_BLOCK = `You can occasionally invite a tonal or modal shift when it is therapeutically apt. A surface change must feel like a clear, optional transition—not an abrupt link hidden inside ordinary prose.
+type RecommendableSurface = 'journal' | 'speak' | 'room'
+const ALL_RECOMMENDABLE_SURFACES: RecommendableSurface[] = ['journal', 'speak', 'room']
+
+const RECOMMENDATION_LINKS: Record<RecommendableSurface, { direct: string; arc: string; when: string }> = {
+  journal: {
+    direct: '  [Open Journal for a few quiet minutes](#switch:journal)',
+    arc: '  [Continue this thread in Journal, then return here](#switch:journal-arc)',
+    when: "- #switch:journal — when something is brewing under the surface that doesn't want a back-and-forth. The writer steps into a private writing space; you wait quietly.",
+  },
+  speak: {
+    direct: '  [Continue in Speak and say this aloud](#switch:speak)',
+    arc: '  [Continue this thread in Speak, then return here](#switch:speak-arc)',
+    when: "- #switch:speak — when the body knows something the typing fingers don't. Voice often surfaces what text holds back.",
+  },
+  room: {
+    direct: '  [Open Room for voice, sound, or quiet company](#switch:room)',
+    arc: '  [Enter Room for voice, sound, or quiet company, then return here](#switch:room-arc)',
+    when: '- #switch:room — when another reply is less useful than changing the form: the writer wants company but fewer words, wants to speak before settling into silence, or wants sound and light without a task. Room lets them choose conversation, gentle leadership, or quiet company. NEVER present it as treatment or use it to avoid acute distress or crisis.',
+  },
+}
+
+const ARC_GRAMMAR: Record<RecommendableSurface, string> = {
+  journal: 'Journal is for uncensored language',
+  speak: 'Speak for sustained voice conversation',
+  room: 'Room for conversation that can dissolve into sound and silence',
+}
+
+// Only surfaces that actually exist in this session are taught. A link to a
+// disabled surface used to start a hidden voice session (TECH_ISSUES #12).
+function buildRecommendationBlock(surfaces: RecommendableSurface[], arcs: RecommendableSurface[]): string {
+  const directLinks = surfaces.map(surface => RECOMMENDATION_LINKS[surface].direct)
+  const arcLinks = arcs.map(surface => RECOMMENDATION_LINKS[surface].arc)
+  const whenLines = surfaces.map(surface => RECOMMENDATION_LINKS[surface].when)
+  const arcGuidance = arcs.length
+    ? `\n- The -arc forms are deliberate, temporary continuations of THIS exact thread. Use one only when the other surface's interaction grammar fits the next move better, with an expectation of returning to Talk afterward. ${arcs.map(surface => ARC_GRAMMAR[surface]).join(', ')}. Do not use an arc as novelty or avoidance.`
+    : ''
+  return `You can occasionally invite a tonal or modal shift when it is therapeutically apt. A surface change must feel like a clear, optional transition—not an abrupt link hidden inside ordinary prose.
 
 Use this two-part shape:
 1. One brief sentence, grounded in what the writer just said, explaining why another surface may fit the next moment better.
@@ -200,20 +236,11 @@ Use this two-part shape:
 
 Use these EXACT link formats — the bracketed phrase is what the writer reads, while the (#switch:...) anchor is hidden and tells the interface what to open:
 
-  [Turn on Real Talk for a more direct response](#switch:real-talk-on)
-  [Open Journal for a few quiet minutes](#switch:journal)
-  [Continue in Speak and say this aloud](#switch:speak)
-  [Open Room for voice, sound, or quiet company](#switch:room)
-  [Continue this thread in Journal, then return here](#switch:journal-arc)
-  [Continue this thread in Speak, then return here](#switch:speak-arc)
-  [Enter Room for voice, sound, or quiet company, then return here](#switch:room-arc)
+${['  [Turn on Real Talk for a more direct response](#switch:real-talk-on)', ...directLinks, ...arcLinks].join('\n')}
 
 When to use each:
 - #switch:real-talk-on — when softness is becoming avoidance, when the writer would benefit from being called out kindly. Once they accept, your tone sharpens.
-- #switch:journal — when something is brewing under the surface that doesn't want a back-and-forth. The writer steps into a private writing space; you wait quietly.
-- #switch:speak — when the body knows something the typing fingers don't. Voice often surfaces what text holds back.
-- #switch:room — when another reply is less useful than changing the form: the writer wants company but fewer words, wants to speak before settling into silence, or wants sound and light without a task. Room lets them choose conversation, gentle leadership, or quiet company. NEVER present it as treatment or use it to avoid acute distress or crisis.
-- The -arc forms are deliberate, temporary continuations of THIS exact thread. Use one only when the other surface's interaction grammar fits the next move better, with an expectation of returning to Talk afterward. Journal is for uncensored language, Speak for sustained voice conversation, and Room for conversation that can dissolve into sound and silence. Do not use an arc as novelty or avoidance.
+${whenLines.join('\n')}${arcGuidance}
 
 Hard rules:
 - At most one recommendation per ~5 turns. Most responses contain none.
@@ -222,7 +249,8 @@ Hard rules:
 - The bracketed phrase MUST explicitly name the destination surface and preview the interaction there. Never use vague link text such as "write about it," "say it aloud," "try this," or "take this to the page."
 - Make clear that staying in Talk is also fine; switching is an invitation, not the price of continuing the conversation.
 - Keep the (#switch:...) anchor exact — do not paraphrase the URL part.
-- Never offer two recommendations in the same response.`.trim()
+- Never offer two recommendations in the same response.`.replace(/\n{3,}/g, '\n\n').trim()
+}
 
 export interface TherapistPromptOptions {
   phase: SessionPhase
@@ -247,6 +275,10 @@ export interface TherapistPromptOptions {
   // Allow the therapist to suggest tonal shifts via inline [phrase](#switch:target)
   // recommendations. The session UI renders the tappable spans inside SessionMessage.
   allowRecommendations?: boolean
+  // Surfaces this session can open directly (#switch:journal/speak/room).
+  // Defaults to availableSurfaceArcs, then to every surface, so only surfaces
+  // that are actually available are taught.
+  availableSurfaces?: Array<'journal' | 'speak' | 'room'>
   availableSurfaceArcs?: Array<'journal' | 'speak' | 'room'>
   // Default true. The text path streams through openrouter.ts, whose parser
   // strips the `<<RISK:N>>` preamble. The Realtime voice path has no such
@@ -595,8 +627,12 @@ export function buildTherapistSystemPrompt(options: TherapistPromptOptions): str
     !options.isGrounding &&
     !options.isFirstTurn
   if (includeRecommendations) {
-    parts.push(RECOMMENDATION_BLOCK)
-    parts.push(`AVAILABLE SURFACES THIS SESSION: ${(options.availableSurfaceArcs ?? ['journal']).join(', ')}. Never emit a #switch marker for an unavailable surface.`)
+    const arcs = ALL_RECOMMENDABLE_SURFACES.filter(surface =>
+      (options.availableSurfaceArcs ?? ALL_RECOMMENDABLE_SURFACES).includes(surface))
+    const surfaces = ALL_RECOMMENDABLE_SURFACES.filter(surface =>
+      (options.availableSurfaces ?? options.availableSurfaceArcs ?? ALL_RECOMMENDABLE_SURFACES).includes(surface))
+    parts.push(buildRecommendationBlock(surfaces, arcs))
+    parts.push(`AVAILABLE SURFACES THIS SESSION: ${['talk', ...surfaces].join(', ')}. Never emit a #switch marker for an unavailable surface.`)
   }
 
   parts.push(`Current date and time: ${formatDateTime(Date.now())}`)

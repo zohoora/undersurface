@@ -189,6 +189,59 @@ describe('useSessionVoice — handleStart', () => {
     expect((voiceStartMock.mock.calls[0][0] as { instructions: string }).instructions).toContain('grounding=true')
   })
 
+  // TECH_ISSUES #33: SessionView reverts "speak + idle" to Talk. During the
+  // await before voice.start the hook must already report 'connecting'.
+  it('reports connecting (never idle) while instructions are still being prepared', async () => {
+    let releaseBreaks: (value: never[]) => void = () => {}
+    loadRelaxMock.mockImplementationOnce(() => new Promise<never[]>(resolve => { releaseBreaks = resolve }))
+    const wiring = makeWiring()
+    const { result } = renderHook(() => useSessionVoice(wiring))
+
+    let pending: Promise<void> = Promise.resolve()
+    act(() => { pending = result.current.handleStart() })
+    expect(result.current.state).toBe('connecting')
+    expect(voiceStartMock).not.toHaveBeenCalled()
+
+    await act(async () => {
+      releaseBreaks([])
+      await pending
+    })
+    expect(voiceStartMock).toHaveBeenCalledOnce()
+    expect(result.current.state).toBe('idle') // the mocked voice stays idle after start
+  })
+
+  it('stop() during the instruction await cancels the start before the mic opens', async () => {
+    let releaseBreaks: (value: never[]) => void = () => {}
+    loadRelaxMock.mockImplementationOnce(() => new Promise<never[]>(resolve => { releaseBreaks = resolve }))
+    const wiring = makeWiring()
+    const { result } = renderHook(() => useSessionVoice(wiring))
+
+    let pending: Promise<void> = Promise.resolve()
+    act(() => { pending = result.current.handleStart() })
+    act(() => { result.current.stop() })
+    expect(result.current.state).toBe('idle')
+    await act(async () => {
+      releaseBreaks([])
+      await pending
+    })
+    expect(voiceStartMock).not.toHaveBeenCalled()
+  })
+
+  // T5: Talk → Speak must carry what was just said in this session.
+  it('seeds the voice session with the current Talk turns', async () => {
+    const wiring = makeWiring()
+    ;(wiring.messagesRef as { current: SessionMessage[] }).current = [
+      { id: 'a1', speaker: 'therapist', partId: null, partName: null, content: 'What is here?', timestamp: 1, phase: 'opening', isEmergence: false, surface: 'talk' },
+      { id: 'u1', speaker: 'user', partId: null, partName: null, content: 'UNIQUE_TALK_FACT: the interview is on Friday.', timestamp: 2, phase: 'opening', isEmergence: false, surface: 'talk' },
+    ]
+    const { result } = renderHook(() => useSessionVoice(wiring))
+    await act(async () => { await result.current.handleStart() })
+    const { instructions } = voiceStartMock.mock.calls[0][0] as { instructions: string }
+    expect(instructions).toContain('THIS SESSION SO FAR')
+    expect(instructions).toContain('- Writer (Talk): <user_turn>UNIQUE_TALK_FACT: the interview is on Friday.</user_turn>')
+    expect(sessionMessageAddMock).not.toHaveBeenCalled() // the seed is never persisted again
+  })
+
   it('bails silently when context has not loaded yet', async () => {
     const wiring = makeWiring()
     ;(wiring.contextRef as { current: TherapistContext | null }).current = null

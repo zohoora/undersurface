@@ -44,6 +44,34 @@ export async function linkResearchOutcome(eventId: string, outcomeId: string): P
   await db.researchEvents.update(eventId, { outcomeId, updatedAt: Date.now() })
 }
 
+/**
+ * Undo linkResearchOutcome after the outcome row was deleted (grounding cut a
+ * surface arc short). Analysis joins outcomes to events by the outcome's
+ * researchEventId, so the event simply has no outcome again; leaving
+ * `outcomeId` would point at a row that no longer exists. Only clears the
+ * link when it still names this outcome.
+ */
+export async function unlinkResearchOutcome(eventId: string, outcomeId: string): Promise<void> {
+  const event = await db.researchEvents.get(eventId)
+  if (!event || event.outcomeId !== outcomeId) return
+  await db.researchEvents.deleteFields(eventId, ['outcomeId'], { updatedAt: Date.now() })
+}
+
+/**
+ * A safety-forced return (grounding) discards a surface arc's outcome row:
+ * nobody is asked how an interrupted arc went. The research event linked to it
+ * loses its outcomeId in the same step, so nothing dangles.
+ */
+export async function discardSurfaceArcOutcome(outcomeId: string, researchEventId: string): Promise<void> {
+  // Both writes are queued together: offline, a Firestore write promise only
+  // settles on server ack, so awaiting the delete first would hold back the
+  // unlink until the device reconnects.
+  await Promise.all([
+    db.interventionOutcomes.delete(outcomeId),
+    unlinkResearchOutcome(researchEventId, outcomeId),
+  ])
+}
+
 export async function reviewFinding(
   finding: ResearchFinding,
   status: PersonalProtocol['status'],

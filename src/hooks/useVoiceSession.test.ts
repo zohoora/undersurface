@@ -3,6 +3,8 @@ import { renderHook, act } from '@testing-library/react'
 
 const authedPostMock = vi.fn(async () => ({ clientSecret: 'sk', model: 'gpt-realtime-2', voice: 'marin' }))
 vi.mock('../api/authedFetch', () => ({ authedPost: (...a: unknown[]) => authedPostMock(...a) }))
+// t() echoes the key so assertions read the resolved category.
+vi.mock('../i18n', () => ({ t: (k: string) => k }))
 
 import { useVoiceSession } from './useVoiceSession'
 
@@ -15,10 +17,19 @@ let dcMock: {
   readyState: string
   onopen: (() => void) | null
   onmessage: ((event: { data: string }) => void) | null
+  onclose?: (() => void) | null
+  onerror?: (() => void) | null
 }
+let lastPc: MockPeerConnection | null = null
+function registerPc(pc: MockPeerConnection) { lastPc = pc }
 
 class MockPeerConnection {
+  constructor() { registerPc(this) }
   ontrack: ((e: unknown) => void) | null = null
+  connectionState = 'new'
+  iceConnectionState = 'new'
+  onconnectionstatechange: (() => void) | null = null
+  oniceconnectionstatechange: (() => void) | null = null
   createDataChannel = vi.fn(() => dcMock)
   createOffer = vi.fn(async () => ({ type: 'offer', sdp: 'offer-sdp' }))
   setLocalDescription = vi.fn(async () => {})
@@ -45,6 +56,7 @@ afterEach(() => { vi.unstubAllGlobals() })
 async function connected() {
   const hook = renderHook(() => useVoiceSession())
   await act(async () => { await hook.result.current.start({ instructions: 'test' }) })
+  act(() => { dcMock.onopen?.() })
   return hook
 }
 
@@ -125,5 +137,136 @@ describe('useVoiceSession — Drift additions', () => {
     dcMock.send.mockClear()
     expect(() => act(() => { result.current.cancelResponse() })).not.toThrow()
     expect(dcMock.send).not.toHaveBeenCalled()
+  })
+})
+
+describe('useVoiceSession — dropped connections (TECH_ISSUES #7)', () => {
+  it('a failed peer connection tears down the mic and surfaces a friendly error', async () => {
+    const { result } = await connected()
+    expect(result.current.state).toBe('connected')
+    act(() => {
+      lastPc!.connectionState = 'failed'
+      lastPc!.onconnectionstatechange?.()
+    })
+    expect(result.current.state).toBe('error')
+    expect(result.current.error).toBe('voice.error.disconnected')
+    expect(track.stop).toHaveBeenCalled()
+  })
+
+  it('ICE failure is treated the same way', async () => {
+    const { result } = await connected()
+    act(() => {
+      lastPc!.iceConnectionState = 'failed'
+      lastPc!.oniceconnectionstatechange?.()
+    })
+    expect(result.current.state).toBe('error')
+    expect(result.current.error).toBe('voice.error.disconnected')
+  })
+
+  it('ignores a transient ICE disconnect', async () => {
+    const { result } = await connected()
+    act(() => {
+      lastPc!.iceConnectionState = 'disconnected'
+      lastPc!.oniceconnectionstatechange?.()
+    })
+    expect(result.current.state).toBe('connected')
+    expect(result.current.error).toBeNull()
+  })
+
+  it('a remote data-channel close or error ends the session with an error', async () => {
+    const { result } = await connected()
+    act(() => { dcMock.onclose?.() })
+    expect(result.current.state).toBe('error')
+    expect(result.current.error).toBe('voice.error.disconnected')
+    expect(track.stop).toHaveBeenCalled()
+
+    const second = await connected()
+    act(() => { dcMock.onerror?.() })
+    expect(second.result.current.state).toBe('error')
+  })
+
+  it('a user-initiated stop never reports a dropped connection', async () => {
+    const { result } = await connected()
+    const closeHandler = dcMock.onclose
+    act(() => { result.current.stop() })
+    act(() => { closeHandler?.() })
+    expect(result.current.state).toBe('idle')
+    expect(result.current.error).toBeNull()
+  })
+
+  it('treats a fatal server error (expired session) as a lost connection', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { result } = await connected()
+    receiveServerEvent({
+      type: 'error',
+      error: { type: 'invalid_request_error', code: 'session_expired', message: 'Your session hit the maximum duration of 60 minutes.' },
+    })
+    expect(result.current.state).toBe('error')
+    expect(result.current.error).toBe('voice.error.disconnected')
+    expect(track.stop).toHaveBeenCalled()
+  })
+
+  it('maps the realtime-token daily budget 429 to a friendly limit message', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    authedPostMock.mockRejectedValueOnce(new Error('POST /api/realtime-token failed: 429 {"error":"limit","code":"voice_daily_budget_exceeded"}'))
+    const hook = renderHook(() => useVoiceSession())
+    await act(async () => { await hook.result.current.start({ instructions: 'test' }) })
+    expect(hook.result.current.state).toBe('error')
+    expect(hook.result.current.error).toBe('voice.error.budget')
+  })
+
+  it('maps the voice-disabled 403 to a friendly unavailable message', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    authedPostMock.mockRejectedValueOnce(new Error('POST /api/realtime-token failed: 403 {"error":"Voice is not available right now.","code":"voice_disabled"}'))
+    const hook = renderHook(() => useVoiceSession())
+    await act(async () => { await hook.result.current.start({ instructions: 'test' }) })
+    expect(hook.result.current.error).toBe('voice.error.disabled')
+  })
+})
+
+describe('useVoiceSession — promptAssistant (TECH_ISSUES #6, #31)', () => {
+  it('sends the cue as a system item plus a bare response.create (never overriding session instructions)', async () => {
+    const { result } = await connected()
+    let sent = false
+    act(() => { sent = result.current.promptAssistant('Offer one warm sentence.') })
+    expect(sent).toBe(true)
+    const events = dcMock.send.mock.calls.map(call => JSON.parse(call[0] as string))
+    expect(events).toEqual([
+      {
+        type: 'conversation.item.create',
+        item: { type: 'message', role: 'system', content: [{ type: 'input_text', text: 'Offer one warm sentence.' }] },
+      },
+      { type: 'response.create' },
+    ])
+    expect(JSON.stringify(events)).not.toContain('"instructions"')
+  })
+
+  it('does not fire while a response is active, a prompt is in flight, or the writer is speaking', async () => {
+    const { result } = await connected()
+    receiveServerEvent({ type: 'response.created' })
+    expect(result.current.promptAssistant('cue')).toBe(false)
+    receiveServerEvent({ type: 'response.done' })
+
+    receiveServerEvent({ type: 'input_audio_buffer.speech_started' })
+    expect(result.current.promptAssistant('cue')).toBe(false)
+    receiveServerEvent({ type: 'input_audio_buffer.speech_stopped' })
+
+    expect(result.current.promptAssistant('cue')).toBe(true)
+    // The first prompt's response.created has not arrived yet.
+    expect(result.current.promptAssistant('cue again')).toBe(false)
+    expect(dcMock.send).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('useVoiceSession — no session-prompt override path', () => {
+  it('exposes no speak(): a response.instructions override would replace the session prompt and its safety rules', async () => {
+    const { result } = await connected()
+    expect(result.current).not.toHaveProperty('speak')
+    expect(Object.keys(result.current)).toContain('promptAssistant')
+  })
+
+  it('always negotiates the real microphone track (the passive silent-track mode is gone)', async () => {
+    await connected()
+    expect(lastPc?.addTrack).toHaveBeenCalledWith(track, expect.anything())
   })
 })
