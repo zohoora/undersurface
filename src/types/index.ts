@@ -399,6 +399,10 @@ export interface CompanionPreferences {
   protocolPolicy?: 'use_what_helped' | 'balanced' | 'explore'
   alliance?: AlliancePreferences
   fieldWindows?: FieldWindowPreferences
+  /** Last time grounding activated on this account (epoch ms). Safety state,
+   * written even in Fresh eyes; the SMS pipeline reads it to suppress
+   * proactive texts for 72 hours after a crisis. */
+  lastGroundingAt?: number
   updatedAt: number
 }
 

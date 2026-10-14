@@ -38,12 +38,6 @@ let currentSettings: AppSettings = {
   language: 'en',
   timezone: 'America/New_York',
   lastSessionMode: 'standard',
-  lastRelaxDuration: 10,
-  lastRelaxType: 'breathwork',
-  lastRelaxAudio: 'ocean',
-  lastRelaxAudioVolume: 0.5,
-  lastRelaxVoiceEnabled: false,
-  lastRelaxVisualMode: 'full',
 }
 const settingsListeners = new Set<() => void>()
 

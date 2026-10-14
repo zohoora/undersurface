@@ -82,23 +82,22 @@ describe('settings', () => {
     expect('autocorrect' in parsed).toBe(false)
   })
 
-  it('defaults Drift to visible rhythm, volume 0.5, and voice off', () => {
+  it('defaults Room to listen-first, five minutes, sparse voice, and ocean', () => {
     storage.clear()
     updateSettings({})
     const s = getSettings()
-    expect(s.lastDriftBlsChannel).toBe('visual')
-    expect(s.lastDriftAudioVolume).toBe(0.5)
-    expect(s.lastDriftVoice).toBe(false)
-    expect(s.lastDriftAnchorKind).toBe('feet')
-    expect(s.driftHasCompleted).toBe(false)
+    expect(s.lastRoomApproach).toBe('listen_first')
+    expect(s.lastRoomDuration).toBe(5)
+    expect(s.lastRoomVoiceDensity).toBe('sparse')
+    expect(s.lastRoomAudio).toBe('ocean')
   })
 
-  it('round-trips lastDriftVoice through updateSettings', () => {
-    updateSettings({ lastDriftVoice: true })
-    expect(getSettings().lastDriftVoice).toBe(true)
+  it('round-trips lastRoomVoiceDensity through updateSettings', () => {
+    updateSettings({ lastRoomVoiceDensity: 'present' })
+    expect(getSettings().lastRoomVoiceDensity).toBe('present')
     // sparse-override persistence keeps only the diverging key
     const parsed = JSON.parse(storage.get('undersurface:settings')!)
-    expect(parsed.lastDriftVoice).toBe(true)
+    expect(parsed.lastRoomVoiceDensity).toBe('present')
   })
 
   it('defaults timezone to the device zone, not a hardcoded one', () => {
