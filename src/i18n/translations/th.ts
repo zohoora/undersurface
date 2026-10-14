@@ -1,5 +1,4 @@
 import { sessionCopy } from './sessionCopy'
-import { driftSeamlessFallback } from '../driftSeamlessFallback'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
@@ -204,7 +203,6 @@ const thBase = {
   'policy.recommendation': 'คำแนะนำของเรา',
   'policy.recommendationBody': 'เราแนะนำให้ใช้ UnderSurface ควบคู่กับการสนับสนุนจากผู้เชี่ยวชาญ ไม่ใช่แทนที่ การเขียนร่วมกับเสียงภายในสามารถเป็นเพื่อนร่วมทางที่มีความหมายในกระบวนการของคุณ — แต่ไม่ใช่สิ่งทดแทนการดูแลจากผู้เชี่ยวชาญที่ผ่านการฝึกฝน',
 
-
   // Landing page hero
   'landing.headline': 'A diary that listens back',
   'landing.feature1': 'Write freely — inner voices listen',
@@ -217,54 +215,25 @@ const thBase = {
 
   'echo.label': 'อดีต',
 
-
   'common.dismiss': 'ปิด',
-
 
   'parts.card.hint': 'ถ้ารู้สึกว่าใช่ ตั้งชื่อด้วยคำของคุณเอง',
 
-
   'parts.card.keep': 'เก็บไว้',
-
 
   'parts.card.notQuite': 'ยังไม่ใช่',
 
-
   'parts.settings.title': 'ส่วนต่าง ๆ ของคุณ',
-
 
   'parts.settings.retire': 'พักไว้',
 
-
   'intentions.card.hint': 'พกสิ่งนี้ไว้จนถึงครั้งหน้าไหม?',
-
 
   'intentions.card.keep': 'พกไว้',
 
-
   'intentions.card.skip': 'ครั้งนี้ไม่เป็นไร',
 
-
-  'checkin.prompt': 'คุณจากไปด้วยความรู้สึกแบบไหน?',
-
-
-  'checkin.heavier': 'หนักขึ้น',
-
-
-  'checkin.same': 'พอ ๆ เดิม',
-
-
-  'checkin.shadeLighter': 'เบาขึ้นนิดหน่อย',
-
-
-  'checkin.lighter': 'เบาขึ้น',
-
-
-  'checkin.muchLighter': 'เบาขึ้นมาก',
-
-
   'values.card.hint': 'สิ่งนี้สำคัญกับคุณไหม? ตั้งชื่อด้วยคำของคุณ',
-
 
   'values.settings.title': 'สิ่งที่สำคัญกับคุณ',
   // Bilateral stimulation
@@ -283,139 +252,8 @@ const thBase = {
   'bodyMap.region.back': 'หลัง',
   'bodyMap.region.hips': 'สะโพก',
   'bodyMap.region.legs': 'ขาและเท้า',
-
-  // Session bottom bar
-  'session.bottomBar.relax': 'พักผ่อน',
-  'session.bottomBar.drift': 'Drift',
-
-  // Relax mode — settings
-  'relax.settings.title': 'ค่อยๆ ลงตัว',
-  'relax.settings.duration.label': 'ระยะเวลา',
-  'relax.settings.duration.5': '5 นาที',
-  'relax.settings.duration.10': '10 นาที',
-  'relax.settings.duration.20': '20 นาที',
-  'relax.settings.type.label': 'การฝึก',
-  'relax.settings.type.breathwork': 'ฝึกลมหายใจ',
-  'relax.settings.type.body_scan': 'สแกนร่างกาย',
-  'relax.settings.type.safe_place': 'พื้นที่ปลอดภัย',
-  'relax.settings.type.open_awareness': 'รับรู้แบบเปิดกว้าง',
-  'relax.settings.audio.label': 'พื้นหลัง',
-  'relax.settings.audio.none': 'เงียบ',
-  'relax.settings.audio.ocean': 'ทะเล',
-  'relax.settings.audio.forest': 'ป่า',
-  'relax.settings.audio.drone': 'โดรน',
-  'relax.settings.audio.binaural': 'ไบนอรัล',
-  'relax.settings.audio.custom': 'กำหนดเอง',
-  'relax.settings.audio.volume': 'ระดับเสียง',
-  'relax.settings.audio.promptLabel': 'อธิบายเสียง',
-  'relax.settings.audio.promptPlaceholder': 'ฝนตกบนหลังคาสังกะสีกับเสียงฟ้าร้องไกลๆ',
-  'relax.settings.audio.promptHelp': 'ไม่เกิน 200 ตัวอักษร สร้างเสียงวนยาว 30 วินาที',
-  'relax.settings.audio.generate': 'สร้าง',
-  'relax.settings.audio.generating': 'กำลังเรียบเรียง…',
-  'relax.settings.audio.ready': 'พร้อม',
-  'relax.settings.audio.cached': 'ใช้ของเดิม',
-  'relax.settings.audio.error.network': 'ติดต่อบริการเสียงไม่ได้',
-  'relax.settings.audio.error.rateLimit': 'สร้างเสียงเยอะเกินไปช่วงนี้ ลองพรีเซ็ตหรือรอสักครู่',
-  'relax.settings.audio.error.provider': 'สร้างเสียงนั้นไม่ได้ ลองใช้คำอื่นดู',
-  'relax.settings.audio.error.validation': 'ข้อความนี้ใช้ไม่ได้ ขอแบบสั้นและตรงประเด็น',
-  'relax.settings.audio.error.retry': 'ลองอีกครั้ง',
-  'relax.settings.audio.preset.rain': 'ฝนบนหลังคาสังกะสี',
-  'relax.settings.audio.preset.forest': 'ลำธารในป่า',
-  'relax.settings.audio.preset.thunder': 'ฟ้าร้องไกลๆ',
-  'relax.settings.audio.preset.cave': 'ถ้ำริมทะเล',
-  'relax.settings.voice.label': 'เสียงนำทาง',
-  'relax.settings.voice.on': 'เปิด',
-  'relax.settings.voice.off': 'ปิด',
-  'relax.settings.visual.label': 'ภาพ',
-  'relax.settings.visual.full': 'เต็ม',
-  'relax.settings.visual.minimal': 'น้อยที่สุด',
-  'relax.settings.visual.off': 'ปิด',
-  'relax.settings.cancel': 'ย้อนกลับ',
-  'relax.settings.begin': 'เริ่ม',
-
-  // Relax mode — controls
-  'relax.controls.muteAudio': 'ปิดเสียง',
-  'relax.controls.unmuteAudio': 'เปิดเสียง',
-  'relax.controls.muteVoice': 'ปิดเสียงพูด',
-  'relax.controls.unmuteVoice': 'เปิดเสียงพูด',
-  'relax.controls.cycleVisual': 'สลับภาพ',
-  'relax.controls.end': 'จบเซสชัน',
-
-  // Relax mode — summary
-  'relax.summary.title': 'เสร็จแล้ว',
-  'relax.summary.minutes': 'นาที',
-  'relax.summary.subtitle': 'เมื่อพร้อมแล้ว',
-  'relax.summary.completed': 'เมื่อพร้อมแล้ว',
-
-  // Relax mode — calibrating
-  'relax.calibrating.title': 'กำลังลงตัว',
-  'relax.calibrating.subtitle': 'กำลังอ่านสัญญาณ ใช้เวลาประมาณครึ่งนาที',
-  'relax.calibrating.skip': 'ข้าม',
-
-  // Relax mode — biometrics
-  'relax.biometrics.enable': 'เปิดไบโอเมตริก',
-  'relax.biometrics.stop': 'หยุด',
-
-  // Drift
-  'drift.card.title': 'Drift',
-  'drift.card.subtitle': 'การฝึกสังเกตอย่างมีคำแนะนำ ด้วยจังหวะซ้าย–ขวาที่อ่อนโยน',
-  'drift.arrive.title': 'Drift',
-  'drift.arrive.body': 'ไม่กี่นาทีแห่งการสังเกตอย่างเงียบสงบ พาไปด้วยจังหวะซ้าย–ขวาที่ช้าๆ เลือกได้เองว่าความสนใจจะไปที่ไหน จบด้วยการค่อยๆ ลงตัว',
-  'drift.arrive.notTherapy': 'นี่คือการฝึกด้วยตนเอง ไม่ใช่การบำบัดหรือการรักษา หยุดได้ทุกเมื่อ',
-  'drift.arrive.begin': 'เริ่ม',
-  'drift.arrive.voice': 'เสียงนำทาง',
-  'drift.anchor.title': 'ก่อนอื่น ทางกลับ',
-  'drift.anchor.body': 'ก่อนอื่นใด หาจุดยึดของตัวเอง สถานที่หนึ่ง — จริงหรือจินตนาการก็ได้ — ที่รู้สึกสบายใจ หรือง่ายๆ แค่เท้าที่แตะพื้น เก้าอี้ที่รองรับอยู่',
-  'drift.anchor.calmPlace': 'สถานที่สงบ',
-  'drift.anchor.feet': 'เท้าแตะพื้น',
-  'drift.anchor.confirm': 'เจอแล้ว',
-  'drift.choose.title': 'ความสนใจควรไปที่ไหน?',
-  'drift.choose.hint': 'ความรู้สึก ความทรงจำ ความรู้สึกทางกาย — หรือแค่สิ่งที่อยู่ตรงนี้ตอนนี้ ไม่จำเป็นต้องเป็นเรื่องหนักที่สุด แค่สิ่งที่สะดุดใจก็พอ',
-  'drift.choose.placeholder': 'สิ่งที่อยู่ตรงนี้…',
-  'drift.baseline.prompt': 'มันอยู่ตรงไหนในร่างกาย? มีลักษณะแบบไหน — ตึง หนัก อุ่น นิ่ง?',
-  'drift.set.hint': 'ปล่อยให้จังหวะพาไป ไม่ต้องทำอะไร',
-  'drift.set.butterflyHint': 'ถ้าต้องการ: ไขว้แขนไว้บนอก แล้วแตะเบาๆ ไปตามจังหวะ ซ้าย–ขวา',
-  'drift.set.skip': 'ข้าม',
-  'drift.notice.prompt': 'ตอนนี้สังเกตเห็นอะไรบ้าง?',
-  'drift.notice.softer': 'เบาลง',
-  'drift.notice.same': 'เหมือนเดิม',
-  'drift.notice.stronger': 'แรงขึ้น',
-  'drift.settle.line': 'ปล่อยมันไว้ตรงนั้นก่อน กลับมาที่จุดยึด — สถานที่นั้น หรือเท้าที่แตะพื้น พักอยู่ตรงนั้นสักครู่',
-  'drift.settleClose': 'ลงตัวแล้วปิด',
-  'drift.closure.anchor': 'กลับมาที่จุดยึด ให้มันโอบรับไว้สักหนึ่งหรือสองลมหายใจ',
-  'drift.closure.container': 'สิ่งที่ยังไม่จบ วางไว้ก่อนได้ มันจะยังอยู่ตรงนั้น',
-  'drift.closure.orient': 'มองไปรอบๆ ห้อง สังเกตสามสิ่งที่มองเห็น คุณอยู่ตรงนี้',
-  'drift.closure.done': 'เสร็จแล้ว',
-  'drift.abort.handoff': 'เราจะหยุดตรงนี้ก่อน แล้วดูแลคุณเป็นอันดับแรก',
-  'drift.closed.settled': 'วันนี้พอเท่านี้ก่อน',
-  'drift.closed.eased': 'คุณรับฟังตัวเอง นั่นมีความหมาย',
-  // Drift v2 — one-screen begin
-  'drift.begin.whats': 'มีอะไรกำลังกระเพื่อมอยู่?',
-  'drift.chip.worry': 'ความกังวล',
-  'drift.chip.body': 'ความตึงในร่างกาย',
-  'drift.chip.today': 'เรื่องของวันนี้',
-  'drift.chip.heavy': 'ความรู้สึกหนักๆ',
-  'drift.chip.unsettled': 'แค่รู้สึกไม่สงบ',
-  'drift.begin.somethingElse': 'อย่างอื่น…',
-  'drift.begin.length': 'นานแค่ไหน?',
-  'drift.length.quick': '2 นาที',
-  'drift.length.short': '4 นาที',
-  'drift.length.full': '6 นาที',
-  'drift.begin.anchorLabel': 'ทางกลับของคุณ:',
-  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
-  'drift.micro.softer1': 'ดีแล้ว ปล่อยให้มันคลายต่อไป',
-  'drift.micro.softer2': 'บางอย่างกำลังผ่อนลง อยู่ใกล้ๆ มันไว้',
-  'drift.micro.softer3': 'ปล่อยให้ความอ่อนโยนนั้นแผ่ออกไปเอง',
-  'drift.micro.same1': 'ไม่เป็นไร ไม่ต้องรีบ',
-  'drift.micro.same2': 'การอยู่นิ่งๆ ก็มีความหมาย ปล่อยให้จังหวะพามันไป',
-  'drift.micro.drift1': 'แค่ล่องไปกับมัน',
-  'drift.micro.drift2': 'ไม่ต้องทำอะไร จังหวะก็เพียงพอแล้ว',
-  // Drift v2 — optional typed word + closure contrast
-  'drift.notice.addWord': 'เพิ่มสักคำ',
-  'drift.closing.softened': 'ข้างในมีบางอย่างคลายลง คุณจากไปอย่างอ่อนโยนขึ้นเล็กน้อย',
-  'drift.closing.steady': 'คุณอยู่กับมัน นั่นมีความหมาย',
 } as const
 
-const th = { ...thBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.th, ...roomFallback } as const
+const th = { ...thBase, ...conductorFallback, ...sessionCopy.th, ...roomFallback } as const
 
 export default th

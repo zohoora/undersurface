@@ -2237,24 +2237,6 @@ body {
   box-shadow: 0 16px 44px var(--overlay-medium);
 }
 
-.session-options-menu__surfaces {
-  display: none;
-  gap: 6px;
-  padding: 4px 4px 8px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--border-light);
-}
-
-.session-options-menu__surfaces button {
-  flex: 1;
-  min-height: 40px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 9px;
-  background: var(--surface-primary);
-  color: var(--text-primary);
-  cursor: pointer;
-}
-
 .session-option-state {
   font-size: 10px;
   color: var(--text-ghost);
@@ -2321,8 +2303,6 @@ body {
     font-size: 11px;
   }
 
-  .session-bottom-bar__optional-surface { display: none; }
-  .session-bottom-bar__optional-surface.session-bottom-bar__drift { display: block; }
   .session-options { flex: 0 0 20%; margin-left: 4px; }
   .session-bottom-bar__options { width: 100%; min-height: 48px; height: auto; font: 11px 'Inter', sans-serif; }
   .session-options-desktop { display: none; }
@@ -2334,8 +2314,6 @@ body {
     bottom: calc(78px + env(safe-area-inset-bottom, 0px));
     width: min(280px, calc(100vw - 24px));
   }
-  .session-options-menu__surfaces { display: flex; }
-  .session-options-menu__drift { display: none; }
 }
 
 @keyframes blink {

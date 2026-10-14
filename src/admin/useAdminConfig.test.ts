@@ -93,6 +93,27 @@ describe('useAdminConfig — save', () => {
     expect(result.current.config).toEqual(persisted) // server-returned shape wins
   })
 
+  it('strips retired feature keys a stored config still carries before saving', async () => {
+    const stored = {
+      ...MIN_DEFAULTS,
+      features: { ...MIN_DEFAULTS.features, customSoundscapesEnabled: false, roomEnabled: true },
+    } as GlobalConfig
+    adminFetchMock.mockImplementation((action: string, params?: { config?: GlobalConfig }) => {
+      if (action === 'getConfig') return Promise.resolve({ config: stored })
+      if (action === 'updateConfig') return Promise.resolve({ config: { ...stored, ...params?.config } })
+      return Promise.resolve(null)
+    })
+
+    const { result } = renderHook(() => useAdminConfig(MIN_DEFAULTS))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    await act(async () => { await result.current.save() })
+
+    const call = adminFetchMock.mock.calls.find(c => c[0] === 'updateConfig')!
+    const sent = (call[1] as { config: GlobalConfig }).config
+    expect(sent.features).not.toHaveProperty('customSoundscapesEnabled')
+    expect(sent.features.roomEnabled).toBe(true)
+  })
+
   it('surfaces an error message when save fails', async () => {
     adminFetchMock.mockImplementation((action: string) => {
       if (action === 'getConfig') return Promise.resolve({ config: MIN_DEFAULTS })

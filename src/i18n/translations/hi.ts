@@ -1,5 +1,4 @@
 import { sessionCopy } from './sessionCopy'
-import { driftSeamlessFallback } from '../driftSeamlessFallback'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
@@ -204,7 +203,6 @@ const hiBase = {
   'policy.recommendation': 'हमारी सिफारिश',
   'policy.recommendationBody': 'हम UnderSurface को पेशेवर सहायता के साथ उपयोग करने की सलाह देते हैं, उसके बदले नहीं। आंतरिक आवाज़ों के साथ लिखना आपकी प्रक्रिया में एक सार्थक साथी हो सकता है — लेकिन यह एक प्रशिक्षित पेशेवर की देखभाल का विकल्प नहीं है।',
 
-
   // Landing page hero
   'landing.headline': 'A diary that listens back',
   'landing.feature1': 'Write freely — inner voices listen',
@@ -217,54 +215,25 @@ const hiBase = {
 
   'echo.label': 'अतीत',
 
-
   'common.dismiss': 'खारिज करें',
-
 
   'parts.card.hint': 'अगर यह सच लगे, तो इसे अपने शब्दों में नाम दें',
 
-
   'parts.card.keep': 'रखें',
-
 
   'parts.card.notQuite': 'बिल्कुल नहीं',
 
-
   'parts.settings.title': 'आपके हिस्से',
-
 
   'parts.settings.retire': 'विश्राम दें',
 
-
   'intentions.card.hint': 'अगली बार तक इसे अपने साथ रखें?',
-
 
   'intentions.card.keep': 'साथ रखें',
 
-
   'intentions.card.skip': 'इस बार नहीं',
 
-
-  'checkin.prompt': 'आप कैसा महसूस करते हुए जा रहे हैं?',
-
-
-  'checkin.heavier': 'भारी',
-
-
-  'checkin.same': 'लगभग वैसा ही',
-
-
-  'checkin.shadeLighter': 'थोड़ा हल्का',
-
-
-  'checkin.lighter': 'हल्का',
-
-
-  'checkin.muchLighter': 'बहुत हल्का',
-
-
   'values.card.hint': 'क्या यह आपके लिए मायने रखता है? इसे अपने शब्दों में नाम दें',
-
 
   'values.settings.title': 'आपके लिए क्या मायने रखता है',
   // Bilateral stimulation
@@ -283,139 +252,8 @@ const hiBase = {
   'bodyMap.region.back': 'पीठ',
   'bodyMap.region.hips': 'कूल्हे',
   'bodyMap.region.legs': 'पैर और तलवे',
-
-  // Session bottom bar
-  'session.bottomBar.relax': 'आराम',
-  'session.bottomBar.drift': 'Drift',
-
-  // Relax mode — settings
-  'relax.settings.title': 'बैठ जाओ',
-  'relax.settings.duration.label': 'अवधि',
-  'relax.settings.duration.5': '5 मिनट',
-  'relax.settings.duration.10': '10 मिनट',
-  'relax.settings.duration.20': '20 मिनट',
-  'relax.settings.type.label': 'अभ्यास',
-  'relax.settings.type.breathwork': 'साँस का अभ्यास',
-  'relax.settings.type.body_scan': 'शरीर स्कैन',
-  'relax.settings.type.safe_place': 'सुरक्षित स्थान',
-  'relax.settings.type.open_awareness': 'खुली चेतना',
-  'relax.settings.audio.label': 'पृष्ठभूमि',
-  'relax.settings.audio.none': 'मौन',
-  'relax.settings.audio.ocean': 'समुद्र',
-  'relax.settings.audio.forest': 'जंगल',
-  'relax.settings.audio.drone': 'ड्रोन',
-  'relax.settings.audio.binaural': 'बाइनॉरल',
-  'relax.settings.audio.custom': 'कस्टम',
-  'relax.settings.audio.volume': 'आवाज़',
-  'relax.settings.audio.promptLabel': 'ध्वनि का वर्णन करो',
-  'relax.settings.audio.promptPlaceholder': 'टीन की छत पर बारिश, दूर से गड़गड़ाहट',
-  'relax.settings.audio.promptHelp': '200 अक्षरों तक। 30-सेकंड का लूप बनाता है।',
-  'relax.settings.audio.generate': 'बनाओ',
-  'relax.settings.audio.generating': 'बना रहा है…',
-  'relax.settings.audio.ready': 'तैयार',
-  'relax.settings.audio.cached': 'पहले से सहेजा गया',
-  'relax.settings.audio.error.network': 'ध्वनि सेवा तक नहीं पहुँच सके।',
-  'relax.settings.audio.error.rateLimit': 'हाल ही में बहुत सारे साउंडस्केप बने। कोई प्रीसेट आज़माओ, या थोड़ा रुको।',
-  'relax.settings.audio.error.provider': 'यह साउंडस्केप नहीं बना सके। दूसरे शब्द आज़माओ।',
-  'relax.settings.audio.error.validation': 'यह विवरण समर्थित नहीं है। छोटा और स्पष्ट रखो।',
-  'relax.settings.audio.error.retry': 'फिर कोशिश करो',
-  'relax.settings.audio.preset.rain': 'टीन की छत पर बारिश',
-  'relax.settings.audio.preset.forest': 'जंगल की धारा',
-  'relax.settings.audio.preset.thunder': 'दूर की गड़गड़ाहट',
-  'relax.settings.audio.preset.cave': 'समुद्री गुफा',
-  'relax.settings.voice.label': 'आवाज़ का मार्गदर्शन',
-  'relax.settings.voice.on': 'चालू',
-  'relax.settings.voice.off': 'बंद',
-  'relax.settings.visual.label': 'दृश्य',
-  'relax.settings.visual.full': 'पूर्ण',
-  'relax.settings.visual.minimal': 'न्यूनतम',
-  'relax.settings.visual.off': 'बंद',
-  'relax.settings.cancel': 'वापस',
-  'relax.settings.begin': 'शुरू करो',
-
-  // Relax mode — controls
-  'relax.controls.muteAudio': 'ध्वनि बंद',
-  'relax.controls.unmuteAudio': 'ध्वनि चालू',
-  'relax.controls.muteVoice': 'आवाज़ बंद',
-  'relax.controls.unmuteVoice': 'आवाज़ चालू',
-  'relax.controls.cycleVisual': 'दृश्य बदलो',
-  'relax.controls.end': 'सत्र समाप्त',
-
-  // Relax mode — summary
-  'relax.summary.title': 'पूरा',
-  'relax.summary.minutes': 'मिनट',
-  'relax.summary.subtitle': 'जब तुम तैयार हो।',
-  'relax.summary.completed': 'जब तुम तैयार हो।',
-
-  // Relax mode — calibrating
-  'relax.calibrating.title': 'बैठ रहा हूँ',
-  'relax.calibrating.subtitle': 'तुम्हारा संकेत पढ़ रहा हूँ। करीब आधा मिनट लगता है।',
-  'relax.calibrating.skip': 'छोड़ो',
-
-  // Relax mode — biometrics
-  'relax.biometrics.enable': 'बायोमेट्रिक्स चालू करो',
-  'relax.biometrics.stop': 'रोको',
-
-  // Drift
-  'drift.card.title': 'Drift',
-  'drift.card.subtitle': 'कोमल बाएँ–दाएँ लय के साथ एक निर्देशित अवलोकन अभ्यास',
-  'drift.arrive.title': 'Drift',
-  'drift.arrive.body': 'कुछ मिनटों की शांत अवलोकन, एक धीमी बाएँ–दाएँ लय के सहारे। तुम तय करते हो कि ध्यान कहाँ जाए। हम स्थिर होकर समाप्त करते हैं।',
-  'drift.arrive.notTherapy': 'यह एक स्वयं-निर्देशित अभ्यास है, चिकित्सा या उपचार नहीं। तुम किसी भी समय रुक सकते हो।',
-  'drift.arrive.begin': 'शुरू करो',
-  'drift.arrive.voice': 'आवाज़ का मार्गदर्शन',
-  'drift.anchor.title': 'पहले, लौटने का एक रास्ता',
-  'drift.anchor.body': 'किसी और चीज़ से पहले, अपना लंगर खोजो। एक जगह — असली या कल्पना की — जहाँ तुम सहज महसूस करते हो। या बस ज़मीन पर तुम्हारे पैर, वह कुर्सी जो तुम्हें थामे हुए है।',
-  'drift.anchor.calmPlace': 'एक शांत जगह',
-  'drift.anchor.feet': 'ज़मीन पर पैर',
-  'drift.anchor.confirm': 'मिल गया',
-  'drift.choose.title': 'ध्यान कहाँ जाए?',
-  'drift.choose.hint': 'एक भावना, एक याद, एक अनुभूति — या बस जो अभी यहाँ है। इसे सबसे भारी चीज़ होने की ज़रूरत नहीं। जो तुम्हें खींचे, वह काफी है।',
-  'drift.choose.placeholder': 'अभी यहाँ क्या है…',
-  'drift.baseline.prompt': 'यह तुम्हारे शरीर में कहाँ बैठा है? इसकी बनावट कैसी है — तना हुआ, भारी, गर्म, स्थिर?',
-  'drift.set.hint': 'लय को तुम्हें ले जाने दो। कुछ करने की ज़रूरत नहीं।',
-  'drift.set.butterflyHint': 'अगर चाहो: अपनी बाहों को छाती पर क्रॉस करो और साथ में थपथपाओ, बाएँ और दाएँ।',
-  'drift.set.skip': 'छोड़ो',
-  'drift.notice.prompt': 'अब तुम क्या नोटिस करते हो?',
-  'drift.notice.softer': 'हल्का',
-  'drift.notice.same': 'वैसा ही',
-  'drift.notice.stronger': 'तेज़',
-  'drift.settle.line': 'अभी इसे वैसे ही रहने दो। अपने लंगर पर वापस आओ — वह जगह, या ज़मीन पर तुम्हारे पैर। वहाँ एक पल आराम करो।',
-  'drift.settleClose': 'स्थिर होकर समाप्त करो',
-  'drift.closure.anchor': 'अपने लंगर पर वापस आओ। इसे एक-दो साँस के लिए तुम्हें थामने दो।',
-  'drift.closure.container': 'जो कुछ अधूरा है, उसे अभी के लिए एक तरफ रखा जा सकता है। वह बना रहेगा।',
-  'drift.closure.orient': 'कमरे में चारों ओर देखो। तीन चीज़ें नोटिस करो जो तुम देख सकते हो। तुम यहाँ हो।',
-  'drift.closure.done': 'पूरा',
-  'drift.abort.handoff': 'हम यहाँ रुक जाएंगे और पहले तुम्हारा ख्याल रखेंगे।',
-  'drift.closed.settled': 'आज के लिए इतना काफी है।',
-  'drift.closed.eased': 'तुमने खुद को सुना। यह मायने रखता है।',
-  // Drift v2 — one-screen begin
-  'drift.begin.whats': 'मन में क्या हलचल है?',
-  'drift.chip.worry': 'एक चिंता',
-  'drift.chip.body': 'शरीर में तनाव',
-  'drift.chip.today': 'आज की कोई बात',
-  'drift.chip.heavy': 'एक भारी एहसास',
-  'drift.chip.unsettled': 'बस बेचैनी',
-  'drift.begin.somethingElse': 'कुछ और…',
-  'drift.begin.length': 'कितनी देर?',
-  'drift.length.quick': '2 मिनट',
-  'drift.length.short': '4 मिनट',
-  'drift.length.full': '6 मिनट',
-  'drift.begin.anchorLabel': 'तुम्हारा लौटने का रास्ता:',
-  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
-  'drift.micro.softer1': 'अच्छा। इसे और ढीला पड़ने दो।',
-  'drift.micro.softer2': 'कुछ शांत हो रहा है। उसके पास रहो।',
-  'drift.micro.softer3': 'इस नरमी को अपने आप फैलने दो।',
-  'drift.micro.same1': 'यह ठीक है। कोई जल्दी नहीं।',
-  'drift.micro.same2': 'स्थिर बने रहना भी मायने रखता है। लय को इसे ले जाने दो।',
-  'drift.micro.drift1': 'बस इसके साथ बहते रहो।',
-  'drift.micro.drift2': 'कुछ करने की ज़रूरत नहीं। लय ही काफी है।',
-  // Drift v2 — optional typed word + closure contrast
-  'drift.notice.addWord': 'एक शब्द जोड़ो',
-  'drift.closing.softened': 'अंदर कुछ ढीला पड़ा। तुम थोड़ा हल्का होकर जाते हो।',
-  'drift.closing.steady': 'तुम इसके साथ बने रहे। यह मायने रखता है।',
 } as const
 
-const hi = { ...hiBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.hi, ...roomFallback } as const
+const hi = { ...hiBase, ...conductorFallback, ...sessionCopy.hi, ...roomFallback } as const
 
 export default hi

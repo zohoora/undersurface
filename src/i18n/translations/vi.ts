@@ -1,5 +1,4 @@
 import { sessionCopy } from './sessionCopy'
-import { driftSeamlessFallback } from '../driftSeamlessFallback'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
@@ -204,7 +203,6 @@ const viBase = {
   'policy.recommendation': 'Khuyến nghị của chúng tôi',
   'policy.recommendationBody': 'Chúng tôi khuyến khích sử dụng UnderSurface song song với hỗ trợ chuyên nghiệp, không phải thay thế. Viết cùng các giọng nói bên trong có thể là người bạn đồng hành ý nghĩa trong hành trình của bạn — nhưng không thể thay thế sự chăm sóc của một chuyên gia được đào tạo.',
 
-
   // Landing page hero
   'landing.headline': 'A diary that listens back',
   'landing.feature1': 'Write freely — inner voices listen',
@@ -217,54 +215,25 @@ const viBase = {
 
   'echo.label': 'Quá Khứ',
 
-
   'common.dismiss': 'Bỏ qua',
-
 
   'parts.card.hint': 'Nếu điều này đúng, hãy đặt tên bằng lời của bạn',
 
-
   'parts.card.keep': 'Giữ lại',
-
 
   'parts.card.notQuite': 'Chưa đúng lắm',
 
-
   'parts.settings.title': 'Những phần trong bạn',
-
 
   'parts.settings.retire': 'Cho nghỉ',
 
-
   'intentions.card.hint': 'Mang điều này theo đến lần sau nhé?',
-
 
   'intentions.card.keep': 'Mang theo',
 
-
   'intentions.card.skip': 'Lần này thì thôi',
 
-
-  'checkin.prompt': 'Bạn rời đi với cảm giác thế nào?',
-
-
-  'checkin.heavier': 'Nặng hơn',
-
-
-  'checkin.same': 'Gần như cũ',
-
-
-  'checkin.shadeLighter': 'Nhẹ đi một chút',
-
-
-  'checkin.lighter': 'Nhẹ hơn',
-
-
-  'checkin.muchLighter': 'Nhẹ hơn nhiều',
-
-
   'values.card.hint': 'Điều này có quan trọng với bạn? Hãy đặt tên bằng lời của bạn',
-
 
   'values.settings.title': 'Điều quan trọng với bạn',
   // Bilateral stimulation
@@ -283,139 +252,8 @@ const viBase = {
   'bodyMap.region.back': 'Lưng',
   'bodyMap.region.hips': 'Hông',
   'bodyMap.region.legs': 'Chân và bàn chân',
-
-  // Session bottom bar
-  'session.bottomBar.relax': 'Thư giãn',
-  'session.bottomBar.drift': 'Drift',
-
-  // Relax mode — settings
-  'relax.settings.title': 'Ngồi yên',
-  'relax.settings.duration.label': 'Thời lượng',
-  'relax.settings.duration.5': '5 phút',
-  'relax.settings.duration.10': '10 phút',
-  'relax.settings.duration.20': '20 phút',
-  'relax.settings.type.label': 'Thực hành',
-  'relax.settings.type.breathwork': 'Thở',
-  'relax.settings.type.body_scan': 'Quét cơ thể',
-  'relax.settings.type.safe_place': 'Nơi an toàn',
-  'relax.settings.type.open_awareness': 'Tỉnh thức rộng mở',
-  'relax.settings.audio.label': 'Nền',
-  'relax.settings.audio.none': 'Im lặng',
-  'relax.settings.audio.ocean': 'Đại dương',
-  'relax.settings.audio.forest': 'Rừng',
-  'relax.settings.audio.drone': 'Drone',
-  'relax.settings.audio.binaural': 'Binaural',
-  'relax.settings.audio.custom': 'Tuỳ chỉnh',
-  'relax.settings.audio.volume': 'Âm lượng',
-  'relax.settings.audio.promptLabel': 'Mô tả âm thanh',
-  'relax.settings.audio.promptPlaceholder': 'mưa trên mái tôn cùng tiếng sấm xa',
-  'relax.settings.audio.promptHelp': 'Tối đa 200 ký tự. Tạo vòng lặp 30 giây.',
-  'relax.settings.audio.generate': 'Tạo',
-  'relax.settings.audio.generating': 'Đang tạo…',
-  'relax.settings.audio.ready': 'Sẵn sàng',
-  'relax.settings.audio.cached': 'Dùng lại',
-  'relax.settings.audio.error.network': 'Không kết nối được dịch vụ âm thanh.',
-  'relax.settings.audio.error.rateLimit': 'Tạo quá nhiều âm thanh gần đây. Thử một bản có sẵn, hoặc chờ chút.',
-  'relax.settings.audio.error.provider': 'Không tạo được âm thanh đó. Thử từ khác nhé.',
-  'relax.settings.audio.error.validation': 'Mô tả đó chưa được hỗ trợ. Hãy ngắn và rõ ràng.',
-  'relax.settings.audio.error.retry': 'Thử lại',
-  'relax.settings.audio.preset.rain': 'Mưa trên mái tôn',
-  'relax.settings.audio.preset.forest': 'Suối trong rừng',
-  'relax.settings.audio.preset.thunder': 'Sấm xa',
-  'relax.settings.audio.preset.cave': 'Hang động biển',
-  'relax.settings.voice.label': 'Giọng hướng dẫn',
-  'relax.settings.voice.on': 'Bật',
-  'relax.settings.voice.off': 'Tắt',
-  'relax.settings.visual.label': 'Hình ảnh',
-  'relax.settings.visual.full': 'Đầy đủ',
-  'relax.settings.visual.minimal': 'Tối thiểu',
-  'relax.settings.visual.off': 'Tắt',
-  'relax.settings.cancel': 'Quay lại',
-  'relax.settings.begin': 'Bắt đầu',
-
-  // Relax mode — controls
-  'relax.controls.muteAudio': 'Tắt tiếng nền',
-  'relax.controls.unmuteAudio': 'Bật tiếng nền',
-  'relax.controls.muteVoice': 'Tắt giọng nói',
-  'relax.controls.unmuteVoice': 'Bật giọng nói',
-  'relax.controls.cycleVisual': 'Đổi hình',
-  'relax.controls.end': 'Kết thúc phiên',
-
-  // Relax mode — summary
-  'relax.summary.title': 'Xong',
-  'relax.summary.minutes': 'phút',
-  'relax.summary.subtitle': 'Khi nào bạn sẵn sàng.',
-  'relax.summary.completed': 'Khi nào bạn sẵn sàng.',
-
-  // Relax mode — calibrating
-  'relax.calibrating.title': 'Đang lắng xuống',
-  'relax.calibrating.subtitle': 'Đang đọc tín hiệu của bạn. Khoảng nửa phút.',
-  'relax.calibrating.skip': 'Bỏ qua',
-
-  // Relax mode — biometrics
-  'relax.biometrics.enable': 'Bật sinh trắc',
-  'relax.biometrics.stop': 'Dừng',
-
-  // Drift
-  'drift.card.title': 'Drift',
-  'drift.card.subtitle': 'Một bài thực hành quan sát có hướng dẫn, với nhịp trái–phải nhẹ nhàng',
-  'drift.arrive.title': 'Drift',
-  'drift.arrive.body': 'Vài phút quan sát trong lặng yên, được nâng đỡ bởi nhịp trái–phải chậm rãi. Bạn chọn nơi sự chú ý hướng đến. Chúng ta kết thúc bằng cách lắng xuống.',
-  'drift.arrive.notTherapy': 'Đây là một bài thực hành tự hướng dẫn, không phải trị liệu hay điều trị. Bạn có thể dừng lại bất cứ lúc nào.',
-  'drift.arrive.begin': 'Bắt đầu',
-  'drift.arrive.voice': 'Giọng hướng dẫn',
-  'drift.anchor.title': 'Trước tiên, một lối trở về',
-  'drift.anchor.body': 'Trước hết, hãy tìm điểm tựa của bạn. Một nơi chốn — có thật hay tưởng tượng — nơi bạn cảm thấy thoải mái. Hoặc đơn giản là đôi chân chạm sàn, chiếc ghế đang nâng đỡ bạn.',
-  'drift.anchor.calmPlace': 'Một nơi bình yên',
-  'drift.anchor.feet': 'Đôi chân chạm sàn',
-  'drift.anchor.confirm': 'Đã có',
-  'drift.choose.title': 'Sự chú ý nên hướng về đâu?',
-  'drift.choose.hint': 'Một cảm xúc, một ký ức, một cảm giác — hay chỉ là điều đang hiện diện lúc này. Nó không cần phải là điều nặng nề nhất. Chỉ cần điều gì đó khiến bạn bận lòng là đủ.',
-  'drift.choose.placeholder': 'Điều gì đang ở đây…',
-  'drift.baseline.prompt': 'Nó nằm ở đâu trong cơ thể bạn? Kết cấu của nó thế nào — căng, nặng, ấm, tĩnh lặng?',
-  'drift.set.hint': 'Hãy để nhịp điệu nâng đỡ bạn. Không cần làm gì cả.',
-  'drift.set.butterflyHint': 'Nếu muốn: bắt chéo tay trước ngực và vỗ nhẹ theo nhịp, trái rồi phải.',
-  'drift.set.skip': 'Bỏ qua',
-  'drift.notice.prompt': 'Bây giờ bạn nhận thấy điều gì?',
-  'drift.notice.softer': 'Nhẹ hơn',
-  'drift.notice.same': 'Như cũ',
-  'drift.notice.stronger': 'Mạnh hơn',
-  'drift.settle.line': 'Hãy để nó yên như vậy. Quay về điểm tựa của bạn — nơi chốn đó, hoặc đôi chân chạm sàn. Nghỉ ở đó một lát.',
-  'drift.settleClose': 'Lắng xuống và khép lại',
-  'drift.closure.anchor': 'Quay về điểm tựa của bạn. Hãy để nó ôm giữ bạn trong một hai hơi thở.',
-  'drift.closure.container': 'Bất cứ điều gì còn dang dở đều có thể tạm gác lại lúc này. Nó sẽ vẫn còn đó.',
-  'drift.closure.orient': 'Hãy nhìn quanh căn phòng. Nhận ra ba điều bạn có thể thấy. Bạn đang ở đây.',
-  'drift.closure.done': 'Xong',
-  'drift.abort.handoff': 'Chúng ta sẽ tạm dừng ở đây và chăm sóc bạn trước đã.',
-  'drift.closed.settled': 'Như vậy là đủ cho hôm nay.',
-  'drift.closed.eased': 'Bạn đã lắng nghe chính mình. Điều đó có ý nghĩa.',
-  // Drift v2 — one-screen begin
-  'drift.begin.whats': 'Điều gì đang khẽ động?',
-  'drift.chip.worry': 'Một nỗi lo',
-  'drift.chip.body': 'Sự căng thẳng trong cơ thể',
-  'drift.chip.today': 'Điều gì đó của hôm nay',
-  'drift.chip.heavy': 'Một cảm giác nặng nề',
-  'drift.chip.unsettled': 'Chỉ là bất an',
-  'drift.begin.somethingElse': 'Điều gì khác…',
-  'drift.begin.length': 'Bao lâu?',
-  'drift.length.quick': '2 phút',
-  'drift.length.short': '4 phút',
-  'drift.length.full': '6 phút',
-  'drift.begin.anchorLabel': 'Lối trở về của bạn:',
-  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
-  'drift.micro.softer1': 'Tốt. Cứ để nó tiếp tục nới lỏng.',
-  'drift.micro.softer2': 'Có điều gì đó đang dịu lại. Hãy ở gần nó.',
-  'drift.micro.softer3': 'Hãy để sự dịu dàng ấy tự lan ra.',
-  'drift.micro.same1': 'Không sao cả. Không vội.',
-  'drift.micro.same2': 'Giữ yên cũng có ý nghĩa. Hãy để nhịp điệu mang nó đi.',
-  'drift.micro.drift1': 'Cứ trôi theo nó.',
-  'drift.micro.drift2': 'Không cần làm gì cả. Nhịp điệu là đủ.',
-  // Drift v2 — optional typed word + closure contrast
-  'drift.notice.addWord': 'thêm một từ',
-  'drift.closing.softened': 'Có điều gì đó đã nới lỏng bên trong. Bạn rời đi nhẹ nhõm hơn một chút.',
-  'drift.closing.steady': 'Bạn đã ở lại với nó. Điều đó có ý nghĩa.',
 } as const
 
-const vi = { ...viBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.vi, ...roomFallback } as const
+const vi = { ...viBase, ...conductorFallback, ...sessionCopy.vi, ...roomFallback } as const
 
 export default vi

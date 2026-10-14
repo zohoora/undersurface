@@ -1,5 +1,4 @@
 import { sessionCopy } from './sessionCopy'
-import { driftSeamlessFallback } from '../driftSeamlessFallback'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
@@ -204,7 +203,6 @@ const koBase = {
   'policy.recommendation': '권장 사항',
   'policy.recommendationBody': 'UnderSurface를 전문적인 지원과 함께 사용하시길 권장하며, 대체 수단으로 사용하지 마세요. 내면의 목소리와 함께 글을 쓰는 것은 의미 있는 동반 활동이 될 수 있지만, 전문가의 돌봄을 대신할 수는 없습니다.',
 
-
   // Landing page hero
   'landing.headline': 'A diary that listens back',
   'landing.feature1': 'Write freely — inner voices listen',
@@ -217,54 +215,25 @@ const koBase = {
 
   'echo.label': '과거',
 
-
   'common.dismiss': '닫기',
-
 
   'parts.card.hint': '맞다고 느껴진다면, 당신의 말로 이름을 지어주세요',
 
-
   'parts.card.keep': '간직하기',
-
 
   'parts.card.notQuite': '조금 다르네요',
 
-
   'parts.settings.title': '당신의 부분들',
-
 
   'parts.settings.retire': '쉬게 하기',
 
-
   'intentions.card.hint': '다음 시간까지 이것을 지니고 가시겠어요?',
-
 
   'intentions.card.keep': '지니고 가기',
 
-
   'intentions.card.skip': '이번엔 괜찮아요',
 
-
-  'checkin.prompt': '어떤 마음으로 마치시나요?',
-
-
-  'checkin.heavier': '더 무거워요',
-
-
-  'checkin.same': '비슷해요',
-
-
-  'checkin.shadeLighter': '조금 가벼워요',
-
-
-  'checkin.lighter': '가벼워요',
-
-
-  'checkin.muchLighter': '훨씬 가벼워요',
-
-
   'values.card.hint': '이것이 당신에게 중요한가요? 당신의 말로 이름을 지어주세요',
-
 
   'values.settings.title': '당신에게 중요한 것',
   // Bilateral stimulation
@@ -283,139 +252,8 @@ const koBase = {
   'bodyMap.region.back': '등',
   'bodyMap.region.hips': '엉덩이',
   'bodyMap.region.legs': '다리와 발',
-
-  // Session bottom bar
-  'session.bottomBar.relax': '이완',
-  'session.bottomBar.drift': 'Drift',
-
-  // Relax mode — settings
-  'relax.settings.title': '자리를 잡아봐',
-  'relax.settings.duration.label': '시간',
-  'relax.settings.duration.5': '5분',
-  'relax.settings.duration.10': '10분',
-  'relax.settings.duration.20': '20분',
-  'relax.settings.type.label': '연습',
-  'relax.settings.type.breathwork': '호흡 명상',
-  'relax.settings.type.body_scan': '바디 스캔',
-  'relax.settings.type.safe_place': '안전한 장소',
-  'relax.settings.type.open_awareness': '열린 자각',
-  'relax.settings.audio.label': '배경',
-  'relax.settings.audio.none': '고요',
-  'relax.settings.audio.ocean': '바다',
-  'relax.settings.audio.forest': '숲',
-  'relax.settings.audio.drone': '드론',
-  'relax.settings.audio.binaural': '바이노럴',
-  'relax.settings.audio.custom': '직접 입력',
-  'relax.settings.audio.volume': '음량',
-  'relax.settings.audio.promptLabel': '소리를 묘사해봐',
-  'relax.settings.audio.promptPlaceholder': '함석지붕에 떨어지는 비와 멀리서 들리는 천둥',
-  'relax.settings.audio.promptHelp': '200자까지. 30초 루프를 만든다.',
-  'relax.settings.audio.generate': '만들기',
-  'relax.settings.audio.generating': '엮는 중…',
-  'relax.settings.audio.ready': '준비됨',
-  'relax.settings.audio.cached': '이전 결과 재사용',
-  'relax.settings.audio.error.network': '사운드 서비스에 연결할 수 없었어.',
-  'relax.settings.audio.error.rateLimit': '최근에 사운드스케이프를 너무 많이 만들었어. 프리셋을 써보거나 잠시 기다려.',
-  'relax.settings.audio.error.provider': '그 사운드스케이프는 만들지 못했어. 다른 표현으로 시도해봐.',
-  'relax.settings.audio.error.validation': '그 입력은 지원되지 않아. 짧고 분명하게.',
-  'relax.settings.audio.error.retry': '다시',
-  'relax.settings.audio.preset.rain': '함석지붕 위의 비',
-  'relax.settings.audio.preset.forest': '숲속 시냇물',
-  'relax.settings.audio.preset.thunder': '먼 천둥',
-  'relax.settings.audio.preset.cave': '바다 동굴',
-  'relax.settings.voice.label': '음성 안내',
-  'relax.settings.voice.on': '켬',
-  'relax.settings.voice.off': '끔',
-  'relax.settings.visual.label': '시각 효과',
-  'relax.settings.visual.full': '전체',
-  'relax.settings.visual.minimal': '최소',
-  'relax.settings.visual.off': '끔',
-  'relax.settings.cancel': '뒤로',
-  'relax.settings.begin': '시작',
-
-  // Relax mode — controls
-  'relax.controls.muteAudio': '소리 끄기',
-  'relax.controls.unmuteAudio': '소리 켜기',
-  'relax.controls.muteVoice': '음성 끄기',
-  'relax.controls.unmuteVoice': '음성 켜기',
-  'relax.controls.cycleVisual': '시각 전환',
-  'relax.controls.end': '세션 종료',
-
-  // Relax mode — summary
-  'relax.summary.title': '끝',
-  'relax.summary.minutes': '분',
-  'relax.summary.subtitle': '준비되면 언제든.',
-  'relax.summary.completed': '준비되면 언제든.',
-
-  // Relax mode — calibrating
-  'relax.calibrating.title': '가라앉히는 중',
-  'relax.calibrating.subtitle': '신호를 읽고 있어. 30초쯤 걸려.',
-  'relax.calibrating.skip': '건너뛰기',
-
-  // Relax mode — biometrics
-  'relax.biometrics.enable': '생체 신호 켜기',
-  'relax.biometrics.stop': '중지',
-
-  // Drift
-  'drift.card.title': 'Drift',
-  'drift.card.subtitle': '부드러운 좌우 리듬으로 이끄는 알아차림 연습',
-  'drift.arrive.title': 'Drift',
-  'drift.arrive.body': '천천히 흐르는 좌우 리듬에 몸을 맡기는, 몇 분간의 조용한 알아차림. 주의를 어디로 둘지는 스스로 골라. 마지막엔 자리를 잡으며 끝나.',
-  'drift.arrive.notTherapy': '이것은 스스로 이끄는 연습이며, 치료나 진료가 아닙니다. 언제든지 멈출 수 있습니다.',
-  'drift.arrive.begin': '시작',
-  'drift.arrive.voice': '음성 안내',
-  'drift.anchor.title': '먼저, 돌아올 길',
-  'drift.anchor.body': '무엇보다 먼저, 닻을 찾아봐. 실제든 상상이든 — 편안하게 느껴지는 곳이면 돼. 아니면 그냥 바닥에 닿은 발, 너를 받치고 있는 의자여도 좋아.',
-  'drift.anchor.calmPlace': '평온한 곳',
-  'drift.anchor.feet': '바닥에 닿은 발',
-  'drift.anchor.confirm': '찾았어',
-  'drift.choose.title': '주의를 어디에 둘까?',
-  'drift.choose.hint': '감정 하나, 기억 하나, 어떤 느낌 — 아니면 그냥 지금 여기 있는 것. 가장 무거운 것일 필요는 없어. 마음을 끌어당기는 것이면 충분해.',
-  'drift.choose.placeholder': '지금 여기 있는 것…',
-  'drift.baseline.prompt': '몸 어디에 자리 잡고 있어? 그 결은 어때 — 조이는 듯, 무거운 듯, 따뜻한 듯, 고요한 듯?',
-  'drift.set.hint': '리듬이 너를 데려가게 둬. 아무것도 안 해도 돼.',
-  'drift.set.butterflyHint': '원한다면: 팔을 가슴 위에 교차시키고, 좌우로 가볍게 두드려봐.',
-  'drift.set.skip': '건너뛰기',
-  'drift.notice.prompt': '지금 뭐가 느껴져?',
-  'drift.notice.softer': '더 부드럽게',
-  'drift.notice.same': '그대로',
-  'drift.notice.stronger': '더 강하게',
-  'drift.settle.line': '지금은 그냥 그대로 둬. 닻으로 돌아와 — 그 장소, 아니면 바닥에 닿은 발. 거기서 잠시 쉬어.',
-  'drift.settleClose': '자리 잡고 마무리',
-  'drift.closure.anchor': '닻으로 돌아와. 한두 번 숨 쉬는 동안 그것이 너를 받쳐주게 해.',
-  'drift.closure.container': '끝내지 못한 건 지금은 잠시 옆에 놓아둬도 돼. 그대로 남아 있을 거야.',
-  'drift.closure.orient': '방을 둘러봐. 보이는 것 세 가지를 찾아봐. 너는 지금 여기 있어.',
-  'drift.closure.done': '끝',
-  'drift.abort.handoff': '여기서 잠시 멈추고, 먼저 당신을 돌보겠습니다.',
-  'drift.closed.settled': '오늘은 이걸로 충분해.',
-  'drift.closed.eased': '스스로의 목소리에 귀 기울였어. 그거면 충분해.',
-  // Drift v2 — one-screen begin
-  'drift.begin.whats': '지금 무엇이 일렁이고 있어?',
-  'drift.chip.worry': '걱정 하나',
-  'drift.chip.body': '몸의 긴장',
-  'drift.chip.today': '오늘 있었던 일',
-  'drift.chip.heavy': '무거운 마음',
-  'drift.chip.unsettled': '그냥 불안정한',
-  'drift.begin.somethingElse': '다른 것…',
-  'drift.begin.length': '얼마나?',
-  'drift.length.quick': '2분',
-  'drift.length.short': '4분',
-  'drift.length.full': '6분',
-  'drift.begin.anchorLabel': '너의 돌아올 길:',
-  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
-  'drift.micro.softer1': '좋아. 계속 풀려가게 둬.',
-  'drift.micro.softer2': '뭔가 누그러지고 있어. 그 곁에 머물러.',
-  'drift.micro.softer3': '그 부드러움이 저절로 번지게 둬.',
-  'drift.micro.same1': '괜찮아. 서두르지 않아도 돼.',
-  'drift.micro.same2': '그대로 있는 것도 의미가 있어. 리듬이 데려가게 둬.',
-  'drift.micro.drift1': '그냥 그 흐름에 떠가.',
-  'drift.micro.drift2': '아무것도 안 해도 돼. 리듬만으로 충분해.',
-  // Drift v2 — optional typed word + closure contrast
-  'drift.notice.addWord': '한마디 덧붙이기',
-  'drift.closing.softened': '그 안에서 뭔가 풀렸어. 조금 더 부드러워져서 돌아가.',
-  'drift.closing.steady': '그것과 함께 있었어. 그거면 충분해.',
 } as const
 
-const ko = { ...koBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.ko, ...roomFallback } as const
+const ko = { ...koBase, ...conductorFallback, ...sessionCopy.ko, ...roomFallback } as const
 
 export default ko

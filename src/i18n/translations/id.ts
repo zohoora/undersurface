@@ -1,5 +1,4 @@
 import { sessionCopy } from './sessionCopy'
-import { driftSeamlessFallback } from '../driftSeamlessFallback'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
@@ -204,7 +203,6 @@ const idBase = {
   'policy.recommendation': 'Rekomendasi kami',
   'policy.recommendationBody': 'Kami mendorong penggunaan UnderSurface bersama dukungan profesional, bukan sebagai penggantinya. Menulis bersama suara-suara dalam diri bisa menjadi teman yang bermakna dalam prosesmu — tetapi bukan pengganti perawatan dari profesional terlatih.',
 
-
   // Landing page hero
   'landing.headline': 'A diary that listens back',
   'landing.feature1': 'Write freely — inner voices listen',
@@ -217,54 +215,25 @@ const idBase = {
 
   'echo.label': 'Masa Lalu',
 
-
   'common.dismiss': 'Tutup',
-
 
   'parts.card.hint': 'Jika ini terasa benar, beri nama dengan kata-katamu sendiri',
 
-
   'parts.card.keep': 'Simpan',
-
 
   'parts.card.notQuite': 'Kurang tepat',
 
-
   'parts.settings.title': 'Bagian dirimu',
-
 
   'parts.settings.retire': 'Istirahatkan',
 
-
   'intentions.card.hint': 'Bawa ini sampai lain kali?',
-
 
   'intentions.card.keep': 'Bawa',
 
-
   'intentions.card.skip': 'Tidak kali ini',
 
-
-  'checkin.prompt': 'Bagaimana perasaanmu saat pergi?',
-
-
-  'checkin.heavier': 'Lebih berat',
-
-
-  'checkin.same': 'Kurang lebih sama',
-
-
-  'checkin.shadeLighter': 'Sedikit lebih ringan',
-
-
-  'checkin.lighter': 'Lebih ringan',
-
-
-  'checkin.muchLighter': 'Jauh lebih ringan',
-
-
   'values.card.hint': 'Apakah ini penting bagimu? Beri nama dengan katamu',
-
 
   'values.settings.title': 'Yang penting bagimu',
   // Bilateral stimulation
@@ -283,139 +252,8 @@ const idBase = {
   'bodyMap.region.back': 'Punggung',
   'bodyMap.region.hips': 'Pinggul',
   'bodyMap.region.legs': 'Kaki',
-
-  // Session bottom bar
-  'session.bottomBar.relax': 'Santai',
-  'session.bottomBar.drift': 'Drift',
-
-  // Relax mode — settings
-  'relax.settings.title': 'Tenangkan diri',
-  'relax.settings.duration.label': 'Durasi',
-  'relax.settings.duration.5': '5 mnt',
-  'relax.settings.duration.10': '10 mnt',
-  'relax.settings.duration.20': '20 mnt',
-  'relax.settings.type.label': 'Latihan',
-  'relax.settings.type.breathwork': 'Pernapasan',
-  'relax.settings.type.body_scan': 'Pemindaian tubuh',
-  'relax.settings.type.safe_place': 'Tempat aman',
-  'relax.settings.type.open_awareness': 'Kesadaran terbuka',
-  'relax.settings.audio.label': 'Latar',
-  'relax.settings.audio.none': 'Hening',
-  'relax.settings.audio.ocean': 'Laut',
-  'relax.settings.audio.forest': 'Hutan',
-  'relax.settings.audio.drone': 'Drone',
-  'relax.settings.audio.binaural': 'Binaural',
-  'relax.settings.audio.custom': 'Kustom',
-  'relax.settings.audio.volume': 'Volume',
-  'relax.settings.audio.promptLabel': 'Gambarkan suaranya',
-  'relax.settings.audio.promptPlaceholder': 'hujan di atap seng dengan guntur jauh',
-  'relax.settings.audio.promptHelp': 'Sampai 200 karakter. Menghasilkan loop 30 detik.',
-  'relax.settings.audio.generate': 'Buat',
-  'relax.settings.audio.generating': 'Merangkai…',
-  'relax.settings.audio.ready': 'Siap',
-  'relax.settings.audio.cached': 'Dipakai ulang',
-  'relax.settings.audio.error.network': 'Tidak bisa menghubungi layanan suara.',
-  'relax.settings.audio.error.rateLimit': 'Terlalu banyak suara akhir-akhir ini. Coba preset, atau tunggu sebentar.',
-  'relax.settings.audio.error.provider': 'Suasana itu tidak bisa dibuat. Coba kata lain.',
-  'relax.settings.audio.error.validation': 'Deskripsi itu tidak didukung. Buat singkat dan jelas.',
-  'relax.settings.audio.error.retry': 'Coba lagi',
-  'relax.settings.audio.preset.rain': 'Hujan di atap seng',
-  'relax.settings.audio.preset.forest': 'Aliran hutan',
-  'relax.settings.audio.preset.thunder': 'Guntur jauh',
-  'relax.settings.audio.preset.cave': 'Gua laut',
-  'relax.settings.voice.label': 'Panduan suara',
-  'relax.settings.voice.on': 'Aktif',
-  'relax.settings.voice.off': 'Nonaktif',
-  'relax.settings.visual.label': 'Visual',
-  'relax.settings.visual.full': 'Penuh',
-  'relax.settings.visual.minimal': 'Minimal',
-  'relax.settings.visual.off': 'Mati',
-  'relax.settings.cancel': 'Kembali',
-  'relax.settings.begin': 'Mulai',
-
-  // Relax mode — controls
-  'relax.controls.muteAudio': 'Bisukan suara',
-  'relax.controls.unmuteAudio': 'Aktifkan suara',
-  'relax.controls.muteVoice': 'Bisukan panduan',
-  'relax.controls.unmuteVoice': 'Aktifkan panduan',
-  'relax.controls.cycleVisual': 'Ganti visual',
-  'relax.controls.end': 'Akhiri sesi',
-
-  // Relax mode — summary
-  'relax.summary.title': 'Selesai',
-  'relax.summary.minutes': 'menit',
-  'relax.summary.subtitle': 'Kapan pun kamu siap.',
-  'relax.summary.completed': 'Kapan pun kamu siap.',
-
-  // Relax mode — calibrating
-  'relax.calibrating.title': 'Menyesuaikan',
-  'relax.calibrating.subtitle': 'Membaca sinyalmu. Sekitar setengah menit.',
-  'relax.calibrating.skip': 'Lewati',
-
-  // Relax mode — biometrics
-  'relax.biometrics.enable': 'Aktifkan biometrik',
-  'relax.biometrics.stop': 'Berhenti',
-
-  // Drift
-  'drift.card.title': 'Drift',
-  'drift.card.subtitle': 'Latihan kesadaran terpandu, dengan irama kiri–kanan yang lembut',
-  'drift.arrive.title': 'Drift',
-  'drift.arrive.body': 'Beberapa menit kesadaran yang tenang, dibawa oleh irama kiri–kanan yang perlahan. Kamu memilih ke mana perhatian pergi. Kita mengakhiri dengan menenangkan diri.',
-  'drift.arrive.notTherapy': 'Ini adalah latihan mandiri, bukan terapi atau pengobatan. Kamu bisa berhenti kapan saja.',
-  'drift.arrive.begin': 'Mulai',
-  'drift.arrive.voice': 'Panduan suara',
-  'drift.anchor.title': 'Pertama, jalan kembali',
-  'drift.anchor.body': 'Sebelum apa pun, temukan jangkaranmu. Sebuah tempat — nyata atau khayalan — tempat kamu merasa tenang. Atau cukup kakimu di lantai, kursi yang menopangmu.',
-  'drift.anchor.calmPlace': 'Tempat yang tenang',
-  'drift.anchor.feet': 'Kaki di lantai',
-  'drift.anchor.confirm': 'Sudah ketemu',
-  'drift.choose.title': 'Ke mana perhatian harus pergi?',
-  'drift.choose.hint': 'Sebuah perasaan, sebuah kenangan, sebuah sensasi — atau sekadar apa yang ada di sini sekarang. Itu tidak harus menjadi hal yang paling berat. Sesuatu yang mengusikmu saja sudah cukup.',
-  'drift.choose.placeholder': 'Apa yang ada di sini…',
-  'drift.baseline.prompt': 'Di mana rasanya di tubuhmu? Bagaimana teksturnya — tegang, berat, hangat, diam?',
-  'drift.set.hint': 'Biarkan irama membawamu. Tidak perlu melakukan apa pun.',
-  'drift.set.butterflyHint': 'Jika mau: silangkan tanganmu di dada dan tepuk mengikuti irama, kiri dan kanan.',
-  'drift.set.skip': 'Lewati',
-  'drift.notice.prompt': 'Sekarang, apa yang kamu sadari?',
-  'drift.notice.softer': 'Lebih lembut',
-  'drift.notice.same': 'Sama saja',
-  'drift.notice.stronger': 'Lebih kuat',
-  'drift.settle.line': 'Biarkan itu ada apa adanya untuk saat ini. Kembali ke jangkaranmu — tempat itu, atau kakimu di lantai. Beristirahatlah di sana sejenak.',
-  'drift.settleClose': 'Tenangkan diri dan akhiri',
-  'drift.closure.anchor': 'Kembali ke jangkaranmu. Biarkan ia menopangmu selama satu dua tarikan napas.',
-  'drift.closure.container': 'Apa pun yang belum selesai bisa disisihkan dulu untuk saat ini. Itu akan tetap ada.',
-  'drift.closure.orient': 'Lihat sekeliling ruangan. Perhatikan tiga hal yang bisa kamu lihat. Kamu ada di sini.',
-  'drift.closure.done': 'Selesai',
-  'drift.abort.handoff': 'Kita akan berhenti sejenak di sini dan merawatmu lebih dulu.',
-  'drift.closed.settled': 'Itu sudah cukup untuk hari ini.',
-  'drift.closed.eased': 'Kamu telah mendengarkan dirimu sendiri. Itu berarti.',
-  // Drift v2 — one-screen begin
-  'drift.begin.whats': 'Apa yang sedang bergejolak?',
-  'drift.chip.worry': 'Sebuah kekhawatiran',
-  'drift.chip.body': 'Ketegangan di tubuh',
-  'drift.chip.today': 'Sesuatu dari hari ini',
-  'drift.chip.heavy': 'Perasaan yang berat',
-  'drift.chip.unsettled': 'Sekadar gelisah',
-  'drift.begin.somethingElse': 'Sesuatu yang lain…',
-  'drift.begin.length': 'Berapa lama?',
-  'drift.length.quick': '2 mnt',
-  'drift.length.short': '4 mnt',
-  'drift.length.full': '6 mnt',
-  'drift.begin.anchorLabel': 'Jalan kembalimu:',
-  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
-  'drift.micro.softer1': 'Bagus. Biarkan terus mengendur.',
-  'drift.micro.softer2': 'Ada yang mereda. Tetaplah dekat dengannya.',
-  'drift.micro.softer3': 'Biarkan kelembutan itu menyebar dengan sendirinya.',
-  'drift.micro.same1': 'Tidak apa-apa. Tidak perlu terburu-buru.',
-  'drift.micro.same2': 'Bertahan tenang juga berarti. Biarkan irama membawanya.',
-  'drift.micro.drift1': 'Biarkan saja dirimu hanyut mengikutinya.',
-  'drift.micro.drift2': 'Tidak perlu melakukan apa pun. Iramanya sudah cukup.',
-  // Drift v2 — optional typed word + closure contrast
-  'drift.notice.addWord': 'tambahkan sebuah kata',
-  'drift.closing.softened': 'Ada yang mengendur di dalam sana. Kamu pergi sedikit lebih lembut.',
-  'drift.closing.steady': 'Kamu tetap bersamanya. Itu berarti.',
 } as const
 
-const id = { ...idBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.id, ...roomFallback } as const
+const id = { ...idBase, ...conductorFallback, ...sessionCopy.id, ...roomFallback } as const
 
 export default id

@@ -1,5 +1,4 @@
 import { sessionCopy } from './sessionCopy'
-import { driftSeamlessFallback } from '../driftSeamlessFallback'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
@@ -204,7 +203,6 @@ const zhBase = {
   'policy.recommendation': '我们的建议',
   'policy.recommendationBody': '我们鼓励你将 UnderSurface 与专业支持配合使用，而不是替代专业支持。与内心声音一起写作可以成为你过程中有意义的陪伴——但它不能替代受过专业训练的人员所提供的关怀。',
 
-
   // Landing page hero
   'landing.headline': 'A diary that listens back',
   'landing.feature1': 'Write freely — inner voices listen',
@@ -217,54 +215,25 @@ const zhBase = {
 
   'echo.label': '过去',
 
-
   'common.dismiss': '关闭',
-
 
   'parts.card.hint': '如果这感觉真实，用你自己的话为它命名',
 
-
   'parts.card.keep': '保留',
-
 
   'parts.card.notQuite': '不太对',
 
-
   'parts.settings.title': '你的部分',
-
 
   'parts.settings.retire': '让它休息',
 
-
   'intentions.card.hint': '把这个带到下次吗？',
-
 
   'intentions.card.keep': '带上',
 
-
   'intentions.card.skip': '这次先不了',
 
-
-  'checkin.prompt': '你带着怎样的感觉离开？',
-
-
-  'checkin.heavier': '更沉重',
-
-
-  'checkin.same': '差不多',
-
-
-  'checkin.shadeLighter': '轻了一点',
-
-
-  'checkin.lighter': '轻松了',
-
-
-  'checkin.muchLighter': '轻松多了',
-
-
   'values.card.hint': '这对你重要吗？用你自己的话为它命名',
-
 
   'values.settings.title': '对你重要的事',
   // Bilateral stimulation
@@ -283,139 +252,8 @@ const zhBase = {
   'bodyMap.region.back': '背',
   'bodyMap.region.hips': '臀',
   'bodyMap.region.legs': '腿与脚',
-
-  // Session bottom bar
-  'session.bottomBar.relax': '放松',
-  'session.bottomBar.drift': 'Drift',
-
-  // Relax mode — settings
-  'relax.settings.title': '安顿下来',
-  'relax.settings.duration.label': '时长',
-  'relax.settings.duration.5': '5分钟',
-  'relax.settings.duration.10': '10分钟',
-  'relax.settings.duration.20': '20分钟',
-  'relax.settings.type.label': '练习',
-  'relax.settings.type.breathwork': '呼吸练习',
-  'relax.settings.type.body_scan': '身体扫描',
-  'relax.settings.type.safe_place': '安全之地',
-  'relax.settings.type.open_awareness': '开放觉知',
-  'relax.settings.audio.label': '背景',
-  'relax.settings.audio.none': '静默',
-  'relax.settings.audio.ocean': '海洋',
-  'relax.settings.audio.forest': '森林',
-  'relax.settings.audio.drone': '低频',
-  'relax.settings.audio.binaural': '双耳节拍',
-  'relax.settings.audio.custom': '自定义',
-  'relax.settings.audio.volume': '音量',
-  'relax.settings.audio.promptLabel': '描述声音',
-  'relax.settings.audio.promptPlaceholder': '雨打铁皮屋顶，远处隐约的雷声',
-  'relax.settings.audio.promptHelp': '不超过200字。生成30秒循环。',
-  'relax.settings.audio.generate': '生成',
-  'relax.settings.audio.generating': '正在生成…',
-  'relax.settings.audio.ready': '已就绪',
-  'relax.settings.audio.cached': '复用先前',
-  'relax.settings.audio.error.network': '无法连接声音服务。',
-  'relax.settings.audio.error.rateLimit': '最近生成得太多了。试试预设，或稍等一会儿。',
-  'relax.settings.audio.error.provider': '没能生成那段声音。换些词试试。',
-  'relax.settings.audio.error.validation': '这段描述不支持。请简短而具体。',
-  'relax.settings.audio.error.retry': '重试',
-  'relax.settings.audio.preset.rain': '雨打铁皮屋顶',
-  'relax.settings.audio.preset.forest': '林间溪流',
-  'relax.settings.audio.preset.thunder': '远处的雷声',
-  'relax.settings.audio.preset.cave': '海蚀洞',
-  'relax.settings.voice.label': '语音引导',
-  'relax.settings.voice.on': '开',
-  'relax.settings.voice.off': '关',
-  'relax.settings.visual.label': '画面',
-  'relax.settings.visual.full': '完整',
-  'relax.settings.visual.minimal': '极简',
-  'relax.settings.visual.off': '关闭',
-  'relax.settings.cancel': '返回',
-  'relax.settings.begin': '开始',
-
-  // Relax mode — controls
-  'relax.controls.muteAudio': '静音背景声',
-  'relax.controls.unmuteAudio': '恢复背景声',
-  'relax.controls.muteVoice': '静音语音',
-  'relax.controls.unmuteVoice': '恢复语音',
-  'relax.controls.cycleVisual': '切换画面',
-  'relax.controls.end': '结束会话',
-
-  // Relax mode — summary
-  'relax.summary.title': '完成',
-  'relax.summary.minutes': '分钟',
-  'relax.summary.subtitle': '你准备好了，再继续。',
-  'relax.summary.completed': '你准备好了，再继续。',
-
-  // Relax mode — calibrating
-  'relax.calibrating.title': '稳定中',
-  'relax.calibrating.subtitle': '正在读取你的信号，大约半分钟。',
-  'relax.calibrating.skip': '跳过',
-
-  // Relax mode — biometrics
-  'relax.biometrics.enable': '启用生物指标',
-  'relax.biometrics.stop': '停止',
-
-  // Drift
-  'drift.card.title': 'Drift',
-  'drift.card.subtitle': '一种以轻柔的左右节奏为引导的觉察练习',
-  'drift.arrive.title': 'Drift',
-  'drift.arrive.body': '几分钟安静的觉察，由缓慢的左右节奏带着你前行。注意力去向由你决定。我们以安顿收尾。',
-  'drift.arrive.notTherapy': '这是一种自我引导的练习，不是治疗，也不是医疗手段。你可以随时停止。',
-  'drift.arrive.begin': '开始',
-  'drift.arrive.voice': '语音引导',
-  'drift.anchor.title': '首先，找到回来的路',
-  'drift.anchor.body': '在这之前，先找到你的锚点。一个地方——真实的或想象的——让你感到自在的地方。或者，只是你踩在地上的双脚，托着你的椅子。',
-  'drift.anchor.calmPlace': '一个平静的地方',
-  'drift.anchor.feet': '双脚踩地',
-  'drift.anchor.confirm': '找到了',
-  'drift.choose.title': '注意力该去哪里？',
-  'drift.choose.hint': '一种感觉、一段记忆、一种感受——或者只是此刻在这里的东西。不必是最沉重的那件事。牵动你的东西就足够了。',
-  'drift.choose.placeholder': '此刻在这里的…',
-  'drift.baseline.prompt': '它在你身体的哪个位置？它的质地是什么——紧绷、沉重、温热、静止？',
-  'drift.set.hint': '让节奏带着你。什么都不用做。',
-  'drift.set.butterflyHint': '如果你愿意：把手臂交叉放在胸前，随着节奏左右轻拍。',
-  'drift.set.skip': '跳过',
-  'drift.notice.prompt': '你现在注意到了什么？',
-  'drift.notice.softer': '更轻柔',
-  'drift.notice.same': '一样',
-  'drift.notice.stronger': '更强烈',
-  'drift.settle.line': '暂且让它待在那里。回到你的锚点——那个地方，或者你踩在地上的双脚。在那里休息片刻。',
-  'drift.settleClose': '安顿并结束',
-  'drift.closure.anchor': '回到你的锚点。让它托住你一两次呼吸的时间。',
-  'drift.closure.container': '任何未完成的事，都可以暂时放在一边。它会留在那里等你。',
-  'drift.closure.orient': '看看房间四周。留意你能看到的三样东西。你在这里。',
-  'drift.closure.done': '完成',
-  'drift.abort.handoff': '我们先在这里停一下，照顾好你。',
-  'drift.closed.settled': '今天到这里就够了。',
-  'drift.closed.eased': '你倾听了自己。这很重要。',
-  // Drift v2 — one-screen begin
-  'drift.begin.whats': '心里有什么在动？',
-  'drift.chip.worry': '一件心事',
-  'drift.chip.body': '身体里的紧绷',
-  'drift.chip.today': '今天的某件事',
-  'drift.chip.heavy': '一种沉重的感觉',
-  'drift.chip.unsettled': '只是心神不宁',
-  'drift.begin.somethingElse': '别的事…',
-  'drift.begin.length': '多久？',
-  'drift.length.quick': '2分钟',
-  'drift.length.short': '4分钟',
-  'drift.length.full': '6分钟',
-  'drift.begin.anchorLabel': '你回来的路：',
-  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
-  'drift.micro.softer1': '很好。让它继续松开。',
-  'drift.micro.softer2': '有什么正在缓和。待在它旁边。',
-  'drift.micro.softer3': '让这份柔软自己蔓延开来。',
-  'drift.micro.same1': '这样也没关系。不用急。',
-  'drift.micro.same2': '保持稳定也算数。让节奏带着它走。',
-  'drift.micro.drift1': '就随它漂着。',
-  'drift.micro.drift2': '什么都不用做。节奏就够了。',
-  // Drift v2 — optional typed word + closure contrast
-  'drift.notice.addWord': '加一个词',
-  'drift.closing.softened': '里面有什么松开了。你带着一点柔软离开。',
-  'drift.closing.steady': '你陪着它待了下来。这很重要。',
 } as const
 
-const zh = { ...zhBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.zh, ...roomFallback } as const
+const zh = { ...zhBase, ...conductorFallback, ...sessionCopy.zh, ...roomFallback } as const
 
 export default zh

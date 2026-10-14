@@ -1,5 +1,4 @@
 import { sessionCopy } from './sessionCopy'
-import { driftSeamlessFallback } from '../driftSeamlessFallback'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
@@ -204,7 +203,6 @@ const nlBase = {
   'policy.recommendation': 'Onze aanbeveling',
   'policy.recommendationBody': 'We moedigen aan om UnderSurface naast professionele ondersteuning te gebruiken, niet in plaats daarvan. Schrijven met innerlijke stemmen kan een waardevolle aanvulling zijn op je proces — maar het is geen vervanging voor de zorg van een getrainde professional.',
 
-
   // Landing page hero
   'landing.headline': 'A diary that listens back',
   'landing.feature1': 'Write freely — inner voices listen',
@@ -217,54 +215,25 @@ const nlBase = {
 
   'echo.label': 'Het Verleden',
 
-
   'common.dismiss': 'Sluiten',
-
 
   'parts.card.hint': 'Als dit klopt, geef het dan een naam in je eigen woorden',
 
-
   'parts.card.keep': 'Bewaren',
-
 
   'parts.card.notQuite': 'Niet helemaal',
 
-
   'parts.settings.title': 'Delen van jou',
-
 
   'parts.settings.retire': 'Laten rusten',
 
-
   'intentions.card.hint': 'Dit meenemen tot de volgende keer?',
-
 
   'intentions.card.keep': 'Meenemen',
 
-
   'intentions.card.skip': 'Deze keer niet',
 
-
-  'checkin.prompt': 'Hoe ga je weg?',
-
-
-  'checkin.heavier': 'Zwaarder',
-
-
-  'checkin.same': 'Ongeveer hetzelfde',
-
-
-  'checkin.shadeLighter': 'Een tikje lichter',
-
-
-  'checkin.lighter': 'Lichter',
-
-
-  'checkin.muchLighter': 'Veel lichter',
-
-
   'values.card.hint': 'Doet dit ertoe voor jou? Benoem het in je eigen woorden',
-
 
   'values.settings.title': 'Wat er voor jou toe doet',
   // Bilateral stimulation
@@ -283,139 +252,8 @@ const nlBase = {
   'bodyMap.region.back': 'Rug',
   'bodyMap.region.hips': 'Heupen',
   'bodyMap.region.legs': 'Benen en voeten',
-
-  // Session bottom bar
-  'session.bottomBar.relax': 'Ontspannen',
-  'session.bottomBar.drift': 'Drift',
-
-  // Relax mode — settings
-  'relax.settings.title': 'Kom tot rust',
-  'relax.settings.duration.label': 'Duur',
-  'relax.settings.duration.5': '5 min',
-  'relax.settings.duration.10': '10 min',
-  'relax.settings.duration.20': '20 min',
-  'relax.settings.type.label': 'Oefening',
-  'relax.settings.type.breathwork': 'Ademwerk',
-  'relax.settings.type.body_scan': 'Bodyscan',
-  'relax.settings.type.safe_place': 'Veilige plek',
-  'relax.settings.type.open_awareness': 'Open gewaarzijn',
-  'relax.settings.audio.label': 'Achtergrond',
-  'relax.settings.audio.none': 'Stilte',
-  'relax.settings.audio.ocean': 'Oceaan',
-  'relax.settings.audio.forest': 'Bos',
-  'relax.settings.audio.drone': 'Drone',
-  'relax.settings.audio.binaural': 'Binauraal',
-  'relax.settings.audio.custom': 'Eigen',
-  'relax.settings.audio.volume': 'Volume',
-  'relax.settings.audio.promptLabel': 'Beschrijf het geluid',
-  'relax.settings.audio.promptPlaceholder': 'regen op een blikken dak met onweer in de verte',
-  'relax.settings.audio.promptHelp': 'Tot 200 tekens. Genereert een lus van 30 seconden.',
-  'relax.settings.audio.generate': 'Genereren',
-  'relax.settings.audio.generating': 'Componeren…',
-  'relax.settings.audio.ready': 'Klaar',
-  'relax.settings.audio.cached': 'Opnieuw gebruikt',
-  'relax.settings.audio.error.network': 'Kon de geluidsservice niet bereiken.',
-  'relax.settings.audio.error.rateLimit': 'Te veel klanklandschappen recent. Probeer een preset of wacht even.',
-  'relax.settings.audio.error.provider': 'Dat klanklandschap kon ik niet maken. Probeer andere woorden.',
-  'relax.settings.audio.error.validation': 'Die beschrijving wordt niet ondersteund. Houd het kort en beschrijvend.',
-  'relax.settings.audio.error.retry': 'Opnieuw',
-  'relax.settings.audio.preset.rain': 'Regen op blikken dak',
-  'relax.settings.audio.preset.forest': 'Bosbeek',
-  'relax.settings.audio.preset.thunder': 'Onweer in de verte',
-  'relax.settings.audio.preset.cave': 'Zeegrot',
-  'relax.settings.voice.label': 'Stembegeleiding',
-  'relax.settings.voice.on': 'Aan',
-  'relax.settings.voice.off': 'Uit',
-  'relax.settings.visual.label': 'Beeld',
-  'relax.settings.visual.full': 'Vol',
-  'relax.settings.visual.minimal': 'Minimaal',
-  'relax.settings.visual.off': 'Uit',
-  'relax.settings.cancel': 'Terug',
-  'relax.settings.begin': 'Beginnen',
-
-  // Relax mode — controls
-  'relax.controls.muteAudio': 'Geluid dempen',
-  'relax.controls.unmuteAudio': 'Geluid aan',
-  'relax.controls.muteVoice': 'Stem dempen',
-  'relax.controls.unmuteVoice': 'Stem aan',
-  'relax.controls.cycleVisual': 'Beeld wisselen',
-  'relax.controls.end': 'Sessie beëindigen',
-
-  // Relax mode — summary
-  'relax.summary.title': 'Klaar',
-  'relax.summary.minutes': 'minuten',
-  'relax.summary.subtitle': 'Wanneer je er klaar voor bent.',
-  'relax.summary.completed': 'Wanneer je er klaar voor bent.',
-
-  // Relax mode — calibrating
-  'relax.calibrating.title': 'Kom tot rust',
-  'relax.calibrating.subtitle': 'Ik lees je signaal. Duurt ongeveer een halve minuut.',
-  'relax.calibrating.skip': 'Overslaan',
-
-  // Relax mode — biometrics
-  'relax.biometrics.enable': 'Biometrie aan',
-  'relax.biometrics.stop': 'Stop',
-
-  // Drift
-  'drift.card.title': 'Drift',
-  'drift.card.subtitle': 'Een begeleide waarnemingsoefening met een zacht links-rechtsritme',
-  'drift.arrive.title': 'Drift',
-  'drift.arrive.body': 'Een paar minuten stil waarnemen, gedragen door een langzaam links-rechtsritme. Jij bepaalt waar de aandacht naartoe gaat. We sluiten af door tot rust te komen.',
-  'drift.arrive.notTherapy': 'Dit is een zelfstandige oefening, geen therapie of behandeling. Je kunt op elk moment stoppen.',
-  'drift.arrive.begin': 'Beginnen',
-  'drift.arrive.voice': 'Stembegeleiding',
-  'drift.anchor.title': 'Eerst, een weg terug',
-  'drift.anchor.body': 'Zoek voor alles je anker. Een plek — echt of verbeeld — waar je je op je gemak voelt. Of gewoon je voeten op de grond, de stoel die je draagt.',
-  'drift.anchor.calmPlace': 'Een rustige plek',
-  'drift.anchor.feet': 'Voeten op de grond',
-  'drift.anchor.confirm': 'Ik heb het',
-  'drift.choose.title': 'Waar moet de aandacht naartoe?',
-  'drift.choose.hint': 'Een gevoel, een herinnering, een sensatie — of gewoon wat er nu is. Het hoeft niet het zwaarste te zijn. Iets dat aan je trekt is genoeg.',
-  'drift.choose.placeholder': 'Wat is er…',
-  'drift.baseline.prompt': 'Waar zit het in je lichaam? Hoe voelt het aan — strak, zwaar, warm, stil?',
-  'drift.set.hint': 'Laat het ritme je dragen. Niets te doen.',
-  'drift.set.butterflyHint': 'Als je wilt: kruis je armen over je borst en tik mee, links en rechts.',
-  'drift.set.skip': 'Overslaan',
-  'drift.notice.prompt': 'Wat merk je nu op?',
-  'drift.notice.softer': 'Zachter',
-  'drift.notice.same': 'Hetzelfde',
-  'drift.notice.stronger': 'Sterker',
-  'drift.settle.line': 'Laat dat nu even zo zijn. Kom terug bij je anker — de plek, of je voeten op de grond. Rust daar een moment.',
-  'drift.settleClose': 'Tot rust komen & afsluiten',
-  'drift.closure.anchor': 'Kom terug bij je anker. Laat het je een adem of twee lang dragen.',
-  'drift.closure.container': 'Wat nog niet af is, mag voor nu opzij. Het loopt niet weg.',
-  'drift.closure.orient': 'Kijk om je heen in de kamer. Merk drie dingen op die je kunt zien. Je bent hier.',
-  'drift.closure.done': 'Klaar',
-  'drift.abort.handoff': 'We pauzeren hier even en zorgen eerst voor jou.',
-  'drift.closed.settled': 'Dat is genoeg voor vandaag.',
-  'drift.closed.eased': 'Je hebt naar jezelf geluisterd. Dat telt.',
-  // Drift v2 — one-screen begin
-  'drift.begin.whats': 'Wat speelt er?',
-  'drift.chip.worry': 'Een zorg',
-  'drift.chip.body': 'Spanning in mijn lichaam',
-  'drift.chip.today': 'Iets van vandaag',
-  'drift.chip.heavy': 'Een zwaar gevoel',
-  'drift.chip.unsettled': 'Gewoon onrustig',
-  'drift.begin.somethingElse': 'Iets anders…',
-  'drift.begin.length': 'Hoe lang?',
-  'drift.length.quick': '2 min',
-  'drift.length.short': '4 min',
-  'drift.length.full': '6 min',
-  'drift.begin.anchorLabel': 'Jouw weg terug:',
-  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
-  'drift.micro.softer1': 'Goed. Laat het verder losser worden.',
-  'drift.micro.softer2': 'Er komt iets tot rust. Blijf er dichtbij.',
-  'drift.micro.softer3': 'Laat die zachtheid zich vanzelf verspreiden.',
-  'drift.micro.same1': 'Dat is oké. Geen haast.',
-  'drift.micro.same2': 'Standhouden telt ook. Laat het ritme het dragen.',
-  'drift.micro.drift1': 'Laat je gewoon meedrijven.',
-  'drift.micro.drift2': 'Niets te doen. Het ritme is genoeg.',
-  // Drift v2 — optional typed word + closure contrast
-  'drift.notice.addWord': 'een woord toevoegen',
-  'drift.closing.softened': 'Er is daarbinnen iets losgekomen. Je gaat een beetje zachter weg.',
-  'drift.closing.steady': 'Je bent erbij gebleven. Dat telt.',
 } as const
 
-const nl = { ...nlBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.nl, ...roomFallback } as const
+const nl = { ...nlBase, ...conductorFallback, ...sessionCopy.nl, ...roomFallback } as const
 
 export default nl

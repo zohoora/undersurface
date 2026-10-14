@@ -1,5 +1,4 @@
 import { sessionCopy } from './sessionCopy'
-import { driftSeamlessFallback } from '../driftSeamlessFallback'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
@@ -204,7 +203,6 @@ const jaBase = {
   'policy.recommendation': '私たちからのおすすめ',
   'policy.recommendationBody': 'UnderSurface は専門的なサポートの代わりではなく、それと併せて使うことをお勧めします。内なる声とともに書くことは、あなたのプロセスにおける意味のある伴走になり得ます——しかし、訓練を受けた専門家によるケアの代わりにはなりません。',
 
-
   // Landing page hero
   'landing.headline': 'A diary that listens back',
   'landing.feature1': 'Write freely — inner voices listen',
@@ -217,54 +215,25 @@ const jaBase = {
 
   'echo.label': '過去',
 
-
   'common.dismiss': '閉じる',
-
 
   'parts.card.hint': 'もしそう感じるなら、あなた自身の言葉で名前をつけてください',
 
-
   'parts.card.keep': '残す',
-
 
   'parts.card.notQuite': 'ちょっと違う',
 
-
   'parts.settings.title': 'あなたのパーツ',
-
 
   'parts.settings.retire': '休ませる',
 
-
   'intentions.card.hint': '次回までこれを持っていきますか？',
-
 
   'intentions.card.keep': '持っていく',
 
-
   'intentions.card.skip': '今回はやめておく',
 
-
-  'checkin.prompt': 'どんな気持ちで終えますか？',
-
-
-  'checkin.heavier': '重くなった',
-
-
-  'checkin.same': 'あまり変わらない',
-
-
-  'checkin.shadeLighter': '少し軽くなった',
-
-
-  'checkin.lighter': '軽くなった',
-
-
-  'checkin.muchLighter': 'ずっと軽くなった',
-
-
   'values.card.hint': 'これはあなたにとって大切ですか？あなたの言葉で名前を',
-
 
   'values.settings.title': 'あなたにとって大切なこと',
   // Bilateral stimulation
@@ -283,139 +252,8 @@ const jaBase = {
   'bodyMap.region.back': '背中',
   'bodyMap.region.hips': '腰',
   'bodyMap.region.legs': '脚と足',
-
-  // Session bottom bar
-  'session.bottomBar.relax': 'リラックス',
-  'session.bottomBar.drift': 'Drift',
-
-  // Relax mode — settings
-  'relax.settings.title': '腰を落ち着けて',
-  'relax.settings.duration.label': '時間',
-  'relax.settings.duration.5': '5分',
-  'relax.settings.duration.10': '10分',
-  'relax.settings.duration.20': '20分',
-  'relax.settings.type.label': 'プラクティス',
-  'relax.settings.type.breathwork': '呼吸法',
-  'relax.settings.type.body_scan': 'ボディスキャン',
-  'relax.settings.type.safe_place': '安心の場所',
-  'relax.settings.type.open_awareness': '開かれた気づき',
-  'relax.settings.audio.label': '背景音',
-  'relax.settings.audio.none': '静けさ',
-  'relax.settings.audio.ocean': '海',
-  'relax.settings.audio.forest': '森',
-  'relax.settings.audio.drone': 'ドローン',
-  'relax.settings.audio.binaural': 'バイノーラル',
-  'relax.settings.audio.custom': 'カスタム',
-  'relax.settings.audio.volume': '音量',
-  'relax.settings.audio.promptLabel': '音を描写してみて',
-  'relax.settings.audio.promptPlaceholder': 'トタン屋根に降る雨と遠雷',
-  'relax.settings.audio.promptHelp': '200文字以内。30秒のループを生成します。',
-  'relax.settings.audio.generate': '生成',
-  'relax.settings.audio.generating': '紡いでいる…',
-  'relax.settings.audio.ready': '準備できた',
-  'relax.settings.audio.cached': '前のものを再利用',
-  'relax.settings.audio.error.network': '音のサービスに接続できなかった。',
-  'relax.settings.audio.error.rateLimit': '最近作りすぎたみたい。プリセットを試すか、少し待って。',
-  'relax.settings.audio.error.provider': 'その音は作れなかった。別の言葉で試してみて。',
-  'relax.settings.audio.error.validation': 'その入力には対応していない。短くて分かりやすい言葉で。',
-  'relax.settings.audio.error.retry': 'もう一度',
-  'relax.settings.audio.preset.rain': 'トタン屋根の雨',
-  'relax.settings.audio.preset.forest': '森の小川',
-  'relax.settings.audio.preset.thunder': '遠雷',
-  'relax.settings.audio.preset.cave': '海の洞窟',
-  'relax.settings.voice.label': '音声ガイド',
-  'relax.settings.voice.on': 'オン',
-  'relax.settings.voice.off': 'オフ',
-  'relax.settings.visual.label': 'ビジュアル',
-  'relax.settings.visual.full': 'フル',
-  'relax.settings.visual.minimal': '最小限',
-  'relax.settings.visual.off': 'オフ',
-  'relax.settings.cancel': '戻る',
-  'relax.settings.begin': 'はじめる',
-
-  // Relax mode — controls
-  'relax.controls.muteAudio': '音をミュート',
-  'relax.controls.unmuteAudio': '音を戻す',
-  'relax.controls.muteVoice': '声をミュート',
-  'relax.controls.unmuteVoice': '声を戻す',
-  'relax.controls.cycleVisual': 'ビジュアル切替',
-  'relax.controls.end': 'セッション終了',
-
-  // Relax mode — summary
-  'relax.summary.title': '終わり',
-  'relax.summary.minutes': '分',
-  'relax.summary.subtitle': '準備ができたら、いつでも。',
-  'relax.summary.completed': '準備ができたら、いつでも。',
-
-  // Relax mode — calibrating
-  'relax.calibrating.title': '落ち着いていく',
-  'relax.calibrating.subtitle': '信号を読んでいる。30秒くらいかかる。',
-  'relax.calibrating.skip': 'スキップ',
-
-  // Relax mode — biometrics
-  'relax.biometrics.enable': 'バイオメトリクスを有効に',
-  'relax.biometrics.stop': '停止',
-
-  // Drift
-  'drift.card.title': 'Drift',
-  'drift.card.subtitle': 'やさしい左右のリズムに導かれる、気づきのプラクティス',
-  'drift.arrive.title': 'Drift',
-  'drift.arrive.body': 'ゆっくりとした左右のリズムに運ばれる、数分間の静かな気づき。意識をどこに向けるかはあなたが選ぶ。最後は落ち着いて終える。',
-  'drift.arrive.notTherapy': 'これは自分で進める練習であり、治療ではありません。いつでもやめることができます。',
-  'drift.arrive.begin': 'はじめる',
-  'drift.arrive.voice': '音声ガイド',
-  'drift.anchor.title': 'まず、戻り道を',
-  'drift.anchor.body': '何よりもまず、あなたの錨を見つけて。本物でも、想像のものでもいい——安心できる場所。あるいは、ただ床についた足、あなたを支えている椅子でもいい。',
-  'drift.anchor.calmPlace': '穏やかな場所',
-  'drift.anchor.feet': '床についた足',
-  'drift.anchor.confirm': '見つかった',
-  'drift.choose.title': '意識はどこに向ける？',
-  'drift.choose.hint': '感情、記憶、感覚——あるいは、今ここにあるものでいい。いちばん重いことである必要はない。心に引っかかるものであれば十分。',
-  'drift.choose.placeholder': '今ここにあるもの…',
-  'drift.baseline.prompt': 'それは体のどこにある？手触りはどう——きつい、重い、温かい、静か？',
-  'drift.set.hint': 'リズムに身を任せて。何もしなくていい。',
-  'drift.set.butterflyHint': 'よければ、腕を胸の前で交差させて、リズムに合わせて左右にそっとタップして。',
-  'drift.set.skip': 'スキップ',
-  'drift.notice.prompt': '今、何に気づく？',
-  'drift.notice.softer': 'やわらかく',
-  'drift.notice.same': '同じ',
-  'drift.notice.stronger': '強く',
-  'drift.settle.line': 'それはそのままにしておいて。錨に戻って——あの場所、あるいは床についた足に。そこでしばらく休んで。',
-  'drift.settleClose': '落ち着いて閉じる',
-  'drift.closure.anchor': '錨に戻って。一呼吸か二呼吸のあいだ、それに支えてもらって。',
-  'drift.closure.container': '終わっていないことは、今はそのまま置いておいていい。ちゃんと残っているから。',
-  'drift.closure.orient': '部屋を見回して。目に入るものを三つ見つけて。あなたはここにいる。',
-  'drift.closure.done': '終わり',
-  'drift.abort.handoff': 'ここでいったん止まり、まずはあなたを大切にします。',
-  'drift.closed.settled': '今日はこれで十分。',
-  'drift.closed.eased': '自分の声を聴けた。それは大切なこと。',
-  // Drift v2 — one-screen begin
-  'drift.begin.whats': '今、何がざわめいている？',
-  'drift.chip.worry': '心配ごと',
-  'drift.chip.body': '体の緊張',
-  'drift.chip.today': '今日の何か',
-  'drift.chip.heavy': '重い気持ち',
-  'drift.chip.unsettled': 'ただ落ち着かない',
-  'drift.begin.somethingElse': '何か別のこと…',
-  'drift.begin.length': 'どのくらい？',
-  'drift.length.quick': '2分',
-  'drift.length.short': '4分',
-  'drift.length.full': '6分',
-  'drift.begin.anchorLabel': 'あなたの戻り道：',
-  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
-  'drift.micro.softer1': 'いいね。そのままほどけていくままに。',
-  'drift.micro.softer2': '何かがやわらいでいる。その近くにいて。',
-  'drift.micro.softer3': 'そのやわらぎが、ひとりでに広がるままに。',
-  'drift.micro.same1': 'それでいい。急がなくていい。',
-  'drift.micro.same2': 'そのままでいることも大切。リズムに運んでもらって。',
-  'drift.micro.drift1': 'ただ、漂うように。',
-  'drift.micro.drift2': '何もしなくていい。リズムだけで十分。',
-  // Drift v2 — optional typed word + closure contrast
-  'drift.notice.addWord': '言葉を添える',
-  'drift.closing.softened': 'そこで何かがほどけた。少しやわらいで戻っていける。',
-  'drift.closing.steady': 'それと一緒にいられた。それは大切なこと。',
 } as const
 
-const ja = { ...jaBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.ja, ...roomFallback } as const
+const ja = { ...jaBase, ...conductorFallback, ...sessionCopy.ja, ...roomFallback } as const
 
 export default ja

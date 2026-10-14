@@ -1,5 +1,4 @@
 import { sessionCopy } from './sessionCopy'
-import { driftSeamlessFallback } from '../driftSeamlessFallback'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
@@ -204,7 +203,6 @@ const trBase = {
   'policy.recommendation': 'Tavsiyemiz',
   'policy.recommendationBody': 'UnderSurface\'ü profesyonel desteğin yanı sıra kullanmanızı teşvik ediyoruz, onun yerine değil. İç seslerle yazmak sürecinizde anlamlı bir yol arkadaşı olabilir — ancak eğitimli bir profesyonelin bakımının yerini tutmaz.',
 
-
   // Landing page hero
   'landing.headline': 'A diary that listens back',
   'landing.feature1': 'Write freely — inner voices listen',
@@ -217,54 +215,25 @@ const trBase = {
 
   'echo.label': 'Geçmiş',
 
-
   'common.dismiss': 'Kapat',
-
 
   'parts.card.hint': 'Bu doğru geliyorsa, kendi kelimelerinle bir isim ver',
 
-
   'parts.card.keep': 'Sakla',
-
 
   'parts.card.notQuite': 'Pek değil',
 
-
   'parts.settings.title': 'Senin parçaların',
-
 
   'parts.settings.retire': 'Dinlendir',
 
-
   'intentions.card.hint': 'Bunu bir dahaki sefere kadar yanında taşır mısın?',
-
 
   'intentions.card.keep': 'Taşı',
 
-
   'intentions.card.skip': 'Bu sefer değil',
 
-
-  'checkin.prompt': 'Nasıl ayrılıyorsun?',
-
-
-  'checkin.heavier': 'Daha ağır',
-
-
-  'checkin.same': 'Aşağı yukarı aynı',
-
-
-  'checkin.shadeLighter': 'Bir tık daha hafif',
-
-
-  'checkin.lighter': 'Daha hafif',
-
-
-  'checkin.muchLighter': 'Çok daha hafif',
-
-
   'values.card.hint': 'Bu senin için önemli mi? Kendi kelimelerinle adlandır',
-
 
   'values.settings.title': 'Senin için önemli olanlar',
   // Bilateral stimulation
@@ -283,139 +252,8 @@ const trBase = {
   'bodyMap.region.back': 'Sırt',
   'bodyMap.region.hips': 'Kalça',
   'bodyMap.region.legs': 'Bacaklar ve ayaklar',
-
-  // Session bottom bar
-  'session.bottomBar.relax': 'Gevşe',
-  'session.bottomBar.drift': 'Drift',
-
-  // Relax mode — settings
-  'relax.settings.title': 'Yerleş',
-  'relax.settings.duration.label': 'Süre',
-  'relax.settings.duration.5': '5 dk',
-  'relax.settings.duration.10': '10 dk',
-  'relax.settings.duration.20': '20 dk',
-  'relax.settings.type.label': 'Uygulama',
-  'relax.settings.type.breathwork': 'Nefes çalışması',
-  'relax.settings.type.body_scan': 'Beden taraması',
-  'relax.settings.type.safe_place': 'Güvenli yer',
-  'relax.settings.type.open_awareness': 'Açık farkındalık',
-  'relax.settings.audio.label': 'Arka plan',
-  'relax.settings.audio.none': 'Sessizlik',
-  'relax.settings.audio.ocean': 'Okyanus',
-  'relax.settings.audio.forest': 'Orman',
-  'relax.settings.audio.drone': 'Drone',
-  'relax.settings.audio.binaural': 'Binaural',
-  'relax.settings.audio.custom': 'Özel',
-  'relax.settings.audio.volume': 'Ses',
-  'relax.settings.audio.promptLabel': 'Sesi tarif et',
-  'relax.settings.audio.promptPlaceholder': 'tenekedeki yağmur ve uzaktan gök gürültüsü',
-  'relax.settings.audio.promptHelp': '200 karaktere kadar. 30 saniyelik bir döngü üretir.',
-  'relax.settings.audio.generate': 'Üret',
-  'relax.settings.audio.generating': 'Dokuyor…',
-  'relax.settings.audio.ready': 'Hazır',
-  'relax.settings.audio.cached': 'Daha öncekinden',
-  'relax.settings.audio.error.network': 'Ses servisine ulaşılamadı.',
-  'relax.settings.audio.error.rateLimit': 'Son zamanlarda çok ses üretildi. Bir hazır ayar dene ya da biraz bekle.',
-  'relax.settings.audio.error.provider': 'Bu sesi üretemedim. Başka sözcükler dene.',
-  'relax.settings.audio.error.validation': 'Bu açıklama desteklenmiyor. Kısa ve betimleyici tut.',
-  'relax.settings.audio.error.retry': 'Tekrar dene',
-  'relax.settings.audio.preset.rain': 'Tenekede yağmur',
-  'relax.settings.audio.preset.forest': 'Orman deresi',
-  'relax.settings.audio.preset.thunder': 'Uzakta gök gürültüsü',
-  'relax.settings.audio.preset.cave': 'Deniz mağarası',
-  'relax.settings.voice.label': 'Sesli rehber',
-  'relax.settings.voice.on': 'Açık',
-  'relax.settings.voice.off': 'Kapalı',
-  'relax.settings.visual.label': 'Görsel',
-  'relax.settings.visual.full': 'Tam',
-  'relax.settings.visual.minimal': 'Az',
-  'relax.settings.visual.off': 'Kapalı',
-  'relax.settings.cancel': 'Geri',
-  'relax.settings.begin': 'Başla',
-
-  // Relax mode — controls
-  'relax.controls.muteAudio': 'Sesi kapat',
-  'relax.controls.unmuteAudio': 'Sesi aç',
-  'relax.controls.muteVoice': 'Konuşmayı kapat',
-  'relax.controls.unmuteVoice': 'Konuşmayı aç',
-  'relax.controls.cycleVisual': 'Görseli değiştir',
-  'relax.controls.end': 'Seansı bitir',
-
-  // Relax mode — summary
-  'relax.summary.title': 'Bitti',
-  'relax.summary.minutes': 'dakika',
-  'relax.summary.subtitle': 'Hazır olduğunda.',
-  'relax.summary.completed': 'Hazır olduğunda.',
-
-  // Relax mode — calibrating
-  'relax.calibrating.title': 'Yerleşiyorum',
-  'relax.calibrating.subtitle': 'Sinyalini okuyorum. Yarım dakika kadar sürer.',
-  'relax.calibrating.skip': 'Geç',
-
-  // Relax mode — biometrics
-  'relax.biometrics.enable': 'Biyometriyi aç',
-  'relax.biometrics.stop': 'Durdur',
-
-  // Drift
-  'drift.card.title': 'Drift',
-  'drift.card.subtitle': 'Nazik bir sol-sağ ritmiyle rehberli bir fark etme pratiği',
-  'drift.arrive.title': 'Drift',
-  'drift.arrive.body': 'Yavaş bir sol-sağ ritmiyle taşınan birkaç dakikalık sessiz bir fark ediş. Dikkatin nereye gideceğine sen karar verirsin. Yerleşerek bitiririz.',
-  'drift.arrive.notTherapy': 'Bu kendi başına yürüttüğün bir pratik, terapi ya da tedavi değil. İstediğin an durabilirsin.',
-  'drift.arrive.begin': 'Başla',
-  'drift.arrive.voice': 'Sesli rehber',
-  'drift.anchor.title': 'Önce, geri dönecek bir yol',
-  'drift.anchor.body': 'Her şeyden önce çapanı bul. Bir yer — gerçek ya da hayali — kendini rahat hissettiğin bir yer. Ya da sadece yerdeki ayakların, seni tutan sandalye.',
-  'drift.anchor.calmPlace': 'Sakin bir yer',
-  'drift.anchor.feet': 'Yerdeki ayaklar',
-  'drift.anchor.confirm': 'Buldum',
-  'drift.choose.title': 'Dikkat nereye gitmeli?',
-  'drift.choose.hint': 'Bir duygu, bir anı, bir his — ya da şu an burada olan her neyse. En ağır şey olması gerekmiyor. Seni çeken bir şey yeterli.',
-  'drift.choose.placeholder': 'Şu an burada olan…',
-  'drift.baseline.prompt': 'Bedeninde nerede duruyor? Dokusu nasıl — sıkı, ağır, sıcak, durgun?',
-  'drift.set.hint': 'Ritmin seni taşımasına izin ver. Yapman gereken bir şey yok.',
-  'drift.set.butterflyHint': 'İstersen: kollarını göğsünün üzerinde çaprazla ve sağa sola hafifçe vurarak eşlik et.',
-  'drift.set.skip': 'Geç',
-  'drift.notice.prompt': 'Şimdi ne fark ediyorsun?',
-  'drift.notice.softer': 'Daha hafif',
-  'drift.notice.same': 'Aynı',
-  'drift.notice.stronger': 'Daha güçlü',
-  'drift.settle.line': 'Bunu şimdilik olduğu gibi bırak. Çapana geri dön — o yere ya da yerdeki ayaklarına. Orada bir an dinlen.',
-  'drift.settleClose': 'Yerleş ve kapat',
-  'drift.closure.anchor': 'Çapana geri dön. Bir iki nefes boyunca seni tutmasına izin ver.',
-  'drift.closure.container': 'Yarım kalan ne varsa şimdilik bir kenara bırakabilirsin. Orada seni bekler.',
-  'drift.closure.orient': 'Odaya bak. Görebildiğin üç şeyi fark et. Buradasın.',
-  'drift.closure.done': 'Bitti',
-  'drift.abort.handoff': 'Burada bir mola verelim ve önce seninle ilgilenelim.',
-  'drift.closed.settled': 'Bugünlük bu kadarı yeterli.',
-  'drift.closed.eased': 'Kendini dinledin. Bu önemli.',
-  // Drift v2 — one-screen begin
-  'drift.begin.whats': 'İçinde ne kıpırdıyor?',
-  'drift.chip.worry': 'Bir endişe',
-  'drift.chip.body': 'Bedenimde gerginlik',
-  'drift.chip.today': 'Bugünden bir şey',
-  'drift.chip.heavy': 'Ağır bir his',
-  'drift.chip.unsettled': 'Sadece huzursuzluk',
-  'drift.begin.somethingElse': 'Başka bir şey…',
-  'drift.begin.length': 'Ne kadar?',
-  'drift.length.quick': '2 dk',
-  'drift.length.short': '4 dk',
-  'drift.length.full': '6 dk',
-  'drift.begin.anchorLabel': 'Geri dönüş yolun:',
-  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
-  'drift.micro.softer1': 'Güzel. Bırak gevşemeye devam etsin.',
-  'drift.micro.softer2': 'Bir şey yatışıyor. Ona yakın kal.',
-  'drift.micro.softer3': 'Bırak o yumuşaklık kendiliğinden yayılsın.',
-  'drift.micro.same1': 'Sorun değil. Acele yok.',
-  'drift.micro.same2': 'Sabit kalmak da önemli. Bırak ritim onu taşısın.',
-  'drift.micro.drift1': 'Sadece onunla sürüklen.',
-  'drift.micro.drift2': 'Yapman gereken bir şey yok. Ritim yeterli.',
-  // Drift v2 — optional typed word + closure contrast
-  'drift.notice.addWord': 'bir kelime ekle',
-  'drift.closing.softened': 'Orada içeride bir şey gevşedi. Biraz daha yumuşamış olarak ayrılıyorsun.',
-  'drift.closing.steady': 'Onunla kaldın. Bu önemli.',
 } as const
 
-const tr = { ...trBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.tr, ...roomFallback } as const
+const tr = { ...trBase, ...conductorFallback, ...sessionCopy.tr, ...roomFallback } as const
 
 export default tr

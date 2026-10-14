@@ -23,16 +23,7 @@ const REQUIRED = [
   'biometric.notNow',
   'biometric.enable',
   'biometric.connect',
-  'ps.handshake.title',
-  'ps.notice',
-  'ps.missed',
-  'ps.settings.title',
   'ps.alliance.title',
-  'ps.atlas.title',
-  'ps.closing.next',
-  'ps.transfer.start',
-  'ps.transfer.graduate',
-  'ps.outcome.agency.prompt',
 ] as const
 
 describe('session-first and biometric copy', () => {

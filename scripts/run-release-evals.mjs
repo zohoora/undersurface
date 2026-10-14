@@ -15,7 +15,6 @@ const suites = [
   ['intentions', 'test:intentions'],
   ['stance', 'test:stance'],
   ['depth', 'test:depth'],
-  ['drift', 'test:drift'],
 ]
 
 const promptFiles = [
@@ -23,7 +22,6 @@ const promptFiles = [
   'src/ai/signalClassifierPrompt.ts',
   'src/ai/therapistPrompts.ts',
   'src/ai/partPrompts.ts',
-  'src/ai/driftPrompts.ts',
   'src/engine/crisisClassifier.eval.ts',
 ]
 

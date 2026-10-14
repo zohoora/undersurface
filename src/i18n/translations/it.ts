@@ -1,5 +1,4 @@
 import { sessionCopy } from './sessionCopy'
-import { driftSeamlessFallback } from '../driftSeamlessFallback'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
@@ -204,7 +203,6 @@ const itBase = {
   'policy.recommendation': 'La nostra raccomandazione',
   'policy.recommendationBody': 'Ti incoraggiamo a usare UnderSurface insieme al supporto professionale, non al suo posto. Scrivere con le voci interiori può essere un compagno significativo nel tuo percorso — ma non è un sostituto delle cure di un professionista qualificato.',
 
-
   // Landing page hero
   'landing.headline': 'A diary that listens back',
   'landing.feature1': 'Write freely — inner voices listen',
@@ -217,54 +215,25 @@ const itBase = {
 
   'echo.label': 'Il Passato',
 
-
   'common.dismiss': 'Ignora',
-
 
   'parts.card.hint': 'Se ti suona vero, dagli un nome con le tue parole',
 
-
   'parts.card.keep': 'Tieni',
-
 
   'parts.card.notQuite': 'Non proprio',
 
-
   'parts.settings.title': 'Parti di te',
-
 
   'parts.settings.retire': 'Ritira',
 
-
   'intentions.card.hint': 'Portarlo con te fino alla prossima volta?',
-
 
   'intentions.card.keep': 'Portalo',
 
-
   'intentions.card.skip': 'Non questa volta',
 
-
-  'checkin.prompt': 'Come te ne vai?',
-
-
-  'checkin.heavier': 'Più pesante',
-
-
-  'checkin.same': 'Più o meno uguale',
-
-
-  'checkin.shadeLighter': 'Un filo più leggero',
-
-
-  'checkin.lighter': 'Più leggero',
-
-
-  'checkin.muchLighter': 'Molto più leggero',
-
-
   'values.card.hint': 'Ti importa questo? Dagli un nome con le tue parole',
-
 
   'values.settings.title': 'Ciò che conta per te',
   // Bilateral stimulation
@@ -283,139 +252,8 @@ const itBase = {
   'bodyMap.region.back': 'Schiena',
   'bodyMap.region.hips': 'Fianchi',
   'bodyMap.region.legs': 'Gambe e piedi',
-
-  // Session bottom bar
-  'session.bottomBar.relax': 'Rilassa',
-  'session.bottomBar.drift': 'Drift',
-
-  // Relax mode — settings
-  'relax.settings.title': 'Accomodati',
-  'relax.settings.duration.label': 'Durata',
-  'relax.settings.duration.5': '5 min',
-  'relax.settings.duration.10': '10 min',
-  'relax.settings.duration.20': '20 min',
-  'relax.settings.type.label': 'Pratica',
-  'relax.settings.type.breathwork': 'Respiro',
-  'relax.settings.type.body_scan': 'Scansione corporea',
-  'relax.settings.type.safe_place': 'Luogo sicuro',
-  'relax.settings.type.open_awareness': 'Consapevolezza aperta',
-  'relax.settings.audio.label': 'Sfondo',
-  'relax.settings.audio.none': 'Silenzio',
-  'relax.settings.audio.ocean': 'Oceano',
-  'relax.settings.audio.forest': 'Foresta',
-  'relax.settings.audio.drone': 'Drone',
-  'relax.settings.audio.binaural': 'Binaurale',
-  'relax.settings.audio.custom': 'Personalizzato',
-  'relax.settings.audio.volume': 'Volume',
-  'relax.settings.audio.promptLabel': 'Descrivi il suono',
-  'relax.settings.audio.promptPlaceholder': 'pioggia su tetto di lamiera con tuoni lontani',
-  'relax.settings.audio.promptHelp': 'Fino a 200 caratteri. Crea un loop di 30 secondi.',
-  'relax.settings.audio.generate': 'Genera',
-  'relax.settings.audio.generating': 'Compongo…',
-  'relax.settings.audio.ready': 'Pronto',
-  'relax.settings.audio.cached': 'Riutilizzato',
-  'relax.settings.audio.error.network': 'Impossibile raggiungere il servizio audio.',
-  'relax.settings.audio.error.rateLimit': 'Troppi paesaggi sonori di recente. Prova un preset, o aspetta un attimo.',
-  'relax.settings.audio.error.provider': 'Non sono riuscito a generare quel paesaggio sonoro. Prova altre parole.',
-  'relax.settings.audio.error.validation': 'Quella descrizione non è supportata. Mantienila breve e descrittiva.',
-  'relax.settings.audio.error.retry': 'Riprova',
-  'relax.settings.audio.preset.rain': 'Pioggia su tetto di lamiera',
-  'relax.settings.audio.preset.forest': 'Ruscello della foresta',
-  'relax.settings.audio.preset.thunder': 'Tuono lontano',
-  'relax.settings.audio.preset.cave': 'Grotta marina',
-  'relax.settings.voice.label': 'Guida vocale',
-  'relax.settings.voice.on': 'Attiva',
-  'relax.settings.voice.off': 'Disattivata',
-  'relax.settings.visual.label': 'Visivo',
-  'relax.settings.visual.full': 'Pieno',
-  'relax.settings.visual.minimal': 'Minimo',
-  'relax.settings.visual.off': 'Spento',
-  'relax.settings.cancel': 'Indietro',
-  'relax.settings.begin': 'Inizia',
-
-  // Relax mode — controls
-  'relax.controls.muteAudio': 'Silenzia audio',
-  'relax.controls.unmuteAudio': 'Attiva audio',
-  'relax.controls.muteVoice': 'Silenzia voce',
-  'relax.controls.unmuteVoice': 'Attiva voce',
-  'relax.controls.cycleVisual': 'Cambia visivo',
-  'relax.controls.end': 'Termina sessione',
-
-  // Relax mode — summary
-  'relax.summary.title': 'Fatto',
-  'relax.summary.minutes': 'minuti',
-  'relax.summary.subtitle': 'Quando sei pronto.',
-  'relax.summary.completed': 'Quando sei pronto.',
-
-  // Relax mode — calibrating
-  'relax.calibrating.title': 'Mi sintonizzo',
-  'relax.calibrating.subtitle': 'Sto leggendo il tuo segnale. Ci vuole circa mezzo minuto.',
-  'relax.calibrating.skip': 'Salta',
-
-  // Relax mode — biometrics
-  'relax.biometrics.enable': 'Attiva biometria',
-  'relax.biometrics.stop': 'Ferma',
-
-  // Drift
-  'drift.card.title': 'Drift',
-  'drift.card.subtitle': 'Una pratica guidata di osservazione con un dolce ritmo sinistra–destra',
-  'drift.arrive.title': 'Drift',
-  'drift.arrive.body': 'Pochi minuti di quieta osservazione, portati da un ritmo lento sinistra–destra. Tu scegli dove va l\'attenzione. Finiamo acquietandoci.',
-  'drift.arrive.notTherapy': 'Questa è una pratica autoguidata, non terapia né trattamento. Puoi fermarti in qualsiasi momento.',
-  'drift.arrive.begin': 'Inizia',
-  'drift.arrive.voice': 'Guida vocale',
-  'drift.anchor.title': 'Prima di tutto, una via di ritorno',
-  'drift.anchor.body': 'Prima di ogni altra cosa, trova la tua ancora. Un luogo — reale o immaginato — dove ti senti a tuo agio. O semplicemente i tuoi piedi sul pavimento, la sedia che ti sostiene.',
-  'drift.anchor.calmPlace': 'Un luogo calmo',
-  'drift.anchor.feet': 'Piedi sul pavimento',
-  'drift.anchor.confirm': 'Ce l\'ho',
-  'drift.choose.title': 'Dove dovrebbe andare l\'attenzione?',
-  'drift.choose.hint': 'Un sentimento, un ricordo, una sensazione — o semplicemente ciò che c\'è ora. Non deve essere la cosa più pesante. Basta qualcosa che ti tira un po\'.',
-  'drift.choose.placeholder': 'Cosa c\'è qui…',
-  'drift.baseline.prompt': 'Dove si trova nel tuo corpo? Che consistenza ha — tesa, pesante, calda, ferma?',
-  'drift.set.hint': 'Lascia che il ritmo ti porti. Niente da fare.',
-  'drift.set.butterflyHint': 'Se vuoi: incrocia le braccia sul petto e tamburella, a sinistra e a destra.',
-  'drift.set.skip': 'Salta',
-  'drift.notice.prompt': 'Cosa noti ora?',
-  'drift.notice.softer': 'Più lieve',
-  'drift.notice.same': 'Uguale',
-  'drift.notice.stronger': 'Più forte',
-  'drift.settle.line': 'Lascialo lì per ora. Torna alla tua ancora — il luogo, o i tuoi piedi sul pavimento. Riposa lì un momento.',
-  'drift.settleClose': 'Acquietati e chiudi',
-  'drift.closure.anchor': 'Torna alla tua ancora. Lasciati sostenere per un respiro o due.',
-  'drift.closure.container': 'Ciò che resta incompiuto può essere messo da parte per ora. Ci sarà ancora.',
-  'drift.closure.orient': 'Guardati intorno nella stanza. Nota tre cose che puoi vedere. Sei qui.',
-  'drift.closure.done': 'Fatto',
-  'drift.abort.handoff': 'Ci fermiamo qui e ci prendiamo cura di te prima di tutto.',
-  'drift.closed.settled': 'Per oggi è abbastanza.',
-  'drift.closed.eased': 'Hai preso il tempo di ascoltarti. Conta.',
-  // Drift v2 — one-screen begin
-  'drift.begin.whats': 'Cosa si sta muovendo?',
-  'drift.chip.worry': 'Una preoccupazione',
-  'drift.chip.body': 'Tensione nel corpo',
-  'drift.chip.today': 'Qualcosa di oggi',
-  'drift.chip.heavy': 'Un sentimento pesante',
-  'drift.chip.unsettled': 'Solo inquietudine',
-  'drift.begin.somethingElse': 'Qualcos\'altro…',
-  'drift.begin.length': 'Quanto tempo?',
-  'drift.length.quick': '2 min',
-  'drift.length.short': '4 min',
-  'drift.length.full': '6 min',
-  'drift.begin.anchorLabel': 'La tua via di ritorno:',
-  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
-  'drift.micro.softer1': 'Bene. Lascia che continui ad allentarsi.',
-  'drift.micro.softer2': 'Qualcosa si sta placando. Rimani lì vicino.',
-  'drift.micro.softer3': 'Lascia che quella morbidezza si diffonda da sola.',
-  'drift.micro.same1': 'Va bene così. Nessuna fretta.',
-  'drift.micro.same2': 'Anche restare così conta. Lascia che il ritmo lo porti.',
-  'drift.micro.drift1': 'Lasciati semplicemente andare.',
-  'drift.micro.drift2': 'Niente da fare. Il ritmo basta.',
-  // Drift v2 — optional typed word + closure contrast
-  'drift.notice.addWord': 'aggiungi una parola',
-  'drift.closing.softened': 'Qualcosa si è allentato lì dentro. Riparti con un po\' di leggerezza in più.',
-  'drift.closing.steady': 'Hai tenuto duro. Conta.',
 } as const
 
-const it = { ...itBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.it, ...roomFallback } as const
+const it = { ...itBase, ...conductorFallback, ...sessionCopy.it, ...roomFallback } as const
 
 export default it

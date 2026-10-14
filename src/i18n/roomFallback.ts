@@ -49,5 +49,4 @@ export const roomFallback = {
   'room.return.done': 'done for now',
   'conductor.offer.room': 'Another reply may be less useful than a change of atmosphere. [Open Room for voice, sound, or quiet company, then return here if you want](#switch:room-arc).',
   'conductor.return.room': 'You are back from Room. Let whatever shifted have a little room before finding words.',
-  'ps.arm.room_arc': 'a Room arc',
 } as const

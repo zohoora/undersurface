@@ -1,5 +1,4 @@
 import { sessionCopy } from './sessionCopy'
-import { driftSeamlessFallback } from '../driftSeamlessFallback'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
@@ -204,7 +203,6 @@ const ruBase = {
   'policy.recommendation': 'Наша рекомендация',
   'policy.recommendationBody': 'Мы рекомендуем использовать UnderSurface наряду с профессиональной поддержкой, а не вместо неё. Письмо с внутренними голосами может быть ценным дополнением к вашему процессу — но оно не заменяет заботу квалифицированного специалиста.',
 
-
   // Landing page hero
   'landing.headline': 'A diary that listens back',
   'landing.feature1': 'Write freely — inner voices listen',
@@ -217,54 +215,25 @@ const ruBase = {
 
   'echo.label': 'Прошлое',
 
-
   'common.dismiss': 'Закрыть',
-
 
   'parts.card.hint': 'Если это отзывается, назовите это своими словами',
 
-
   'parts.card.keep': 'Сохранить',
-
 
   'parts.card.notQuite': 'Не совсем',
 
-
   'parts.settings.title': 'Части вас',
-
 
   'parts.settings.retire': 'Отпустить',
 
-
   'intentions.card.hint': 'Взять это с собой до следующего раза?',
-
 
   'intentions.card.keep': 'Взять',
 
-
   'intentions.card.skip': 'Не в этот раз',
 
-
-  'checkin.prompt': 'С чем вы уходите?',
-
-
-  'checkin.heavier': 'Тяжелее',
-
-
-  'checkin.same': 'Примерно так же',
-
-
-  'checkin.shadeLighter': 'Чуть легче',
-
-
-  'checkin.lighter': 'Легче',
-
-
-  'checkin.muchLighter': 'Гораздо легче',
-
-
   'values.card.hint': 'Это важно для вас? Назовите это своими словами',
-
 
   'values.settings.title': 'Что для вас важно',
   // Bilateral stimulation
@@ -283,139 +252,8 @@ const ruBase = {
   'bodyMap.region.back': 'Спина',
   'bodyMap.region.hips': 'Бёдра',
   'bodyMap.region.legs': 'Ноги и стопы',
-
-  // Session bottom bar
-  'session.bottomBar.relax': 'Расслабление',
-  'session.bottomBar.drift': 'Drift',
-
-  // Relax mode — settings
-  'relax.settings.title': 'Устройся',
-  'relax.settings.duration.label': 'Длительность',
-  'relax.settings.duration.5': '5 мин',
-  'relax.settings.duration.10': '10 мин',
-  'relax.settings.duration.20': '20 мин',
-  'relax.settings.type.label': 'Практика',
-  'relax.settings.type.breathwork': 'Дыхание',
-  'relax.settings.type.body_scan': 'Сканирование тела',
-  'relax.settings.type.safe_place': 'Безопасное место',
-  'relax.settings.type.open_awareness': 'Открытое внимание',
-  'relax.settings.audio.label': 'Фон',
-  'relax.settings.audio.none': 'Тишина',
-  'relax.settings.audio.ocean': 'Океан',
-  'relax.settings.audio.forest': 'Лес',
-  'relax.settings.audio.drone': 'Дрон',
-  'relax.settings.audio.binaural': 'Бинауральный',
-  'relax.settings.audio.custom': 'Свой',
-  'relax.settings.audio.volume': 'Громкость',
-  'relax.settings.audio.promptLabel': 'Опиши звук',
-  'relax.settings.audio.promptPlaceholder': 'дождь по жестяной крыше с далёким громом',
-  'relax.settings.audio.promptHelp': 'До 200 символов. Создаёт 30-секундный цикл.',
-  'relax.settings.audio.generate': 'Создать',
-  'relax.settings.audio.generating': 'Создаю…',
-  'relax.settings.audio.ready': 'Готово',
-  'relax.settings.audio.cached': 'Использую старое',
-  'relax.settings.audio.error.network': 'Не удалось связаться со звуковой службой.',
-  'relax.settings.audio.error.rateLimit': 'Слишком много звуков за последнее время. Попробуй пресет или подожди немного.',
-  'relax.settings.audio.error.provider': 'Не получилось создать этот звук. Попробуй другие слова.',
-  'relax.settings.audio.error.validation': 'Такое описание не поддерживается. Кратко и по делу.',
-  'relax.settings.audio.error.retry': 'Ещё раз',
-  'relax.settings.audio.preset.rain': 'Дождь по жестяной крыше',
-  'relax.settings.audio.preset.forest': 'Лесной ручей',
-  'relax.settings.audio.preset.thunder': 'Далёкий гром',
-  'relax.settings.audio.preset.cave': 'Морской грот',
-  'relax.settings.voice.label': 'Голос-проводник',
-  'relax.settings.voice.on': 'Вкл.',
-  'relax.settings.voice.off': 'Выкл.',
-  'relax.settings.visual.label': 'Визуальное',
-  'relax.settings.visual.full': 'Полно',
-  'relax.settings.visual.minimal': 'Минимум',
-  'relax.settings.visual.off': 'Выкл.',
-  'relax.settings.cancel': 'Назад',
-  'relax.settings.begin': 'Начать',
-
-  // Relax mode — controls
-  'relax.controls.muteAudio': 'Заглушить звук',
-  'relax.controls.unmuteAudio': 'Включить звук',
-  'relax.controls.muteVoice': 'Заглушить голос',
-  'relax.controls.unmuteVoice': 'Включить голос',
-  'relax.controls.cycleVisual': 'Сменить визуал',
-  'relax.controls.end': 'Завершить сеанс',
-
-  // Relax mode — summary
-  'relax.summary.title': 'Готово',
-  'relax.summary.minutes': 'минут',
-  'relax.summary.subtitle': 'Когда будешь готов.',
-  'relax.summary.completed': 'Когда будешь готов.',
-
-  // Relax mode — calibrating
-  'relax.calibrating.title': 'Усаживаюсь',
-  'relax.calibrating.subtitle': 'Считываю сигнал. Это занимает около полминуты.',
-  'relax.calibrating.skip': 'Пропустить',
-
-  // Relax mode — biometrics
-  'relax.biometrics.enable': 'Включить биометрию',
-  'relax.biometrics.stop': 'Стоп',
-
-  // Drift
-  'drift.card.title': 'Drift',
-  'drift.card.subtitle': 'Управляемая практика осознавания с мягким ритмом влево-вправо',
-  'drift.arrive.title': 'Drift',
-  'drift.arrive.body': 'Несколько минут тихого осознавания, под медленный ритм влево-вправо. Ты выбираешь, куда направить внимание. В конце устраиваемся поудобнее.',
-  'drift.arrive.notTherapy': 'Это самостоятельная практика, а не терапия и не лечение. Ты можешь остановиться в любой момент.',
-  'drift.arrive.begin': 'Начать',
-  'drift.arrive.voice': 'Голос-проводник',
-  'drift.anchor.title': 'Сначала, путь назад',
-  'drift.anchor.body': 'Прежде всего найди свой якорь. Место — настоящее или воображаемое — где тебе спокойно. Или просто твои ступни на полу, кресло, которое тебя держит.',
-  'drift.anchor.calmPlace': 'Спокойное место',
-  'drift.anchor.feet': 'Ступни на полу',
-  'drift.anchor.confirm': 'Есть',
-  'drift.choose.title': 'Куда направить внимание?',
-  'drift.choose.hint': 'Чувство, воспоминание, ощущение — или просто то, что есть сейчас. Это не обязательно должно быть самым тяжёлым. Достаточно того, что тебя цепляет.',
-  'drift.choose.placeholder': 'Что здесь…',
-  'drift.baseline.prompt': 'Где это ощущается в теле? Какое оно на ощупь — тугое, тяжёлое, тёплое, неподвижное?',
-  'drift.set.hint': 'Позволь ритму нести тебя. Ничего не нужно делать.',
-  'drift.set.butterflyHint': 'Если хочешь: скрести руки на груди и постукивай в такт, слева и справа.',
-  'drift.set.skip': 'Пропустить',
-  'drift.notice.prompt': 'Что ты замечаешь сейчас?',
-  'drift.notice.softer': 'Мягче',
-  'drift.notice.same': 'Так же',
-  'drift.notice.stronger': 'Сильнее',
-  'drift.settle.line': 'Пусть пока это так и остаётся. Вернись к своему якорю — месту, или ступням на полу. Побудь там немного.',
-  'drift.settleClose': 'Устроиться и завершить',
-  'drift.closure.anchor': 'Вернись к своему якорю. Позволь ему удержать тебя на вдох-другой.',
-  'drift.closure.container': 'Всё незавершённое можно пока отложить в сторону. Оно никуда не денется.',
-  'drift.closure.orient': 'Осмотрись вокруг. Заметь три вещи, которые видишь. Ты здесь.',
-  'drift.closure.done': 'Готово',
-  'drift.abort.handoff': 'Мы остановимся здесь и позаботимся прежде всего о тебе.',
-  'drift.closed.settled': 'На сегодня достаточно.',
-  'drift.closed.eased': 'Ты услышал(а) себя. Это считается.',
-  // Drift v2 — one-screen begin
-  'drift.begin.whats': 'Что шевелится внутри?',
-  'drift.chip.worry': 'Тревога',
-  'drift.chip.body': 'Напряжение в теле',
-  'drift.chip.today': 'Что-то из сегодня',
-  'drift.chip.heavy': 'Тяжёлое чувство',
-  'drift.chip.unsettled': 'Просто беспокойно',
-  'drift.begin.somethingElse': 'Что-то другое…',
-  'drift.begin.length': 'Сколько времени?',
-  'drift.length.quick': '2 мин',
-  'drift.length.short': '4 мин',
-  'drift.length.full': '6 мин',
-  'drift.begin.anchorLabel': 'Твой путь назад:',
-  // Drift v2 — scripted micro-lines for tap-only check-ins (fixed copy, never LLM)
-  'drift.micro.softer1': 'Хорошо. Пусть отпускает дальше.',
-  'drift.micro.softer2': 'Что-то стихает. Побудь рядом с этим.',
-  'drift.micro.softer3': 'Пусть эта мягкость расходится сама собой.',
-  'drift.micro.same1': 'Это нормально. Не спеши.',
-  'drift.micro.same2': 'Оставаться на месте — тоже важно. Пусть ритм несёт это.',
-  'drift.micro.drift1': 'Просто позволь себе плыть.',
-  'drift.micro.drift2': 'Ничего не нужно делать. Ритма достаточно.',
-  // Drift v2 — optional typed word + closure contrast
-  'drift.notice.addWord': 'добавить слово',
-  'drift.closing.softened': 'Там что-то отпустило. Ты уходишь немного мягче.',
-  'drift.closing.steady': 'Ты остался(ась) с этим. Это считается.',
 } as const
 
-const ru = { ...ruBase, ...driftSeamlessFallback, ...conductorFallback, ...sessionCopy.ru, ...roomFallback } as const
+const ru = { ...ruBase, ...conductorFallback, ...sessionCopy.ru, ...roomFallback } as const
 
 export default ru
