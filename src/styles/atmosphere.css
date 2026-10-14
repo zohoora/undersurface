@@ -2331,7 +2331,9 @@ body {
 
 .room-field {
   position: fixed;
-  z-index: 40;
+  /* Above the fixed biometrics bar (z-index 50) so it can never cover the
+     close button; Room is a modal surface. */
+  z-index: 60;
   inset: 0;
   overflow: hidden;
   display: grid;
@@ -2471,7 +2473,8 @@ body {
 .room-pills button,
 .room-controls button,
 .room-return__actions button {
-  min-height: 38px;
+  min-height: 44px;
+  min-width: 44px;
   padding: 7px 13px;
   border: 1px solid rgba(255,255,255,.11);
   border-radius: 999px;
@@ -2518,7 +2521,7 @@ body {
 }
 .room-caption--immersive { position: absolute; left: 50%; bottom: 104px; width: min(600px, calc(100vw - 44px)); transform: translateX(-50%); text-align: center; }
 .room-voice-error { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; font: 11px/1.4 'Inter', sans-serif; color: rgba(244,240,232,.66); }
-.room-voice-error button { border: 0; background: transparent; color: #efd6b5; text-decoration: underline; cursor: pointer; }
+.room-voice-error button { min-height: 44px; min-width: 44px; padding: 0 8px; border: 0; background: transparent; color: #efd6b5; text-decoration: underline; cursor: pointer; }
 .room-audio-retry,
 .room-media-status {
   position: relative;
@@ -2529,7 +2532,7 @@ body {
   color: #efd6b5;
   font: 500 11px/1.3 'Inter', sans-serif;
 }
-.room-audio-retry { min-height: 42px; padding: 8px 16px; cursor: pointer; }
+.room-audio-retry { min-height: 44px; padding: 8px 16px; cursor: pointer; }
 .room-media-loading { margin: 0 0 18px; font: 500 10px/1.3 'Inter', sans-serif; color: rgba(244,240,232,.55); letter-spacing: .08em; }
 .room-media-status {
   position: absolute;
@@ -2544,7 +2547,7 @@ body {
   padding: 9px 13px;
   transform: translateX(-50%);
 }
-.room-media-status button { border: 0; background: transparent; color: #efd6b5; text-decoration: underline; cursor: pointer; }
+.room-media-status button { min-height: 44px; min-width: 44px; padding: 0 8px; border: 0; background: transparent; color: #efd6b5; text-decoration: underline; cursor: pointer; }
 
 .room-immersive { position: absolute; inset: 0; }
 .room-breathing-field {

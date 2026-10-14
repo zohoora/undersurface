@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from '../../../i18n'
 import { useRoomSession, type RoomConfig } from '../../../hooks/useRoomSession'
+import { useModalA11y } from '../../../hooks/useModalA11y'
 import { useSettings } from '../../../store/settings'
 import type { MemoryAperture, RoomApproach, RoomAudioTrack, RoomDuration, RoomVoiceDensity } from '../../../types'
 
@@ -10,8 +12,9 @@ interface Props {
   buildInstructions: (config: RoomConfig) => string
   rememberedConfig?: Partial<Pick<RoomConfig, 'approach' | 'duration' | 'voiceDensity' | 'audioTrack'>>
   voiceAvailable: boolean
-  onUserTranscript: (text: string) => void
-  onAssistantTranscript: (text: string) => void
+  /** `ownerSessionId` is the session this Room started in (see useRoomSession). */
+  onUserTranscript: (text: string, ownerSessionId: string | null) => void
+  onAssistantTranscript: (text: string, ownerSessionId: string | null) => void
   onClose: () => void
 }
 
@@ -36,7 +39,14 @@ export function RoomField({
   const [duration, setDuration] = useState<RoomDuration>(rememberedConfig?.duration ?? settings.lastRoomDuration)
   const [audioTrack, setAudioTrack] = useState<RoomAudioTrack>(rememberedConfig?.audioTrack ?? settings.lastRoomAudio)
   const [starting, setStarting] = useState(false)
-  const room = useRoomSession({ parentSessionId, memoryAperture, onUserTranscript, onAssistantTranscript })
+  const room = useRoomSession({
+    parentSessionId,
+    memoryAperture,
+    onUserTranscript,
+    onAssistantTranscript,
+    // A spoken "end" returns to Talk, not to Room's choose screen.
+    onEndRequested: onClose,
+  })
 
   const rememberedDensity = rememberedConfig?.voiceDensity ?? settings.lastRoomVoiceDensity
   const voiceDensity: RoomVoiceDensity = approach === 'quiet_company'
@@ -66,8 +76,68 @@ export function RoomField({
     onClose()
   }
 
-  return (
+  // Room is a modal surface: focus moves in on open, Tab stays inside, Escape
+  // leaves (the same safe exit as Leave), and focus returns to whatever opened
+  // it. The handler identity is stable so the a11y effect runs once per mount.
+  const panelRef = useRef<HTMLElement | null>(null)
+
+  // Everything behind Room — the session list, sidebar, Talk composer — is
+  // inert while it is open, so no background session can be selected. Room
+  // itself is portaled outside #root. Declared before useModalA11y so this
+  // cleanup runs first and focus can return to the launcher.
+  useEffect(() => {
+    const root = document.getElementById('root')
+    if (!root || (panelRef.current && root.contains(panelRef.current))) return
+    const alreadyInert = root.hasAttribute('inert')
+    root.setAttribute('inert', '')
+    root.setAttribute('aria-hidden', 'true')
+    return () => {
+      if (!alreadyInert) root.removeAttribute('inert')
+      root.removeAttribute('aria-hidden')
+    }
+  }, [])
+  const leaveRef = useRef<() => void>(() => {})
+  useEffect(() => {
+    leaveRef.current = () => {
+      if (room.phase === 'choosing') onClose()
+      else {
+        room.finish(false)
+        onClose()
+      }
+    }
+  })
+  const leave = useCallback(() => leaveRef.current(), [])
+  useModalA11y(panelRef, leave)
+
+  // Each phase (choosing → threshold → immersion → return) replaces the
+  // controls. If the focused control just disappeared, keep focus inside Room.
+  useEffect(() => {
+    const panel = panelRef.current
+    if (!panel) return
+    const active = document.activeElement
+    if (!active || active === document.body || !panel.contains(active)) panel.focus()
+  }, [room.phase])
+
+  // With focus on the panel itself (after a phase change), Tab / Shift+Tab
+  // enter the controls from the matching end instead of leaving Room.
+  const onPanelKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    const panel = panelRef.current
+    if (event.key !== 'Tab' || !panel || document.activeElement !== panel) return
+    const items = Array.from(panel.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ))
+    if (items.length === 0) return
+    event.preventDefault()
+    ;(event.shiftKey ? items[items.length - 1] : items[0]).focus()
+  }
+
+  return createPortal(
     <section
+      ref={panelRef}
+      role="dialog"
+      aria-modal="true"
+      tabIndex={-1}
+      onKeyDown={onPanelKeyDown}
       className={`room-field room-field--${room.phase} room-field--${room.config?.audioTrack ?? audioTrack}`}
       aria-label={tr['room.aria']}
     >
@@ -75,7 +145,7 @@ export function RoomField({
         type="button"
         className="room-close"
         aria-label={tr['room.controls.leave']}
-        onClick={() => room.phase === 'choosing' ? onClose() : finishAndClose(false)}
+        onClick={leave}
       >
         ×
       </button>
@@ -153,7 +223,7 @@ export function RoomField({
             <div className="room-voice-error">
               <span>{room.voiceError}</span>
               <button type="button" onClick={() => void room.retryVoice()}>{tr['room.voice.retry']}</button>
-              <button type="button" onClick={() => room.setVoiceDensity('quiet')}>{tr['room.voice.continueQuietly']}</button>
+              <button type="button" onClick={room.continueQuietly}>{tr['room.voice.continueQuietly']}</button>
             </div>
           )}
           {room.audioState === 'blocked' && (
@@ -176,13 +246,13 @@ export function RoomField({
                 <>
                   <span>{room.voiceError}</span>
                   <button type="button" onClick={() => void room.retryVoice()}>{tr['room.voice.retry']}</button>
-                  <button type="button" onClick={() => room.setVoiceDensity('quiet')}>{tr['room.voice.continueQuietly']}</button>
+                  <button type="button" onClick={room.continueQuietly}>{tr['room.voice.continueQuietly']}</button>
                 </>
               )}
               {room.audioState === 'blocked' && <button type="button" onClick={room.retryAudio}>{tr['room.audio.retry']}</button>}
             </div>
           )}
-          <div className="room-controls" aria-label="Room controls">
+          <div className="room-controls" role="group" aria-label={tr['room.controls.aria']}>
             {room.config?.voiceDensity !== 'quiet' && (
               <button type="button" onClick={() => room.setVoiceDensity(room.config?.voiceDensity === 'present' ? 'sparse' : 'quiet')}>{tr['room.controls.less']}</button>
             )}
@@ -207,7 +277,8 @@ export function RoomField({
           </div>
         </div>
       )}
-    </section>
+    </section>,
+    document.body,
   )
 }
 

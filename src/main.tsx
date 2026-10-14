@@ -9,6 +9,9 @@ import { AuthProvider } from './auth/AuthContext.tsx'
 import { initNative, dismissSplash } from './native'
 import { installBackButton } from './native/backButton'
 import { auth } from './firebase'
+import { installGroundingPersistence } from './store/groundingPersistence'
+import { reloadOnce } from './utils/lazyWithRetry'
+import { removeConnectionBanner, showConnectionBanner } from './utils/connectionBanner'
 
 // Prevent "removeChild" / "insertBefore" crashes caused by browser extensions
 // and Chrome Translate mutating the DOM outside React's control.
@@ -69,38 +72,6 @@ Sentry.init({
   },
 })
 
-function showRefreshBanner(): void {
-  // Only show once
-  if (document.getElementById('idb-lost-banner')) return
-  const banner = document.createElement('div')
-  banner.id = 'idb-lost-banner'
-  Object.assign(banner.style, {
-    position: 'fixed',
-    top: '0',
-    left: '0',
-    right: '0',
-    zIndex: '99999',
-    padding: '14px 20px',
-    background: '#1a1a2e',
-    color: '#e0def4',
-    fontFamily: "'Inter', sans-serif",
-    fontSize: '14px',
-    textAlign: 'center',
-    boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
-  })
-  banner.appendChild(document.createTextNode('Connection interrupted \u2014 please '))
-  const btn = document.createElement('button')
-  btn.textContent = 'refresh the page'
-  Object.assign(btn.style, {
-    background: 'none', border: '1px solid #e0def4', color: '#e0def4',
-    borderRadius: '4px', padding: '4px 12px', marginLeft: '8px',
-    cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px',
-  })
-  btn.addEventListener('click', () => window.location.reload())
-  banner.appendChild(btn)
-  document.body.appendChild(banner)
-}
-
 // Chromium's IndexedDB backing store failed to open. Reaches here two ways,
 // both as the same raw DOMException:
 //   - Firebase Auth's 800ms persistence poll, mid-session. Auth keeps the user
@@ -111,12 +82,17 @@ function showRefreshBanner(): void {
 // authStateReady() never settles when init fails, so it separates the cases:
 // once auth has resolved, stay silent; before that, offer the refresh that
 // lets Firestore and Auth fall back to non-IndexedDB storage.
+// Once auth resolves the store has recovered (or never failed), so a banner
+// shown during init is withdrawn rather than left over a working app.
 let authResolved = false
-void auth.authStateReady().then(() => { authResolved = true }, () => {})
+void auth.authStateReady().then(() => {
+  authResolved = true
+  removeConnectionBanner()
+}, () => {})
 
 function handleBackingStoreFailure(event: PromiseRejectionEvent): void {
   event.preventDefault()
-  if (!authResolved) showRefreshBanner()
+  if (!authResolved) showConnectionBanner()
 }
 
 window.addEventListener('unhandledrejection', (event) => {
@@ -135,9 +111,21 @@ window.addEventListener('unhandledrejection', (event) => {
   if (msg.includes('Connection to Indexed Database server lost')
     || msg.includes('Error looking up record in object store by key range')) {
     event.preventDefault()
-    showRefreshBanner()
+    showConnectionBanner()
   }
 })
+
+// A tab still running the previous build can fail to preload an old-hash
+// chunk after a deploy (the new service worker cleaned the old precache).
+// Reload once to pick up the new build; if that already happened recently,
+// let the error reach the nearest error boundary instead of looping.
+window.addEventListener('vite:preloadError', (event) => {
+  if (reloadOnce('vite-preload')) event.preventDefault()
+})
+
+// Every grounding activation (any layer, any surface) stamps a
+// server-readable lastGroundingAt so SMS can see a recent crisis.
+installGroundingPersistence()
 
 // Register service worker — failure is non-critical (app works without it).
 // Skip on native: the bundle ships on-device, and a SW can stale Cloud Function calls.

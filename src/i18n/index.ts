@@ -14,21 +14,29 @@ const translationLoaders = import.meta.glob<{ default: Record<string, string> }>
 const translationMap = new Map<string, Record<string, string>>()
 translationMap.set('en', en)
 
-// Pre-load the current language at module init (resolves before first render in most cases)
-function preloadLanguage(lang: string) {
-  if (lang === 'en' || translationMap.has(lang)) return
+type TranslationLoaders = Record<string, () => Promise<{ default: Record<string, string> }>>
+
+// Pre-load the current language at module init (resolves before first render
+// in most cases). Returns the load promise, which never rejects.
+export function preloadLanguage(lang: string, loaders: TranslationLoaders = translationLoaders): Promise<void> {
+  if (lang === 'en' || translationMap.has(lang)) return Promise.resolve()
   const path = `./translations/${lang}.ts`
-  const loader = translationLoaders[path]
-  if (!loader) return
-  loader().then(mod => {
+  const loader = loaders[path]
+  if (!loader) return Promise.resolve()
+  return loader().then(mod => {
     if (mod.default) {
       translationMap.set(lang, mod.default)
       invalidateTranslationCache()
     }
+  }).catch(error => {
+    // A stale locale chunk after a deploy (or a flaky network) must not become
+    // an unhandled rejection; the UI simply stays on the English fallback and
+    // the next language change or reload retries.
+    console.warn(`[i18n] could not load the "${lang}" translations`, error)
   })
 }
 
-preloadLanguage(getSettings().language ?? 'en')
+void preloadLanguage(getSettings().language ?? 'en')
 
 let cachedStrings: TranslationStrings | null = null
 let cachedLang = ''
@@ -84,7 +92,7 @@ export function invalidateTranslationCache() {
   cachedStrings = null
   cachedLang = ''
   // Pre-load the new language if not yet loaded
-  preloadLanguage(getSettings().language ?? 'en')
+  void preloadLanguage(getSettings().language ?? 'en')
   for (const fn of listeners) fn()
 }
 

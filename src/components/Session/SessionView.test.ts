@@ -326,3 +326,65 @@ describe('SessionView — surface switching (Journal & Speak)', () => {
     expect(src.default).toMatch(/voice\.state[\s\S]{0,60}setSurface\('talk'\)/)
   })
 })
+
+describe('SessionView — 2026-10-14 audit regressions (source contracts)', () => {
+  it('delegates turn planning to turnResponder, which reads grounding at call time (#1)', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain("from '../../engine/turnResponder'")
+    // The render-time grounding value must not gate conductor/research planning.
+    expect(src).not.toMatch(/planAdaptiveConductor\(/)
+    expect(src).not.toMatch(/planResearchTurn\(/)
+  })
+
+  it('gates Speak/Room in BOTH the surface switch and the recommendation tap (#12)', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toMatch(/const handleSurfaceChange = useCallback\(\(next: SessionSurface\) => \{[\s\S]{0,400}canOpenSurface\(next,/)
+    expect(src).toMatch(/const handleRecommendationTap = useCallback\(\(target: string\) => \{[\s\S]{0,400}canOpenSurface\(target,/)
+  })
+
+  it('renders VoiceField for any live voice state, independent of the flag (#12)', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain("{voice.state !== 'idle' && (")
+    expect(src).not.toContain("voiceEnabled && voice.state !== 'idle'")
+  })
+
+  it('loads Room and Voice with lazyWithRetry inside local error boundaries (#14)', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toMatch(/const VoiceField = lazyWithRetry\(/)
+    expect(src).toMatch(/const RoomField = lazyWithRetry\(/)
+    expect(src).not.toMatch(/= lazy\(/)
+    expect(src).toContain('<SurfaceErrorBoundary surface="voice"')
+    expect(src).toContain('<SurfaceErrorBoundary surface="room"')
+  })
+
+  it('builds Room voice instructions from the shared builder with live grounding (#35)', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain('buildVoiceCompanionInstructions(')
+    expect(src).toContain('grounded: isGroundingActive()')
+    expect(src).not.toContain('isGrounding: false')
+  })
+
+  it('derives Room availability from the effective roomEnabled formula', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain('isRoomEnabled(globalConfig?.features)')
+    expect(src).not.toContain('relaxEnabled || driftEnabled')
+  })
+
+  it('seeds Room voice with the current session turns (T5)', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toMatch(/buildVoiceCompanionInstructions\(\{[\s\S]{0,200}messages: messagesRef\.current/)
+  })
+
+  it('fences Room transcripts to the session the Room started in and ends voice on a session change (T2)', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain('onUserTranscript={handleRoomUserTranscript}')
+    expect(src).toContain('onAssistantTranscript={handleRoomAssistantTranscript}')
+    expect(src).toMatch(/isRoomOwnerCurrent\(ownerSessionId\)\) return\s+void appendUserMessage\(text, 'voice', 'room'\)/)
+    expect(src).toMatch(/previous === null \|\| currentSessionId === null \|\| previous === currentSessionId\) return/)
+  })
+
+  it('makes the Talk composer inert while Room or Speak is open (#32)', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain('inert={overlayOpen || undefined}')
+  })
+})
