@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { useVoiceSession } from './useVoiceSession'
 import { isGroundingActive, useGroundingMode } from './useGroundingMode'
 import { db, sessionMessages as sessionMessagesDb, generateId } from '../store/db'
 import { getGlobalConfig } from '../store/globalConfig'
-import { buildTherapistSystemPrompt } from '../ai/therapistPrompts'
+import { buildVoiceCompanionInstructions, consumeVoiceRepair } from '../ai/voiceInstructions'
 import { loadInSessionRelaxBreaks } from '../engine/sessionContextLoader'
 import type { TherapistContext } from '../engine/sessionContextLoader'
 import type { SessionOrchestrator } from '../engine/sessionOrchestrator'
@@ -86,85 +86,25 @@ export function useSessionVoice({
     })
   }, [sessionRef, messagesRef, orchestratorRef, setSession, setMessages, enqueueAppend])
 
-  // Single source of truth for the voice system prompt, reused by handleStart
-  // and the mid-session grounding push so the two can never drift.
+  // Single source of truth for the voice system prompt (shared with Room via
+  // buildVoiceCompanionInstructions), reused by handleStart and the
+  // mid-session grounding push so the two can never drift.
   const buildInstructions = useCallback(async (grounded: boolean): Promise<string | null> => {
     const context = contextRef.current
     if (!context) return null
-
-    const isFirstTurn = (messagesRef.current ?? []).every(m => m.speaker !== 'therapist')
-    const currentSession = sessionRef.current
-    const sessionId = currentSession?.id
-    const durableContextEnabled = currentSession?.memoryAperture !== 'fresh'
+    const sessionId = sessionRef.current?.id
     const inSessionRelaxBreaks = sessionId ? await loadInSessionRelaxBreaks(sessionId) : []
-    const repairContext = durableContextEnabled && getGlobalConfig()?.features?.ruptureRepair === true && isFirstTurn && !grounded
-      ? context.repairContext ?? undefined
-      : undefined
-    // Consume-once, mirroring the text stream: a repair delivered by voice
-    // instructions must not repeat in the next session. Best-effort clear.
-    if (repairContext) {
-      context.repairContext = null
-      void db.companionSignals
-        .update('current', { pendingRepair: null, updatedAt: Date.now() })
-        .catch(() => { /* best-effort */ })
-    }
-    return buildTherapistSystemPrompt({
-      channel: 'voice',
-      memoryAperture: currentSession?.memoryAperture ?? context.memoryAperture,
-      phase: sessionRef.current?.phase ?? 'opening',
-      recentSessionNotes: context.recentSessionNotes,
-      recentFieldNotes: context.recentFieldNotes,
-      relevantMemories: context.relevantMemories,
-      profile: context.userProfile,
-      personalFacts: context.personalFacts,
-      isGrounding: grounded,
+    const { instructions, usedRepair } = buildVoiceCompanionInstructions({
+      context,
+      session: sessionRef.current,
+      messages: messagesRef.current ?? [],
+      grounded,
       hrvContext: hrv.buildPromptContext(),
-      mode: sessionRef.current?.mode ?? 'standard',
-      // Voice has no renderer for recommendation links. The shared capability
-      // contract keeps these surface mechanics out of spoken output.
-      allowRecommendations: false,
-      isFirstTurn,
+      features: getGlobalConfig()?.features,
       inSessionRelaxBreaks,
-      recentRelaxBreaks: context.recentRelaxBreaks,
-      // No streaming parser on the voice path — never instruct the realtime
-      // model to emit the <<RISK:N>> marker (it could be spoken aloud or
-      // persisted into transcripts). Crisis safety on voice rests on
-      // SAFETY_RULES plus the L1 regex over user transcripts.
-      includeRiskPreamble: false,
-      // Rupture repair applies at voice-session start too (instructions are
-      // built once; the prompt layer gates it to isFirstTurn + !grounded).
-      // Live per-turn signals (pivot/soften) are text-surface-only in v1.
-      repairContext,
-      // The writer's mapped parts + shared language, read-only on voice.
-      // Proposals are text-surface-only (no consent card exists in voice).
-      activeUserParts: durableContextEnabled && getGlobalConfig()?.features?.userParts === true && context.activeUserParts.length > 0
-        ? context.activeUserParts
-        : undefined,
-      lexicon: durableContextEnabled && getGlobalConfig()?.features?.userParts === true && context.personalFacts?.lexicon?.length
-        ? context.personalFacts.lexicon
-        : undefined,
-      // Thread follow-up + stance tendencies, read-only on voice. Offers and
-      // pattern nudges are text-surface-only in v1.
-      openIntentions: durableContextEnabled && getGlobalConfig()?.features?.sessionIntentions === true && context.openIntentions.length > 0
-        ? context.openIntentions
-        : undefined,
-      stanceContext: durableContextEnabled && getGlobalConfig()?.features?.stanceAdaptation === true && context.stanceEntries.length > 0
-        ? context.stanceEntries
-        : undefined,
-      outcomeContext: context.outcomeContext,
-      alliancePreferences: context.alliancePreferences,
-      personalProtocols: context.activePersonalProtocols,
-      livingHypotheses: context.livingHypotheses,
-      activeValues: durableContextEnabled && getGlobalConfig()?.features?.userValues === true && context.activeValues.length > 0
-        ? context.activeValues
-        : undefined,
-      // Voice can remember the substance of a commitment but cannot emit the
-      // web marker that records delivery. The shared renderer makes this
-      // read-only for non-web channels.
-      duePromises: durableContextEnabled && getGlobalConfig()?.features?.companionInteriority === true && context.duePromises.length > 0
-        ? context.duePromises
-        : undefined,
     })
+    if (usedRepair) consumeVoiceRepair(context)
+    return instructions
   }, [contextRef, sessionRef, messagesRef, hrv])
 
   // The load-bearing invariant "distress disables Real Talk, no exceptions"
@@ -189,48 +129,70 @@ export function useSessionVoice({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isGrounding, voice.state])
 
+  // A Speak start awaits its instructions before voice.start() runs. Report
+  // that window as 'connecting' so callers never see 'idle' mid-start (the
+  // Speak surface used to snap back to Talk during it — TECH_ISSUES #33),
+  // and let stop() cancel a start that has not reached voice.start() yet.
+  const [starting, setStarting] = useState(false)
+  const startSeqRef = useRef(0)
+  const voiceStart = voice.start
+  const voiceStop = voice.stop
+
   const handleStart = useCallback(async () => {
-    const instructions = await buildInstructions(isGroundingActive())
-    if (!instructions) return
+    const seq = ++startSeqRef.current
+    setStarting(true)
+    try {
+      const instructions = await buildInstructions(isGroundingActive())
+      if (!instructions || seq !== startSeqRef.current) return
 
-    const preferredVoice = getGlobalConfig()?.voice?.defaultVoice ?? 'marin'
+      const preferredVoice = getGlobalConfig()?.voice?.defaultVoice ?? 'marin'
 
-    trackEvent('voice_session_started', { session_id: sessionRef.current?.id ?? '' })
+      trackEvent('voice_session_started', { session_id: sessionRef.current?.id ?? '' })
 
-    await voice.start({
-      instructions,
-      voice: preferredVoice,
-      onUserTranscript: (text) => {
-        void appendUserMessage(text, 'voice')
-      },
-      onAssistantTranscript: (text) => {
-        void persistVoiceTherapistMessage(text)
-      },
-      onAssistantSpeakingChange: (speaking) => {
-        if (hrv.enabled) {
-          hrv.addConversationEvent(
-            speaking ? 'ai_response_start' : 'ai_response_complete',
-            messagesRef.current.length,
-          )
-        }
-      },
-    })
-  }, [voice, hrv, appendUserMessage, persistVoiceTherapistMessage, buildInstructions, sessionRef, messagesRef])
+      await voiceStart({
+        instructions,
+        voice: preferredVoice,
+        onUserTranscript: (text) => {
+          void appendUserMessage(text, 'voice')
+        },
+        onAssistantTranscript: (text) => {
+          void persistVoiceTherapistMessage(text)
+        },
+        onAssistantSpeakingChange: (speaking) => {
+          if (hrv.enabled) {
+            hrv.addConversationEvent(
+              speaking ? 'ai_response_start' : 'ai_response_complete',
+              messagesRef.current.length,
+            )
+          }
+        },
+      })
+    } finally {
+      if (seq === startSeqRef.current) setStarting(false)
+    }
+  }, [voiceStart, hrv, appendUserMessage, persistVoiceTherapistMessage, buildInstructions, sessionRef, messagesRef])
+
+  // Stopping also cancels a start still awaiting its instructions.
+  const stop = useCallback(() => {
+    startSeqRef.current++
+    setStarting(false)
+    voiceStop()
+  }, [voiceStop])
 
   const handleEnd = useCallback(() => {
-    voice.stop()
+    stop()
     trackEvent('voice_session_ended', { session_id: sessionRef.current?.id ?? '' })
-  }, [voice, sessionRef])
+  }, [stop, sessionRef])
 
   return {
-    state: voice.state,
+    state: starting && voice.state === 'idle' ? 'connecting' as const : voice.state,
     error: voice.error,
     muted: voice.muted,
     assistantSpeaking: voice.assistantSpeaking,
     userSpeaking: voice.userSpeaking,
     remoteStream: voice.remoteStream,
     toggleMute: voice.toggleMute,
-    stop: voice.stop,
+    stop,
     handleStart,
     handleEnd,
   }

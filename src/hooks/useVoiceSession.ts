@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { authedPost } from '../api/authedFetch'
-import { friendlyVoiceError } from './voiceErrors'
+import { friendlyVoiceError, isFatalRealtimeServerError, VoiceConnectionLostError } from './voiceErrors'
 
 export type VoiceSessionState = 'idle' | 'connecting' | 'connected' | 'error'
 
@@ -75,6 +75,11 @@ export function useVoiceSession() {
   const responseActiveRef = useRef(false)
   const pendingCancelEventIdsRef = useRef(new Set<string>())
   const clientEventSequenceRef = useRef(0)
+  // Writer currently speaking (server VAD) and a just-sent prompt whose
+  // response.created has not arrived yet. promptAssistant never talks over
+  // either: an app-timed cue must not interrupt the writer or a live reply.
+  const userSpeakingRef = useRef(false)
+  const promptInFlightUntilRef = useRef(0)
 
   const speechStartedAtRef = useRef<number | null>(null)
   const lastUserDurationRef = useRef<number | null>(null)
@@ -140,6 +145,8 @@ export function useVoiceSession() {
     assistantWordBufferRef.current = ''
     responseActiveRef.current = false
     pendingCancelEventIdsRef.current.clear()
+    userSpeakingRef.current = false
+    promptInFlightUntilRef.current = 0
     speechStartedAtRef.current = null
     lastUserDurationRef.current = null
     userRatesRef.current = []
@@ -155,6 +162,21 @@ export function useVoiceSession() {
     setMuted(false)
     setError(null)
   }, [teardown])
+
+  // A live connection was lost without the user stopping it: ICE/peer
+  // connection failed or closed, the data channel closed or errored, or the
+  // server reported a fatal error (expired session, bad client secret). Tear
+  // everything down (mic tracks included) and surface a friendly error so the
+  // UI stops saying "listening" and Room can offer its retry.
+  const failConnection = useCallback((detail: string) => {
+    console.warn('[useVoiceSession] connection lost:', detail)
+    teardown()
+    setMuted(false)
+    setError(friendlyVoiceError(new VoiceConnectionLostError(detail)))
+    setState('error')
+  }, [teardown])
+  const failConnectionRef = useRef(failConnection)
+  failConnectionRef.current = failConnection
 
   const start = useCallback(async (options: VoiceSessionOptions) => {
     if (state === 'connecting' || state === 'connected') return
@@ -194,6 +216,23 @@ export function useVoiceSession() {
 
       const pc = new RTCPeerConnection()
       pcRef.current = pc
+      // Local teardown bumps the epoch first, so these only fire for drops
+      // the user did not ask for. `disconnected` is transient (ICE may
+      // recover on its own); `failed`/`closed` are terminal.
+      pc.onconnectionstatechange = () => {
+        if (cancelled()) return
+        const connectionState = pc.connectionState
+        if (connectionState === 'failed' || connectionState === 'closed') {
+          failConnectionRef.current(`peer connection ${connectionState}`)
+        }
+      }
+      pc.oniceconnectionstatechange = () => {
+        if (cancelled()) return
+        const iceState = pc.iceConnectionState
+        if (iceState === 'failed' || iceState === 'closed') {
+          failConnectionRef.current(`ice ${iceState}`)
+        }
+      }
 
       // The <audio> element receives the remote stream. In active (two-way)
       // mode it stays muted because VoiceField's Web Audio graph handles
@@ -250,7 +289,16 @@ export function useVoiceSession() {
       dcRef.current = dc
 
       dc.onopen = () => {
+        if (cancelled()) return
         setState('connected')
+      }
+      dc.onclose = () => {
+        if (cancelled()) return
+        failConnectionRef.current('data channel closed')
+      }
+      dc.onerror = () => {
+        if (cancelled()) return
+        failConnectionRef.current('data channel error')
       }
 
       dc.onmessage = (event) => {
@@ -309,10 +357,12 @@ export function useVoiceSession() {
     switch (type) {
       case 'response.created': {
         responseActiveRef.current = true
+        promptInFlightUntilRef.current = 0
         break
       }
       case 'input_audio_buffer.speech_started': {
         speechStartedAtRef.current = performance.now()
+        userSpeakingRef.current = true
         setUserSpeaking(true)
         opts.onUserSpeakingChange?.(true)
         break
@@ -323,6 +373,7 @@ export function useVoiceSession() {
           lastUserDurationRef.current = performance.now() - startedAt
           speechStartedAtRef.current = null
         }
+        userSpeakingRef.current = false
         setUserSpeaking(false)
         opts.onUserSpeakingChange?.(false)
         break
@@ -396,6 +447,7 @@ export function useVoiceSession() {
       case 'response.output_audio.done':
       case 'response.audio.done': {
         responseActiveRef.current = false
+        promptInFlightUntilRef.current = 0
         pendingCancelEventIdsRef.current.clear()
         setAssistantSpeaking(false)
         opts.onAssistantSpeakingChange?.(false)
@@ -414,6 +466,11 @@ export function useVoiceSession() {
         // Realtime `error` events are generally recoverable and leave the
         // session connected. Log them for diagnosis; a recoverable event must
         // not replace a still-live conversation with a fatal-looking error.
+        // The exceptions mean the session itself is gone (expired, revoked
+        // credentials): treat those as a lost connection.
+        if (isFatalRealtimeServerError(err)) {
+          failConnectionRef.current(`server error ${err?.code ?? err?.type ?? ''}`.trim())
+        }
         break
       }
     }
@@ -479,16 +536,37 @@ export function useVoiceSession() {
   // Unlike speak(), this deliberately does not prescribe exact wording or a
   // vocal performance. Room uses it for sparse score cues while the model
   // retains the conversation and its ordinary voice.
-  const promptAssistant = useCallback((instructions: string) => {
+  //
+  // The cue travels as a system-role conversation item followed by a bare
+  // response.create. Per the Realtime API reference, `response.instructions`
+  // on response.create OVERRIDES the session instructions for that response,
+  // which would generate the cue without SAFETY_RULES, the language
+  // directive, Fresh-eyes boundaries or the Room rules. A conversation item
+  // adds to the context instead of replacing it.
+  //
+  // Returns false (nothing sent) while a response is active, a prompt is in
+  // flight, or the writer is speaking; the caller may retry on a later tick.
+  const promptAssistant = useCallback((instructions: string): boolean => {
     const dc = dcRef.current
-    if (!dc || dc.readyState !== 'open') return
+    if (!dc || dc.readyState !== 'open') return false
+    if (responseActiveRef.current || userSpeakingRef.current || Date.now() < promptInFlightUntilRef.current) return false
     try {
       dc.send(JSON.stringify({
-        type: 'response.create',
-        response: { instructions },
+        type: 'conversation.item.create',
+        item: {
+          type: 'message',
+          role: 'system',
+          content: [{ type: 'input_text', text: instructions }],
+        },
       }))
+      dc.send(JSON.stringify({ type: 'response.create' }))
+      // Until response.created lands, treat the channel as busy so two ticks
+      // cannot stack prompts.
+      promptInFlightUntilRef.current = Date.now() + 5_000
+      return true
     } catch (err) {
       console.warn('[useVoiceSession] promptAssistant failed', err)
+      return false
     }
   }, [])
 

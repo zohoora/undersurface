@@ -49,4 +49,13 @@ export const roomFallback = {
   'room.return.done': 'done for now',
   'conductor.offer.room': 'Another reply may be less useful than a change of atmosphere. [Open Room for voice, sound, or quiet company, then return here if you want](#switch:room-arc).',
   'conductor.return.room': 'You are back from Room. Let whatever shifted have a little room before finding words.',
+  // Session shell + voice reliability (2026-10-14 audit fixes). English
+  // fallback in every locale until translated.
+  'room.controls.aria': 'Room controls',
+  'voice.error.disconnected': 'The voice connection dropped. You can try again.',
+  'voice.error.budget': 'You have reached today’s voice limit. It resets at midnight UTC.',
+  'voice.error.rateLimited': 'Too many voice starts in a short time. Please wait a moment and try again.',
+  'voice.error.disabled': 'Voice is not available right now.',
+  'surface.error.body': 'This part of the session couldn’t load. Your words are safe.',
+  'surface.error.back': 'Back to Talk',
 } as const
