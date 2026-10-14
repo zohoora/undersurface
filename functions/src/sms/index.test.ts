@@ -190,6 +190,20 @@ describe('opt-out and account controls', () => {
     expect(res.body).not.toContain('Too many messages')
   })
 
+  it('still disconnects on UNLINK past the rate limit, but sends no paid confirmation reply', async () => {
+    const from = '+14165550888'
+    mockUnlinkPhone.mockResolvedValue(null)
+    for (let index = 0; index < 30; index++) {
+      await handleSmsWebhook(signedRequest('UNLINK', `SMunlinkflood${String(index).padStart(6, '0')}`, {}, from), makeRes())
+    }
+    mockUnlinkPhone.mockClear()
+    const res = makeRes()
+    await handleSmsWebhook(signedRequest('UNLINK', 'SMunlinkflood999999', {}, from), res)
+
+    expect(mockUnlinkPhone).toHaveBeenCalledWith(from)
+    expect(res.body ?? '').not.toContain('<Message>')
+  })
+
   it('replies with a fixed paused message while the kill switch is off, but still honors STOP', async () => {
     fakeDb.seed('appConfig/global', { features: { smsEnabled: false } })
     mockGetLinkedUid.mockResolvedValue('u1')

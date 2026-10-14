@@ -283,7 +283,14 @@ export async function handleSmsWebhook(req: Request, res: Response): Promise<voi
       return
     }
     if (intent.kind === 'unlink') {
+      // The disconnect itself is protective and idempotent, so it always runs.
+      // The confirmation is a paid outbound SMS, so it respects the rate limit:
+      // a flood of UNLINK texts must not become a flood of replies.
       const uid = await disconnectPhone(from, receivedAt)
+      if (!checkWebhookRateLimit(from)) {
+        sendTwiml(res)
+        return
+      }
       sendTwiml(res, uid ? 'This phone has been disconnected from UnderSurface.' : NOT_LINKED_RESPONSE)
       return
     }
