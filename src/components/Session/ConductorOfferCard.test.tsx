@@ -25,5 +25,12 @@ describe('ConductorOfferCard', () => {
     await waitFor(() => expect(overrideMock).toHaveBeenCalledWith('conductor-u2', 'continue_talk'))
     expect(screen.getByRole('status')).toHaveTextContent('We will stay here.')
   })
+
+  it('gives the quiet decline a full-size touch target', () => {
+    render(<ConductorOfferCard eventId="conductor-u3" />)
+    const decline = screen.getAllByRole('button', { name: 'Not now' }).at(-1) as HTMLElement
+    expect(decline.style.minHeight).toBe('44px')
+    expect(parseInt(decline.style.fontSize, 10)).toBeGreaterThanOrEqual(12)
+  })
 })
 import React from 'react'

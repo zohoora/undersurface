@@ -2162,7 +2162,8 @@ body {
 }
 
 .session-bottom-bar__pill {
-  padding: 4px 10px;
+  min-height: 32px;
+  padding: 4px 12px;
   border: 1px solid var(--border-subtle);
   border-radius: 999px;
   background: var(--surface-primary);

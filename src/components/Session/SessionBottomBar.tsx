@@ -39,9 +39,12 @@ export function SessionBottomBar({
     onSurfaceChange(surface)
   }
 
+  // Grouping pattern rather than the ARIA toolbar or menu patterns: controls
+  // stay in the normal Tab order (no roving focus), and the options panel is a
+  // disclosure holding switches, which a menu role may not contain.
   return (
-    <div className="session-bottom-bar" role="toolbar" aria-label="Session controls">
-      <div className="session-bottom-bar__surfaces" aria-label={t('session.bottomBar.surfaces')}>
+    <div className="session-bottom-bar" role="group" aria-label={t('session.bottomBar.controls')}>
+      <div className="session-bottom-bar__surfaces" role="group" aria-label={t('session.bottomBar.surfaces')}>
         <button
           type="button"
           className="session-bottom-bar__pill"
@@ -84,7 +87,7 @@ export function SessionBottomBar({
           <span className="session-options-desktop">•••</span>
           <span className="session-options-mobile">{t('session.bottomBar.more')}</span>
         </summary>
-        <div className="session-options-menu" role="menu" aria-label={t('session.bottomBar.options')}>
+        <div className="session-options-menu" role="group" aria-label={t('session.bottomBar.options')}>
           {onMemoryApertureChange && (
           <button
             type="button"

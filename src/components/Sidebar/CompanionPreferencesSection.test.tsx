@@ -41,7 +41,7 @@ describe('CompanionPreferencesSection continuity control', () => {
     expect(screen.queryByText(/light memory/i)).toBeNull()
     expect(screen.queryByText(/counterstory/i)).toBeNull()
     expect(screen.queryByRole('checkbox', { name: 'Start new sessions with Fresh eyes' })).toBeNull()
-    expect(screen.getByRole('checkbox', { name: 'Field mosaic' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'companionMemory.fieldMosaic' })).toBeInTheDocument()
   })
 
   it('does not expose ambient science controls or outcome questionnaires', async () => {

@@ -1,5 +1,5 @@
 import React from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -25,6 +25,9 @@ vi.mock('../../i18n', () => ({
       'session.bottomBar.parts': 'Inner voices',
       'session.bottomBar.journalDisabled': 'Coming soon',
       'session.bottomBar.speakDisabled': 'Coming soon',
+      'session.bottomBar.controls': 'Session controls',
+      'session.bottomBar.surfaces': 'Session surfaces',
+      'session.bottomBar.options': 'Session options',
     }
     return map[key] ?? key
   },
@@ -247,5 +250,24 @@ describe('Room surface pill', () => {
     expect(JSON.stringify(withRoom)).toContain('Room')
     const withoutRoom = SessionBottomBar(baseProps({ showRoomSurface: false }))
     expect(JSON.stringify(withoutRoom)).not.toContain('Room')
+  })
+})
+
+describe('SessionBottomBar ARIA structure', () => {
+  it('labels the bar from i18n and never nests switches inside a menu', () => {
+    cleanup()
+    const view = render(<SessionBottomBar {...baseProps({ activeSurface: 'journal', onMemoryApertureChange: vi.fn() })} />)
+    expect(SOURCE).not.toContain('aria-label="Session controls"')
+    expect(view.container.querySelector('[role="menu"]')).toBeNull()
+    expect(view.container.querySelector('[role="toolbar"]')).toBeNull()
+
+    expect(screen.getByRole('group', { name: 'Session controls' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Session surfaces' })).toBeInTheDocument()
+    const options = view.container.querySelector('.session-options-menu') as HTMLElement
+    expect(options.getAttribute('role')).toBe('group')
+    expect(options.getAttribute('aria-label')).toBe('Session options')
+    const switches = options.querySelectorAll('[role="switch"]')
+    expect(switches.length).toBe(3)
+    view.unmount()
   })
 })

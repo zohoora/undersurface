@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { db } from '../../store/db'
 import { useTranslation } from '../../i18n'
+import { CARD_TAP_TARGET } from './cardControls'
 import type { UserValue } from '../../types'
 
 // Consent card for value proposals — same grammar as PartProposalCard:
@@ -9,6 +10,7 @@ import type { UserValue } from '../../types'
 // Spec: docs/superpowers/specs/2026-07-04-companion-depth-program.md
 export function ValueProposalCard({ valueId }: { valueId: string }) {
   const tr = useTranslation()
+  const inputId = useId()
   const [value, setValue] = useState<UserValue | null>(null)
   const [name, setName] = useState('')
   const [settled, setSettled] = useState<'kept' | 'dismissed' | null>(null)
@@ -56,21 +58,21 @@ export function ValueProposalCard({ valueId }: { valueId: string }) {
   }
 
   return (
-    <div role="group" aria-label={tr['values.card.hint']} style={{ margin: '4px 0 20px', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-subtle)', background: 'transparent', maxWidth: 420 }}>
-      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8 }}>
+    <div role="group" aria-labelledby={`${inputId}-label`} style={{ margin: '4px 0 20px', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-subtle)', background: 'transparent', maxWidth: 420 }}>
+      <label id={`${inputId}-label`} htmlFor={inputId} style={{ display: 'block', fontFamily: "'Inter', sans-serif", fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
         {tr['values.card.hint']}
-      </div>
+      </label>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          aria-label={tr['values.card.hint']}
-          style={{ flex: 1, minWidth: 160, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-primary)', fontFamily: "'Inter', sans-serif", fontSize: 13 }}
+          id={inputId}
+          style={{ flex: 1, minWidth: 160, minHeight: CARD_TAP_TARGET, boxSizing: 'border-box', padding: '0 10px', borderRadius: 8, border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-primary)', fontFamily: "'Inter', sans-serif", fontSize: 13 }}
         />
-        <button onClick={keep} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border-subtle)', background: 'rgba(176,142,96,0.12)', color: 'var(--text-primary)', fontFamily: "'Inter', sans-serif", fontSize: 12, cursor: 'pointer' }}>
+        <button type="button" onClick={keep} style={{ minHeight: CARD_TAP_TARGET, padding: '0 14px', borderRadius: 8, border: '1px solid var(--border-subtle)', background: 'rgba(176,142,96,0.12)', color: 'var(--text-primary)', fontFamily: "'Inter', sans-serif", fontSize: 12, cursor: 'pointer' }}>
           {tr['parts.card.keep']}
         </button>
-        <button onClick={dismiss} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid transparent', background: 'transparent', color: 'var(--text-secondary)', fontFamily: "'Inter', sans-serif", fontSize: 12, cursor: 'pointer' }}>
+        <button type="button" onClick={dismiss} style={{ minHeight: CARD_TAP_TARGET, padding: '0 14px', borderRadius: 8, border: '1px solid transparent', background: 'transparent', color: 'var(--text-secondary)', fontFamily: "'Inter', sans-serif", fontSize: 12, cursor: 'pointer' }}>
           {tr['parts.card.notQuite']}
         </button>
       </div>
