@@ -1,6 +1,6 @@
 import type { GlobalConfig } from '../admin/adminTypes'
 
-type Features = GlobalConfig['features'] | null | undefined
+type Features = Partial<GlobalConfig['features']> | null | undefined
 
 /**
  * Effective Room availability (cross-agent contract with the admin toggle and

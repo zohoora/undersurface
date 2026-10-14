@@ -1,4 +1,5 @@
 import type { GlobalConfig } from './adminTypes'
+import { isRoomEnabled } from '../engine/surfaceAvailability'
 
 type Features = Partial<GlobalConfig['features']>
 
@@ -6,12 +7,10 @@ type Features = Partial<GlobalConfig['features']>
  * Room's effective state. `roomEnabled` wins when set; while it is unset the
  * legacy Relax / Drift flags still turn Room on (Room replaced both surfaces),
  * so an existing config keeps its behavior until an admin sets the new flag.
+ * Delegates to the single shared formula the session shell also uses.
  */
 export function effectiveRoomEnabled(features: Features | null | undefined): boolean {
-  if (!features) return false
-  if (features.roomEnabled === true) return true
-  if (features.roomEnabled === false) return false
-  return features.relaxEnabled === true || features.driftEnabled === true
+  return isRoomEnabled(features)
 }
 
 /** SMS field channel: on unless explicitly disabled. */
