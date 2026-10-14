@@ -87,6 +87,8 @@ describe('handleUpdateConfig — schema and round trip', () => {
         visualEffectsEnabled: false,
         autocorrectEnabled: true,
         driftEnabled: true,
+        roomEnabled: true,
+        smsEnabled: false,
       },
       atmosphere: {
         timeShiftIntensity: 0.4,
@@ -135,6 +137,43 @@ describe('handleUpdateConfig — schema and round trip', () => {
     expect(result.config).toMatchObject(update)
     expect(result.config).toMatchObject({ quota: { enabled: false } })
     expect(result.config).toMatchObject({ updatedBy: 'zohoora@gmail.com' })
+  })
+
+  it('accepts the Room and SMS flags the admin UI renders (2026-10-14 contract)', async () => {
+    firestoreState.setConfigDoc({})
+    const result = await handleUpdateConfig(
+      { features: { roomEnabled: false, smsEnabled: true, relaxEnabled: true, driftEnabled: false } },
+      'zohoora@gmail.com',
+    )
+    expect(result.config).toMatchObject({
+      features: { roomEnabled: false, smsEnabled: true, relaxEnabled: true, driftEnabled: false },
+    })
+  })
+
+  it('rejects non-boolean Room/SMS flags', async () => {
+    await expect(handleUpdateConfig({ features: { roomEnabled: 'yes' } }, 'zohoora@gmail.com'))
+      .rejects.toThrow('features.roomEnabled must be a boolean')
+    await expect(handleUpdateConfig({ features: { smsEnabled: 1 } }, 'zohoora@gmail.com'))
+      .rejects.toThrow('features.smsEnabled must be a boolean')
+    expect(firestoreState.setMock).not.toHaveBeenCalled()
+  })
+
+  it('drops the retired customSoundscapesEnabled key instead of failing the save', async () => {
+    // Older admin bundles and the stored live doc still carry it; soundscapeApi
+    // was removed, so the key is ignored rather than persisted or rejected.
+    firestoreState.setConfigDoc({})
+    await handleUpdateConfig(
+      { features: { partsEnabled: true, customSoundscapesEnabled: false } },
+      'zohoora@gmail.com',
+    )
+    const [persisted] = firestoreState.setMock.mock.calls[0] as [Record<string, unknown>]
+    expect(persisted.features).toEqual({ partsEnabled: true })
+  })
+
+  it('still rejects genuinely unknown feature keys', async () => {
+    await expect(handleUpdateConfig({ features: { madeUpFlag: true } }, 'zohoora@gmail.com'))
+      .rejects.toThrow('Unsupported features field: madeUpFlag')
+    expect(firestoreState.setMock).not.toHaveBeenCalled()
   })
 
   it('attaches updatedBy = the admin email and a timestamp', async () => {

@@ -17,8 +17,19 @@ const FEATURE_KEYS = new Set([
   'emergencyGrounding', 'ruptureRepair', 'ruminationPivot', 'userParts',
   'sessionIntentions', 'stanceAdaptation', 'userValues', 'companionInteriority',
   'companionPresence', 'earnedHumor', 'storyArcs', 'webcamHrv', 'polarH10',
-  'voiceEnabled', 'relaxEnabled', 'customSoundscapesEnabled', 'driftEnabled',
+  'voiceEnabled', 'relaxEnabled', 'driftEnabled',
+  // Room (replaced Relax/Drift 2026-07-11). Unset = derived from relax/drift;
+  // see shared/featureFlags.ts isRoomEnabled.
+  'roomEnabled',
+  // SMS field channel kill switch. Enabled unless explicitly false.
+  'smsEnabled',
 ])
+
+// Feature keys that no longer control anything. An update that still carries
+// one (a stale admin bundle, or a value round-tripped from the stored doc) is
+// accepted and the key is dropped instead of failing the whole save.
+// customSoundscapesEnabled gated soundscapeApi, removed 2026-10-14.
+const RETIRED_FEATURE_KEYS: ReadonlySet<string> = new Set(['customSoundscapesEnabled'])
 
 const NUMBER_SECTION_KEYS: Record<string, ReadonlySet<string>> = {
   atmosphere: new Set([
@@ -73,14 +84,18 @@ function validateFiniteNumbers(section: string, value: unknown): ConfigRecord {
 }
 
 function validateFeatures(value: unknown): ConfigRecord {
-  const features = objectValue(value, 'features')
+  const raw = objectValue(value, 'features')
+  const features: ConfigRecord = {}
+  for (const [key, entry] of Object.entries(raw)) {
+    if (!RETIRED_FEATURE_KEYS.has(key)) features[key] = entry
+  }
   rejectUnknownKeys(features, FEATURE_KEYS, 'features')
   for (const [key, entry] of Object.entries(features)) {
     if (typeof entry !== 'boolean') {
       throw new ConfigValidationError(`features.${key} must be a boolean`)
     }
   }
-  return { ...features }
+  return features
 }
 
 function validateAtmosphere(value: unknown): ConfigRecord {

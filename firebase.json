@@ -57,10 +57,6 @@
         "function": "realtimeTokenApi"
       },
       {
-        "source": "/api/soundscape",
-        "function": "soundscapeApi"
-      },
-      {
         "source": "/api/sms",
         "function": "smsApi"
       },
