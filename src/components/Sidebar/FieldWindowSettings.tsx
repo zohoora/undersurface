@@ -9,7 +9,13 @@ import type {
   FieldWindowPreferences,
   FieldWindowPurpose,
 } from '../../types'
-import { minuteToTime, timeToMinute } from './fieldWindowSettingsLogic'
+import {
+  MIN_FIELD_WINDOW_MINUTES,
+  minuteToTime,
+  timeToMinute,
+  windowWithEnd,
+  windowWithStart,
+} from './fieldWindowSettingsLogic'
 import { currentTimestamp } from '../../store/timestamp'
 
 const DAYS: Array<{ day: FieldWindowDay; short: string; title: string }> = [
@@ -126,7 +132,9 @@ export function FieldWindowSettings({ isOpen }: { isOpen: boolean }) {
           onChange={event => save(current => ({
             ...current,
             enabled: event.target.checked,
-            ...(event.target.checked && !current.consentAt ? { consentAt: currentTimestamp() } : {}),
+            // Every explicit opt-in is fresh consent. The server ignores
+            // consent older than an SMS STOP/UNLINK, so never reuse it.
+            ...(event.target.checked ? { consentAt: currentTimestamp() } : {}),
           }))}
         />
       </label>
@@ -172,14 +180,16 @@ export function FieldWindowSettings({ isOpen }: { isOpen: boolean }) {
                   {tr['ps.field.from']}
                   <input type="time" value={minuteToTime(window.startMinute)} onChange={event => {
                     const minute = timeToMinute(event.target.value)
-                    if (minute !== null && minute < window.endMinute) updateWindow(window.id, { startMinute: minute })
+                    const next = minute === null ? null : windowWithStart(window, minute)
+                    if (next) updateWindow(window.id, next)
                   }} style={{ ...inputStyle, marginTop: 2 }} />
                 </label>
                 <label style={{ color: 'var(--text-ghost)', fontSize: 9 }}>
                   {tr['ps.field.to']}
-                  <input type="time" value={minuteToTime(window.endMinute)} onChange={event => {
+                  <input type="time" min={minuteToTime(Math.min(window.startMinute + MIN_FIELD_WINDOW_MINUTES, 23 * 60 + 59))} value={minuteToTime(window.endMinute)} onChange={event => {
                     const minute = timeToMinute(event.target.value)
-                    if (minute !== null && minute > window.startMinute) updateWindow(window.id, { endMinute: minute })
+                    const next = minute === null ? null : windowWithEnd(window, minute)
+                    if (next) updateWindow(window.id, next)
                   }} style={{ ...inputStyle, marginTop: 2 }} />
                 </label>
               </div>

@@ -24,7 +24,13 @@ vi.mock('../../store/settings', () => ({
 }))
 
 const { FieldWindowSettings } = await import('./FieldWindowSettings')
-const { minuteToTime, timeToMinute } = await import('./fieldWindowSettingsLogic')
+const {
+  MIN_FIELD_WINDOW_MINUTES,
+  minuteToTime,
+  timeToMinute,
+  windowWithEnd,
+  windowWithStart,
+} = await import('./fieldWindowSettingsLogic')
 
 afterEach(() => {
   cleanup()
@@ -77,5 +83,67 @@ describe('FieldWindowSettings', () => {
       fieldWindows: expect.objectContaining({ maxPerWeek: 3 }),
     })))
     expect(update.mock.calls.at(-1)?.[1]).not.toHaveProperty('defaultMemoryAperture')
+  })
+
+  it('keeps every window at least 15 minutes long', () => {
+    const window = { startMinute: 17 * 60, endMinute: 17 * 60 + 30 }
+    // Moving the start late pushes the end along.
+    expect(windowWithStart(window, 17 * 60 + 25)).toEqual({ startMinute: 17 * 60 + 25, endMinute: 17 * 60 + 40 })
+    expect(windowWithStart(window, 16 * 60)).toEqual({ startMinute: 16 * 60, endMinute: 17 * 60 + 30 })
+    expect(windowWithStart(window, 23 * 60 + 50)).toBeNull()
+    // The end cannot come within 15 minutes of the start.
+    expect(windowWithEnd(window, 17 * 60 + MIN_FIELD_WINDOW_MINUTES)).toEqual({ startMinute: 17 * 60, endMinute: 17 * 60 + 15 })
+    expect(windowWithEnd(window, 17 * 60 + 14)).toBeNull()
+    expect(windowWithEnd(window, 16 * 60)).toBeNull()
+  })
+
+  it('refuses an end time that would make the window shorter than 15 minutes', async () => {
+    stored = {
+      id: 'current',
+      fieldMosaicEnabled: true,
+      outcomeSampling: 'light',
+      fieldWindows: {
+        enabled: true,
+        timezone: 'America/Toronto',
+        maxPerWeek: 1,
+        consentAt: 5,
+        windows: [{ id: 'w1', label: 'Lunch', days: [1], startMinute: 720, endMinute: 780, purpose: 'notice', enabled: true }],
+        updatedAt: 5,
+      },
+      updatedAt: 5,
+    }
+    render(<FieldWindowSettings isOpen />)
+    const end = await screen.findByDisplayValue('13:00')
+    fireEvent.change(end, { target: { value: '12:10' } })
+    expect(update).not.toHaveBeenCalled()
+    fireEvent.change(end, { target: { value: '12:15' } })
+    await waitFor(() => expect(update).toHaveBeenCalledWith('current', expect.objectContaining({
+      fieldWindows: expect.objectContaining({
+        windows: [expect.objectContaining({ startMinute: 720, endMinute: 735 })],
+      }),
+    })))
+  })
+
+  it('stamps fresh consent on every explicit opt-in', async () => {
+    stored = {
+      id: 'current',
+      fieldMosaicEnabled: true,
+      outcomeSampling: 'light',
+      fieldWindows: {
+        enabled: false,
+        timezone: 'America/Toronto',
+        maxPerWeek: 1,
+        consentAt: 5,
+        windows: [{ id: 'w1', label: 'Lunch', days: [1], startMinute: 720, endMinute: 780, purpose: 'notice', enabled: true }],
+        updatedAt: 5,
+      },
+      updatedAt: 5,
+    }
+    render(<FieldWindowSettings isOpen />)
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Allow occasional SMS in these windows' }))
+    await waitFor(() => expect(update).toHaveBeenCalled())
+    const fieldWindows = (update.mock.calls.at(-1)?.[1] as { fieldWindows: { enabled: boolean; consentAt: number } }).fieldWindows
+    expect(fieldWindows.enabled).toBe(true)
+    expect(fieldWindows.consentAt).toBeGreaterThan(5)
   })
 })

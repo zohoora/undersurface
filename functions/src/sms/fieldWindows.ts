@@ -1,4 +1,4 @@
-import { getFirestore } from 'firebase-admin/firestore'
+import { getFirestore, type DocumentData, type Firestore } from 'firebase-admin/firestore'
 import { onDocumentCreated } from 'firebase-functions/v2/firestore'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import twilio from 'twilio'
@@ -7,25 +7,32 @@ import { TWILIO_PHONE_NUMBER } from './field.js'
 import {
   buildFieldWindowDecision,
   buildFieldWindowResearchEvent,
-  canDeliverFieldWindow,
+  countsTowardWeeklyCap,
+  fieldWindowDispatchBlock,
+  fieldWindowIneligibility,
   fieldWindowMessage,
-  type FieldWindow,
+  hasFieldWindowConsent,
+  parseFieldWindowPreferences,
   type FieldWindowArm,
+  type FieldWindowCancelReason,
+  type FieldWindowDecision,
   type FieldWindowPurpose,
 } from './fieldWindowLogic.js'
 import { getOutboundPhone } from './linking.js'
+import { classifyTwilioSendError, twilioErrorCategory } from './delivery.js'
+import {
+  isAccountDeleting,
+  isRecentCrisis,
+  isSmsEnabled,
+  lastGroundingAtFromPreferences,
+  readServerSmsState,
+} from './state.js'
 
-interface FieldWindowPreferencesDoc {
-  enabled: boolean
-  timezone: string
-  maxPerWeek: 1 | 2 | 3
-  windows: FieldWindow[]
-  consentAt?: number
-}
-
-interface CompanionPreferencesDoc {
-  fieldWindows?: FieldWindowPreferencesDoc
-}
+const PREFERENCES_PAGE_SIZE = 300
+const WEEKLY_EVENT_QUERY_LIMIT = 20
+/** A dispatch untouched this long is stale: the trigger runs in seconds. */
+export const STALE_DISPATCH_MS = 15 * 60_000
+const SWEEP_LIMIT = 100
 
 interface FieldWindowDispatchDoc {
   uid: string
@@ -33,40 +40,48 @@ interface FieldWindowDispatchDoc {
   windowId: string
   windowLabel: string
   purpose: FieldWindowPurpose
+  /** Writer-local date the window was open on; rechecked at send time. */
+  localDate?: string
   status: 'pending' | 'sending' | 'completed' | 'cancelled' | 'terminal_failed'
+  /** 'sending' is written immediately before Twilio is called. */
+  sendState?: 'sending' | 'sent'
+  outboundSid?: string
+  sentAt?: number
   attempts: number
   createdAt: number
   updatedAt: number
 }
 
-function userCollection(uid: string, collection: string) {
-  return getFirestore().collection('users').doc(uid).collection(collection)
+export interface FieldWindowScheduleSummary {
+  created: number
+  ineligible: number
+  failedUsers: number
+  swept: number
 }
 
-function validPreferences(value: unknown): FieldWindowPreferencesDoc | null {
-  if (!value || typeof value !== 'object') return null
-  const preferences = value as Partial<FieldWindowPreferencesDoc>
-  if (preferences.enabled !== true || typeof preferences.timezone !== 'string') return null
-  if (![1, 2, 3].includes(Number(preferences.maxPerWeek)) || !Array.isArray(preferences.windows)) return null
-  return preferences as FieldWindowPreferencesDoc
+function userCollection(uid: string, collection: string, db: Firestore = getFirestore()) {
+  return db.collection('users').doc(uid).collection(collection)
 }
 
-async function proactiveCount(uid: string, weekKey: string): Promise<number> {
-  const snap = await userCollection(uid, 'researchEvents')
-    .orderBy('createdAt', 'desc')
-    .limit(100)
+function categoryOf(error: unknown): string {
+  const code = (error as { code?: unknown } | null)?.code
+  if (typeof code === 'number' || typeof code === 'string') return `provider_${String(code).slice(0, 40)}`
+  return error instanceof Error ? error.name.slice(0, 40) : 'unknown'
+}
+
+/**
+ * Proactive contacts already used this writer-local week. An indexed query on
+ * the protocol, week, and arm: unrelated research events (SMS replies,
+ * conductor turns) can never push field-window events out of the count.
+ */
+async function proactiveCount(uid: string, weekKey: string, db: Firestore): Promise<number> {
+  const snap = await userCollection(uid, 'researchEvents', db)
+    .where('protocolId', '==', 'field-window-timing-v1')
+    .where('weekKey', '==', weekKey)
+    .where('assignedArm', '==', 'field_check_in')
+    .limit(WEEKLY_EVENT_QUERY_LIMIT)
     .get()
-  return snap.docs.reduce((count, doc) => {
-    const data = doc.data()
-    return count + (
-      data.protocolId === 'field-window-timing-v1'
-      && data.weekKey === weekKey
-      && data.assignedArm === 'field_check_in'
-      && data.status !== 'cancelled'
-        ? 1
-        : 0
-    )
-  }, 0)
+  return snap.docs.filter(doc => countsTowardWeeklyCap(doc.data())).length
 }
 
 function outcomeForFieldWindow(input: {
@@ -88,75 +103,116 @@ function outcomeForFieldWindow(input: {
   }
 }
 
-export async function scheduleFieldWindows(now = Date.now()): Promise<number> {
-  const db = getFirestore()
-  const preferenceDocs = await db.collectionGroup('companionPreferences')
-    .where('fieldWindows.enabled', '==', true)
-    .limit(500)
-    .get()
-  let created = 0
+type UserScheduleResult = 'none' | 'created' | 'ineligible'
 
-  for (const doc of preferenceDocs.docs) {
-    const uid = doc.ref.parent.parent?.id
-    if (!uid || doc.id !== 'current') continue
-    const preferences = validPreferences((doc.data() as CompanionPreferencesDoc).fieldWindows)
-    if (!preferences || typeof preferences.consentAt !== 'number') continue
-    if (!await getOutboundPhone(uid)) continue
+/**
+ * Schedule one writer. Checks run cheapest-first: the pure window check, then
+ * one doc read (already decided today?), then the weekly count, then crisis
+ * and opt-out state, and the phone lookup last.
+ */
+async function scheduleUser(
+  db: Firestore,
+  doc: FirebaseFirestore.QueryDocumentSnapshot,
+  now: number,
+): Promise<UserScheduleResult> {
+  const uid = doc.ref.parent.parent?.id
+  if (!uid || doc.id !== 'current') return 'none'
+  const data = doc.data()
+  const preferences = parseFieldWindowPreferences(data.fieldWindows)
+  if (!preferences || typeof preferences.consentAt !== 'number') return 'none'
 
-    for (const window of preferences.windows.slice(0, 3)) {
-      const firstDecision = buildFieldWindowDecision({
-        uid,
-        window,
-        timezone: preferences.timezone,
-        now,
-        proactiveMessagesThisWeek: 0,
-        maxPerWeek: preferences.maxPerWeek,
-      })
-      if (!firstDecision) continue
-      const count = await proactiveCount(uid, firstDecision.weekKey)
-      const decision = buildFieldWindowDecision({
-        uid,
-        window,
-        timezone: preferences.timezone,
-        now,
-        proactiveMessagesThisWeek: count,
-        maxPerWeek: preferences.maxPerWeek,
-      })
-      if (!decision) continue
-
-      const eventRef = userCollection(uid, 'researchEvents').doc(decision.eventId)
-      const outcomeRef = userCollection(uid, 'interventionOutcomes').doc(`outcome-${decision.eventId}`)
-      const dispatchRef = db.collection('fieldWindowDispatches').doc(decision.eventId)
-      const didCreate = await db.runTransaction(async transaction => {
-        const existing = await transaction.get(eventRef)
-        if (existing.exists) return false
-        transaction.create(eventRef, buildFieldWindowResearchEvent(decision, now))
-        if (decision.arm === 'field_no_contact') {
-          transaction.create(outcomeRef, outcomeForFieldWindow({
-            eventId: decision.eventId,
-            arm: decision.arm,
-            windowLabel: decision.windowLabel,
-            now,
-          }))
-        } else {
-          transaction.create(dispatchRef, {
-            uid,
-            eventId: decision.eventId,
-            windowId: decision.windowId,
-            windowLabel: decision.windowLabel,
-            purpose: decision.purpose,
-            status: 'pending',
-            attempts: 0,
-            createdAt: now,
-            updatedAt: now,
-          } satisfies FieldWindowDispatchDoc)
-        }
-        return true
-      })
-      if (didCreate) created++
-    }
+  let decision: FieldWindowDecision | null = null
+  for (const window of preferences.windows) {
+    decision = buildFieldWindowDecision({ uid, window, timezone: preferences.timezone, now })
+    if (decision) break
   }
-  return created
+  if (!decision) return 'none'
+
+  const eventRef = userCollection(uid, 'researchEvents', db).doc(decision.eventId)
+  if ((await eventRef.get()).exists) return 'none'
+
+  const count = await proactiveCount(uid, decision.weekKey, db)
+  const serverState = await readServerSmsState(uid, db)
+  if (!hasFieldWindowConsent(preferences, serverState.optedOutAt)) return 'none'
+  const ineligibility = fieldWindowIneligibility({
+    recentCrisis: isRecentCrisis({
+      lastRiskAt: serverState.lastRiskAt,
+      lastGroundingAt: lastGroundingAtFromPreferences(data),
+    }, now),
+    proactiveMessagesThisWeek: count,
+    maxPerWeek: preferences.maxPerWeek,
+  })
+  if (!await getOutboundPhone(uid)) return 'none'
+
+  const chosen = decision
+  const outcomeRef = userCollection(uid, 'interventionOutcomes', db).doc(`outcome-${decision.eventId}`)
+  const dispatchRef = db.collection('fieldWindowDispatches').doc(decision.eventId)
+  const didCreate = await db.runTransaction(async transaction => {
+    const existing = await transaction.get(eventRef)
+    if (existing.exists) return false
+    // Ineligible days are recorded with their reason (and excluded from
+    // analysis and the cap) rather than silently skipped.
+    transaction.create(eventRef, buildFieldWindowResearchEvent(chosen, now, ineligibility))
+    if (ineligibility) return true
+    if (chosen.arm === 'field_no_contact') {
+      transaction.create(outcomeRef, outcomeForFieldWindow({
+        eventId: chosen.eventId,
+        arm: chosen.arm,
+        windowLabel: chosen.windowLabel,
+        now,
+      }))
+    } else {
+      transaction.create(dispatchRef, {
+        uid,
+        eventId: chosen.eventId,
+        windowId: chosen.windowId,
+        windowLabel: chosen.windowLabel,
+        purpose: chosen.purpose,
+        localDate: chosen.localDate,
+        status: 'pending',
+        attempts: 0,
+        createdAt: now,
+        updatedAt: now,
+      } satisfies FieldWindowDispatchDoc)
+    }
+    return true
+  })
+  if (!didCreate) return 'none'
+  return ineligibility ? 'ineligible' : 'created'
+}
+
+export async function scheduleFieldWindows(now = Date.now()): Promise<FieldWindowScheduleSummary> {
+  const db = getFirestore()
+  const summary: FieldWindowScheduleSummary = { created: 0, ineligible: 0, failedUsers: 0, swept: 0 }
+  try {
+    summary.swept = await sweepStaleFieldWindowDispatches(now)
+  } catch (error) {
+    console.error(`[field-windows] sweep failed category=${categoryOf(error)}`)
+  }
+  if (!await isSmsEnabled(db)) return summary
+
+  let cursor: FirebaseFirestore.QueryDocumentSnapshot | null = null
+  for (;;) {
+    let query = db.collectionGroup('companionPreferences')
+      .where('fieldWindows.enabled', '==', true)
+      .limit(PREFERENCES_PAGE_SIZE)
+    if (cursor) query = query.startAfter(cursor)
+    const page = await query.get()
+    for (const doc of page.docs) {
+      try {
+        const result = await scheduleUser(db, doc, now)
+        if (result === 'created') summary.created++
+        if (result === 'ineligible') summary.ineligible++
+      } catch (error) {
+        // One malformed or unreadable user must never stop everyone after it.
+        summary.failedUsers++
+        console.error(`[field-windows] user scheduling failed category=${categoryOf(error)}`)
+      }
+    }
+    if (page.docs.length < PREFERENCES_PAGE_SIZE) break
+    cursor = page.docs[page.docs.length - 1]
+  }
+  return summary
 }
 
 export const fieldWindowScheduler = onSchedule(
@@ -168,15 +224,17 @@ export const fieldWindowScheduler = onSchedule(
     region: 'us-central1',
   },
   async () => {
-    const created = await scheduleFieldWindows()
-    if (created > 0) console.info(`[field-windows] created=${created}`)
+    const summary = await scheduleFieldWindows()
+    if (summary.created + summary.ineligible + summary.failedUsers + summary.swept > 0) {
+      console.info(`[field-windows] created=${summary.created} ineligible=${summary.ineligible} failedUsers=${summary.failedUsers} swept=${summary.swept}`)
+    }
   },
 )
 
 async function cancelDispatch(
   ref: FirebaseFirestore.DocumentReference,
   queued: FieldWindowDispatchDoc,
-  reason: string,
+  reason: FieldWindowCancelReason,
 ): Promise<void> {
   const now = Date.now()
   const batch = getFirestore().batch()
@@ -185,6 +243,70 @@ async function cancelDispatch(
     status: 'cancelled',
     cancelReason: reason,
     updatedAt: now,
+  })
+  await batch.commit()
+}
+
+/** A failed send must not keep counting toward the weekly cap. */
+async function markDispatchFailed(
+  ref: FirebaseFirestore.DocumentReference,
+  queued: FieldWindowDispatchDoc,
+  reason: string,
+): Promise<void> {
+  const now = Date.now()
+  const batch = getFirestore().batch()
+  batch.update(ref, { status: 'terminal_failed', lastError: reason, updatedAt: now })
+  batch.update(userCollection(queued.uid, 'researchEvents').doc(queued.eventId), {
+    status: 'failed',
+    failureReason: reason,
+    updatedAt: now,
+  })
+  await batch.commit()
+}
+
+/** Every write after a successful send. Deterministic, so safe to re-run. */
+async function finalizeDispatchDelivery(
+  ref: FirebaseFirestore.DocumentReference,
+  queued: FieldWindowDispatchDoc,
+  outboundSid: string,
+  sentAt: number,
+): Promise<void> {
+  const batch = getFirestore().batch()
+  batch.set(userCollection(queued.uid, 'smsMessages').doc(outboundSid), {
+    id: outboundSid,
+    providerSid: outboundSid,
+    channel: 'sms',
+    direction: 'outbound',
+    body: fieldWindowMessage(queued.purpose),
+    mode: 'field_window',
+    createdAt: sentAt,
+    status: 'sent',
+    risk: 0,
+    researchEventId: queued.eventId,
+  })
+  batch.set(
+    userCollection(queued.uid, 'interventionOutcomes').doc(`outcome-${queued.eventId}`),
+    outcomeForFieldWindow({
+      eventId: queued.eventId,
+      arm: 'field_check_in',
+      windowLabel: queued.windowLabel,
+      now: sentAt,
+    }),
+  )
+  batch.update(userCollection(queued.uid, 'researchEvents').doc(queued.eventId), {
+    status: 'delivered',
+    deliveredArm: 'field_check_in',
+    sourceId: outboundSid,
+    outcomeId: `outcome-${queued.eventId}`,
+    deliveredAt: sentAt,
+    updatedAt: sentAt,
+  })
+  batch.update(ref, {
+    status: 'completed',
+    outboundSid,
+    sendState: 'sent',
+    completedAt: Date.now(),
+    updatedAt: Date.now(),
   })
   await batch.commit()
 }
@@ -207,6 +329,100 @@ async function claimDispatch(
   })
 }
 
+type DispatchRecheck =
+  | { reason: FieldWindowCancelReason; phone: null }
+  | { reason: null; phone: string }
+
+/** Re-evaluate everything immediately before the send. */
+async function recheckDispatch(
+  queued: FieldWindowDispatchDoc,
+  now: number,
+): Promise<DispatchRecheck> {
+  const db = getFirestore()
+  if (!await isSmsEnabled(db)) return { reason: 'sms_disabled', phone: null }
+  const [preferencesSnap, phone, serverState] = await Promise.all([
+    userCollection(queued.uid, 'companionPreferences', db).doc('current').get(),
+    getOutboundPhone(queued.uid),
+    readServerSmsState(queued.uid, db),
+  ])
+  const preferencesDoc: DocumentData | null = preferencesSnap.exists ? preferencesSnap.data() ?? null : null
+  const reason = fieldWindowDispatchBlock({
+    preferences: parseFieldWindowPreferences(preferencesDoc?.fieldWindows),
+    windowId: queued.windowId,
+    localDate: queued.localDate,
+    hasLinkedPhone: Boolean(phone),
+    optedOutAt: serverState.optedOutAt,
+    recentCrisis: isRecentCrisis({
+      lastRiskAt: serverState.lastRiskAt,
+      lastGroundingAt: lastGroundingAtFromPreferences(preferencesDoc),
+    }, now),
+    now,
+  })
+  if (reason) return { reason, phone: null }
+  return phone ? { reason: null, phone } : { reason: 'opt_in_or_link_removed', phone: null }
+}
+
+export async function dispatchFieldWindow(ref: FirebaseFirestore.DocumentReference): Promise<void> {
+  const queued = await claimDispatch(ref)
+  if (!queued) return
+
+  if (await isAccountDeleting(queued.uid)) {
+    // Never write under a user that is being deleted; deletion removes the rest.
+    await ref.delete()
+    return
+  }
+
+  let recheck: DispatchRecheck
+  try {
+    recheck = await recheckDispatch(queued, Date.now())
+  } catch (error) {
+    console.error(`[field-windows] recheck failed category=${categoryOf(error)}`)
+    recheck = { reason: 'recheck_failed', phone: null }
+  }
+  if (recheck.reason !== null) {
+    await cancelDispatch(ref, queued, recheck.reason)
+    return
+  }
+  const phone = recheck.phone
+  if (await isAccountDeleting(queued.uid)) {
+    await ref.delete()
+    return
+  }
+
+  await ref.update({ sendState: 'sending', updatedAt: Date.now() })
+  let outboundSid: string
+  try {
+    const outbound = await twilio(twilioAccountSid.value(), twilioAuthToken.value()).messages.create({
+      from: TWILIO_PHONE_NUMBER,
+      to: phone,
+      body: fieldWindowMessage(queued.purpose),
+    })
+    outboundSid = outbound.sid
+  } catch (error) {
+    // A proactive message is attempted at most once. Ambiguous provider
+    // failures (timeouts, 5xx) may have delivered, so nothing is retried.
+    const kind = classifyTwilioSendError(error)
+    const category = twilioErrorCategory(error)
+    console.error(`[field-windows] send failed kind=${kind} category=${category}`)
+    await markDispatchFailed(ref, queued, kind === 'ambiguous' ? 'ambiguous_send' : category)
+    return
+  }
+
+  const sentAt = Date.now()
+  try {
+    await ref.update({ outboundSid, sendState: 'sent', sentAt, updatedAt: sentAt })
+    if (await isAccountDeleting(queued.uid)) {
+      await ref.delete()
+      return
+    }
+    await finalizeDispatchDelivery(ref, queued, outboundSid, sentAt)
+  } catch (error) {
+    // The text went out. Leave the doc in `sending` (with its SID when that
+    // write landed) for the sweeper to finish; never resend.
+    console.error(`[field-windows] post-send write failed category=${categoryOf(error)}`)
+  }
+}
+
 export const fieldWindowDispatcher = onDocumentCreated(
   {
     document: 'fieldWindowDispatches/{eventId}',
@@ -218,84 +434,42 @@ export const fieldWindowDispatcher = onDocumentCreated(
   },
   async event => {
     if (!event.data) return
-    const ref = event.data.ref
-    const queued = await claimDispatch(ref)
-    if (!queued) return
-
-    const [preferencesSnap, phone] = await Promise.all([
-      userCollection(queued.uid, 'companionPreferences').doc('current').get(),
-      getOutboundPhone(queued.uid),
-    ])
-    const preferences = validPreferences(
-      preferencesSnap.exists
-        ? (preferencesSnap.data() as CompanionPreferencesDoc).fieldWindows
-        : null,
-    )
-    if (!phone || !canDeliverFieldWindow({
-      preferences,
-      windowId: queued.windowId,
-      hasLinkedPhone: true,
-    })) {
-      await cancelDispatch(ref, queued, 'opt_in_or_link_removed')
-      return
-    }
-
-    try {
-      const body = fieldWindowMessage(queued.purpose)
-      const client = twilio(twilioAccountSid.value(), twilioAuthToken.value())
-      const outbound = await client.messages.create({
-        from: TWILIO_PHONE_NUMBER,
-        to: phone,
-        body,
-      })
-      const sentAt = Date.now()
-      const batch = getFirestore().batch()
-      batch.set(userCollection(queued.uid, 'smsMessages').doc(outbound.sid), {
-        id: outbound.sid,
-        providerSid: outbound.sid,
-        channel: 'sms',
-        direction: 'outbound',
-        body,
-        mode: 'field_window',
-        createdAt: sentAt,
-        status: 'sent',
-        risk: 0,
-        researchEventId: queued.eventId,
-      })
-      batch.set(
-        userCollection(queued.uid, 'interventionOutcomes').doc(`outcome-${queued.eventId}`),
-        outcomeForFieldWindow({
-          eventId: queued.eventId,
-          arm: 'field_check_in',
-          windowLabel: queued.windowLabel,
-          now: sentAt,
-        }),
-      )
-      batch.update(userCollection(queued.uid, 'researchEvents').doc(queued.eventId), {
-        status: 'delivered',
-        deliveredArm: 'field_check_in',
-        sourceId: outbound.sid,
-        outcomeId: `outcome-${queued.eventId}`,
-        deliveredAt: sentAt,
-        updatedAt: sentAt,
-      })
-      batch.update(ref, {
-        status: 'completed',
-        outboundSid: outbound.sid,
-        completedAt: sentAt,
-        updatedAt: sentAt,
-      })
-      await batch.commit()
-    } catch (error) {
-      // A proactive message is attempted at most once. Provider timeouts are
-      // ambiguous, so automatic retry could create an intrusive duplicate.
-      const category = error instanceof Error ? error.name : 'unknown'
-      console.error(`[field-windows] send failed category=${category}`)
-      await ref.update({
-        status: 'terminal_failed',
-        lastError: category,
-        updatedAt: Date.now(),
-      })
-    }
+    await dispatchFieldWindow(event.data.ref)
   },
 )
+
+/**
+ * Resolve dispatch docs stuck in `pending` (trigger never ran) or `sending`
+ * (instance died mid-flight). Nothing here ever sends:
+ * - with an outbound SID: the text went out; finish the remaining writes;
+ * - `sending` that reached Twilio without a SID: ambiguous, mark failed;
+ * - otherwise: cancel. A late proactive text is worse than none.
+ */
+export async function sweepStaleFieldWindowDispatches(now = Date.now()): Promise<number> {
+  const db = getFirestore()
+  const cutoff = now - STALE_DISPATCH_MS
+  const snap = await db.collection('fieldWindowDispatches')
+    .where('status', 'in', ['pending', 'sending'])
+    .where('updatedAt', '<', cutoff)
+    .limit(SWEEP_LIMIT)
+    .get()
+  let swept = 0
+  for (const doc of snap.docs) {
+    const queued = doc.data() as FieldWindowDispatchDoc
+    try {
+      if (await isAccountDeleting(queued.uid)) {
+        await doc.ref.delete()
+      } else if (queued.outboundSid) {
+        await finalizeDispatchDelivery(doc.ref, queued, queued.outboundSid, queued.sentAt ?? queued.updatedAt)
+      } else if (queued.status === 'sending' && queued.sendState === 'sending') {
+        await markDispatchFailed(doc.ref, queued, 'ambiguous_send')
+      } else {
+        await cancelDispatch(doc.ref, queued, queued.status === 'pending' ? 'stale_pending' : 'stale_claim')
+      }
+      swept++
+    } catch (error) {
+      console.error(`[field-windows] sweep item failed category=${categoryOf(error)}`)
+    }
+  }
+  return swept
+}

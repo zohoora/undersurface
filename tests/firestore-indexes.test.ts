@@ -85,6 +85,22 @@ beforeAll(async () => {
   await db.doc(`users/${TEST_UID}/companionPreferences/current`).set({
     fieldWindows: { enabled: true },
   })
+  await db.doc('users/test-user-2/companionPreferences/current').set({
+    fieldWindows: { enabled: true },
+  })
+
+  await db.doc(`users/${TEST_UID}/researchEvents/field-window-1`).set({
+    protocolId: 'field-window-timing-v1',
+    weekKey: '2026-10-12',
+    assignedArm: 'field_check_in',
+    status: 'delivered',
+  })
+
+  await db.doc('fieldWindowDispatches/field-window-1').set({
+    uid: TEST_UID,
+    status: 'pending',
+    updatedAt: 1,
+  })
 })
 
 afterAll(async () => {
@@ -110,6 +126,46 @@ describe('Firestore index validation', () => {
       .collectionGroup('companionPreferences')
       .where('fieldWindows.enabled', '==', true)
       .limit(500)
+      .get()
+    expect(snap.empty).toBe(false)
+  })
+
+  it('collectionGroup companionPreferences paginates with startAfter', async () => {
+    // Source: functions/src/sms/fieldWindows.ts scheduleFieldWindows (pages of 300)
+    const first = await db
+      .collectionGroup('companionPreferences')
+      .where('fieldWindows.enabled', '==', true)
+      .limit(1)
+      .get()
+    const second = await db
+      .collectionGroup('companionPreferences')
+      .where('fieldWindows.enabled', '==', true)
+      .limit(1)
+      .startAfter(first.docs[0])
+      .get()
+    expect(second.docs[0]?.ref.path).not.toBe(first.docs[0]?.ref.path)
+    expect(second.empty).toBe(false)
+  })
+
+  it('researchEvents weekly field-window cap query', async () => {
+    // Source: functions/src/sms/fieldWindows.ts proactiveCount
+    const snap = await db
+      .collection(`users/${TEST_UID}/researchEvents`)
+      .where('protocolId', '==', 'field-window-timing-v1')
+      .where('weekKey', '==', '2026-10-12')
+      .where('assignedArm', '==', 'field_check_in')
+      .limit(20)
+      .get()
+    expect(snap.size).toBe(1)
+  })
+
+  it('fieldWindowDispatches stale-dispatch sweep query', async () => {
+    // Source: functions/src/sms/fieldWindows.ts sweepStaleFieldWindowDispatches
+    const snap = await db
+      .collection('fieldWindowDispatches')
+      .where('status', 'in', ['pending', 'sending'])
+      .where('updatedAt', '<', Date.now())
+      .limit(100)
       .get()
     expect(snap.empty).toBe(false)
   })
