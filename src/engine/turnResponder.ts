@@ -107,7 +107,7 @@ export async function respondToUserTurn(
   }
   if (assignment.delivery === 'fixed_journal_offer') {
     return await deps.appendDeterministicCompanionMessage(
-      `[${deps.copy.journalOffer}](#switch:journal-arc).`,
+      `[${deps.copy.journalOffer}](#switch:journal-arc)`,
       assignment.event,
     ) ?? updatedMessages
   }

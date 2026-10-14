@@ -82,7 +82,7 @@
 | `src/i18n/translations/en.ts` | English source of truth for `TranslationKey` |
 | `src/i18n/translations/*.ts` | 16 non-English files (lazy-loaded as `locale-<lang>-<hash>.js`) |
 
-The fallback structure (`sessionCopy.ts`, `roomFallback.ts`, `conductorFallback.ts`) is being reworked so fallbacks no longer override translations (landing in this branch).
+Each locale is assembled as `{ ...personalScienceEnglish, ...roomFallback, ...<lang>Base, ...sessionCopy.<lang> }`: English fallbacks come first so a real translation always wins. `src/i18n/untranslated.test.ts` fails when a non-English locale value equals English (with a reasoned allowlist); `src/i18n/policy.test.ts` pins the privacy-policy processor disclosure.
 
 ## Auth & Services
 
@@ -136,7 +136,7 @@ The fallback structure (`sessionCopy.ts`, `roomFallback.ts`, `conductorFallback.
 | `src/components/AnnouncementBanner.tsx` | Banner from global config, dismissible via sessionStorage |
 | `src/components/CrisisResources.tsx` | Crisis helpline links shown during grounding |
 | `src/components/DeleteAccountModal.tsx` | Account deletion confirmation. Lazy-loaded — default export |
-| `src/components/PolicyContent.tsx` / `PolicyModal.tsx` | Privacy policy + disclaimer (policy text being revised — landing in this branch) |
+| `src/components/PolicyContent.tsx` / `PolicyModal.tsx` | Privacy policy + disclaimer (processor disclosure: OpenAI, Twilio, Firebase, Sentry, Google Analytics/Ads; pinned by `policy.test.ts`) |
 | `src/components/ErrorBoundary.tsx` | Root error boundary — `Sentry.captureException()` in `componentDidCatch` |
 
 ## Hooks

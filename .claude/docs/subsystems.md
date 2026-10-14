@@ -30,7 +30,7 @@ Key types: `PartMemory.type` (`'observation' | 'interaction' | 'reflection' | 'p
 - Seeded part names translated via `getPartDisplayName()`; emerged parts keep LLM-generated names
 - Room's spoken controls are English-only (`roomVoiceCommandsSupported`); other languages use the on-screen controls
 
-The structure of the English fallback blocks (`src/i18n/translations/sessionCopy.ts`, `roomFallback.ts`, `conductorFallback.ts`) is being changed so fallbacks no longer override existing translations (landing in this branch). Until then, follow the pattern of the file you are editing; key parity across all 17 locales is enforced by tests.
+English fallback blocks (`personalScienceEnglish` in `src/i18n/translations/sessionCopy.ts`, and `src/i18n/roomFallback.ts`) are spread FIRST in every locale, so a locale's own translation always wins. New keys: add English to the fallback (or `en.ts`) and a real translation to each locale. `untranslated.test.ts` fails on values identical to English unless allowlisted with a reason; key parity across all 17 locales is also enforced.
 
 ### Adding a new language
 
