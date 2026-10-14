@@ -12,7 +12,7 @@ All items below were fixed on the branch on 2026-10-14. Nothing is deployed. The
 | # | Status | Commit(s) |
 |---|---|---|
 | 1 | Fixed: grounding is read at call time; deterministic offers re-check it and fall back to a model turn | 5d7da34 |
-| 2 | Fixed: accurate processor disclosure in 17 locales (owner: verify the OpenAI retention sentence) | i18n commits (see below) |
+| 2 | Fixed: accurate processor disclosure in 17 locales, plus device-local drafts (owner: verify the OpenAI retention sentence) | 0dbe813 |
 | 3 | Fixed: client writes `lastGroundingAt`; server records SMS risk; 72h suppression of proactive texts; SMS turns grounded | 5d7da34, 1e3116e, b5d7e59 |
 | 4 | Fixed: anchored ≤6-word English-only grammar; skipped on L1/grounding | 5d7da34 |
 | 5 | Fixed: pills intent forms, negation, distant-past guards (owner: run `npm run test:crisis` before deploy) | 56c7110 |
@@ -23,11 +23,11 @@ All items below were fixed on the branch on 2026-10-14. Nothing is deployed. The
 | 11 | Fixed | 399d433 |
 | 12 | Fixed | 5d7da34, 399d433 |
 | 13 | Fixed | 5d7da34 |
-| 14 | Fixed for Room/Voice; the app-level lazy loader is completed in the sweep (S1) | 399d433 + sweep |
+| 14 | Fixed everywhere (shared guarded `lazyWithRetry`, `vite:preloadError`, local and app-level error boundaries) | 399d433, 51f2f49 |
 | 15 | Fixed | 5d7da34, 399d433 |
 | 16–17 | Fixed (chat usage metering, prompt-token tracking, request caps, voice flag enforcement + daily budget, SMS kill switch + daily budget) | ceecff5, 1e3116e |
 | 18 | Fixed in code (owner: enable the `smsInbound` TTL policy) | 1e3116e, 0398dff |
-| 19 | Fixed: components localized; translations win over English fallbacks; untranslated-English test | 71d22eb + i18n commits |
+| 19 | Fixed: components localized; fallbacks spread first so translations win; 216 keys translated per locale; `untranslated.test.ts` | 71d22eb, 4ab382c, 0e5b1e8, 632264c, ccba2ac |
 | 20 | Fixed: single `roomEnabled` (falls back to legacy flags when unset) and `smsEnabled` toggles | db94253, 0398dff, 2f0e75d |
 | 21–26 | Fixed | 1e3116e, b5d7e59, dc4a396, 52082ee |
 | 27 | Fixed (recursiveDelete, token revocation, Twilio cleanup, processor tombstone check). Residual: an open tab can write for up to about an hour after deletion because the rules don't check the tombstone (owner decision) | 0398dff, 1e3116e |
@@ -63,29 +63,37 @@ All items below were fixed on the branch on 2026-10-14. Nothing is deployed. The
 |---|---|---|
 | F1 | Ending a session from Journal hid the closing message | Fixed (3e68fba) |
 | F2 | Dead Relax/Drift device settings | Removed (95b2509) |
-| S1 | App-level `lazyWithRetry` reloads unconditionally (offline loop), and it wraps CrisisResources | Sweep commit |
-| S2–S8 | Dead voice override, no-op admin settings, Room ignoring the admin voice, autocorrect on the main model, kill-switch gaps on phone linking, possible second conductor move, dangling `outcomeId`, field-window timezone/mosaic/budget-refund details | Sweep commit |
+| S1 | App-level `lazyWithRetry` reloaded unconditionally (offline loop) and wrapped CrisisResources | Fixed: guarded loader everywhere, CrisisResources eager in the main bundle, ChunkErrorBoundary (51f2f49) |
+| S2 | Dead `speak()` override that replaced the session prompt | Removed (51f2f49) |
+| S3 | Admin settings that did nothing; Room ignored the admin default voice | Removed from UI; Room passes `voice.defaultVoice` (51f2f49) |
+| S4 | Autocorrect ran on gpt-5.5 | `task: 'autocorrect'` on gpt-5-nano, bounded, quota-counted (030bfab) |
+| S5 | SMS kill switch not enforced on phone linking; server minted voice for Room-only configs | Enforced (403 `sms_disabled`); voice minting requires `voiceEnabled` (030bfab) |
+| S6 | A second live conductor move per session was possible (reproduced) | Fixed (51f2f49) |
+| S7 | Dangling `researchEvents.outcomeId` after a grounding-cancelled arc | Fixed (51f2f49) |
+| S8 | Invalid timezone silently disabled field windows; Field Mosaic could hide older unreviewed moments; failed SMS generation still used a budget turn | Fixed; new `fieldMoments` index (9a47065) |
+| Sec | Security review: UNLINK confirmation bypassed the rate limit (paid-SMS amplification) | Fixed; STOP stays first (bdf213f) |
 
 Known, not changed (product decision): the July 10 "make personal science ambient" change already left the transfer ladder and personal-protocol creation dormant. Nothing creates `personalProtocols` any more, and several outcome writers are test-only.
 
 **Owner steps before or at deploy:**
 1. `OPENAI_API_KEY=… npm run test:crisis`, and approve the new L1 cases in `functions/src/shared/crisisFloor.test.ts`.
-2. Deploy order: `firebase deploy --only firestore:indexes` → `firestore:rules` → functions → hosting. Admin saves of `roomEnabled`/`smsEnabled` fail until the functions schema is live. The next functions deploy deletes `soundscapeApi`.
+2. Deploy order: `firebase deploy --only firestore:indexes` (new: field-window cap, sweeper, `fieldMoments` status) → `firestore:rules` → functions → hosting. Admin saves of `roomEnabled`/`smsEnabled` fail until the functions schema is live. The next functions deploy deletes `soundscapeApi`.
 3. `gcloud firestore fields ttls update expireAt --collection-group=smsInbound --enable-ttl --project=undersurfaceme`
 4. Native builds must use `npm run build:native` (all `cap:*` scripts do).
 5. Have a native speaker review the translated privacy policy, and verify the OpenAI retention sentence.
 
-## Current gate status (2026-10-14)
+## Current gate status (2026-10-14, end of fix branch)
 
 | Gate | Result |
 |---|---|
 | `npx tsc -b --force` | pass |
 | `npm run lint` (exit code checked directly) | pass |
-| `npm run test` | pass: 112 files, 1,551 tests, 17 live-eval tests skipped |
-| `npm run build` | pass, no chunk warnings |
+| `npm run test` | pass: 1,645 tests, 15 live-eval tests skipped |
+| `npm run build` | pass, no chunk warnings, precache 28 entries / 1.96 MB |
 | `cd functions && npx tsc --noEmit` | pass |
-| `cd functions && npm test` | pass: 19 files, 145 tests |
-| `npm run test:indexes` (emulator) | **not run**: local Java is 1.8, emulator needs 11+ (CI uses 21) |
+| `cd functions && npm test` | pass: 357 tests |
+| `npm run test:indexes` (emulator, Java 21) | pass: 65 tests |
+| Live evals (`test:crisis`, `test:release-evals`) | not run (no `OPENAI_API_KEY` locally): owner step |
 
 ## Rules for whoever fixes these
 
