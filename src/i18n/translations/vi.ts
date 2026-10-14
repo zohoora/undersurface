@@ -1,9 +1,8 @@
-import { sessionCopy } from './sessionCopy'
+import { personalScienceEnglish, sessionCopy } from './sessionCopy'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
 const viBase = {
-  'login.tagline': 'Viết tự do. Khi bạn dừng lại,\nmột giọng nói bên trong thức dậy —\nkhông phải để phán xét, mà để ngồi bên bạn\ngiữa những con chữ.',
   'login.email': 'Email',
   'login.password': 'Mật khẩu',
   'login.signIn': 'Đăng nhập',
@@ -19,18 +18,10 @@ const viBase = {
   'login.disclaimer': 'Tuyên bố miễn trừ',
   'login.resetSuccess': 'Email đặt lại mật khẩu đã được gửi. Hãy kiểm tra hộp thư của bạn.',
   'onboarding.welcome': 'Chào mừng đến với UnderSurface',
-  'onboarding.step1.body': 'Đây là một cuốn nhật ký — nhưng không chỉ là nhật ký. Khi bạn viết, những giọng nói bên trong sẽ xuất hiện trên trang. Chúng nhận ra điều bạn đang viết và phản hồi — nhẹ nhàng, chân thành, đôi khi theo cách bạn không ngờ tới.',
-  'onboarding.step1.button': 'Nó hoạt động thế nào?',
-  'onboarding.step2.title': 'Những giọng nói bên trong của bạn',
-  'onboarding.step2.body1': 'Khi bạn viết, nhiều giọng nói khác nhau có thể xuất hiện — Người Quan Sát, Người Dịu Dàng, Điểm Tĩnh Lặng và những giọng nói khác. Mỗi giọng nhận ra những điều khác nhau: những khuôn mẫu trong lời bạn, cảm xúc ẩn sâu bên dưới, những gì bạn có thể đang lẩn tránh.',
-  'onboarding.step2.body2': 'Chúng học từ bài viết của bạn và phát triển theo thời gian. Chúng không phải nhà trị liệu — chúng là những người bạn đồng hành trong quá trình viết.',
-  'onboarding.step2.button': 'Còn một điều nữa',
   'onboarding.step3.title': 'Trước khi bạn bắt đầu',
-  'onboarding.step3.body': 'UnderSurface là một công cụ viết, không phải dịch vụ trị liệu. Những giọng nói bên trong là bạn đồng hành viết AI — chúng không phải nhà trị liệu và không thể thay thế sự chăm sóc chuyên nghiệp.',
   'onboarding.step3.disclaimer': 'Tôi hiểu đây không phải dịch vụ trị liệu',
   'onboarding.step3.privacy': 'Tôi đã đọc và chấp nhận',
   'onboarding.step3.privacyLink': 'Chính sách bảo mật',
-  'onboarding.step3.begin': 'Bắt đầu viết',
   'onboarding.step3.starting': 'Đang bắt đầu...',
   'onboarding.back': 'Quay lại',
   'settings.title': 'Cài đặt',
@@ -127,7 +118,6 @@ const viBase = {
   'delete.deleting': 'Đang xóa...',
   'error.title': 'Đã xảy ra lỗi',
   'error.reload': 'Tải lại',
-  'app.subtitle': 'Nhật ký nơi những giọng nói bên trong phản hồi khi bạn viết',
   'app.newVersion': 'Phiên bản mới có sẵn — chạm để làm mới',
   'app.skipToEditor': 'Đến trình soạn thảo',
   'app.initError': 'Đã xảy ra lỗi',
@@ -204,11 +194,6 @@ const viBase = {
   'policy.recommendationBody': 'Chúng tôi khuyến khích sử dụng UnderSurface song song với hỗ trợ chuyên nghiệp, không phải thay thế. Viết cùng các giọng nói bên trong có thể là người bạn đồng hành ý nghĩa trong hành trình của bạn — nhưng không thể thay thế sự chăm sóc của một chuyên gia được đào tạo.',
 
   // Landing page hero
-  'landing.headline': 'A diary that listens back',
-  'landing.feature1': 'Write freely — inner voices listen',
-  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
-  'landing.feature3': 'They learn your patterns and grow with you',
-  'landing.cta': 'Start writing — it\'s free',
   'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
   'landing.demoPartName': 'The Tender One',
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
@@ -254,6 +239,14 @@ const viBase = {
   'bodyMap.region.legs': 'Chân và bàn chân',
 } as const
 
-const vi = { ...viBase, ...conductorFallback, ...sessionCopy.vi, ...roomFallback } as const
+// English fallbacks come first, so they only fill keys that have no
+// translation yet; a real translation in this file always wins.
+const vi = {
+  ...conductorFallback,
+  ...personalScienceEnglish,
+  ...roomFallback,
+  ...viBase,
+  ...sessionCopy.vi,
+} as const
 
 export default vi

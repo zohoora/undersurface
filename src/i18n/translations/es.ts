@@ -1,9 +1,8 @@
-import { sessionCopy } from './sessionCopy'
+import { personalScienceEnglish, sessionCopy } from './sessionCopy'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
 const esBase = {
-  'login.tagline': 'Escribe libremente. Cuando hagas una pausa,\nuna voz interior se agita —\nno para juzgar, sino para sentarse a tu lado\nentre las palabras.',
   'login.email': 'Correo electrónico',
   'login.password': 'Contraseña',
   'login.signIn': 'Iniciar sesión',
@@ -19,18 +18,10 @@ const esBase = {
   'login.disclaimer': 'Aviso legal',
   'login.resetSuccess': 'Correo de restablecimiento enviado. Revisa tu bandeja de entrada.',
   'onboarding.welcome': 'Bienvenido a UnderSurface',
-  'onboarding.step1.body': 'Esto es un diario — pero no solo un diario. Mientras escribes, voces interiores aparecerán en la página. Notan lo que estás escribiendo y responden — con suavidad, honestidad, a veces de maneras inesperadas.',
-  'onboarding.step1.button': '¿Cómo funciona?',
-  'onboarding.step2.title': 'Tus voces interiores',
-  'onboarding.step2.body1': 'Mientras escribes, diferentes voces pueden aparecer — El Observador, El Tierno, El Punto Quieto, y otros. Cada uno nota cosas distintas: patrones en tus palabras, emociones bajo la superficie, lo que podrías estar evitando.',
-  'onboarding.step2.body2': 'Aprenden de tu escritura y evolucionan con el tiempo. No son terapeutas — son compañeros en el proceso de escritura.',
-  'onboarding.step2.button': 'Una cosa más',
   'onboarding.step3.title': 'Antes de comenzar',
-  'onboarding.step3.body': 'UnderSurface es una herramienta de escritura, no un servicio terapéutico. Las voces interiores son compañeros de escritura con IA — no son terapeutas y no pueden reemplazar la atención profesional.',
   'onboarding.step3.disclaimer': 'Entiendo que esto no es un servicio terapéutico',
   'onboarding.step3.privacy': 'He leído y acepto la',
   'onboarding.step3.privacyLink': 'Política de privacidad',
-  'onboarding.step3.begin': 'Comenzar a escribir',
   'onboarding.step3.starting': 'Iniciando...',
   'onboarding.back': 'Atrás',
   'settings.title': 'Configuración',
@@ -127,7 +118,6 @@ const esBase = {
   'delete.deleting': 'Eliminando...',
   'error.title': 'Algo salió mal',
   'error.reload': 'Recargar',
-  'app.subtitle': 'Un diario donde las voces interiores responden mientras escribes',
   'app.newVersion': 'Nueva versión disponible — toca para actualizar',
   'app.skipToEditor': 'Ir al editor',
   'app.initError': 'Algo salió mal',
@@ -204,11 +194,6 @@ const esBase = {
   'policy.recommendationBody': 'Te animamos a usar UnderSurface junto con apoyo profesional, no en lugar de él. Escribir con voces interiores puede ser un compañero significativo en tu proceso — pero no es un sustituto del cuidado de un profesional capacitado.',
 
   // Landing page hero
-  'landing.headline': 'A diary that listens back',
-  'landing.feature1': 'Write freely — inner voices listen',
-  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
-  'landing.feature3': 'They learn your patterns and grow with you',
-  'landing.cta': 'Start writing — it\'s free',
   'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
   'landing.demoPartName': 'The Tender One',
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
@@ -254,6 +239,14 @@ const esBase = {
   'bodyMap.region.legs': 'Piernas y pies',
 } as const
 
-const es = { ...esBase, ...conductorFallback, ...sessionCopy.es, ...roomFallback } as const
+// English fallbacks come first, so they only fill keys that have no
+// translation yet; a real translation in this file always wins.
+const es = {
+  ...conductorFallback,
+  ...personalScienceEnglish,
+  ...roomFallback,
+  ...esBase,
+  ...sessionCopy.es,
+} as const
 
 export default es

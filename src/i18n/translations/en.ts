@@ -295,7 +295,7 @@ const enBase = {
   'values.settings.title': 'What matters to you',
 } as const
 
-const en = { ...enBase, ...sessionCopy.en, ...roomFallback } as const
+const en = { ...roomFallback, ...enBase, ...sessionCopy.en } as const
 
 export type TranslationKey = keyof typeof en
 export type TranslationStrings = typeof en

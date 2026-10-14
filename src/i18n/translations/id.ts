@@ -1,9 +1,8 @@
-import { sessionCopy } from './sessionCopy'
+import { personalScienceEnglish, sessionCopy } from './sessionCopy'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
 const idBase = {
-  'login.tagline': 'Tulis dengan bebas. Saat kamu berhenti,\nsuara dalam diri terbangun —\nbukan untuk menghakimi, tapi untuk duduk di sampingmu\ndi antara kata-kata.',
   'login.email': 'Email',
   'login.password': 'Kata sandi',
   'login.signIn': 'Masuk',
@@ -19,18 +18,10 @@ const idBase = {
   'login.disclaimer': 'Sanggahan',
   'login.resetSuccess': 'Email reset kata sandi telah dikirim. Periksa kotak masukmu.',
   'onboarding.welcome': 'Selamat datang di UnderSurface',
-  'onboarding.step1.body': 'Ini adalah buku harian — tapi bukan sekadar buku harian. Saat kamu menulis, suara-suara dalam diri akan muncul di halaman. Mereka memperhatikan apa yang kamu tulis, dan merespons — dengan lembut, jujur, terkadang dengan cara yang tak kamu duga.',
-  'onboarding.step1.button': 'Bagaimana cara kerjanya?',
-  'onboarding.step2.title': 'Suara-suara dalam dirimu',
-  'onboarding.step2.body1': 'Saat kamu menulis, berbagai suara mungkin muncul — Si Pengamat, Si Lembut, Titik Hening, dan lainnya. Masing-masing memperhatikan hal yang berbeda: pola dalam kata-katamu, emosi di bawah permukaan, apa yang mungkin kamu hindari.',
-  'onboarding.step2.body2': 'Mereka belajar dari tulisanmu dan berkembang seiring waktu. Mereka bukan terapis — mereka adalah teman dalam proses menulismu.',
-  'onboarding.step2.button': 'Satu hal lagi',
   'onboarding.step3.title': 'Sebelum kamu mulai',
-  'onboarding.step3.body': 'UnderSurface adalah alat menulis, bukan layanan terapi. Suara-suara dalam diri adalah teman menulis AI — mereka bukan terapis, dan tidak bisa menggantikan perawatan profesional.',
   'onboarding.step3.disclaimer': 'Saya memahami ini bukan layanan terapi',
   'onboarding.step3.privacy': 'Saya telah membaca dan menerima',
   'onboarding.step3.privacyLink': 'Kebijakan Privasi',
-  'onboarding.step3.begin': 'Mulai menulis',
   'onboarding.step3.starting': 'Memulai...',
   'onboarding.back': 'Kembali',
   'settings.title': 'Pengaturan',
@@ -127,7 +118,6 @@ const idBase = {
   'delete.deleting': 'Menghapus...',
   'error.title': 'Terjadi kesalahan',
   'error.reload': 'Muat ulang',
-  'app.subtitle': 'Buku harian di mana suara-suara dalam diri merespons saat kamu menulis',
   'app.newVersion': 'Versi baru tersedia — ketuk untuk memperbarui',
   'app.skipToEditor': 'Langsung ke editor',
   'app.initError': 'Terjadi kesalahan',
@@ -204,11 +194,6 @@ const idBase = {
   'policy.recommendationBody': 'Kami mendorong penggunaan UnderSurface bersama dukungan profesional, bukan sebagai penggantinya. Menulis bersama suara-suara dalam diri bisa menjadi teman yang bermakna dalam prosesmu — tetapi bukan pengganti perawatan dari profesional terlatih.',
 
   // Landing page hero
-  'landing.headline': 'A diary that listens back',
-  'landing.feature1': 'Write freely — inner voices listen',
-  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
-  'landing.feature3': 'They learn your patterns and grow with you',
-  'landing.cta': 'Start writing — it\'s free',
   'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
   'landing.demoPartName': 'The Tender One',
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
@@ -254,6 +239,14 @@ const idBase = {
   'bodyMap.region.legs': 'Kaki',
 } as const
 
-const id = { ...idBase, ...conductorFallback, ...sessionCopy.id, ...roomFallback } as const
+// English fallbacks come first, so they only fill keys that have no
+// translation yet; a real translation in this file always wins.
+const id = {
+  ...conductorFallback,
+  ...personalScienceEnglish,
+  ...roomFallback,
+  ...idBase,
+  ...sessionCopy.id,
+} as const
 
 export default id

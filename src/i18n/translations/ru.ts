@@ -1,9 +1,8 @@
-import { sessionCopy } from './sessionCopy'
+import { personalScienceEnglish, sessionCopy } from './sessionCopy'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
 const ruBase = {
-  'login.tagline': 'Пиши свободно. Когда ты замираешь,\nвнутренний голос пробуждается —\nне чтобы судить, а чтобы сесть рядом с тобой\nсреди слов.',
   'login.email': 'Электронная почта',
   'login.password': 'Пароль',
   'login.signIn': 'Войти',
@@ -19,18 +18,10 @@ const ruBase = {
   'login.disclaimer': 'Отказ от ответственности',
   'login.resetSuccess': 'Письмо для сброса пароля отправлено. Проверьте вашу почту.',
   'onboarding.welcome': 'Добро пожаловать в UnderSurface',
-  'onboarding.step1.body': 'Это дневник — но не просто дневник. Пока вы пишете, на странице будут появляться внутренние голоса. Они замечают то, о чём вы пишете, и отвечают — мягко, честно, иногда неожиданным образом.',
-  'onboarding.step1.button': 'Как это работает?',
-  'onboarding.step2.title': 'Ваши внутренние голоса',
-  'onboarding.step2.body1': 'Пока вы пишете, могут появляться разные голоса — Наблюдатель, Нежный, Тихая Точка и другие. Каждый замечает разное: закономерности в ваших словах, эмоции под поверхностью, то, чего вы, возможно, избегаете.',
-  'onboarding.step2.body2': 'Они учатся на вашем письме и развиваются со временем. Они не терапевты — они спутники в процессе письма.',
-  'onboarding.step2.button': 'Ещё кое-что',
   'onboarding.step3.title': 'Прежде чем начать',
-  'onboarding.step3.body': 'UnderSurface — это инструмент для письма, а не терапевтический сервис. Внутренние голоса — это ИИ-спутники письма — они не терапевты и не могут заменить профессиональную помощь.',
   'onboarding.step3.disclaimer': 'Я понимаю, что это не терапевтический сервис',
   'onboarding.step3.privacy': 'Я прочитал(а) и принимаю',
   'onboarding.step3.privacyLink': 'Политику конфиденциальности',
-  'onboarding.step3.begin': 'Начать писать',
   'onboarding.step3.starting': 'Запуск...',
   'onboarding.back': 'Назад',
   'settings.title': 'Настройки',
@@ -127,7 +118,6 @@ const ruBase = {
   'delete.deleting': 'Удаление...',
   'error.title': 'Что-то пошло не так',
   'error.reload': 'Перезагрузить',
-  'app.subtitle': 'Дневник, где внутренние голоса отвечают, пока вы пишете',
   'app.newVersion': 'Доступна новая версия — нажмите для обновления',
   'app.skipToEditor': 'Перейти к редактору',
   'app.initError': 'Что-то пошло не так',
@@ -204,11 +194,6 @@ const ruBase = {
   'policy.recommendationBody': 'Мы рекомендуем использовать UnderSurface наряду с профессиональной поддержкой, а не вместо неё. Письмо с внутренними голосами может быть ценным дополнением к вашему процессу — но оно не заменяет заботу квалифицированного специалиста.',
 
   // Landing page hero
-  'landing.headline': 'A diary that listens back',
-  'landing.feature1': 'Write freely — inner voices listen',
-  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
-  'landing.feature3': 'They learn your patterns and grow with you',
-  'landing.cta': 'Start writing — it\'s free',
   'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
   'landing.demoPartName': 'The Tender One',
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
@@ -254,6 +239,14 @@ const ruBase = {
   'bodyMap.region.legs': 'Ноги и стопы',
 } as const
 
-const ru = { ...ruBase, ...conductorFallback, ...sessionCopy.ru, ...roomFallback } as const
+// English fallbacks come first, so they only fill keys that have no
+// translation yet; a real translation in this file always wins.
+const ru = {
+  ...conductorFallback,
+  ...personalScienceEnglish,
+  ...roomFallback,
+  ...ruBase,
+  ...sessionCopy.ru,
+} as const
 
 export default ru

@@ -1,8 +1,8 @@
-// English fallback for Room while native translations are prepared. Keeping
-// the full key set in every locale prevents raw keys from reaching the UI.
+// English source for Room and session-shell keys. English uses it directly.
+// Every other locale spreads it FIRST, as a safety net: it only fills a key
+// that the locale has not translated yet (so raw keys never reach the UI), and
+// the i18n tests flag any such key. It never overrides a real translation.
 export const roomFallback = {
-  'onboarding.step1.body': 'UnderSurface opens into a private reflection session. You can talk with your companion, write quietly in Journal, speak aloud, or enter Room for voice, sound, and quiet company.',
-  'landing.feature2': 'Move naturally between voice, sound, and quiet in Room',
   'session.bottomBar.room': 'Room',
   'room.aria': 'Room — ambient voice and sound space',
   'room.choose.eyebrow': 'Room',

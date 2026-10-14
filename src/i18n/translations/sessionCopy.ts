@@ -1,4 +1,9 @@
-const personalScienceEnglish = {
+// English source for the session shell, personal-science, in-session card,
+// companion-memory, letters and Room-export keys. English uses it directly.
+// Every other locale spreads it FIRST, as a safety net: it only fills a key
+// that the locale has not translated yet, and the i18n tests flag any such
+// key, so it never overrides a real translation.
+export const personalScienceEnglish = {
   'sidebar.openNavigation': 'Open navigation',
   'sidebar.closeNavigation': 'Close navigation',
   'sidebar.navigation': 'Session navigation',
@@ -144,13 +149,13 @@ const personalScienceEnglish = {
 } as const
 
 // Session-first product and biometric-consent copy kept together so every
-// supported locale changes as one reviewed surface. Locale files spread their
-// entry last, overriding the diary-era strings while preserving key parity.
+// supported locale changes as one reviewed surface. Each locale file spreads
+// its entry after its own base object.
 export const sessionCopy = {
   en: {
     ...personalScienceEnglish,
     'login.tagline': 'A private reflection session\nfor whatever is here —\ntalk it through, write quietly,\nor take a moment to settle.',
-    'onboarding.step1.body': 'UnderSurface opens into a private reflection session. You can talk with your companion, write quietly in Journal, speak aloud, or take a guided pause in Relax or Drift.',
+    'onboarding.step1.body': 'UnderSurface opens into a private reflection session. You can talk with your companion, write quietly in Journal, speak aloud, or enter Room for voice, sound, and quiet company.',
     'onboarding.step1.button': 'How does it work?',
     'onboarding.step2.title': 'A companion that remembers',
     'onboarding.step2.body1': 'Your companion can notice useful threads across sessions: words you use, intentions you choose, and patterns you decide are worth keeping.',
@@ -161,7 +166,7 @@ export const sessionCopy = {
     'app.subtitle': 'A private reflection session that remembers what matters',
     'landing.headline': 'A reflection space that remembers what matters',
     'landing.feature1': 'Talk it through or write privately',
-    'landing.feature2': 'Pause and settle with Relax or Drift',
+    'landing.feature2': 'Move naturally between voice, sound, and quiet in Room',
     'landing.feature3': 'Return to one useful thread next time',
     'landing.cta': 'Begin a session — it\'s free',
     'biometric.camera.title': 'Enable biometric sensing',
@@ -176,7 +181,6 @@ export const sessionCopy = {
     'biometric.connect': 'Connect',
   },
   de: {
-    ...personalScienceEnglish,
     'login.tagline': 'Ein privater Reflexionsraum\nfür alles, was gerade da ist —\nsprich darüber, schreibe in Ruhe\noder komm einen Moment zur Ruhe.',
     'onboarding.step1.body': 'UnderSurface öffnet eine private Reflexionssitzung. Du kannst mit deinem Begleiter sprechen, im Journal still schreiben, laut sprechen oder in Relax oder Drift eine geführte Pause machen.',
     'onboarding.step1.button': 'Wie funktioniert das?',
@@ -204,7 +208,6 @@ export const sessionCopy = {
     'biometric.connect': 'Verbinden',
   },
   es: {
-    ...personalScienceEnglish,
     'login.tagline': 'Una sesión privada de reflexión\npara lo que esté presente —\nháblalo, escribe en silencio\no tómate un momento para calmarte.',
     'onboarding.step1.body': 'UnderSurface se abre en una sesión privada de reflexión. Puedes hablar con tu acompañante, escribir tranquilamente en Diario, hablar en voz alta o hacer una pausa guiada en Relax o Drift.',
     'onboarding.step1.button': '¿Cómo funciona?',
@@ -232,7 +235,6 @@ export const sessionCopy = {
     'biometric.connect': 'Conectar',
   },
   fr: {
-    ...personalScienceEnglish,
     'login.tagline': 'Une séance de réflexion privée\npour ce qui est là —\nparle-en, écris en silence\nou prends un moment pour t’apaiser.',
     'onboarding.step1.body': 'UnderSurface s’ouvre sur une séance de réflexion privée. Tu peux parler avec ton compagnon, écrire tranquillement dans Journal, parler à voix haute ou faire une pause guidée dans Relax ou Drift.',
     'onboarding.step1.button': 'Comment ça marche ?',
@@ -260,7 +262,6 @@ export const sessionCopy = {
     'biometric.connect': 'Connecter',
   },
   hi: {
-    ...personalScienceEnglish,
     'login.tagline': 'जो भी मन में है उसके लिए\nएक निजी चिंतन सत्र —\nबात करें, शांति से लिखें\nया कुछ पल ठहरें।',
     'onboarding.step1.body': 'UnderSurface एक निजी चिंतन सत्र से खुलता है। आप अपने साथी से बात कर सकते हैं, जर्नल में शांति से लिख सकते हैं, बोल सकते हैं, या Relax अथवा Drift में निर्देशित विराम ले सकते हैं।',
     'onboarding.step1.button': 'यह कैसे काम करता है?',
@@ -288,7 +289,6 @@ export const sessionCopy = {
     'biometric.connect': 'जोड़ें',
   },
   id: {
-    ...personalScienceEnglish,
     'login.tagline': 'Sesi refleksi pribadi\nuntuk apa pun yang hadir —\nbicarakan, tulis dengan tenang,\natau berhenti sejenak.',
     'onboarding.step1.body': 'UnderSurface membuka sesi refleksi pribadi. Kamu dapat berbicara dengan pendampingmu, menulis tenang di Jurnal, berbicara lantang, atau mengambil jeda terpandu di Relax atau Drift.',
     'onboarding.step1.button': 'Bagaimana cara kerjanya?',
@@ -316,7 +316,6 @@ export const sessionCopy = {
     'biometric.connect': 'Hubungkan',
   },
   it: {
-    ...personalScienceEnglish,
     'login.tagline': 'Una sessione privata di riflessione\nper ciò che c’è —\nparlane, scrivi in silenzio\no fermati un momento.',
     'onboarding.step1.body': 'UnderSurface si apre in una sessione privata di riflessione. Puoi parlare con il tuo compagno, scrivere in tranquillità nel Diario, parlare ad alta voce o fare una pausa guidata in Relax o Drift.',
     'onboarding.step1.button': 'Come funziona?',
@@ -344,7 +343,6 @@ export const sessionCopy = {
     'biometric.connect': 'Collega',
   },
   ja: {
-    ...personalScienceEnglish,
     'login.tagline': '今ここにあるもののための\nプライベートな振り返りセッション。\n話しても、静かに書いても、\n少し落ち着く時間にしても。',
     'onboarding.step1.body': 'UnderSurfaceは、プライベートな振り返りセッションから始まります。コンパニオンと話す、Journalで静かに書く、声に出す、RelaxやDriftでガイド付きの休息を取ることができます。',
     'onboarding.step1.button': 'どのように使うの？',
@@ -372,7 +370,6 @@ export const sessionCopy = {
     'biometric.connect': '接続',
   },
   ko: {
-    ...personalScienceEnglish,
     'login.tagline': '지금 마음에 있는 것을 위한\n개인적인 성찰 세션 —\n이야기하거나 조용히 쓰고,\n잠시 가라앉아도 좋습니다.',
     'onboarding.step1.body': 'UnderSurface는 개인적인 성찰 세션으로 시작합니다. 동반자와 대화하고, Journal에 조용히 쓰고, 소리 내어 말하거나 Relax 또는 Drift에서 안내된 쉼을 가질 수 있습니다.',
     'onboarding.step1.button': '어떻게 작동하나요?',
@@ -400,7 +397,6 @@ export const sessionCopy = {
     'biometric.connect': '연결',
   },
   nl: {
-    ...personalScienceEnglish,
     'login.tagline': 'Een besloten reflectiesessie\nvoor wat er nu is —\npraat erover, schrijf in stilte\nof kom even tot rust.',
     'onboarding.step1.body': 'UnderSurface opent in een besloten reflectiesessie. Je kunt praten met je metgezel, rustig schrijven in Journal, hardop spreken of een begeleide pauze nemen in Relax of Drift.',
     'onboarding.step1.button': 'Hoe werkt het?',
@@ -428,7 +424,6 @@ export const sessionCopy = {
     'biometric.connect': 'Verbinden',
   },
   pl: {
-    ...personalScienceEnglish,
     'login.tagline': 'Prywatna sesja refleksji\ndla tego, co jest teraz —\nporozmawiaj, pisz w ciszy\nlub zatrzymaj się na chwilę.',
     'onboarding.step1.body': 'UnderSurface otwiera prywatną sesję refleksji. Możesz porozmawiać z towarzyszem, pisać spokojnie w Dzienniku, mówić na głos albo zrobić prowadzoną przerwę w Relax lub Drift.',
     'onboarding.step1.button': 'Jak to działa?',
@@ -456,7 +451,6 @@ export const sessionCopy = {
     'biometric.connect': 'Połącz',
   },
   pt: {
-    ...personalScienceEnglish,
     'login.tagline': 'Uma sessão privada de reflexão\npara o que estiver presente —\nconverse, escreva em silêncio\nou pare um momento para se acalmar.',
     'onboarding.step1.body': 'UnderSurface abre uma sessão privada de reflexão. Você pode conversar com seu acompanhante, escrever em silêncio no Diário, falar em voz alta ou fazer uma pausa guiada em Relax ou Drift.',
     'onboarding.step1.button': 'Como funciona?',
@@ -484,7 +478,6 @@ export const sessionCopy = {
     'biometric.connect': 'Conectar',
   },
   ru: {
-    ...personalScienceEnglish,
     'login.tagline': 'Личная сессия размышления\nдля всего, что сейчас внутри —\nпоговорите, пишите в тишине\nили сделайте паузу.',
     'onboarding.step1.body': 'UnderSurface открывается личной сессией размышления. Можно поговорить со спутником, спокойно писать в Журнале, говорить вслух или сделать направляемую паузу в Relax или Drift.',
     'onboarding.step1.button': 'Как это работает?',
@@ -512,7 +505,6 @@ export const sessionCopy = {
     'biometric.connect': 'Подключить',
   },
   th: {
-    ...personalScienceEnglish,
     'login.tagline': 'เซสชันสะท้อนใจส่วนตัว\nสำหรับสิ่งที่อยู่ตรงนี้ —\nพูดคุย เขียนเงียบ ๆ\nหรือหยุดพักให้ใจนิ่งลง',
     'onboarding.step1.body': 'UnderSurface เปิดเข้าสู่เซสชันสะท้อนใจส่วนตัว คุณสามารถคุยกับเพื่อนร่วมทาง เขียนเงียบ ๆ ใน Journal พูดออกเสียง หรือพักแบบมีคำแนะนำใน Relax หรือ Drift',
     'onboarding.step1.button': 'ทำงานอย่างไร?',
@@ -540,7 +532,6 @@ export const sessionCopy = {
     'biometric.connect': 'เชื่อมต่อ',
   },
   tr: {
-    ...personalScienceEnglish,
     'login.tagline': 'Şu anda burada olanlar için\nözel bir düşünme seansı —\nkonuş, sessizce yaz\nya da bir an durul.',
     'onboarding.step1.body': 'UnderSurface özel bir düşünme seansıyla açılır. Yol arkadaşınla konuşabilir, Journal’da sessizce yazabilir, sesli konuşabilir veya Relax ya da Drift’te yönlendirmeli bir mola verebilirsin.',
     'onboarding.step1.button': 'Nasıl çalışır?',
@@ -568,7 +559,6 @@ export const sessionCopy = {
     'biometric.connect': 'Bağla',
   },
   vi: {
-    ...personalScienceEnglish,
     'login.tagline': 'Một phiên suy ngẫm riêng tư\ncho bất cứ điều gì đang hiện diện —\ntrò chuyện, viết lặng lẽ\nhoặc dừng lại để lắng xuống.',
     'onboarding.step1.body': 'UnderSurface mở ra một phiên suy ngẫm riêng tư. Bạn có thể trò chuyện với người đồng hành, viết yên lặng trong Journal, nói thành lời hoặc nghỉ có hướng dẫn trong Relax hay Drift.',
     'onboarding.step1.button': 'Hoạt động thế nào?',
@@ -596,7 +586,6 @@ export const sessionCopy = {
     'biometric.connect': 'Kết nối',
   },
   zh: {
-    ...personalScienceEnglish,
     'login.tagline': '一个私密的反思时刻，\n容纳此刻的一切——\n可以聊一聊、安静书写，\n也可以停下来安顿自己。',
     'onboarding.step1.body': 'UnderSurface 会直接进入私密的反思会话。你可以与陪伴者交谈，在 Journal 中安静书写，大声说出来，或在 Relax、Drift 中进行引导式暂停。',
     'onboarding.step1.button': '它如何运作？',

@@ -1,9 +1,8 @@
-import { sessionCopy } from './sessionCopy'
+import { personalScienceEnglish, sessionCopy } from './sessionCopy'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
 const thBase = {
-  'login.tagline': 'เขียนอย่างอิสระ เมื่อคุณหยุด\nเสียงภายในจะตื่นขึ้น —\nไม่ใช่เพื่อตัดสิน แต่เพื่อนั่งข้างคุณ\nอยู่ในถ้อยคำ',
   'login.email': 'อีเมล',
   'login.password': 'รหัสผ่าน',
   'login.signIn': 'เข้าสู่ระบบ',
@@ -19,18 +18,10 @@ const thBase = {
   'login.disclaimer': 'ข้อจำกัดความรับผิดชอบ',
   'login.resetSuccess': 'ส่งอีเมลรีเซ็ตรหัสผ่านแล้ว ตรวจสอบกล่องจดหมายของคุณ',
   'onboarding.welcome': 'ยินดีต้อนรับสู่ UnderSurface',
-  'onboarding.step1.body': 'นี่คือไดอารี่ — แต่ไม่ใช่แค่ไดอารี่ธรรมดา ขณะที่คุณเขียน เสียงภายในจะปรากฏบนหน้า พวกเขาสังเกตสิ่งที่คุณกำลังเขียน และตอบสนอง — อย่างอ่อนโยน จริงใจ บางครั้งในแบบที่คุณไม่คาดคิด',
-  'onboarding.step1.button': 'มันทำงานอย่างไร?',
-  'onboarding.step2.title': 'เสียงภายในของคุณ',
-  'onboarding.step2.body1': 'ขณะที่คุณเขียน เสียงต่าง ๆ อาจปรากฏ — ผู้เฝ้ามอง ผู้อ่อนโยน จุดสงบ และอื่น ๆ แต่ละเสียงสังเกตสิ่งที่ต่างกัน: รูปแบบในคำพูดของคุณ อารมณ์ใต้ผิว สิ่งที่คุณอาจกำลังหลีกเลี่ยง',
-  'onboarding.step2.body2': 'พวกเขาเรียนรู้จากงานเขียนของคุณและเติบโตไปตามเวลา พวกเขาไม่ใช่นักบำบัด — พวกเขาเป็นเพื่อนร่วมทางในกระบวนการเขียน',
-  'onboarding.step2.button': 'อีกสิ่งหนึ่ง',
   'onboarding.step3.title': 'ก่อนเริ่มต้น',
-  'onboarding.step3.body': 'UnderSurface เป็นเครื่องมือสำหรับเขียน ไม่ใช่บริการบำบัด เสียงภายในเป็นเพื่อนร่วมเขียน AI — พวกเขาไม่ใช่นักบำบัด และไม่สามารถแทนที่การดูแลจากผู้เชี่ยวชาญได้',
   'onboarding.step3.disclaimer': 'ฉันเข้าใจว่านี่ไม่ใช่บริการบำบัด',
   'onboarding.step3.privacy': 'ฉันได้อ่านและยอมรับ',
   'onboarding.step3.privacyLink': 'นโยบายความเป็นส่วนตัว',
-  'onboarding.step3.begin': 'เริ่มเขียน',
   'onboarding.step3.starting': 'กำลังเริ่ม...',
   'onboarding.back': 'กลับ',
   'settings.title': 'การตั้งค่า',
@@ -127,7 +118,6 @@ const thBase = {
   'delete.deleting': 'กำลังลบ...',
   'error.title': 'เกิดข้อผิดพลาด',
   'error.reload': 'โหลดใหม่',
-  'app.subtitle': 'ไดอารี่ที่เสียงภายในตอบสนองขณะที่คุณเขียน',
   'app.newVersion': 'มีเวอร์ชันใหม่ — แตะเพื่อรีเฟรช',
   'app.skipToEditor': 'ไปที่ตัวแก้ไข',
   'app.initError': 'เกิดข้อผิดพลาด',
@@ -204,11 +194,6 @@ const thBase = {
   'policy.recommendationBody': 'เราแนะนำให้ใช้ UnderSurface ควบคู่กับการสนับสนุนจากผู้เชี่ยวชาญ ไม่ใช่แทนที่ การเขียนร่วมกับเสียงภายในสามารถเป็นเพื่อนร่วมทางที่มีความหมายในกระบวนการของคุณ — แต่ไม่ใช่สิ่งทดแทนการดูแลจากผู้เชี่ยวชาญที่ผ่านการฝึกฝน',
 
   // Landing page hero
-  'landing.headline': 'A diary that listens back',
-  'landing.feature1': 'Write freely — inner voices listen',
-  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
-  'landing.feature3': 'They learn your patterns and grow with you',
-  'landing.cta': 'Start writing — it\'s free',
   'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
   'landing.demoPartName': 'The Tender One',
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
@@ -254,6 +239,14 @@ const thBase = {
   'bodyMap.region.legs': 'ขาและเท้า',
 } as const
 
-const th = { ...thBase, ...conductorFallback, ...sessionCopy.th, ...roomFallback } as const
+// English fallbacks come first, so they only fill keys that have no
+// translation yet; a real translation in this file always wins.
+const th = {
+  ...conductorFallback,
+  ...personalScienceEnglish,
+  ...roomFallback,
+  ...thBase,
+  ...sessionCopy.th,
+} as const
 
 export default th

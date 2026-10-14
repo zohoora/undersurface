@@ -1,9 +1,8 @@
-import { sessionCopy } from './sessionCopy'
+import { personalScienceEnglish, sessionCopy } from './sessionCopy'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
 const zhBase = {
-  'login.tagline': '自由书写。当你停顿时，\n一个内心的声音轻轻涌起——\n不是来评判，而是来陪伴你\n坐在文字之间。',
   'login.email': '邮箱',
   'login.password': '密码',
   'login.signIn': '登录',
@@ -19,18 +18,10 @@ const zhBase = {
   'login.disclaimer': '免责声明',
   'login.resetSuccess': '密码重置邮件已发送，请查收。',
   'onboarding.welcome': '欢迎来到 UnderSurface',
-  'onboarding.step1.body': '这是一本日记——但不仅仅是日记。当你书写时，内心的声音会出现在页面上。它们注意到你在写什么，然后回应——温柔地、真诚地，有时以你意想不到的方式。',
-  'onboarding.step1.button': '它是如何工作的？',
-  'onboarding.step2.title': '你的内心声音',
-  'onboarding.step2.body1': '当你书写时，不同的声音可能会出现——观察者、温柔者、静谧点，以及其他。每个声音注意到不同的事物：你文字中的规律、表面之下的情感、你可能在回避的东西。',
-  'onboarding.step2.body2': '它们从你的写作中学习，并随时间演化。它们不是治疗师——它们是写作过程中的陪伴者。',
-  'onboarding.step2.button': '还有一件事',
   'onboarding.step3.title': '在你开始之前',
-  'onboarding.step3.body': 'UnderSurface 是一个写作工具，不是心理治疗服务。内心的声音是 AI 写作伙伴——它们不是治疗师，也无法替代专业护理。',
   'onboarding.step3.disclaimer': '我理解这不是心理治疗服务',
   'onboarding.step3.privacy': '我已阅读并接受',
   'onboarding.step3.privacyLink': '隐私政策',
-  'onboarding.step3.begin': '开始书写',
   'onboarding.step3.starting': '启动中...',
   'onboarding.back': '返回',
   'settings.title': '设置',
@@ -127,7 +118,6 @@ const zhBase = {
   'delete.deleting': '删除中...',
   'error.title': '出了点问题',
   'error.reload': '重新加载',
-  'app.subtitle': '一本日记，在你书写时，内心的声音会回应你',
   'app.newVersion': '新版本可用——点击刷新',
   'app.skipToEditor': '跳到编辑器',
   'app.initError': '出了点问题',
@@ -204,11 +194,6 @@ const zhBase = {
   'policy.recommendationBody': '我们鼓励你将 UnderSurface 与专业支持配合使用，而不是替代专业支持。与内心声音一起写作可以成为你过程中有意义的陪伴——但它不能替代受过专业训练的人员所提供的关怀。',
 
   // Landing page hero
-  'landing.headline': 'A diary that listens back',
-  'landing.feature1': 'Write freely — inner voices listen',
-  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
-  'landing.feature3': 'They learn your patterns and grow with you',
-  'landing.cta': 'Start writing — it\'s free',
   'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
   'landing.demoPartName': 'The Tender One',
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
@@ -254,6 +239,14 @@ const zhBase = {
   'bodyMap.region.legs': '腿与脚',
 } as const
 
-const zh = { ...zhBase, ...conductorFallback, ...sessionCopy.zh, ...roomFallback } as const
+// English fallbacks come first, so they only fill keys that have no
+// translation yet; a real translation in this file always wins.
+const zh = {
+  ...conductorFallback,
+  ...personalScienceEnglish,
+  ...roomFallback,
+  ...zhBase,
+  ...sessionCopy.zh,
+} as const
 
 export default zh

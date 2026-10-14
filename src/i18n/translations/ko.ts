@@ -1,9 +1,8 @@
-import { sessionCopy } from './sessionCopy'
+import { personalScienceEnglish, sessionCopy } from './sessionCopy'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
 const koBase = {
-  'login.tagline': '자유롭게 쓰세요. 멈출 때,\n내면의 목소리가 깨어납니다 —\n판단하려는 게 아니라,\n글 속에서 당신 곁에 앉으려는 거예요.',
   'login.email': '이메일',
   'login.password': '비밀번호',
   'login.signIn': '로그인',
@@ -19,18 +18,10 @@ const koBase = {
   'login.disclaimer': '면책 조항',
   'login.resetSuccess': '비밀번호 재설정 이메일을 보냈습니다. 받은 편지함을 확인해 주세요.',
   'onboarding.welcome': 'UnderSurface에 오신 것을 환영합니다',
-  'onboarding.step1.body': '이것은 일기장입니다 — 하지만 단순한 일기장이 아닙니다. 글을 쓰다 보면 내면의 목소리가 페이지 위에 나타납니다. 그들은 당신이 쓰고 있는 것을 알아차리고, 부드럽게, 솔직하게, 때로는 예상치 못한 방식으로 응답합니다.',
-  'onboarding.step1.button': '어떻게 작동하나요?',
-  'onboarding.step2.title': '당신의 내면의 목소리들',
-  'onboarding.step2.body1': '글을 쓰다 보면 다양한 목소리가 나타날 수 있습니다 — 관찰자, 다정한 이, 고요한 지점 등. 각각은 다른 것을 알아차립니다: 당신의 글 속 패턴, 표면 아래의 감정, 당신이 피하고 있을지도 모르는 것.',
-  'onboarding.step2.body2': '그들은 당신의 글에서 배우고 시간이 지나며 성장합니다. 그들은 치료사가 아닙니다 — 글쓰기 과정의 동반자입니다.',
-  'onboarding.step2.button': '한 가지 더',
   'onboarding.step3.title': '시작하기 전에',
-  'onboarding.step3.body': 'UnderSurface는 글쓰기 도구이지, 치료 서비스가 아닙니다. 내면의 목소리는 AI 글쓰기 동반자입니다 — 치료사가 아니며, 전문적인 도움을 대체할 수 없습니다.',
   'onboarding.step3.disclaimer': '이것이 치료 서비스가 아님을 이해합니다',
   'onboarding.step3.privacy': '다음을 읽고 동의합니다',
   'onboarding.step3.privacyLink': '개인정보 처리방침',
-  'onboarding.step3.begin': '글쓰기 시작',
   'onboarding.step3.starting': '시작하는 중...',
   'onboarding.back': '뒤로',
   'settings.title': '설정',
@@ -127,7 +118,6 @@ const koBase = {
   'delete.deleting': '삭제 중...',
   'error.title': '문제가 발생했습니다',
   'error.reload': '새로고침',
-  'app.subtitle': '글을 쓰면 내면의 목소리가 응답하는 일기장',
   'app.newVersion': '새 버전이 있습니다 — 탭하여 새로고침',
   'app.skipToEditor': '편집기로 이동',
   'app.initError': '문제가 발생했습니다',
@@ -204,11 +194,6 @@ const koBase = {
   'policy.recommendationBody': 'UnderSurface를 전문적인 지원과 함께 사용하시길 권장하며, 대체 수단으로 사용하지 마세요. 내면의 목소리와 함께 글을 쓰는 것은 의미 있는 동반 활동이 될 수 있지만, 전문가의 돌봄을 대신할 수는 없습니다.',
 
   // Landing page hero
-  'landing.headline': 'A diary that listens back',
-  'landing.feature1': 'Write freely — inner voices listen',
-  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
-  'landing.feature3': 'They learn your patterns and grow with you',
-  'landing.cta': 'Start writing — it\'s free',
   'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
   'landing.demoPartName': 'The Tender One',
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
@@ -254,6 +239,14 @@ const koBase = {
   'bodyMap.region.legs': '다리와 발',
 } as const
 
-const ko = { ...koBase, ...conductorFallback, ...sessionCopy.ko, ...roomFallback } as const
+// English fallbacks come first, so they only fill keys that have no
+// translation yet; a real translation in this file always wins.
+const ko = {
+  ...conductorFallback,
+  ...personalScienceEnglish,
+  ...roomFallback,
+  ...koBase,
+  ...sessionCopy.ko,
+} as const
 
 export default ko

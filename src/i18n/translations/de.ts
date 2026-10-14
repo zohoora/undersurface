@@ -1,9 +1,8 @@
-import { sessionCopy } from './sessionCopy'
+import { personalScienceEnglish, sessionCopy } from './sessionCopy'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
 const deBase = {
-  'login.tagline': 'Schreib frei. Wenn du innehältst,\nregt sich eine innere Stimme —\nnicht um zu urteilen, sondern um neben dir zu sitzen\nin den Worten.',
   'login.email': 'E-Mail',
   'login.password': 'Passwort',
   'login.signIn': 'Anmelden',
@@ -19,18 +18,10 @@ const deBase = {
   'login.disclaimer': 'Haftungsausschluss',
   'login.resetSuccess': 'E-Mail zum Zurücksetzen gesendet. Prüfe deinen Posteingang.',
   'onboarding.welcome': 'Willkommen bei UnderSurface',
-  'onboarding.step1.body': 'Das ist ein Tagebuch — aber nicht nur ein Tagebuch. Während du schreibst, werden innere Stimmen auf der Seite erscheinen. Sie bemerken, worüber du schreibst, und antworten — sanft, ehrlich, manchmal auf unerwartete Weise.',
-  'onboarding.step1.button': 'Wie funktioniert das?',
-  'onboarding.step2.title': 'Deine inneren Stimmen',
-  'onboarding.step2.body1': 'Während du schreibst, können verschiedene Stimmen erscheinen — Der Beobachter, Der Zärtliche, Der Stille Punkt und andere. Jede bemerkt unterschiedliche Dinge: Muster in deinen Worten, Gefühle unter der Oberfläche, was du vielleicht vermeidest.',
-  'onboarding.step2.body2': 'Sie lernen aus deinem Schreiben und entwickeln sich mit der Zeit weiter. Sie sind keine Therapeuten — sie sind Begleiter im Schreibprozess.',
-  'onboarding.step2.button': 'Noch etwas',
   'onboarding.step3.title': 'Bevor du anfängst',
-  'onboarding.step3.body': 'UnderSurface ist ein Schreibwerkzeug, kein therapeutischer Dienst. Die inneren Stimmen sind KI-Schreibbegleiter — sie sind keine Therapeuten und können professionelle Betreuung nicht ersetzen.',
   'onboarding.step3.disclaimer': 'Ich verstehe, dass dies kein therapeutischer Dienst ist',
   'onboarding.step3.privacy': 'Ich habe die folgende gelesen und akzeptiere sie:',
   'onboarding.step3.privacyLink': 'Datenschutzrichtlinie',
-  'onboarding.step3.begin': 'Mit dem Schreiben beginnen',
   'onboarding.step3.starting': 'Wird gestartet...',
   'onboarding.back': 'Zurück',
   'settings.title': 'Einstellungen',
@@ -127,7 +118,6 @@ const deBase = {
   'delete.deleting': 'Wird gelöscht...',
   'error.title': 'Etwas ist schiefgelaufen',
   'error.reload': 'Neu laden',
-  'app.subtitle': 'Ein Tagebuch, in dem innere Stimmen antworten, während du schreibst',
   'app.newVersion': 'Neue Version verfügbar — tippe zum Aktualisieren',
   'app.skipToEditor': 'Zum Editor springen',
   'app.initError': 'Etwas ist schiefgelaufen',
@@ -204,11 +194,6 @@ const deBase = {
   'policy.recommendationBody': 'Wir empfehlen, UnderSurface ergänzend zu professioneller Unterstützung zu nutzen, nicht anstelle davon. Das Schreiben mit inneren Stimmen kann ein wertvoller Begleiter in deinem Prozess sein — aber es ist kein Ersatz für die Betreuung durch einen ausgebildeten Fachmann.',
 
   // Landing page hero
-  'landing.headline': 'A diary that listens back',
-  'landing.feature1': 'Write freely — inner voices listen',
-  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
-  'landing.feature3': 'They learn your patterns and grow with you',
-  'landing.cta': 'Start writing — it\'s free',
   'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
   'landing.demoPartName': 'The Tender One',
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
@@ -254,6 +239,14 @@ const deBase = {
   'bodyMap.region.legs': 'Beine & Füße',
 } as const
 
-const de = { ...deBase, ...conductorFallback, ...sessionCopy.de, ...roomFallback } as const
+// English fallbacks come first, so they only fill keys that have no
+// translation yet; a real translation in this file always wins.
+const de = {
+  ...conductorFallback,
+  ...personalScienceEnglish,
+  ...roomFallback,
+  ...deBase,
+  ...sessionCopy.de,
+} as const
 
 export default de

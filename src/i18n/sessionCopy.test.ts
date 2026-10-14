@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { sessionCopy } from './translations/sessionCopy'
 
+// The final, merged locale objects (base + fallbacks + sessionCopy), which is
+// what the app actually renders.
+const localeModules = import.meta.glob<{ default: Record<string, string> }>(
+  ['./translations/*.ts', '!./translations/sessionCopy.ts'],
+  { eager: true },
+)
+const locales = Object.fromEntries(
+  Object.entries(localeModules).map(([path, mod]) => [path.replace(/^.*\/([a-z]+)\.ts$/, '$1'), mod.default]),
+)
+
 const REQUIRED = [
   'login.tagline',
   'onboarding.step1.body',
@@ -29,7 +39,8 @@ const REQUIRED = [
 describe('session-first and biometric copy', () => {
   it('has a complete, non-empty surface in all 17 locales', () => {
     expect(Object.keys(sessionCopy)).toHaveLength(17)
-    for (const [locale, copy] of Object.entries(sessionCopy)) {
+    expect(Object.keys(locales)).toHaveLength(17)
+    for (const [locale, copy] of Object.entries(locales)) {
       for (const key of REQUIRED) {
         expect(copy[key], `${key} in ${locale}`).toBeTruthy()
       }

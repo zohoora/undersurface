@@ -1,9 +1,8 @@
-import { sessionCopy } from './sessionCopy'
+import { personalScienceEnglish, sessionCopy } from './sessionCopy'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
 const hiBase = {
-  'login.tagline': 'स्वतंत्र रूप से लिखें। जब आप रुकें,\nएक आंतरिक आवाज़ जागती है —\nआंकने के लिए नहीं, बल्कि शब्दों में\nआपके पास बैठने के लिए।',
   'login.email': 'ईमेल',
   'login.password': 'पासवर्ड',
   'login.signIn': 'साइन इन',
@@ -19,18 +18,10 @@ const hiBase = {
   'login.disclaimer': 'अस्वीकरण',
   'login.resetSuccess': 'पासवर्ड रीसेट ईमेल भेजा गया। अपना इनबॉक्स देखें।',
   'onboarding.welcome': 'UnderSurface में आपका स्वागत है',
-  'onboarding.step1.body': 'यह एक डायरी है — लेकिन सिर्फ डायरी नहीं। जैसे-जैसे आप लिखते हैं, आंतरिक आवाज़ें पृष्ठ पर प्रकट होती हैं। वे जानती हैं कि आप किस बारे में लिख रहे हैं, और वे प्रतिक्रिया देती हैं — कोमलता से, ईमानदारी से, कभी-कभी ऐसे तरीकों से जो आप उम्मीद नहीं करते।',
-  'onboarding.step1.button': 'यह कैसे काम करता है?',
-  'onboarding.step2.title': 'आपकी आंतरिक आवाज़ें',
-  'onboarding.step2.body1': 'जैसे-जैसे आप लिखते हैं, अलग-अलग आवाज़ें प्रकट हो सकती हैं — प्रेक्षक, कोमल, स्थिर बिंदु, और अन्य। हर एक अलग-अलग चीज़ें नोटिस करती है: आपके शब्दों के पैटर्न, सतह के नीचे की भावनाएं, जो आप शायद टाल रहे हैं।',
-  'onboarding.step2.body2': 'वे आपके लेखन से सीखती हैं और समय के साथ विकसित होती हैं। वे चिकित्सक नहीं हैं — वे लेखन प्रक्रिया में आपकी साथी हैं।',
-  'onboarding.step2.button': 'एक और बात',
   'onboarding.step3.title': 'शुरू करने से पहले',
-  'onboarding.step3.body': 'UnderSurface एक लेखन उपकरण है, चिकित्सा सेवा नहीं। आंतरिक आवाज़ें AI लेखन साथी हैं — वे चिकित्सक नहीं हैं, और वे पेशेवर देखभाल की जगह नहीं ले सकतीं।',
   'onboarding.step3.disclaimer': 'मैं समझता/समझती हूं कि यह चिकित्सा सेवा नहीं है',
   'onboarding.step3.privacy': 'मैंने पढ़ा और स्वीकार करता/करती हूं',
   'onboarding.step3.privacyLink': 'गोपनीयता नीति',
-  'onboarding.step3.begin': 'लिखना शुरू करें',
   'onboarding.step3.starting': 'शुरू हो रहा है...',
   'onboarding.back': 'वापस',
   'settings.title': 'सेटिंग्स',
@@ -127,7 +118,6 @@ const hiBase = {
   'delete.deleting': 'हटा रहे हैं...',
   'error.title': 'कुछ गलत हो गया',
   'error.reload': 'रीलोड',
-  'app.subtitle': 'एक डायरी जहां आपके लिखते समय आंतरिक आवाज़ें प्रतिक्रिया देती हैं',
   'app.newVersion': 'नया संस्करण उपलब्ध — रिफ्रेश करने के लिए टैप करें',
   'app.skipToEditor': 'संपादक पर जाएं',
   'app.initError': 'कुछ गलत हो गया',
@@ -204,11 +194,6 @@ const hiBase = {
   'policy.recommendationBody': 'हम UnderSurface को पेशेवर सहायता के साथ उपयोग करने की सलाह देते हैं, उसके बदले नहीं। आंतरिक आवाज़ों के साथ लिखना आपकी प्रक्रिया में एक सार्थक साथी हो सकता है — लेकिन यह एक प्रशिक्षित पेशेवर की देखभाल का विकल्प नहीं है।',
 
   // Landing page hero
-  'landing.headline': 'A diary that listens back',
-  'landing.feature1': 'Write freely — inner voices listen',
-  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
-  'landing.feature3': 'They learn your patterns and grow with you',
-  'landing.cta': 'Start writing — it\'s free',
   'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
   'landing.demoPartName': 'The Tender One',
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
@@ -254,6 +239,14 @@ const hiBase = {
   'bodyMap.region.legs': 'पैर और तलवे',
 } as const
 
-const hi = { ...hiBase, ...conductorFallback, ...sessionCopy.hi, ...roomFallback } as const
+// English fallbacks come first, so they only fill keys that have no
+// translation yet; a real translation in this file always wins.
+const hi = {
+  ...conductorFallback,
+  ...personalScienceEnglish,
+  ...roomFallback,
+  ...hiBase,
+  ...sessionCopy.hi,
+} as const
 
 export default hi

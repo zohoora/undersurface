@@ -1,9 +1,8 @@
-import { sessionCopy } from './sessionCopy'
+import { personalScienceEnglish, sessionCopy } from './sessionCopy'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
 const frBase = {
-  'login.tagline': 'Écris librement. Quand tu fais une pause,\nune voix intérieure s\'éveille —\nnon pour juger, mais pour s\'asseoir près de toi\ndans les mots.',
   'login.email': 'E-mail',
   'login.password': 'Mot de passe',
   'login.signIn': 'Se connecter',
@@ -19,18 +18,10 @@ const frBase = {
   'login.disclaimer': 'Avertissement',
   'login.resetSuccess': 'E-mail de réinitialisation envoyé. Vérifiez votre boîte de réception.',
   'onboarding.welcome': 'Bienvenue sur UnderSurface',
-  'onboarding.step1.body': 'Ceci est un journal — mais pas seulement. En écrivant, des voix intérieures apparaîtront sur la page. Elles remarquent ce que tu écris et répondent — avec douceur, honnêteté, parfois de façons inattendues.',
-  'onboarding.step1.button': 'Comment ça marche ?',
-  'onboarding.step2.title': 'Tes voix intérieures',
-  'onboarding.step2.body1': 'En écrivant, différentes voix peuvent apparaître — L\'Observateur, Le Tendre, Le Point Calme, et d\'autres. Chacune remarque des choses différentes : des motifs dans tes mots, des émotions sous la surface, ce que tu pourrais éviter.',
-  'onboarding.step2.body2': 'Elles apprennent de ton écriture et évoluent avec le temps. Ce ne sont pas des thérapeutes — ce sont des compagnons du processus d\'écriture.',
-  'onboarding.step2.button': 'Encore une chose',
   'onboarding.step3.title': 'Avant de commencer',
-  'onboarding.step3.body': 'UnderSurface est un outil d\'écriture, pas un service thérapeutique. Les voix intérieures sont des compagnons d\'écriture IA — ce ne sont pas des thérapeutes et elles ne peuvent pas remplacer un accompagnement professionnel.',
   'onboarding.step3.disclaimer': 'Je comprends que ceci n\'est pas un service thérapeutique',
   'onboarding.step3.privacy': 'J\'ai lu et j\'accepte la',
   'onboarding.step3.privacyLink': 'Politique de confidentialité',
-  'onboarding.step3.begin': 'Commencer à écrire',
   'onboarding.step3.starting': 'Démarrage...',
   'onboarding.back': 'Retour',
   'settings.title': 'Paramètres',
@@ -127,7 +118,6 @@ const frBase = {
   'delete.deleting': 'Suppression...',
   'error.title': 'Quelque chose s\'est mal passé',
   'error.reload': 'Recharger',
-  'app.subtitle': 'Un journal où les voix intérieures répondent pendant que tu écris',
   'app.newVersion': 'Nouvelle version disponible — touchez pour actualiser',
   'app.skipToEditor': 'Aller à l\'éditeur',
   'app.initError': 'Quelque chose s\'est mal passé',
@@ -204,11 +194,6 @@ const frBase = {
   'policy.recommendationBody': 'Nous vous encourageons à utiliser UnderSurface en complément d\'un accompagnement professionnel, et non à sa place. Écrire avec des voix intérieures peut être un compagnon précieux dans votre processus — mais ce n\'est pas un substitut aux soins d\'un professionnel qualifié.',
 
   // Landing page hero
-  'landing.headline': 'A diary that listens back',
-  'landing.feature1': 'Write freely — inner voices listen',
-  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
-  'landing.feature3': 'They learn your patterns and grow with you',
-  'landing.cta': 'Start writing — it\'s free',
   'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
   'landing.demoPartName': 'The Tender One',
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
@@ -254,6 +239,14 @@ const frBase = {
   'bodyMap.region.legs': 'Jambes et pieds',
 } as const
 
-const fr = { ...frBase, ...conductorFallback, ...sessionCopy.fr, ...roomFallback } as const
+// English fallbacks come first, so they only fill keys that have no
+// translation yet; a real translation in this file always wins.
+const fr = {
+  ...conductorFallback,
+  ...personalScienceEnglish,
+  ...roomFallback,
+  ...frBase,
+  ...sessionCopy.fr,
+} as const
 
 export default fr

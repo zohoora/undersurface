@@ -1,9 +1,8 @@
-import { sessionCopy } from './sessionCopy'
+import { personalScienceEnglish, sessionCopy } from './sessionCopy'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
 const trBase = {
-  'login.tagline': 'Özgürce yaz. Duraksadığında,\niç sesin uyanır —\nyargılamak için değil,\nkelimelerin arasında yanında oturmak için.',
   'login.email': 'E-posta',
   'login.password': 'Şifre',
   'login.signIn': 'Giriş yap',
@@ -19,18 +18,10 @@ const trBase = {
   'login.disclaimer': 'Sorumluluk Reddi',
   'login.resetSuccess': 'Şifre sıfırlama e-postası gönderildi. Gelen kutunu kontrol et.',
   'onboarding.welcome': 'UnderSurface\'e hoş geldin',
-  'onboarding.step1.body': 'Bu bir günlük — ama sıradan bir günlük değil. Yazarken iç sesler sayfada belirecek. Ne yazdığını fark ediyorlar ve nazikçe, dürüstçe, bazen beklemediğin şekillerde karşılık veriyorlar.',
-  'onboarding.step1.button': 'Nasıl çalışıyor?',
-  'onboarding.step2.title': 'İç seslerin',
-  'onboarding.step2.body1': 'Yazarken farklı sesler belirip gelebilir — Gözlemci, Şefkatli, Durgunluk Noktası ve diğerleri. Her biri farklı şeyleri fark eder: kelimelerindeki örüntüleri, yüzeyin altındaki duyguları, kaçınıyor olabileceğin şeyleri.',
-  'onboarding.step2.body2': 'Yazılarından öğrenirler ve zamanla gelişirler. Terapist değiller — yazma sürecinin yol arkadaşları.',
-  'onboarding.step2.button': 'Bir şey daha',
   'onboarding.step3.title': 'Başlamadan önce',
-  'onboarding.step3.body': 'UnderSurface bir yazma aracıdır, terapi hizmeti değildir. İç sesler yapay zeka yazma arkadaşlarıdır — terapist değiller ve profesyonel desteğin yerini alamazlar.',
   'onboarding.step3.disclaimer': 'Bunun bir terapi hizmeti olmadığını anlıyorum',
   'onboarding.step3.privacy': 'Okudum ve kabul ediyorum',
   'onboarding.step3.privacyLink': 'Gizlilik Politikası',
-  'onboarding.step3.begin': 'Yazmaya başla',
   'onboarding.step3.starting': 'Başlatılıyor...',
   'onboarding.back': 'Geri',
   'settings.title': 'Ayarlar',
@@ -127,7 +118,6 @@ const trBase = {
   'delete.deleting': 'Siliniyor...',
   'error.title': 'Bir şeyler ters gitti',
   'error.reload': 'Yenile',
-  'app.subtitle': 'Yazarken iç seslerin karşılık verdiği bir günlük',
   'app.newVersion': 'Yeni sürüm mevcut — yenilemek için dokun',
   'app.skipToEditor': 'Düzenleyiciye geç',
   'app.initError': 'Bir şeyler ters gitti',
@@ -204,11 +194,6 @@ const trBase = {
   'policy.recommendationBody': 'UnderSurface\'ü profesyonel desteğin yanı sıra kullanmanızı teşvik ediyoruz, onun yerine değil. İç seslerle yazmak sürecinizde anlamlı bir yol arkadaşı olabilir — ancak eğitimli bir profesyonelin bakımının yerini tutmaz.',
 
   // Landing page hero
-  'landing.headline': 'A diary that listens back',
-  'landing.feature1': 'Write freely — inner voices listen',
-  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
-  'landing.feature3': 'They learn your patterns and grow with you',
-  'landing.cta': 'Start writing — it\'s free',
   'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
   'landing.demoPartName': 'The Tender One',
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
@@ -254,6 +239,14 @@ const trBase = {
   'bodyMap.region.legs': 'Bacaklar ve ayaklar',
 } as const
 
-const tr = { ...trBase, ...conductorFallback, ...sessionCopy.tr, ...roomFallback } as const
+// English fallbacks come first, so they only fill keys that have no
+// translation yet; a real translation in this file always wins.
+const tr = {
+  ...conductorFallback,
+  ...personalScienceEnglish,
+  ...roomFallback,
+  ...trBase,
+  ...sessionCopy.tr,
+} as const
 
 export default tr

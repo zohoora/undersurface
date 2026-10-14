@@ -1,9 +1,8 @@
-import { sessionCopy } from './sessionCopy'
+import { personalScienceEnglish, sessionCopy } from './sessionCopy'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
 const nlBase = {
-  'login.tagline': 'Schrijf vrij. Wanneer je pauzeert,\nroert een innerlijke stem zich —\nniet om te oordelen, maar om naast je te zitten\nin de woorden.',
   'login.email': 'E-mail',
   'login.password': 'Wachtwoord',
   'login.signIn': 'Inloggen',
@@ -19,18 +18,10 @@ const nlBase = {
   'login.disclaimer': 'Disclaimer',
   'login.resetSuccess': 'E-mail voor wachtwoordreset verzonden. Controleer je inbox.',
   'onboarding.welcome': 'Welkom bij UnderSurface',
-  'onboarding.step1.body': 'Dit is een dagboek — maar niet zomaar een dagboek. Terwijl je schrijft, verschijnen innerlijke stemmen op de pagina. Ze merken op waar je over schrijft en reageren — zacht, eerlijk, soms op manieren die je niet verwacht.',
-  'onboarding.step1.button': 'Hoe werkt het?',
-  'onboarding.step2.title': 'Je innerlijke stemmen',
-  'onboarding.step2.body1': 'Terwijl je schrijft, kunnen verschillende stemmen verschijnen — De Wachter, De Tedere, Het Stilpunt en anderen. Elk merkt iets anders op: patronen in je woorden, emoties onder het oppervlak, wat je misschien vermijdt.',
-  'onboarding.step2.body2': 'Ze leren van je schrijven en ontwikkelen zich in de loop van de tijd. Het zijn geen therapeuten — het zijn metgezellen in het schrijfproces.',
-  'onboarding.step2.button': 'Nog één ding',
   'onboarding.step3.title': 'Voordat je begint',
-  'onboarding.step3.body': 'UnderSurface is een schrijftool, geen therapeutische dienst. De innerlijke stemmen zijn AI-schrijfcompagnons — het zijn geen therapeuten en ze kunnen professionele zorg niet vervangen.',
   'onboarding.step3.disclaimer': 'Ik begrijp dat dit geen therapeutische dienst is',
   'onboarding.step3.privacy': 'Ik heb het gelezen en accepteer het',
   'onboarding.step3.privacyLink': 'Privacybeleid',
-  'onboarding.step3.begin': 'Begin met schrijven',
   'onboarding.step3.starting': 'Starten...',
   'onboarding.back': 'Terug',
   'settings.title': 'Instellingen',
@@ -127,7 +118,6 @@ const nlBase = {
   'delete.deleting': 'Verwijderen...',
   'error.title': 'Er ging iets mis',
   'error.reload': 'Herladen',
-  'app.subtitle': 'Een dagboek waar innerlijke stemmen reageren terwijl je schrijft',
   'app.newVersion': 'Nieuwe versie beschikbaar — tik om te vernieuwen',
   'app.skipToEditor': 'Ga naar editor',
   'app.initError': 'Er ging iets mis',
@@ -204,11 +194,6 @@ const nlBase = {
   'policy.recommendationBody': 'We moedigen aan om UnderSurface naast professionele ondersteuning te gebruiken, niet in plaats daarvan. Schrijven met innerlijke stemmen kan een waardevolle aanvulling zijn op je proces — maar het is geen vervanging voor de zorg van een getrainde professional.',
 
   // Landing page hero
-  'landing.headline': 'A diary that listens back',
-  'landing.feature1': 'Write freely — inner voices listen',
-  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
-  'landing.feature3': 'They learn your patterns and grow with you',
-  'landing.cta': 'Start writing — it\'s free',
   'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
   'landing.demoPartName': 'The Tender One',
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
@@ -254,6 +239,14 @@ const nlBase = {
   'bodyMap.region.legs': 'Benen en voeten',
 } as const
 
-const nl = { ...nlBase, ...conductorFallback, ...sessionCopy.nl, ...roomFallback } as const
+// English fallbacks come first, so they only fill keys that have no
+// translation yet; a real translation in this file always wins.
+const nl = {
+  ...conductorFallback,
+  ...personalScienceEnglish,
+  ...roomFallback,
+  ...nlBase,
+  ...sessionCopy.nl,
+} as const
 
 export default nl

@@ -1,9 +1,8 @@
-import { sessionCopy } from './sessionCopy'
+import { personalScienceEnglish, sessionCopy } from './sessionCopy'
 import { conductorFallback } from '../conductorFallback'
 import { roomFallback } from '../roomFallback'
 
 const jaBase = {
-  'login.tagline': '自由に書いてください。あなたが立ち止まると、\n内なる声がそっと動き出します——\n裁くためではなく、あなたのそばに座るために\n言葉の中で。',
   'login.email': 'メールアドレス',
   'login.password': 'パスワード',
   'login.signIn': 'ログイン',
@@ -19,18 +18,10 @@ const jaBase = {
   'login.disclaimer': '免責事項',
   'login.resetSuccess': 'パスワードリセットメールを送信しました。受信箱をご確認ください。',
   'onboarding.welcome': 'UnderSurfaceへようこそ',
-  'onboarding.step1.body': 'これは日記です——でもただの日記ではありません。あなたが書いている間、内なる声がページに現れます。あなたが何について書いているかに気づき、応えてくれます——穏やかに、正直に、時には思いもよらない形で。',
-  'onboarding.step1.button': 'どのように動くの？',
-  'onboarding.step2.title': 'あなたの内なる声',
-  'onboarding.step2.body1': '書いている間、さまざまな声が現れることがあります——観察者、やさしい者、静寂の点、そして他にも。それぞれが異なるものに気づきます：あなたの言葉のパターン、表面の下にある感情、あなたが避けているかもしれないもの。',
-  'onboarding.step2.body2': 'それらはあなたの文章から学び、時間とともに成長します。セラピストではありません——書くプロセスの伴走者です。',
-  'onboarding.step2.button': 'もうひとつだけ',
   'onboarding.step3.title': '始める前に',
-  'onboarding.step3.body': 'UnderSurfaceはライティングツールであり、治療サービスではありません。内なる声はAIのライティングパートナーです——セラピストではなく、専門的なケアの代わりにはなりません。',
   'onboarding.step3.disclaimer': 'これが治療サービスではないことを理解しています',
   'onboarding.step3.privacy': '以下を読み、同意しました：',
   'onboarding.step3.privacyLink': 'プライバシーポリシー',
-  'onboarding.step3.begin': '書き始める',
   'onboarding.step3.starting': '起動中...',
   'onboarding.back': '戻る',
   'settings.title': '設定',
@@ -127,7 +118,6 @@ const jaBase = {
   'delete.deleting': '削除中...',
   'error.title': '問題が発生しました',
   'error.reload': '再読み込み',
-  'app.subtitle': '書いている間、内なる声が応えてくれる日記',
   'app.newVersion': '新しいバージョンがあります——タップして更新',
   'app.skipToEditor': 'エディタへ移動',
   'app.initError': '問題が発生しました',
@@ -204,11 +194,6 @@ const jaBase = {
   'policy.recommendationBody': 'UnderSurface は専門的なサポートの代わりではなく、それと併せて使うことをお勧めします。内なる声とともに書くことは、あなたのプロセスにおける意味のある伴走になり得ます——しかし、訓練を受けた専門家によるケアの代わりにはなりません。',
 
   // Landing page hero
-  'landing.headline': 'A diary that listens back',
-  'landing.feature1': 'Write freely — inner voices listen',
-  'landing.feature2': 'They respond when you pause, trail off, or go deeper',
-  'landing.feature3': 'They learn your patterns and grow with you',
-  'landing.cta': 'Start writing — it\'s free',
   'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
   'landing.demoPartName': 'The Tender One',
   'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
@@ -254,6 +239,14 @@ const jaBase = {
   'bodyMap.region.legs': '脚と足',
 } as const
 
-const ja = { ...jaBase, ...conductorFallback, ...sessionCopy.ja, ...roomFallback } as const
+// English fallbacks come first, so they only fill keys that have no
+// translation yet; a real translation in this file always wins.
+const ja = {
+  ...conductorFallback,
+  ...personalScienceEnglish,
+  ...roomFallback,
+  ...jaBase,
+  ...sessionCopy.ja,
+} as const
 
 export default ja
