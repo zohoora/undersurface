@@ -104,7 +104,6 @@ const enBase = {
   'editor.placeholder': 'Begin writing...',
 
   // Session
-  'session.mode.realTalk': 'Real Talk',
   'session.bottomBar.talk': 'Talk',
   'session.bottomBar.journal': 'Journal',
   'session.bottomBar.speak': 'Speak',
@@ -143,8 +142,6 @@ const enBase = {
   'conductor.offer.declined': 'We will stay here.',
   'conductor.return.journal': 'You are back from Journal. Continue here only if something wants words.',
   'conductor.return.speak': 'You are back from Speak. Take a moment before deciding whether anything else needs saying.',
-  'conductor.return.relax': 'You are back from Room. Let whatever shifted have a little room.',
-  'conductor.return.drift': 'You are back from Room. Let whatever shifted have a little room.',
 
   // Emotions (for InnerWeather display)
   'emotion.tender': 'tender',
@@ -276,9 +273,6 @@ const enBase = {
   'landing.feature2': 'Move naturally between voice, sound, and quiet in Room',
   'landing.feature3': 'Return to one useful thread next time',
   'landing.cta': 'Begin a session — it\'s free',
-  'landing.demoText': 'I keep thinking about what she said, how it made me feel so small...',
-  'landing.demoPartName': 'The Tender One',
-  'landing.demoThought': 'That smallness you\'re feeling — it\'s worth sitting with.',
 
   // Echo thoughts
   'echo.label': 'The Past',

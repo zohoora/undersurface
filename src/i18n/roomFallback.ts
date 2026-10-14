@@ -32,7 +32,6 @@ export const roomFallback = {
   'room.voice.connecting': 'Bringing your companion in…',
   'room.voice.listening': 'listening',
   'room.voice.speaking': 'with you',
-  'room.voice.error': 'Voice could not join. You can continue with quiet company.',
   'room.voice.retry': 'try voice again',
   'room.voice.continueQuietly': 'Continue quietly',
   'room.audio.retry': 'Tap for sound',
