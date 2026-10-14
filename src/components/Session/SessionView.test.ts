@@ -181,6 +181,12 @@ describe('SessionView — recommendation rendering integration', () => {
     expect(src.default).toContain('onRecommendationTap')
   })
 
+  it('ending a session from Journal returns to Talk, where the closing message renders', async () => {
+    const src = (await import('./SessionView?raw')).default
+    const end = src.slice(src.indexOf('const handleEndSession'), src.indexOf('generateTherapistMessage(currentMessages, currentSession)'))
+    expect(end).toContain("setSurface(prev => (prev === 'journal' ? 'talk' : prev))")
+  })
+
   it('SessionView source contains handleRecommendationTap', async () => {
     const src = await import('./SessionView?raw')
     expect(src.default).toContain('handleRecommendationTap')
@@ -413,7 +419,7 @@ describe('SessionView — journal drafts are session-owned and durable (T1)', ()
 
   it('contributes the draft before closing, and grounding still flushes journal words as user text', async () => {
     const src = (await import('./SessionView?raw')).default
-    expect(src).toMatch(/const handleEndSession = useCallback\(async \(\) => \{[\s\S]{0,600}await commitJournalDraft\(\)[\s\S]{0,300}const currentMessages = messagesRef\.current/)
+    expect(src).toMatch(/const handleEndSession = useCallback\(async \(\) => \{[\s\S]{0,600}await commitJournalDraft\(\)[\s\S]{0,600}const currentMessages = messagesRef\.current/)
     expect(src).toContain("if (activeArc.surface === 'journal') void commitJournalDraft()")
   })
 

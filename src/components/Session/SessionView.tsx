@@ -416,6 +416,9 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     await commitJournalDraft()
     const currentSession = sessionRef.current
     if (!currentSession || currentSession.id !== startingSession.id || currentSession.status === 'closed') return
+    // The closing companion message and session note render in Talk; ending
+    // from Journal used to leave the writer on a page where neither appeared.
+    setSurface(prev => (prev === 'journal' ? 'talk' : prev))
     const currentMessages = messagesRef.current
     const freshEyes = isFreshEyesSession(currentSession)
 
