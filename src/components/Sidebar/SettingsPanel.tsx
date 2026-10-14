@@ -15,6 +15,7 @@ import { db } from '../../store/db'
 import PolicyModal from '../PolicyModal'
 import { SmsSettingsSection } from './SmsSettingsSection'
 import { CompanionPreferencesSection } from './CompanionPreferencesSection'
+import { LettersSection } from './LettersSection'
 import { timezoneLabel, timezoneOptions } from './timezoneOptions'
 import { useModalA11y } from '../../hooks/useModalA11y'
 
@@ -252,6 +253,9 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
 
           {/* What matters to you (userValues flag) */}
           <UserValuesSection isOpen={isOpen} />
+
+          {/* Letters from parts (renders nothing until one exists, or under grounding) */}
+          {user && <LettersSection isOpen={isOpen} />}
 
           {/* Language */}
           <div className="settings-section">

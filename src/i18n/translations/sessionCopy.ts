@@ -122,6 +122,12 @@ const personalScienceEnglish = {
   'companionMemory.source.sessionNote': 'session note',
   'companionMemory.source.memory': 'session memory',
   'companionMemory.empty': 'No durable memory yet.',
+  'letters.title': 'Letters',
+  'letters.description': 'Now and then, your inner voices write to you after a session.',
+  'letters.from': 'From {names}',
+  'letters.fromParts': 'From your inner voices',
+  'letters.unread': 'Unread',
+  'letters.back': 'All letters',
 } as const
 
 // Session-first product and biometric-consent copy kept together so every
