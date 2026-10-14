@@ -11,6 +11,7 @@ import {
   fieldWindowDispatchBlock,
   fieldWindowIneligibility,
   fieldWindowMessage,
+  fieldWindowTimezoneProblem,
   hasFieldWindowConsent,
   parseFieldWindowPreferences,
   type FieldWindowArm,
@@ -57,6 +58,8 @@ export interface FieldWindowScheduleSummary {
   ineligible: number
   failedUsers: number
   swept: number
+  /** Opted-in writers skipped because their timezone is unusable. */
+  invalidTimezone: number
 }
 
 function userCollection(uid: string, collection: string, db: Firestore = getFirestore()) {
@@ -103,7 +106,7 @@ function outcomeForFieldWindow(input: {
   }
 }
 
-type UserScheduleResult = 'none' | 'created' | 'ineligible'
+type UserScheduleResult = 'none' | 'created' | 'ineligible' | 'invalid_timezone'
 
 /**
  * Schedule one writer. Checks run cheapest-first: the pure window check, then
@@ -119,7 +122,17 @@ async function scheduleUser(
   if (!uid || doc.id !== 'current') return 'none'
   const data = doc.data()
   const preferences = parseFieldWindowPreferences(data.fieldWindows)
-  if (!preferences || typeof preferences.consentAt !== 'number') return 'none'
+  if (!preferences) {
+    // An opted-in writer whose timezone the scheduler cannot use would
+    // otherwise never get a window, with nothing in the logs to say why.
+    const problem = fieldWindowTimezoneProblem(data.fieldWindows)
+    if (problem) {
+      console.warn(`[field-windows] preferences skipped category=${problem}`)
+      return 'invalid_timezone'
+    }
+    return 'none'
+  }
+  if (typeof preferences.consentAt !== 'number') return 'none'
 
   let decision: FieldWindowDecision | null = null
   for (const window of preferences.windows) {
@@ -183,7 +196,7 @@ async function scheduleUser(
 
 export async function scheduleFieldWindows(now = Date.now()): Promise<FieldWindowScheduleSummary> {
   const db = getFirestore()
-  const summary: FieldWindowScheduleSummary = { created: 0, ineligible: 0, failedUsers: 0, swept: 0 }
+  const summary: FieldWindowScheduleSummary = { created: 0, ineligible: 0, failedUsers: 0, swept: 0, invalidTimezone: 0 }
   try {
     summary.swept = await sweepStaleFieldWindowDispatches(now)
   } catch (error) {
@@ -203,6 +216,7 @@ export async function scheduleFieldWindows(now = Date.now()): Promise<FieldWindo
         const result = await scheduleUser(db, doc, now)
         if (result === 'created') summary.created++
         if (result === 'ineligible') summary.ineligible++
+        if (result === 'invalid_timezone') summary.invalidTimezone++
       } catch (error) {
         // One malformed or unreadable user must never stop everyone after it.
         summary.failedUsers++
@@ -225,8 +239,8 @@ export const fieldWindowScheduler = onSchedule(
   },
   async () => {
     const summary = await scheduleFieldWindows()
-    if (summary.created + summary.ineligible + summary.failedUsers + summary.swept > 0) {
-      console.info(`[field-windows] created=${summary.created} ineligible=${summary.ineligible} failedUsers=${summary.failedUsers} swept=${summary.swept}`)
+    if (summary.created + summary.ineligible + summary.failedUsers + summary.swept + summary.invalidTimezone > 0) {
+      console.info(`[field-windows] created=${summary.created} ineligible=${summary.ineligible} failedUsers=${summary.failedUsers} swept=${summary.swept} invalidTimezone=${summary.invalidTimezone}`)
     }
   },
 )

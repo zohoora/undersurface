@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useTranslation } from '../../i18n'
+import { getLanguageCode, useTranslation } from '../../i18n'
 import { db } from '../../store/db'
 import { getSettings } from '../../store/settings'
 import type {
@@ -17,6 +17,7 @@ import {
   windowWithStart,
 } from './fieldWindowSettingsLogic'
 import { currentTimestamp } from '../../store/timestamp'
+import { isValidTimezone, timezoneLabel, timezoneOptions } from './timezoneOptions'
 
 const DAYS: Array<{ day: FieldWindowDay; short: string; title: string }> = [
   { day: 0, short: 'Su', title: 'Sunday' },
@@ -81,6 +82,9 @@ export function FieldWindowSettings({ isOpen }: { isOpen: boolean }) {
   const [preferences, setPreferences] = useState<FieldWindowPreferences>(() => defaultPreferences())
   const [exists, setExists] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  // The device zone, read once: the fallback offered when the stored value is
+  // not a zone the scheduler can use.
+  const [deviceZone] = useState(() => getSettings().timezone)
 
   useEffect(() => {
     if (!isOpen) return
@@ -118,6 +122,9 @@ export function FieldWindowSettings({ isOpen }: { isOpen: boolean }) {
 
   if (!loaded) return null
 
+  const timezoneValid = isValidTimezone(preferences.timezone)
+  const zoneChoices = timezoneOptions(timezoneValid ? preferences.timezone : isValidTimezone(deviceZone) ? deviceZone : '')
+
   return (
     <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 10, marginTop: 2 }}>
       <div style={{ fontSize: 11, color: 'var(--text-primary)' }}>{tr['ps.field.title']}</div>
@@ -134,7 +141,12 @@ export function FieldWindowSettings({ isOpen }: { isOpen: boolean }) {
             enabled: event.target.checked,
             // Every explicit opt-in is fresh consent. The server ignores
             // consent older than an SMS STOP/UNLINK, so never reuse it.
-            ...(event.target.checked ? { consentAt: currentTimestamp() } : {}),
+            // Opting in also settles an unusable stored zone (an old free-text
+            // entry) on the device zone the list then shows.
+            ...(event.target.checked ? {
+              consentAt: currentTimestamp(),
+              ...(!isValidTimezone(current.timezone) && isValidTimezone(deviceZone) ? { timezone: deviceZone } : {}),
+            } : {}),
           }))}
         />
       </label>
@@ -142,8 +154,28 @@ export function FieldWindowSettings({ isOpen }: { isOpen: boolean }) {
         <div style={{ display: 'grid', gap: 10, marginTop: 9 }}>
           <label style={{ display: 'grid', gap: 3, color: 'var(--text-secondary)', fontSize: 10 }}>
             {tr['ps.field.timezone']}
-            <input value={preferences.timezone} onChange={event => save(current => ({ ...current, timezone: event.target.value.trim() }))} style={inputStyle} />
+            {/* A list, not free text: an unrecognized zone silently scheduled
+                nothing. The server rejects invalid zones too. */}
+            <select
+              value={timezoneValid ? preferences.timezone : ''}
+              aria-invalid={!timezoneValid || undefined}
+              onChange={event => {
+                const timezone = event.target.value
+                if (isValidTimezone(timezone)) save(current => ({ ...current, timezone }))
+              }}
+              style={inputStyle}
+            >
+              {!timezoneValid && <option value="" disabled>{preferences.timezone || '—'}</option>}
+              {zoneChoices.map(zone => (
+                <option key={zone} value={zone}>{timezoneLabel(zone, getLanguageCode())}</option>
+              ))}
+            </select>
           </label>
+          {!timezoneValid && (
+            <div role="alert" style={{ fontSize: 10, color: 'var(--color-tender)', lineHeight: 1.4 }}>
+              {tr['ps.field.timezoneInvalid']}
+            </div>
+          )}
           <label style={{ display: 'grid', gap: 3, color: 'var(--text-secondary)', fontSize: 10 }}>
             {tr['ps.field.max']}
             <select value={preferences.maxPerWeek} onChange={event => save(current => ({ ...current, maxPerWeek: Number(event.target.value) as 1 | 2 | 3 }))} style={inputStyle}>

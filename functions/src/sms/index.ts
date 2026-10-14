@@ -50,6 +50,7 @@ import {
   isSmsEnabled,
   readRecentCrisis,
   recordSmsRisk,
+  refundDailySmsTurn,
   reserveDailySmsTurn,
   revokeFieldWindowConsent,
 } from './state.js'
@@ -480,6 +481,17 @@ async function dropJob(
   await cleanupTwilioMedia(queued)
 }
 
+// No companion reply was generated, so the reserved daily turn goes back. A
+// refund failure only costs the writer one turn; it must never change the
+// reply that goes out.
+async function refundTurnSafely(uid: string, ref: FirebaseFirestore.DocumentReference): Promise<void> {
+  try {
+    await refundDailySmsTurn(uid, ref, Date.now())
+  } catch (error) {
+    console.error(`[sms] budget refund failed category=${errorCategory(error)}`)
+  }
+}
+
 async function recordRiskSafely(uid: string, risk: 0 | 1 | 2, now: number): Promise<void> {
   if (risk < 1) return
   try {
@@ -554,6 +566,8 @@ async function planReply(
     ])
     const failedImageCount = (queued.rejectedMediaCount ?? 0) + fetched.failedCount
     if (!queued.body.trim() && fetched.images.length === 0 && failedImageCount > 0) {
+      // Nothing to answer and no model call: not a generated turn.
+      await refundTurnSafely(queued.uid, ref)
       return fixedReply(SMS_MEDIA_UNAVAILABLE_RESPONSE, risk, false)
     }
     const turn = await generateSmsTurn({
@@ -581,6 +595,7 @@ async function planReply(
     }
   } catch (error) {
     console.error(`[sms] reply generation failed category=${errorCategory(error)}`)
+    await refundTurnSafely(queued.uid, ref)
     return fixedReply(SMS_UNAVAILABLE_RESPONSE, risk, true)
   }
 }

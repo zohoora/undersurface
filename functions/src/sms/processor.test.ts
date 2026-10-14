@@ -336,6 +336,53 @@ describe('SMS inbound processor', () => {
     expect(fakeDb.read(`users/${UID}/smsSettings/usage`)).toMatchObject({ turns: 1 })
   })
 
+  it('refunds the reserved turn when generation fails and the fixed fallback is sent', async () => {
+    seedJob()
+    fakeDb.seed(`users/${UID}/smsSettings/usage`, { dayKey: utcDayKey(Date.now()), turns: 5 })
+    mocks.generate.mockRejectedValue(new Error('upstream 500'))
+
+    await processSmsInbound(queueRef())
+
+    expect(sentBodies()).toHaveLength(1)
+    expect(sentBodies()[0]).toContain("couldn't reach the companion")
+    expect(fakeDb.read(`users/${UID}/smsSettings/usage`)).toMatchObject({ turns: 5 })
+  })
+
+  it('refunds when an image-only message has nothing usable to answer (no model call)', async () => {
+    seedJob({ body: '', media: [{ url: 'https://api.twilio.com/media/ME1', contentType: 'image/jpeg' }] })
+    mocks.fetchImages.mockResolvedValue({ images: [], failedCount: 1 })
+
+    await processSmsInbound(queueRef())
+
+    expect(mocks.generate).not.toHaveBeenCalled()
+    expect(fakeDb.read(`users/${UID}/smsSettings/usage`)?.turns ?? 0).toBe(0)
+  })
+
+  it('still counts a message once when a failed generation is retried and succeeds', async () => {
+    seedJob()
+    mocks.generate.mockRejectedValueOnce(new Error('upstream 500'))
+    // The fallback send is rate-limited, so the whole message is retried.
+    mocks.create.mockRejectedValueOnce(Object.assign(new Error('rate'), { status: 429 }))
+
+    await expect(processSmsInbound(queueRef())).rejects.toThrow()
+    expect(fakeDb.read(`users/${UID}/smsSettings/usage`)).toMatchObject({ turns: 0 })
+    await processSmsInbound(queueRef())
+
+    expect(sentBodies().at(-1)).toBe('That sounds like a full day.')
+    expect(fakeDb.read(`users/${UID}/smsSettings/usage`)).toMatchObject({ turns: 1 })
+  })
+
+  it('never reserves or refunds for a crisis-adjacent turn whose generation fails', async () => {
+    seedJob()
+    fakeDb.seed(`users/${UID}/smsSettings/usage`, { dayKey: utcDayKey(Date.now()), turns: 3 })
+    mocks.classify.mockResolvedValue({ risk: 1 })
+    mocks.generate.mockRejectedValue(new Error('upstream 500'))
+
+    await processSmsInbound(queueRef())
+
+    expect(fakeDb.read(`users/${UID}/smsSettings/usage`)).toMatchObject({ turns: 3 })
+  })
+
   it('drops the job without writing or sending when the account is being deleted', async () => {
     seedJob()
     fakeDb.seed(`users/${UID}`, { status: 'deleting', deletedAt: Date.now() })

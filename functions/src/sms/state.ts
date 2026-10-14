@@ -198,6 +198,38 @@ export async function reserveDailySmsTurn(
   })
 }
 
+/**
+ * Give back a reserved turn when no companion reply was generated (the model
+ * call failed, so the fixed fallback goes out instead). Keyed on the queue
+ * doc's `budgetReservedAt`, in one transaction with the usage count:
+ *   - a second refund for the same message is a no-op (marker already gone);
+ *   - a later retry of the message reserves afresh, so a message that does
+ *     get a generated reply is still counted exactly once.
+ * The count is only decremented on the UTC day the turn was reserved.
+ */
+export async function refundDailySmsTurn(
+  uid: string,
+  queueRef: FirebaseFirestore.DocumentReference,
+  now: number,
+  db: Firestore = getFirestore(),
+): Promise<boolean> {
+  const usageRef = smsSettingsDoc(db, uid, 'usage')
+  return db.runTransaction(async transaction => {
+    const [usageSnap, queueSnap] = await Promise.all([
+      transaction.get(usageRef),
+      transaction.get(queueRef),
+    ])
+    const reservedAt = queueSnap.exists ? queueSnap.data()?.budgetReservedAt : undefined
+    if (typeof reservedAt !== 'number') return false
+    const usage = usageSnap.exists ? usageSnap.data() : null
+    if (usage?.dayKey === utcDayKey(reservedAt) && typeof usage.turns === 'number' && usage.turns > 0) {
+      transaction.set(usageRef, { dayKey: usage.dayKey, turns: usage.turns - 1, updatedAt: now })
+    }
+    transaction.update(queueRef, { budgetReservedAt: FieldValue.delete() })
+    return true
+  })
+}
+
 function stateErrorCategory(error: unknown): string {
   const code = (error as { code?: unknown })?.code
   if (typeof code === 'number' || typeof code === 'string') return `provider_${String(code).slice(0, 40)}`

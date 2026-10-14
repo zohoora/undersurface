@@ -8,7 +8,9 @@ import {
   fieldWindowDispatchBlock,
   fieldWindowIneligibility,
   fieldWindowMessage,
+  fieldWindowTimezoneProblem,
   hasFieldWindowConsent,
+  isValidTimezone,
   localWeekKey,
   parseFieldWindowPreferences,
   validFieldWindow,
@@ -174,6 +176,21 @@ describe('field window preference validation', () => {
     expect(parseFieldWindowPreferences({ ...valid, maxPerWeek: '2' })).toBeNull()
     expect(parseFieldWindowPreferences({ ...valid, maxPerWeek: 9 })).toBeNull()
     expect(parseFieldWindowPreferences({ ...valid, windows: 'all' })).toBeNull()
+  })
+
+  it('validates the timezone server-side and names the problem for an opted-in writer', () => {
+    expect(isValidTimezone('America/Toronto')).toBe(true)
+    expect(isValidTimezone('Eastern time')).toBe(false)
+    expect(isValidTimezone('')).toBe(false)
+    expect(isValidTimezone(`America/${'x'.repeat(80)}`)).toBe(false)
+    expect(parseFieldWindowPreferences({ ...valid, timezone: 'Eastern time' })).toBeNull()
+
+    expect(fieldWindowTimezoneProblem(valid)).toBeNull()
+    expect(fieldWindowTimezoneProblem({ ...valid, timezone: 'Eastern time' })).toBe('invalid_timezone')
+    expect(fieldWindowTimezoneProblem({ ...valid, timezone: undefined })).toBe('invalid_timezone')
+    // Not opted in: nothing would be scheduled anyway, so nothing to report.
+    expect(fieldWindowTimezoneProblem({ ...valid, enabled: false, timezone: 'Eastern time' })).toBeNull()
+    expect(fieldWindowTimezoneProblem(null)).toBeNull()
   })
 
   it('drops malformed windows (missing label, non-objects, bad days) but keeps the good one', () => {

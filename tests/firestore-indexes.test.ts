@@ -101,6 +101,17 @@ beforeAll(async () => {
     status: 'pending',
     updatedAt: 1,
   })
+
+  // Seven newer reviewed moments in front of one older unreviewed moment: the
+  // old "newest six, then filter" load never saw it.
+  for (let index = 0; index < 7; index++) {
+    await db.doc(`users/${TEST_UID}/fieldMoments/kept-${index}`).set({
+      id: `kept-${index}`, status: 'kept', createdAt: 100 + index, text: 'kept',
+    })
+  }
+  await db.doc(`users/${TEST_UID}/fieldMoments/older-unreviewed`).set({
+    id: 'older-unreviewed', status: 'unreviewed', createdAt: 1, text: 'still waiting',
+  })
 })
 
 afterAll(async () => {
@@ -168,6 +179,17 @@ describe('Firestore index validation', () => {
       .limit(100)
       .get()
     expect(snap.empty).toBe(false)
+  })
+
+  it('fieldMoments unreviewed, newest first (Field Mosaic)', async () => {
+    // Source: src/store/fieldMoments.ts loadUnreviewedFieldMoments
+    const snap = await db
+      .collection(`users/${TEST_UID}/fieldMoments`)
+      .where('status', '==', 'unreviewed')
+      .orderBy('createdAt', 'desc')
+      .limit(6)
+      .get()
+    expect(snap.docs.map(doc => doc.id)).toEqual(['older-unreviewed'])
   })
 
   // ── User subcollection: entries ──────────────────────────────────

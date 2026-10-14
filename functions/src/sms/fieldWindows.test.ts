@@ -104,6 +104,19 @@ afterEach(() => {
 })
 
 describe('scheduleFieldWindows', () => {
+  it('logs a category (no uid) and counts an opted-in writer whose timezone is unusable', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const uid = uidForArm('field_check_in')
+    seedUser(uid, { fieldWindows: fieldWindows({ timezone: 'Eastern time' }) })
+
+    const summary = await scheduleFieldWindows(NOW)
+
+    expect(summary).toMatchObject({ created: 0, invalidTimezone: 1 })
+    expect(researchEvents(uid)).toEqual([])
+    expect(warn).toHaveBeenCalledWith('[field-windows] preferences skipped category=invalid_timezone')
+    expect(warn.mock.calls.flat().join(' ')).not.toContain(uid)
+  })
+
   it('assigns a contact day: research event plus a dispatch carrying the local date', async () => {
     const uid = uidForArm('field_check_in')
     seedUser(uid)

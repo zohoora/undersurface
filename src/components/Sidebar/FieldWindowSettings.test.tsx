@@ -124,6 +124,80 @@ describe('FieldWindowSettings', () => {
     })))
   })
 
+  it('offers a list of zones instead of free text and saves the chosen one', async () => {
+    stored = {
+      id: 'current',
+      fieldMosaicEnabled: true,
+      outcomeSampling: 'light',
+      fieldWindows: {
+        enabled: true,
+        timezone: 'America/Toronto',
+        maxPerWeek: 1,
+        consentAt: 5,
+        windows: [{ id: 'w1', label: 'Lunch', days: [1], startMinute: 720, endMinute: 780, purpose: 'notice', enabled: true }],
+        updatedAt: 5,
+      },
+      updatedAt: 5,
+    }
+    render(<FieldWindowSettings isOpen />)
+    const zone = await screen.findByLabelText('Timezone')
+    expect(zone.tagName).toBe('SELECT')
+    expect((zone as HTMLSelectElement).value).toBe('America/Toronto')
+    expect(screen.queryByRole('alert')).toBeNull()
+    fireEvent.change(zone, { target: { value: 'Europe/Paris' } })
+    await waitFor(() => expect(update).toHaveBeenCalledWith('current', expect.objectContaining({
+      fieldWindows: expect.objectContaining({ timezone: 'Europe/Paris' }),
+    })))
+  })
+
+  it('flags a stored zone the scheduler cannot use, and opting in settles it on the device zone', async () => {
+    stored = {
+      id: 'current',
+      fieldMosaicEnabled: true,
+      outcomeSampling: 'light',
+      fieldWindows: {
+        enabled: false,
+        timezone: 'Eastern time',
+        maxPerWeek: 1,
+        windows: [{ id: 'w1', label: 'Lunch', days: [1], startMinute: 720, endMinute: 780, purpose: 'notice', enabled: true }],
+        updatedAt: 5,
+      },
+      updatedAt: 5,
+    }
+    render(<FieldWindowSettings isOpen />)
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Allow occasional SMS in these windows' }))
+    await waitFor(() => expect(update).toHaveBeenCalledWith('current', expect.objectContaining({
+      fieldWindows: expect.objectContaining({ enabled: true, timezone: 'America/Toronto' }),
+    })))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('shows the unrecognized-zone message while an enabled preference holds an invalid zone', async () => {
+    stored = {
+      id: 'current',
+      fieldMosaicEnabled: true,
+      outcomeSampling: 'light',
+      fieldWindows: {
+        enabled: true,
+        timezone: 'Mars/Olympus',
+        maxPerWeek: 1,
+        consentAt: 5,
+        windows: [{ id: 'w1', label: 'Lunch', days: [1], startMinute: 720, endMinute: 780, purpose: 'notice', enabled: true }],
+        updatedAt: 5,
+      },
+      updatedAt: 5,
+    }
+    render(<FieldWindowSettings isOpen />)
+    expect(await screen.findByRole('alert')).toHaveTextContent('This timezone isn’t recognized')
+    const zone = screen.getByLabelText('Timezone') as HTMLSelectElement
+    expect(zone.value).toBe('')
+    fireEvent.change(zone, { target: { value: 'America/Toronto' } })
+    await waitFor(() => expect(update).toHaveBeenCalledWith('current', expect.objectContaining({
+      fieldWindows: expect.objectContaining({ timezone: 'America/Toronto' }),
+    })))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('stamps fresh consent on every explicit opt-in', async () => {
     stored = {
       id: 'current',

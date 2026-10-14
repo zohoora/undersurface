@@ -65,4 +65,6 @@ export const roomFallback = {
   'session.journal.draftCopied': 'Copied',
   // SMS kill switch (S5).
   'settings.sms.paused': 'SMS is paused for now. You can still disconnect a linked phone.',
+  // Field windows: a stored timezone the scheduler cannot use (S8).
+  'ps.field.timezoneInvalid': 'This timezone isn’t recognized, so no windows can be scheduled. Choose one from the list.',
 } as const

@@ -106,7 +106,12 @@ function partsAt(timestamp: number, timezone: string): Record<string, string> {
   )
 }
 
+// IANA names are short; the bound keeps a client-written string from being
+// handed to Intl at arbitrary length.
+const MAX_TIMEZONE_CHARS = 64
+
 export function isValidTimezone(timezone: string): boolean {
+  if (typeof timezone !== 'string' || !timezone || timezone.length > MAX_TIMEZONE_CHARS) return false
   try {
     new Intl.DateTimeFormat('en', { timeZone: timezone }).format(0)
     return true
@@ -200,6 +205,19 @@ export function parseFieldWindowPreferences(value: unknown): FieldWindowPreferen
     windows: raw.windows.filter(validFieldWindow).slice(0, MAX_FIELD_WINDOWS),
     ...(consentAt !== undefined ? { consentAt } : {}),
   }
+}
+
+/**
+ * Why an opted-in `fieldWindows` preference can never be scheduled because of
+ * its timezone (free text from an older client, or a zone Intl rejects), or
+ * null when the timezone is fine or windows are not enabled. The scheduler
+ * logs this category instead of skipping the writer silently.
+ */
+export function fieldWindowTimezoneProblem(value: unknown): 'invalid_timezone' | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = value as Record<string, unknown>
+  if (raw.enabled !== true) return null
+  return typeof raw.timezone === 'string' && isValidTimezone(raw.timezone) ? null : 'invalid_timezone'
 }
 
 /**

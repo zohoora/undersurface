@@ -9,6 +9,7 @@ vi.mock('../../store/db', () => ({
     companionPreferences: { get: vi.fn(async () => ({ id: 'current', fieldMosaicEnabled: true })) },
     fieldMoments: {
       update,
+      where: () => ({ equals: () => ({ newest: async () => momentFixtures.filter(moment => moment.status === 'unreviewed') }) }),
       orderBy: () => ({ reverse: () => ({ limit: () => ({ toArray: async () => momentFixtures }) }) }),
     },
   },

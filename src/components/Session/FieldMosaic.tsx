@@ -4,6 +4,7 @@ import { storage } from '../../firebase'
 import { db } from '../../store/db'
 import type { FieldMoment, ImmediateOutcome } from '../../types'
 import { writeFieldMomentOutcome } from '../../store/interventionOutcomes'
+import { loadUnreviewedFieldMoments } from '../../store/fieldMoments'
 import { useTranslation } from '../../i18n'
 import { CARD_FONT, cardChipStyle, cardInputStyle, cardLabelStyle, cardNoteStyle, cardQuietButtonStyle } from './cardControls'
 
@@ -42,13 +43,15 @@ export function FieldMosaic({
   const idBase = useId()
 
   useEffect(() => {
+    let active = true
     void Promise.all([
       db.companionPreferences.get('current'),
-      db.fieldMoments.orderBy('createdAt').reverse().limit(6).toArray(),
-    ]).then(([preferences, recent]) => {
-      if (preferences?.fieldMosaicEnabled === false) return
-      setMoments(recent.filter(moment => moment.status === 'unreviewed'))
-    })
+      loadUnreviewedFieldMoments(),
+    ]).then(([preferences, unreviewed]) => {
+      if (!active || preferences?.fieldMosaicEnabled === false) return
+      setMoments(unreviewed)
+    }).catch(() => { /* the mosaic is optional; stay hidden */ })
+    return () => { active = false }
   }, [sessionId])
 
   const resolve = async (moment: FieldMoment, status: 'kept' | 'dismissed', bringIntoTalk = false) => {

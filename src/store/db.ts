@@ -143,6 +143,15 @@ function createCollectionProxy<T extends DocumentData = DocumentData>(name: stri
               const snap = await getDocs(q)
               return snap.docs.map((d) => d.data() as T)
             },
+            /**
+             * Newest-first page of the matches. Online this needs a composite
+             * index (field ASC, orderField DESC) in firestore.indexes.json.
+             */
+            async newest(orderField: string, n: number): Promise<T[]> {
+              const q = query(userCollection(name), where(field, '==', value), orderBy(orderField, 'desc'), limit(n))
+              const snap = await getDocs(q)
+              return snap.docs.map((d) => d.data() as T)
+            },
           }
         },
       }
