@@ -65,6 +65,17 @@ export interface AppendUserMessageResult {
   phase: SessionPhase
 }
 
+export interface AppendUserMessageOptions {
+  /**
+   * The session these words belong to, captured when they were written (a
+   * Journal draft). The append is refused, never redirected, when that
+   * session is no longer the one on screen or has closed.
+   */
+  ownerSessionId?: string
+  /** Stable id so a retried append overwrites its own earlier attempt. */
+  messageId?: string
+}
+
 // Owns the message-lifecycle side of a session: writing therapist + user
 // turns to Firestore, streaming the model's tokens through the typewriter,
 // and the load-bearing crisis-detection race (L2 classifier fires in
@@ -823,20 +834,30 @@ export function useSessionStream(wiring: SessionStreamWiring) {
     content: string,
     inputMethod?: 'text' | 'voice',
     surface: SessionMessage['surface'] = inputMethod === 'voice' ? 'speak' : 'talk',
+    options: AppendUserMessageOptions = {},
   ): Promise<AppendUserMessageResult | null> => {
     const currentSession = sessionRef.current
     if (!currentSession || currentSession.status === 'closed') return null
+    const { ownerSessionId } = options
+    if (ownerSessionId !== undefined && currentSession.id !== ownerSessionId) return null
     const trimmed = content.trim()
     if (!trimmed) return null
 
     // Serialized so a concurrent append (e.g. a voice transcript arriving while
     // this persists) can't read the same base array and clobber this message /
     // understate messageCount. The base list is read fresh INSIDE the queue.
-    const result = await enqueueAppend(async (): Promise<AppendUserMessageResult> => {
+    const result = await enqueueAppend(async (): Promise<AppendUserMessageResult | null> => {
+      // Owned words re-check inside the queue: the session may have closed or
+      // the view moved on while earlier appends ran. The base list below is
+      // only this session's while it is still the one on screen.
+      if (ownerSessionId !== undefined) {
+        const latest = sessionRef.current
+        if (latest?.id !== ownerSessionId || latest.status === 'closed') return null
+      }
       const currentMessages = messagesRef.current
       const phase = orchestratorRef.current.detectPhase(currentMessages)
       const userMessage: SessionMessage = {
-        id: generateId(),
+        id: options.messageId ?? generateId(),
         speaker: 'user',
         partId: null,
         partName: null,
@@ -869,6 +890,7 @@ export function useSessionStream(wiring: SessionStreamWiring) {
       }
       return { updatedMessages, firstLine, phase }
     })
+    if (!result) return null
 
     // L1 runs synchronously before any response. If the narrow hard floor does
     // not fire, L2 reads context in parallel with the response. Keeping the L2

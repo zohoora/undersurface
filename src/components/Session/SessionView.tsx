@@ -15,6 +15,8 @@ import { SessionOrchestrator } from '../../engine/sessionOrchestrator'
 import { SessionRuntime, type SessionTicket } from '../../engine/sessionRuntime'
 import { useSessionVoice } from '../../hooks/useSessionVoice'
 import { useSessionStream } from '../../hooks/useSessionStream'
+import { useJournalDraft, type JournalDraftOwner } from '../../hooks/useJournalDraft'
+import { useAuth } from '../../auth/useAuth'
 import { loadTherapistContext } from '../../engine/sessionContextLoader'
 import { maybeBackfillUserParts } from '../../engine/userPartsBackfill'
 import { maybeGenerateStoryArc } from '../../engine/storyArc'
@@ -24,6 +26,7 @@ import { getWeatherEngine } from '../../store/weatherStore'
 import { trackEvent } from '../../services/analytics'
 import { SessionMessageBubble } from './SessionMessage'
 import { SessionJournalSurface } from './SessionJournalSurface'
+import { JournalDraftNotice } from './JournalDraftNotice'
 import { isGroundingActive, useGroundingMode } from '../../hooks/useGroundingMode'
 import { BiometricsBar } from './HrvAmbientBar'
 import { HrvConsentDialog } from './HrvConsentDialog'
@@ -101,7 +104,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   const grounding = useGroundingMode()
   const roomEnabled = isRoomEnabled(globalConfig?.features)
   const [surface, setSurface] = useState<SessionSurface>('talk')
-  const [journalDraft, setJournalDraft] = useState<string>('')
+  const uid = useAuth().user?.uid ?? null
   const [activeArc, setActiveArc] = useState<{ surface: SessionSurface; outcomeId: string; startedAt: number; ambientReturn?: boolean } | null>(null)
   const [returnedArc, setReturnedArc] = useState<{ surface: SessionSurface; outcomeId: string } | null>(null)
   const [conductorReturn, setConductorReturn] = useState<Exclude<SessionSurface, 'talk' | 'relax' | 'drift'> | null>(null)
@@ -271,6 +274,43 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     runtime: runtimeRef.current,
   })
 
+  // Another tab or device may close this session (TECH_ISSUES #15). Merge a
+  // remote close into the local view so nothing keeps writing into it.
+  const adoptRemoteClose = useCallback((sessionId: string, remote: Session) => {
+    setSession(prev => prev && prev.id === sessionId ? {
+      ...prev,
+      status: 'closed',
+      endedAt: remote.endedAt ?? prev.endedAt,
+      sessionNote: remote.sessionNote ?? prev.sessionNote,
+      phase: remote.phase ?? prev.phase,
+    } : prev)
+  }, [])
+
+  // A Journal draft belongs to the session it was written in, captured by the
+  // draft itself. It is contributed only to that session, only while it is
+  // the one on screen and still open (re-read, since another tab may have
+  // closed it); otherwise the append is refused and the words stay saved.
+  const appendJournalDraft = useCallback(async (text: string, owner: JournalDraftOwner): Promise<boolean> => {
+    const current = sessionRef.current
+    if (!current || current.id !== owner.sessionId || current.status !== 'active') return false
+    const remote = await db.sessions.get(owner.sessionId).catch(() => undefined)
+    if (remote?.status === 'closed') {
+      adoptRemoteClose(owner.sessionId, remote)
+      return false
+    }
+    const result = await appendUserMessage(text, 'text', 'journal', {
+      ownerSessionId: owner.sessionId,
+      messageId: owner.messageId,
+    })
+    return result !== null
+  }, [appendUserMessage, adoptRemoteClose])
+
+  // Saved on this device as the writer types; restored when Journal opens for
+  // the same session. `/session/new` adopts its real id without losing words.
+  const journalDraft = useJournalDraft({ uid, sessionId: session?.id ?? null, append: appendJournalDraft })
+  const commitJournalDraft = journalDraft.commit
+  const setJournalText = journalDraft.setText
+
   // Conductor / research planning lives in turnResponder, which reads
   // grounding at call time: L1 fires DURING the awaited user append, so the
   // render-time `grounding` value here would be stale (TECH_ISSUES #1).
@@ -368,9 +408,15 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
   }, [isStreaming, appendUserMessage, respondToUserTurn])
 
   const handleEndSession = useCallback(async () => {
+    const startingSession = sessionRef.current
+    if (!startingSession || startingSession.status === 'closed' || isStreaming) return
+    // Journal words written in this session belong in its transcript before
+    // the closing turn reads it. If they cannot be added they stay saved on
+    // this device (with a copy affordance) rather than blocking the close.
+    await commitJournalDraft()
     const currentSession = sessionRef.current
+    if (!currentSession || currentSession.id !== startingSession.id || currentSession.status === 'closed') return
     const currentMessages = messagesRef.current
-    if (!currentSession || currentSession.status === 'closed' || isStreaming) return
     const freshEyes = isFreshEyesSession(currentSession)
 
     // Generate closing therapist message — returns updated messages array
@@ -431,7 +477,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       message_count: finalMessages.length,
       duration_ms: endedAt - currentSession.startedAt,
     })
-  }, [isStreaming, generateTherapistMessage, stopAndFlushBiometrics, weatherEngine])
+  }, [isStreaming, commitJournalDraft, generateTherapistMessage, stopAndFlushBiometrics, weatherEngine])
 
   const updateSession = useCallback(async (patch: Partial<Session>) => {
     if (!session?.id) return
@@ -491,12 +537,10 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     // A surface that is not available must never open: a #switch:speak link
     // with voice disabled used to start a hidden Realtime session.
     if (!canOpenSurface(next, { voiceEnabled, roomEnabled, grounding: isGroundingActive() })) return
-    // Leaving Journal with non-empty text: append it as a user message so the
-    // therapist receives it as context on her next turn.
-    if (surface === 'journal' && next !== 'journal' && journalDraft.trim()) {
-      void appendUserMessage(journalDraft.trim(), 'text', 'journal')
-      setJournalDraft('')
-    }
+    // Leaving Journal: contribute the draft as a user message so the companion
+    // receives it as context on her next turn. Exactly once, to the session
+    // that owns the draft; it is cleared only after the append succeeds.
+    if (surface === 'journal' && next !== 'journal') void commitJournalDraft()
     if (surface !== 'speak' && next === 'speak') {
       void voiceHandleStart()
     }
@@ -519,7 +563,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       setActiveArc(null)
     }
     setSurface(next)
-  }, [surface, journalDraft, appendUserMessage, voiceHandleStart, voiceState, voiceStop, activeArc, voiceEnabled, roomEnabled])
+  }, [surface, commitJournalDraft, voiceHandleStart, voiceState, voiceStop, activeArc, voiceEnabled, roomEnabled])
 
   const startSurfaceArc = useCallback((next: Exclude<SessionSurface, 'talk'>) => {
     if (!session || isGroundingActive() || isFreshEyesSession(session)) return
@@ -583,16 +627,13 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       if (surface === 'room') setSurface('talk')
       return
     }
-    if (activeArc.surface === 'journal' && journalDraft.trim()) {
-      void appendUserMessage(journalDraft.trim(), 'text', 'journal')
-      setJournalDraft('')
-    }
+    if (activeArc.surface === 'journal') void commitJournalDraft()
     if (activeArc.surface === 'speak' && voiceState !== 'idle') voiceStop()
     void db.interventionOutcomes.delete(activeArc.outcomeId)
     setActiveArc(null)
     setReturnedArc(null)
     setSurface('talk')
-  }, [grounding, activeArc, journalDraft, appendUserMessage, voiceState, voiceStop, surface])
+  }, [grounding, activeArc, commitJournalDraft, voiceState, voiceStop, surface])
 
   const handleRecommendationTap = useCallback((target: string) => {
     // Links can outlive the flags they were written under (history, a model
@@ -770,19 +811,12 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       const current = sessionRef.current
       if (!current || current.status !== 'active') return
       void db.sessions.get(current.id).then(remote => {
-        if (remote?.status !== 'closed') return
-        setSession(prev => prev && prev.id === current.id ? {
-          ...prev,
-          status: 'closed',
-          endedAt: remote.endedAt ?? prev.endedAt,
-          sessionNote: remote.sessionNote ?? prev.sessionNote,
-          phase: remote.phase ?? prev.phase,
-        } : prev)
+        if (remote?.status === 'closed') adoptRemoteClose(current.id, remote)
       }).catch(() => { /* offline: keep the local view */ })
     }
     document.addEventListener('visibilitychange', recheck)
     return () => document.removeEventListener('visibilitychange', recheck)
-  }, [])
+  }, [adoptRemoteClose])
 
   const isClosed = session?.status === 'closed'
   const canEnd = !isStreaming && messages.length >= 2 && !isClosed
@@ -831,6 +865,8 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
 
   const freshEyes = isFreshEyesSession(session)
   const journalPartsOn = session?.journalPartsEnabled !== false && !freshEyes
+  const journalScope = journalDraft.scope
+  const hasJournalDraft = journalDraft.text.trim() !== ''
 
   return (
     <>
@@ -996,12 +1032,25 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         />
       )}
 
+      {/* Journal words that have not reached the conversation. Leaving the
+          Journal retries on its own, so the open-session notice stays out of
+          the writer's way while they are still writing. */}
+      {(isClosed ? hasJournalDraft : journalDraft.failed && surface !== 'journal') && (
+        <JournalDraftNotice
+          mode={isClosed ? 'closed' : 'failed'}
+          text={journalDraft.text}
+          sending={journalDraft.sending}
+          onRetry={() => { void commitJournalDraft() }}
+        />
+      )}
+
       {surface === 'journal' ? (
         <>
           {activeArc?.surface === 'journal' && <SurfaceArcGuide surface="journal" startedAt={activeArc.startedAt} onReturn={() => handleSurfaceChange('talk')} />}
           <SessionJournalSurface
-            initialContent={journalDraft}
-            onChange={setJournalDraft}
+            key={journalScope}
+            initialContent={journalDraft.text}
+            onChange={text => setJournalText(text, journalScope)}
             partsEnabled={journalPartsOn}
             sessionId={session?.id ?? ''}
           />

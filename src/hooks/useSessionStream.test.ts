@@ -793,6 +793,35 @@ describe('useSessionStream — appendUserMessage', () => {
     expect(sessionMessageAddMock).not.toHaveBeenCalled()
   })
 
+  it('refuses an owned append when the owner is not the session on screen (never redirects)', async () => {
+    const wiring = makeWiring({ session: makeSession({ id: 'sess-B' }) })
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    let res: Awaited<ReturnType<typeof result.current.appendUserMessage>>
+    await act(async () => {
+      res = await result.current.appendUserMessage('words from A', 'text', 'journal', { ownerSessionId: 'sess-A' })
+    })
+
+    expect(res).toBeNull()
+    expect(sessionMessageAddMock).not.toHaveBeenCalled()
+    expect(wiring.orchestrator.checkCrisisKeywords).not.toHaveBeenCalled()
+  })
+
+  it('uses the caller-supplied message id so a retried append overwrites itself', async () => {
+    const wiring = makeWiring()
+    const { result } = renderHook(() => useSessionStream(wiring))
+
+    await act(async () => {
+      await result.current.appendUserMessage('journal words', 'text', 'journal', { ownerSessionId: 'sess-1', messageId: 'stable-id' })
+    })
+
+    const [sessionId, msg] = sessionMessageAddMock.mock.calls[0] as unknown as [string, SessionMessage]
+    expect(sessionId).toBe('sess-1')
+    expect(msg.id).toBe('stable-id')
+    expect(msg.surface).toBe('journal')
+    expect(wiring.orchestrator.checkCrisisKeywords).toHaveBeenCalledWith('journal words')
+  })
+
   it('tags voice-input turns with inputMethod=voice', async () => {
     const wiring = makeWiring()
     const { result } = renderHook(() => useSessionStream(wiring))

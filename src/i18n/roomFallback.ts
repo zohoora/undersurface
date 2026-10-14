@@ -58,4 +58,10 @@ export const roomFallback = {
   'voice.error.disabled': 'Voice is not available right now.',
   'surface.error.body': 'This part of the session couldn’t load. Your words are safe.',
   'surface.error.back': 'Back to Talk',
+  // Journal drafts that have not reached the conversation yet (T1).
+  'session.journal.draftNotAdded': 'Your journal words weren’t added yet. They’re kept here.',
+  'session.journal.draftClosed': 'This session closed before your journal words were added. They’re kept here.',
+  'session.journal.draftRetry': 'Try again',
+  'session.journal.draftCopy': 'Copy words',
+  'session.journal.draftCopied': 'Copied',
 } as const

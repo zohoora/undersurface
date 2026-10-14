@@ -7,6 +7,7 @@ import { AuthContext } from './authContext'
 import * as Sentry from '@sentry/react'
 import { trackEvent, setAnalyticsUser, clearAnalyticsUser } from '../services/analytics'
 import { signInWithGoogle, signInWithApple as nativeSignInWithApple, signOutEverywhere } from './socialSignInDriver'
+import { clearJournalDraftsForUser } from '../store/journalDrafts'
 
 declare global {
   interface Window {
@@ -87,7 +88,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
+    const uid = auth.currentUser?.uid
     await signOutEverywhere()
+    // Unsent Journal drafts live on this device; they leave with the user.
+    if (uid) clearJournalDraftsForUser(uid)
   }
 
   return (

@@ -306,9 +306,9 @@ describe('SessionView — surface switching (Journal & Speak)', () => {
     expect(src.default).toMatch(/case\s+'speak'[\s\S]{0,80}handleSurfaceChange\('speak'\)/)
   })
 
-  it('handleSurfaceChange flushes journal text via appendUserMessage on exit', async () => {
+  it('handleSurfaceChange contributes the journal draft on exit (exactly once, owner-bound)', async () => {
     const src = await import('./SessionView?raw')
-    expect(src.default).toContain('appendUserMessage(journalDraft.trim()')
+    expect(src.default).toMatch(/surface === 'journal' && next !== 'journal'\) void commitJournalDraft\(\)/)
   })
 
   it('handleSurfaceChange starts voice on Speak entry via useSessionVoice', async () => {
@@ -386,5 +386,46 @@ describe('SessionView — 2026-10-14 audit regressions (source contracts)', () =
   it('makes the Talk composer inert while Room or Speak is open (#32)', async () => {
     const src = (await import('./SessionView?raw')).default
     expect(src).toContain('inert={overlayOpen || undefined}')
+  })
+})
+
+describe('SessionView — journal drafts are session-owned and durable (T1)', () => {
+  it('keeps the draft in the owner-bound hook, not in bare React state', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain('useJournalDraft({ uid, sessionId: session?.id ?? null, append: appendJournalDraft })')
+    expect(src).not.toContain("useState<string>('')")
+    // The draft is never cleared before its append succeeds.
+    expect(src).not.toContain("setJournalDraft('')")
+  })
+
+  it('appends only to the owning session, re-reading a remote close first', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toMatch(/current\.id !== owner\.sessionId \|\| current\.status !== 'active'\) return false/)
+    expect(src).toContain('db.sessions.get(owner.sessionId)')
+    expect(src).toMatch(/appendUserMessage\(text, 'text', 'journal', \{\s+ownerSessionId: owner\.sessionId,\s+messageId: owner\.messageId,/)
+  })
+
+  it('remounts the Journal editor per draft owner and fences stale editor writes', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain('key={journalScope}')
+    expect(src).toContain('onChange={text => setJournalText(text, journalScope)}')
+  })
+
+  it('contributes the draft before closing, and grounding still flushes journal words as user text', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toMatch(/const handleEndSession = useCallback\(async \(\) => \{[\s\S]{0,600}await commitJournalDraft\(\)[\s\S]{0,300}const currentMessages = messagesRef\.current/)
+    expect(src).toContain("if (activeArc.surface === 'journal') void commitJournalDraft()")
+  })
+
+  it('offers retry and copy when a draft has not reached the conversation', async () => {
+    const src = (await import('./SessionView?raw')).default
+    expect(src).toContain('<JournalDraftNotice')
+    expect(src).toContain("mode={isClosed ? 'closed' : 'failed'}")
+  })
+
+  it('App keeps one SessionView across /session/new adopting its id (no key remount)', async () => {
+    const app = (await import('../../App?raw')).default
+    expect(app).toMatch(/<SessionView\s+sessionId=\{sessionIdFromPath\}/)
+    expect(app).not.toMatch(/<SessionView[^>]*\bkey=/)
   })
 })

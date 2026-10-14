@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { deleteAccount } from '../api/accountApi'
 import { clearSettings } from '../store/settings'
+import { clearJournalDraftsForUser } from '../store/journalDrafts'
 import { getAuth, signOut } from 'firebase/auth'
 import { useTranslation } from '../i18n'
 
@@ -36,8 +37,10 @@ function DeleteAccountModalContent({ onClose }: { onClose: () => void }) {
     setDeleting(true)
     setError(null)
     try {
+      const uid = getAuth().currentUser?.uid
       await deleteAccount()
       clearSettings()
+      if (uid) clearJournalDraftsForUser(uid)
       await signOut(getAuth())
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Deletion failed')
