@@ -31,6 +31,9 @@ const REQUIRED: Record<string, string[]> = {
     'https://cdn.jsdelivr.net', 'https://www.googletagmanager.com', 'https://*.google-analytics.com',
     'https://www.googleadservices.com', 'https://googleads.g.doubleclick.net', 'https://ad.doubleclick.net',
     'https://pagead2.googlesyndication.com', 'https://www.google.com', 'https://www.google.ca',
+    // The service worker re-fetches font files for its runtime cache, and a
+    // worker's own fetches are governed by connect-src, not font-src.
+    'https://fonts.gstatic.com',
   ],
   'img-src': [
     'data:', 'blob:', 'https://storage.googleapis.com', 'https://lh3.googleusercontent.com',
