@@ -39,7 +39,7 @@ function CrisisResourcesCard() {
     >
       <button
         onClick={() => setDismissed(true)}
-        aria-label="Dismiss"
+        aria-label={t['common.dismiss']}
         style={{
           position: 'absolute',
           top: 12,

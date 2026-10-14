@@ -444,6 +444,9 @@ const zhBase = {
   'session.journal.draftRetry': '重试',
   'session.journal.draftCopy': '复制文字',
   'session.journal.draftCopied': '已复制',
+  // SMS kill switch and field-window timezone (English source in roomFallback)
+  'settings.sms.paused': '短信功能目前已暂停。你仍然可以断开已连接的手机。',
+  'ps.field.timezoneInvalid': '无法识别此时区，因此无法安排任何时段。请从列表中选择一个。',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

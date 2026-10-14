@@ -444,6 +444,9 @@ const hiBase = {
   'session.journal.draftRetry': 'फिर से कोशिश करें',
   'session.journal.draftCopy': 'शब्द कॉपी करें',
   'session.journal.draftCopied': 'कॉपी हो गया',
+  // SMS kill switch and field-window timezone (English source in roomFallback)
+  'settings.sms.paused': 'SMS अभी के लिए रुका हुआ है। आप फिर भी जुड़ा हुआ फ़ोन डिस्कनेक्ट कर सकते हैं।',
+  'ps.field.timezoneInvalid': 'यह समय क्षेत्र पहचाना नहीं गया, इसलिए कोई समय-खंड तय नहीं किया जा सकता। सूची में से एक चुनें।',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

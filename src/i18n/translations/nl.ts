@@ -444,6 +444,9 @@ const nlBase = {
   'session.journal.draftRetry': 'Opnieuw proberen',
   'session.journal.draftCopy': 'Woorden kopiëren',
   'session.journal.draftCopied': 'Gekopieerd',
+  // SMS kill switch and field-window timezone (English source in roomFallback)
+  'settings.sms.paused': 'SMS staat voorlopig op pauze. Je kunt een gekoppelde telefoon nog steeds loskoppelen.',
+  'ps.field.timezoneInvalid': 'Deze tijdzone wordt niet herkend, dus er kunnen geen tijdvensters worden ingepland. Kies er een uit de lijst.',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

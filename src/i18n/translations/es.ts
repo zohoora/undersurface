@@ -444,6 +444,9 @@ const esBase = {
   'session.journal.draftRetry': 'Intentar de nuevo',
   'session.journal.draftCopy': 'Copiar texto',
   'session.journal.draftCopied': 'Copiado',
+  // SMS kill switch and field-window timezone (English source in roomFallback)
+  'settings.sms.paused': 'Los SMS están en pausa por ahora. Aun así puedes desconectar un teléfono vinculado.',
+  'ps.field.timezoneInvalid': 'No se reconoce esta zona horaria, así que no se pueden programar ventanas. Elige una de la lista.',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

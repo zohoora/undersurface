@@ -444,6 +444,9 @@ const jaBase = {
   'session.journal.draftRetry': 'もう一度試す',
   'session.journal.draftCopy': '言葉をコピー',
   'session.journal.draftCopied': 'コピーしました',
+  // SMS kill switch and field-window timezone (English source in roomFallback)
+  'settings.sms.paused': 'SMSは現在一時停止中です。接続済みの電話の切断は引き続きできます。',
+  'ps.field.timezoneInvalid': 'このタイムゾーンは認識できないため、時間帯を設定できません。リストから選んでください。',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

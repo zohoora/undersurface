@@ -444,6 +444,9 @@ const ruBase = {
   'session.journal.draftRetry': 'Попробовать снова',
   'session.journal.draftCopy': 'Скопировать текст',
   'session.journal.draftCopied': 'Скопировано',
+  // SMS kill switch and field-window timezone (English source in roomFallback)
+  'settings.sms.paused': 'SMS пока приостановлены. Вы всё ещё можете отключить привязанный телефон.',
+  'ps.field.timezoneInvalid': 'Этот часовой пояс не распознан, поэтому окна не могут быть запланированы. Выберите часовой пояс из списка.',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

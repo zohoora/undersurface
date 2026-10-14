@@ -444,6 +444,9 @@ const viBase = {
   'session.journal.draftRetry': 'Thử lại',
   'session.journal.draftCopy': 'Sao chép đoạn viết',
   'session.journal.draftCopied': 'Đã sao chép',
+  // SMS kill switch and field-window timezone (English source in roomFallback)
+  'settings.sms.paused': 'SMS hiện đang tạm dừng. Bạn vẫn có thể ngắt kết nối điện thoại đã liên kết.',
+  'ps.field.timezoneInvalid': 'Không nhận diện được múi giờ này nên không thể lên lịch khung giờ nào. Hãy chọn một múi giờ trong danh sách.',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

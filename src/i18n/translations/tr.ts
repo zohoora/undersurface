@@ -444,6 +444,9 @@ const trBase = {
   'session.journal.draftRetry': 'Tekrar dene',
   'session.journal.draftCopy': 'Yazdıklarını kopyala',
   'session.journal.draftCopied': 'Kopyalandı',
+  // SMS kill switch and field-window timezone (English source in roomFallback)
+  'settings.sms.paused': 'SMS şimdilik duraklatıldı. Bağlı bir telefonun bağlantısını yine de kesebilirsiniz.',
+  'ps.field.timezoneInvalid': 'Bu saat dilimi tanınmıyor, bu yüzden hiçbir aralık planlanamaz. Listeden birini seçin.',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

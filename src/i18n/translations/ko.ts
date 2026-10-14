@@ -444,6 +444,9 @@ const koBase = {
   'session.journal.draftRetry': '다시 시도',
   'session.journal.draftCopy': '글 복사하기',
   'session.journal.draftCopied': '복사됨',
+  // SMS kill switch and field-window timezone (English source in roomFallback)
+  'settings.sms.paused': 'SMS가 지금은 일시 중지되어 있습니다. 연결된 전화의 연결 해제는 계속 할 수 있습니다.',
+  'ps.field.timezoneInvalid': '이 시간대를 인식할 수 없어 시간 구간을 예약할 수 없습니다. 목록에서 선택하세요.',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

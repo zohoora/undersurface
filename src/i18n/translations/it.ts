@@ -444,6 +444,9 @@ const itBase = {
   'session.journal.draftRetry': 'Riprova',
   'session.journal.draftCopy': 'Copia le parole',
   'session.journal.draftCopied': 'Copiato',
+  // SMS kill switch and field-window timezone (English source in roomFallback)
+  'settings.sms.paused': 'Gli SMS sono in pausa per ora. Puoi comunque scollegare un telefono collegato.',
+  'ps.field.timezoneInvalid': 'Questo fuso orario non è riconosciuto, quindi non è possibile programmare finestre. Scegline uno dall’elenco.',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

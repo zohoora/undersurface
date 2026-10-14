@@ -444,6 +444,9 @@ const thBase = {
   'session.journal.draftRetry': 'ลองอีกครั้ง',
   'session.journal.draftCopy': 'คัดลอกถ้อยคำ',
   'session.journal.draftCopied': 'คัดลอกแล้ว',
+  // SMS kill switch and field-window timezone (English source in roomFallback)
+  'settings.sms.paused': 'ขณะนี้ SMS หยุดชั่วคราว คุณยังยกเลิกการเชื่อมต่อโทรศัพท์ที่เชื่อมไว้ได้',
+  'ps.field.timezoneInvalid': 'ไม่รู้จักเขตเวลานี้ จึงตั้งเวลาช่วงใดไม่ได้ โปรดเลือกจากรายการ',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no

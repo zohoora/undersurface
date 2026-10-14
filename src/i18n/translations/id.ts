@@ -444,6 +444,9 @@ const idBase = {
   'session.journal.draftRetry': 'Coba lagi',
   'session.journal.draftCopy': 'Salin kata-kata',
   'session.journal.draftCopied': 'Tersalin',
+  // SMS kill switch and field-window timezone (English source in roomFallback)
+  'settings.sms.paused': 'SMS sedang dijeda untuk sementara. Telepon yang terhubung tetap bisa diputuskan.',
+  'ps.field.timezoneInvalid': 'Zona waktu ini tidak dikenali, jadi tidak ada jendela waktu yang bisa dijadwalkan. Pilih salah satu dari daftar.',
 } as const
 
 // English fallbacks come first, so they only fill keys that have no
