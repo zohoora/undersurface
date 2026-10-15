@@ -1,0 +1,15 @@
+B1 closed: hidden text present in DOM = false | placeholder element present = true
+B1 after open (metadata-only tr): hidden text present in DOM = true | open element = true
+B1 after close: hidden text present in DOM = false
+B2 closed view without update(): factory calls after 3 unrelated keystrokes = 0 (expected 3: recreated each time; supply update() returning true)
+B2 closed view WITH update(): factory calls after 3 unrelated keystrokes = 0
+B3 view.domAtPos(inside closed underside) = {node: DIV.closed-underside, offset: 0}
+B3 view.hasFocus() under jsdom = true
+B3 dispatch TextSelection inside closed underside: threw = null | state selection = TextSelection(42) | DOM selection anchorNode = DIV.closed-underside offset 0
+B3 a character inserted at that selection landed in the hidden beneath: true | visible in DOM: false
+B4 after deleteSelection spanning into the closed beneath: underside = (gone) | sel = TextSelection(3) | caret inside underside: false | hidden text in DOM: false
+B5 native cut event: underside before = true | after = false | clipboard capture includes hidden text = false | capture text = "(no capture)"
+B5b handleDOMEvents.cut intercepted = true | underside survives = true
+B6 after removing the placeholder from the DOM and flushing: underside in state = true | doc equals original = true | placeholder re-rendered = true
+B6 without a net: underside in state after DOM removal = false | doc text = "Before.It was nice to see everyone.After."
+B7 NodeSelection of closed underside: threw = null | placeholder has ProseMirror-selectednode class = true

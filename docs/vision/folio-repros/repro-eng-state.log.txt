@@ -1,0 +1,19 @@
+A1.1 Delete (forward) press 1 at end of lifted line: selection=NodeSelection(underside) | underside present: true
+A1.2 Delete (forward) press 2 at end of lifted line: selection=TextSelection(40) | underside present: false
+A2 after Enter at end of lifted line: paragraph("Before.") paragraph("It was nice to see everyone.") paragraph("") underside paragraph("After.")
+A2 new paragraph sits between the lifted line and its underside (I2 violated until integrity reorders): true
+A2 new paragraph carries no fold mark: true | caret in new paragraph: true
+A3 Backspace in empty paragraph after underside: doc = paragraph("Before.") paragraph("It was nice to see everyone.") underside | selection = TextSelection(71) | caret now INSIDE the underside: true
+A3 next typed character landed inside the underside: true
+A4a Backspace at start of beneath (non-empty) with a between: handled = true | doc text = Before. | It was nice to see everyone. | Someone passed me the bread. | I felt absent. | After. | sel = NodeSelection(between)
+A4b Backspace in EMPTY beneath paragraph with a between: handled = true | underside children = 2 | beneath still present = true | sel = NodeSelection(between)
+A5 Select All + Delete: paragraph("") | underside survives: false
+A6 beneath edit then page edit 100 ms later: undoDepth = 2 (1 means one undo would touch both the page and the beneath)
+A6 after a third adjacent keystroke: undoDepth = 3
+A7 pcBaseKeymap deletion keys: Backspace, Mod-Backspace, Shift-Backspace, Delete, Mod-Delete
+A7 macBaseKeymap deletion keys: Ctrl-h, Alt-Backspace, Ctrl-d, Ctrl-Alt-Backspace, Alt-Delete, Alt-d, Backspace, Mod-Backspace, Shift-Backspace, Delete, Mod-Delete
+A8 GapCursor.valid between lifted paragraph and underside: false
+A8 GapCursor.valid inside underside between `between` and `beneath`: false
+A8 GapCursor.valid between underside and next paragraph: false
+A9 deleteSelection from page into beneath: handled = true | doc = paragraph("Be the whole time.") paragraph("After.") | underside text = (gone) | sel = TextSelection(3) | caret inside underside: false
+A10 metadata-only transaction leaves undoDepth unchanged: true

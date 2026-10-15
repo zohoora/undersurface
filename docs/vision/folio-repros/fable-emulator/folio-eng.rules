@@ -1,0 +1,62 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(userId) { return request.auth != null && request.auth.uid == userId; }
+
+    // §6.6 validPage, as written in draft 3.1 (including the 3.1 safety.checked backstop)
+    function validPage(pageId) {
+      return request.resource.data.id == pageId
+        && request.resource.data.doc is string
+        && request.resource.data.doc.size() <= 950000
+        && request.resource.data.revId is string
+        && request.resource.data.revId.size() <= 40
+        && ('parentRevId' in request.resource.data)
+        && request.resource.data.safety.checked is list
+        && request.resource.data.safety.checked.size() <= 12000;
+    }
+    function validTrace(traceId) {
+      return request.resource.data.id == traceId
+        && request.resource.data.author == 'writer'
+        && request.resource.data.gap is int
+        && request.resource.data.gap >= 0 && request.resource.data.gap <= 4
+        && request.resource.data.safety.checked is list
+        && request.resource.data.safety.checked.size() <= 1000;
+    }
+
+    match /users/{userId}/{collectionId}/{document=**} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId)
+        && !(collectionId in ['smsSettings', 'smsMessages', 'folioPages', 'folioTraces']);
+    }
+
+    match /users/{userId}/folioPages/{pageId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && validPage(pageId)
+        && request.resource.data.parentRevId == null;
+      allow update: if isOwner(userId) && validPage(pageId)
+        && request.resource.data.parentRevId == resource.data.revId
+        && request.resource.data.revId != resource.data.revId;
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/folioTraces/{traceId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && validTrace(traceId);
+      allow update: if isOwner(userId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['title', 'comeBackAt', 'comeBackTz', 'comeBackSetAt', 'lastComeBackShownAt', 'safety']);
+      allow delete: if isOwner(userId);
+
+      match /entries/{entryId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && request.resource.data.id == entryId
+          && request.resource.data.author == 'writer'
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 20000;
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}
