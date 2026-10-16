@@ -61,12 +61,12 @@ export function ReadingView({ uid, pageId }: { uid: string; pageId: string }) {
             {between && (
               <>
                 <div className="folio-reading__label">{tr['folio.between']}</div>
-                {paragraphs(between, `b${i}`, tr['folio.ask.label'])}
+                <div className="folio-reading__passage" data-passage="between">{paragraphs(between, `b${i}`, tr['folio.ask.label'])}</div>
                 {space(half)}
               </>
             )}
             <div className="folio-reading__label">{tr['folio.beneath']}</div>
-            {paragraphs(beneath, `n${i}`, tr['folio.ask.label'])}
+            <div className="folio-reading__passage">{paragraphs(beneath, `n${i}`, tr['folio.ask.label'])}</div>
           </section>
         )
       })}

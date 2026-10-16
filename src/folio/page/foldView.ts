@@ -213,7 +213,13 @@ function creaseButton(view: EditorView, foldId: string, open: boolean, strings: 
   button.dataset.foldId = foldId
   button.setAttribute('aria-expanded', open ? 'true' : 'false')
   button.setAttribute('aria-label', open ? strings.closeBeneath : strings.openBeneath)
-  button.textContent = '⌟'
+  // A plain glyph as the fallback; folio.css hides it and draws a dog-ear
+  // instead. The label carries the meaning either way.
+  const glyph = document.createElement('span')
+  glyph.className = 'folio-crease__glyph'
+  glyph.setAttribute('aria-hidden', 'true')
+  glyph.textContent = '⌟'
+  button.appendChild(glyph)
   button.addEventListener('mousedown', (e) => e.preventDefault())
   button.addEventListener('click', (e) => {
     e.preventDefault()

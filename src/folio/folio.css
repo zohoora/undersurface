@@ -2,57 +2,175 @@
    tokens under .folio-root: the Sessions tokens are rewritten at runtime by
    the time-aware and seasonal palettes. */
 
+/* The idea (art pass, 2026-10-16, with Fable): one sheet of warm paper held
+   up to the light, and whatever is beneath a line is seen through it. Nothing
+   is a box, card, pill or panel: everything is paper (the page, a slip, the
+   cooler sheet behind the page) or light on paper (a pool that moves with the
+   writer-local hour, a shadow at a fold, a thin film on a crease as it opens).
+   Only the paper and the light change with the hour; ink, controls and the
+   crease never do. Every effect is at most 7% opacity or 600 ms. Contrast is
+   measured on every band: ink/paper ≥ 13, control/paper ≥ 5.4, crease ≥ 3.1
+   (on the underside; keep --folio-under-a ≤ 0.46). */
 .folio-root {
   --folio-paper: #F7F3EC;
   --folio-ink: #2A2622;
-  --folio-underside: rgba(226, 232, 236, 0.55);
   --folio-crease: #A8763A;
-  --folio-control: #6F685F;
+  --folio-control: #675F56;
   --folio-rule: rgba(42, 38, 34, 0.12);
   --folio-focus: #A8763A;
-  --folio-notice: #FFFDF8;
+  --folio-notice: #FDFBF6;
   --folio-shore-paper: #F4EFE6;
   --folio-graphite: #46433F;
+  /* The cooler sheet, composited by alpha; --folio-underside for older rules. */
+  --folio-under-rgb: 208 220 228;
+  --folio-under-a: 0.46;
+  --folio-between-a: 0.28;
+  --folio-underside: rgb(var(--folio-under-rgb) / var(--folio-under-a));
+  --folio-selection: rgba(168, 118, 58, 0.24);
+  /* Every shadow is warm. */
+  --folio-shadow-rgb: 60 40 20;
+  --folio-inset-light: rgba(255, 255, 255, 0.55);
+  /* The light pool (additive only, so the paper stays the lowest-contrast surface). */
+  --folio-light: rgba(255, 250, 236, 0.55);
+  --folio-light-x: 50%;
+  --folio-light-y: 0%;
+  --folio-light-size: 120% 70%;
+  --folio-light-angle: 180deg;
+  --folio-grain-a: 0.06;
+  /* Fibre: sparse crisp specks; formation: paper under raking light. */
+  --folio-grain-speckle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='3' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='1.8' intercept='-0.45'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23s)'/%3E%3C/svg%3E");
+  --folio-grain-formation: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1000' height='1000'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.011' numOctaves='3' seed='9' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
+  --folio-grain-blend: multiply;
+  /* The crease: a sheet with its corner folded down (closed) or turned back (open). */
+  --folio-dogear-closed: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1 1h6.5L11 4.5V11H1z' fill='none' stroke='%23000' stroke-width='1.3' stroke-linejoin='round'/%3E%3Cpath d='M7.5 1v3.5H11z' fill='%23000'/%3E%3C/svg%3E");
+  --folio-dogear-open: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1 1h6.5L11 4.5V11H1z' fill='none' stroke='%23000' stroke-width='1.3' stroke-linejoin='round'/%3E%3Cpath d='M7.5 1L4 4.5h3.5z' fill='%23000'/%3E%3C/svg%3E");
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-paper: cubic-bezier(0.65, 0, 0.35, 1);
   /* Native controls (checkboxes, text fields, scrollbars) follow the paper. */
   color-scheme: light;
   position: fixed;
   inset: 0;
   overflow-y: auto;
+  isolation: isolate;
   background: var(--folio-paper);
   color: var(--folio-ink);
+  caret-color: var(--folio-crease);
   font-family: 'Spectral', Georgia, serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* The hour (src/folio/light.ts): morning light from the left window, the
+   afternoon's from above, evening's low from the right, a lamp at night. */
+.folio-root[data-light="morning"] { --folio-paper: #F9F5EB; --folio-light: rgba(255, 252, 238, 0.7); --folio-light-x: 12%; --folio-light-y: 0%; --folio-light-angle: 100deg; }
+.folio-root[data-light="evening"] { --folio-paper: #F7EFE4; --folio-light: rgba(255, 232, 206, 0.6); --folio-light-x: 88%; --folio-light-y: 10%; --folio-light-angle: 260deg; }
+.folio-root[data-light="night"] { --folio-paper: #F2EEE8; --folio-light: rgba(255, 238, 206, 0.45); --folio-light-x: 50%; --folio-light-y: 10%; --folio-light-size: 90% 70%; }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .folio-root {
     --folio-paper: #14110E;
     --folio-ink: #ECE6DC;
-    --folio-underside: rgba(52, 58, 64, 0.5);
     --folio-crease: #D2A060;
-    --folio-control: #A39B90;
+    --folio-control: #A8A094;
     --folio-rule: rgba(236, 230, 220, 0.14);
     --folio-focus: #D2A060;
-    --folio-notice: #1D1915;
+    --folio-notice: #1E1A16;
     --folio-shore-paper: #1A1612;
     --folio-graphite: #C9C3B9;
+    --folio-under-rgb: 58 66 74;
+    --folio-under-a: 0.55;
+    --folio-between-a: 0.35;
+    --folio-selection: rgba(210, 160, 96, 0.30);
+    --folio-shadow-rgb: 0 0 0;
+    --folio-inset-light: rgba(255, 255, 255, 0.06);
+    --folio-light: rgba(255, 214, 150, 0.10);
+    --folio-grain-a: 0.04;
+    --folio-grain-blend: screen;
+    --folio-inside-leak: rgba(255, 214, 150, 0.09);
     color-scheme: dark;
   }
+  :root:not([data-theme="light"]) .folio-root[data-light="morning"] { --folio-paper: #171411; --folio-light: rgba(200, 210, 225, 0.05); --folio-light-x: 12%; --folio-light-y: 0%; }
+  :root:not([data-theme="light"]) .folio-root[data-light="evening"] { --folio-paper: #15110D; --folio-light: rgba(230, 170, 100, 0.07); --folio-light-x: 88%; --folio-light-y: 10%; }
+  :root:not([data-theme="light"]) .folio-root[data-light="night"] { --folio-paper: #100E0C; --folio-light: rgba(230, 180, 110, 0.08); --folio-light-x: 50%; --folio-light-y: -10%; --folio-light-size: 70% 50%; }
 }
 
 :root[data-theme="dark"] .folio-root {
   --folio-graphite: #C9C3B9;
   --folio-paper: #14110E;
   --folio-ink: #ECE6DC;
-  --folio-underside: rgba(52, 58, 64, 0.5);
   --folio-crease: #D2A060;
-  --folio-control: #A39B90;
+  --folio-control: #A8A094;
   --folio-rule: rgba(236, 230, 220, 0.14);
   --folio-focus: #D2A060;
-  --folio-notice: #1D1915;
+  --folio-notice: #1E1A16;
   --folio-shore-paper: #1A1612;
+  --folio-under-rgb: 58 66 74;
+  --folio-under-a: 0.55;
+  --folio-between-a: 0.35;
+  --folio-selection: rgba(210, 160, 96, 0.30);
+  --folio-shadow-rgb: 0 0 0;
+  --folio-inset-light: rgba(255, 255, 255, 0.06);
+  --folio-light: rgba(255, 214, 150, 0.10);
+  --folio-grain-a: 0.04;
+  --folio-grain-blend: screen;
+  --folio-inside-leak: rgba(255, 214, 150, 0.09);
   color-scheme: dark;
 }
+:root[data-theme="dark"] .folio-root[data-light="morning"] { --folio-paper: #171411; --folio-light: rgba(200, 210, 225, 0.05); --folio-light-x: 12%; --folio-light-y: 0%; }
+:root[data-theme="dark"] .folio-root[data-light="evening"] { --folio-paper: #15110D; --folio-light: rgba(230, 170, 100, 0.07); --folio-light-x: 88%; --folio-light-y: 10%; }
+:root[data-theme="dark"] .folio-root[data-light="night"] { --folio-paper: #100E0C; --folio-light: rgba(230, 180, 110, 0.08); --folio-light-x: 50%; --folio-light-y: -10%; --folio-light-size: 70% 50%; }
+
+/* The light pool and the paper's fibres: two fixed layers behind everything,
+   one rasterised tile repeated (no per-frame cost). No vignette, no page edge:
+   the viewport is the sheet, and the light is what locates the column. */
+.folio-root::before,
+.folio-root::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+/* The light comes from a side of the sheet (the hour's window), not a patch:
+   a wash from that side plus a soft pool. In the light theme it only ever
+   brightens; in the dark it is a lamp, and the room falls away from it
+   (darkening there only raises contrast). */
+.folio-root::before {
+  background:
+    linear-gradient(var(--folio-light-angle), var(--folio-light) 0%, transparent 62%),
+    radial-gradient(140% 90% at var(--folio-light-x) var(--folio-light-y), var(--folio-light), transparent 72%);
+}
+/* Two tiles: sparse crisp specks (fibre) and a 1000 px formation (paper
+   under raking light). The specks just visible at 1:1, the formation only at
+   a glance. */
+.folio-root::after {
+  opacity: var(--folio-grain-a);
+  mix-blend-mode: var(--folio-grain-blend);
+  background-size: 240px 240px, 1000px 1000px;
+  background-image: var(--folio-grain-speckle), var(--folio-grain-formation);
+}
+/* In the dark the formation reads as blotches on a screen: the specks alone. */
+:root[data-theme="dark"] .folio-root::after { background-image: var(--folio-grain-speckle); background-size: 240px 240px; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .folio-root::after { background-image: var(--folio-grain-speckle); background-size: 240px 240px; }
+}
+:root[data-theme="dark"] .folio-root::before {
+  background:
+    radial-gradient(90% 70% at var(--folio-light-x) var(--folio-light-y), var(--folio-light), transparent 70%),
+    linear-gradient(var(--folio-light-angle), transparent 40%, rgba(0, 0, 0, 0.28) 100%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .folio-root::before {
+    background:
+      radial-gradient(90% 70% at var(--folio-light-x) var(--folio-light-y), var(--folio-light), transparent 70%),
+      linear-gradient(var(--folio-light-angle), transparent 40%, rgba(0, 0, 0, 0.28) 100%);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"])::before { animation: folio-light-in 900ms var(--ease-out); }
+}
+@keyframes folio-light-in { from { opacity: 0; } to { opacity: 1; } }
+
+.folio-root ::selection { background: var(--folio-selection); color: inherit; }
 
 .folio-root[data-shore="true"],
 .folio-root[data-quiet="true"] {
@@ -66,6 +184,7 @@
 
 /* ---------------------------------------------------------------- top bar */
 
+/* No rule: the paper runs under the bar, a little frosted. */
 .folio-topbar {
   position: sticky;
   top: 0;
@@ -74,11 +193,16 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 16px;
-  background: var(--folio-paper);
-  border-bottom: 1px solid var(--folio-rule);
+  padding: 8px 20px;
+  background: color-mix(in srgb, var(--folio-paper) 84%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border-bottom: 0;
   font-family: 'Inter', system-ui, sans-serif;
   font-size: 13px;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .folio-topbar { background: var(--folio-paper); }
 }
 
 .folio-root[data-shore="true"] .folio-topbar,
@@ -97,7 +221,9 @@
   background: transparent;
   color: var(--folio-control);
   font: 13px/1 'Inter', system-ui, sans-serif;
+  letter-spacing: 0.01em;
   cursor: pointer;
+  transition: color 160ms ease;
 }
 
 /* A button inside a line of text: 28 px with a mouse (WCAG 2.2's 24 px
@@ -110,38 +236,62 @@
 
 .folio-button:hover { color: var(--folio-ink); }
 .folio-button[aria-pressed="true"] { color: var(--folio-ink); text-decoration: underline; text-underline-offset: 4px; }
+/* Where you are, in the top bar: a small amber dot, not an underline. */
+.folio-topbar .folio-button[aria-current="page"],
+.folio-topbar .folio-button[aria-pressed="true"] { color: var(--folio-ink); text-decoration: none; }
+.folio-topbar .folio-button[aria-current="page"]::before,
+.folio-topbar .folio-button[aria-pressed="true"]::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  margin: 0 7px 2px 0;
+  border-radius: 50%;
+  background: var(--folio-crease);
+  opacity: 0.9;
+  vertical-align: middle;
+}
 
+/* Slips: a lighter sheet of the same paper, edged by a hairline and a warm,
+   low shadow. The menu, the notices, settings, the lift popover, dialogs. */
 .folio-menu {
   position: absolute;
   right: 12px;
   top: 52px;
   min-width: 200px;
-  padding: 6px;
-  border: 1px solid var(--folio-rule);
-  border-radius: 8px;
+  padding: 6px 0;
+  border: 0;
+  border-radius: 3px;
   background: var(--folio-notice);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 14px 32px -14px rgb(var(--folio-shadow-rgb) / 0.45), 0 0 0 1px var(--folio-rule);
   display: flex;
   flex-direction: column;
 }
 
-.folio-menu .folio-button { text-align: left; justify-content: flex-start; width: 100%; }
+.folio-menu .folio-button { text-align: left; justify-content: flex-start; width: 100%; min-height: 40px; padding: 0 16px; border-radius: 0; }
+.folio-menu .folio-button[data-group-start] { border-top: 1px solid var(--folio-rule); }
 
 /* ---------------------------------------------------------------- the page */
 
 .folio-page {
-  max-width: 680px;
+  max-width: 672px;
   margin: 0 auto;
-  padding: 48px 24px 160px;
+  padding: 40px 24px 160px;
 }
 
 .folio-page .ProseMirror {
   outline: none;
   min-height: 60vh;
   font-size: 19px;
-  line-height: 1.65;
+  line-height: 1.6;
+  font-feature-settings: "onum", "kern";
+  font-variant-ligatures: common-ligatures;
+  text-rendering: optimizeLegibility;
   white-space: pre-wrap;
   word-wrap: break-word;
+}
+@media (max-width: 420px) {
+  .folio-page .ProseMirror { font-size: 18px; }
 }
 
 .folio-page .ProseMirror p { margin: 0 0 0.75em; }
@@ -155,25 +305,32 @@
   height: 0;
   pointer-events: none;
   color: var(--folio-control);
+  font-style: italic;
+  font-weight: 300;
 }
 
 .folio-root[data-shore="true"] .folio-page .ProseMirror p.is-editor-empty:first-child::before,
 .folio-root[data-quiet="true"] .folio-page .ProseMirror p.is-editor-empty:first-child::before { content: none; }
 
+/* A lifted line: a fine amber thread under it, not a link's underline. */
 .folio-fold {
   text-decoration: underline;
-  text-decoration-color: var(--folio-crease);
   text-decoration-thickness: 1px;
-  text-underline-offset: 4px;
+  text-underline-offset: 0.26em;
+  text-decoration-skip-ink: none;
+  text-decoration-color: color-mix(in srgb, var(--folio-crease) 70%, transparent);
+  transition: text-decoration-color 200ms ease;
 }
+.folio-fold:hover { text-decoration-color: var(--folio-crease); }
 
+/* The crease: a dog-ear, folded down when closed, lifted when open. */
 .folio-crease {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 28px;
   min-height: 28px;
-  margin: 0 2px;
+  margin: 0 2px 0 4px;
   padding: 0;
   border: 0;
   border-radius: 4px;
@@ -183,29 +340,87 @@
   vertical-align: baseline;
   cursor: pointer;
 }
+/* The text glyph is the fallback without this stylesheet; the dog-ear replaces it. */
+.folio-crease__glyph { display: none; }
+.folio-crease::before {
+  content: '';
+  display: block;
+  width: 12px;
+  height: 12px;
+  background: currentColor;
+  opacity: 0.9;
+  -webkit-mask: var(--folio-dogear-closed) center / 12px 12px no-repeat;
+  mask: var(--folio-dogear-closed) center / 12px 12px no-repeat;
+}
+.folio-crease--open::before { -webkit-mask-image: var(--folio-dogear-open); mask-image: var(--folio-dogear-open); }
+.folio-crease:hover::before { opacity: 1; }
 
 @media (pointer: coarse) {
   .folio-crease { min-width: 44px; min-height: 44px; }
 }
 
-.folio-underside--closed { height: 0; overflow: hidden; }
+.folio-underside--closed { position: relative; height: 0; overflow: visible; }
+/* A selected closed fold is an edge, not a bar. */
 .folio-underside--closed.ProseMirror-selectednode {
-  height: 6px;
-  margin: 2px 0 10px;
-  border-radius: 3px;
+  height: 2px;
+  margin: 0 0 10px;
+  border-radius: 0;
   background: var(--folio-crease);
+  opacity: 0.85;
 }
 
+/* The underside, seen through the sheet (§3.11). The container has no
+   background: only the passages carry the cooler sheet, hard at the fold and
+   soft to the right; the gap between them is bare page paper, so distance
+   reads as space. The fold's edge and the lifted sheet's shadow run the full
+   height, darkest near the line and near the beneath. */
 .folio-underside--open {
   position: relative;
   margin: 0 0 1.1em;
-  padding: 12px 16px 8px;
-  border-left: 2px solid var(--folio-crease);
-  background: var(--folio-underside);
-  border-radius: 0 6px 6px 0;
+  padding: 0 0 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
 }
-
-.folio-underside--open[data-loose="true"] { border-left-style: dashed; }
+/* The fold's edge: the one hard line, where the sheet bends. */
+.folio-underside--open::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--folio-crease);
+}
+.folio-underside--open[data-loose="true"]::before {
+  background: repeating-linear-gradient(180deg, var(--folio-crease) 0 6px, transparent 6px 10px);
+}
+/* The passages: light coming through paper, a soft wash with no edge except
+   at the fold (clipped hard there), never a box or a line. One blurred layer
+   per passage, re-rastered only when its height changes. */
+.folio-underside--open [data-folio-beneath],
+.folio-underside--open [data-folio-between] {
+  position: relative;
+  isolation: isolate;
+  padding: 10px 16px 8px 18px;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  clip-path: inset(-16px -16px -16px 0);
+}
+.folio-underside--open [data-folio-beneath]::before,
+.folio-underside--open [data-folio-between]::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 4px 10px 4px 2px;
+  background: rgb(var(--folio-under-rgb) / var(--folio-under-a));
+  filter: blur(8px);
+  pointer-events: none;
+}
+.folio-underside--open [data-folio-between]::before { --folio-under-a: var(--folio-between-a); }
 
 /* The distance is empty paper, split above and below the between (§3.6). */
 .folio-underside--open [data-folio-between] {
@@ -221,19 +436,29 @@
   height: 0;
   pointer-events: none;
   color: var(--folio-control);
-  font-style: italic;
+  font: italic 300 1em/inherit 'Spectral', Georgia, serif;
 }
 
-/* Folio settings: one control per line. */
-.folio-settings { flex-direction: column; align-items: stretch; gap: 4px; }
+/* Folio settings: a slip, one control per line. */
+.folio-notice.folio-settings { flex-direction: column; align-items: stretch; gap: 4px; width: min(92vw, 340px); max-width: min(92vw, 340px); }
 .folio-settings .folio-button { align-self: flex-start; }
 
-.folio-involvement { display: flex; flex-direction: column; gap: 6px; padding: 8px 0 4px; border-top: 1px solid var(--folio-rule); margin-top: 4px; }
-.folio-involvement__label { font-weight: 500; }
-.folio-involvement input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--folio-crease); }
+/* Companion involvement: a thread with an amber bead on it (the native range
+   input, restyled, so keys and screen readers work as ever). */
+.folio-involvement { display: flex; flex-direction: column; gap: 6px; padding: 12px 0 4px; border-top: 1px solid var(--folio-rule); margin-top: 6px; }
+.folio-involvement__label { font: 15px/1.4 'Spectral', Georgia, serif; }
+.folio-involvement input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 44px; min-height: 44px; margin: 0; background: transparent; cursor: pointer; }
+.folio-involvement input[type="range"]::-webkit-slider-runnable-track { height: 1px; background: var(--folio-rule); }
+.folio-involvement input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -6.5px; border-radius: 50%; background: var(--folio-crease); box-shadow: 0 0 0 4px var(--folio-notice), 0 0 0 5px var(--folio-rule); transition: transform 160ms var(--ease-out); }
+.folio-involvement input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.15); }
+.folio-involvement input[type="range"]::-moz-range-track { height: 1px; background: var(--folio-rule); }
+.folio-involvement input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--folio-crease); box-shadow: 0 0 0 4px var(--folio-notice), 0 0 0 5px var(--folio-rule); }
+.folio-involvement input[type="range"]:focus-visible { outline: 2px solid var(--folio-focus); outline-offset: -8px; border-radius: 6px; }
 .folio-involvement__scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--folio-control); }
+/* The level you're at: ink, with an amber dot (amber text would fail 4.5:1 at 11 px). */
 .folio-involvement__scale span[data-on="true"] { color: var(--folio-ink); font-weight: 500; }
-.folio-involvement__line { margin: 0; max-width: 48ch; color: var(--folio-control); line-height: 1.45; }
+.folio-involvement__scale span[data-on="true"]::before { content: ''; display: inline-block; width: 4px; height: 4px; margin: 0 4px 2px 0; border-radius: 50%; background: var(--folio-crease); vertical-align: middle; }
+.folio-involvement__line { margin: 0; max-width: 48ch; color: var(--folio-control); font: italic 300 14px/1.5 'Spectral', Georgia, serif; }
 
 /* ------------------------------------------------ the companion (involvement)
 
@@ -305,42 +530,87 @@
 .folio-page .tiptap p { transition: opacity 600ms ease; }
 .folio-root[data-reduce-motion="true"] .folio-page .tiptap p { transition: none; }
 
+/* "Close · Closer · Farther …… Keep · Step inside" */
 .folio-underside__controls {
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
   justify-content: flex-end;
-  margin-top: 6px;
+  margin-top: 4px;
   font-family: 'Inter', system-ui, sans-serif;
   user-select: none;
 }
+.folio-underside__controls [data-folio-keep] { margin-left: auto; }
 
-.folio-underside__controls .folio-button { font-size: 12px; min-height: 36px; padding: 0 10px; }
+.folio-underside__controls .folio-button { font-size: 12px; letter-spacing: 0.02em; min-height: 36px; padding: 0 10px; }
 @media (pointer: coarse) {
   .folio-underside__controls .folio-button { min-height: 44px; }
 }
 
+/* Opening unfolds from the line down; the crease's edge and dog-ear pass
+   through a thin film of colour (only while opening), then plain amber. Gated
+   by [data-arrived] so folds already open when a page loads don't animate. */
 @media (prefers-reduced-motion: no-preference) {
-  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-underside--open {
-    animation: folio-open 320ms ease-out;
+  /* The passages swing down from the lifted line like a flap of paper; the
+     wash and the crease pass through a thin film of colour as it opens. No
+     fill mode: no lingering transform, so the text never stays soft. */
+  .folio-root[data-arrived]:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-underside--open [data-folio-beneath],
+  .folio-root[data-arrived]:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-underside--open [data-folio-between] {
+    transform-origin: 50% 0;
+    animation: folio-flap 360ms var(--ease-out);
+  }
+  .folio-root[data-arrived]:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-underside--open::before {
+    animation: folio-film 750ms ease-out;
+  }
+  .folio-root[data-arrived]:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-underside--open [data-folio-beneath]::before {
+    animation: folio-film-wash 750ms ease-out;
+  }
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) [data-folio-between],
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) [data-folio-beneath] {
+    transition: margin 320ms var(--ease-paper);
   }
 }
-
-@keyframes folio-open {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: none; }
+.folio-root[data-arrived][data-reduce-motion="true"]:not([data-shore="true"]):not([data-quiet="true"]) .folio-underside--open {
+  animation: folio-fade 120ms linear;
 }
+
+@keyframes folio-flap { from { opacity: 0; transform: perspective(900px) rotateX(-48deg); } to { opacity: 1; transform: none; } }
+@keyframes folio-unfold { from { opacity: 0; } to { opacity: 1; } }
+/* The thin film: on the edge and in the wash, only while opening. */
+@keyframes folio-film {
+  0% { background-color: var(--folio-crease); }
+  30% { background-color: #C9A46A; }
+  55% { background-color: #9FB7B9; }
+  78% { background-color: #C79FA6; }
+  100% { background-color: var(--folio-crease); }
+}
+/* On the wash the film is a tint of the sheet itself, never a colour laid
+   over it: mid-film the passage is the same sheet with a passing cast. */
+@keyframes folio-film-wash {
+  /* The wash fades in as the flap comes down, so a steep first frame never
+     projects a large pale layer. */
+  0% { opacity: 0; background-color: rgb(var(--folio-under-rgb) / var(--folio-under-a)); }
+  30% { opacity: 1; background-color: color-mix(in srgb, rgb(var(--folio-under-rgb) / var(--folio-under-a)) 82%, #D4B37A); }
+  55% { background-color: color-mix(in srgb, rgb(var(--folio-under-rgb) / var(--folio-under-a)) 80%, #8FB4B6); }
+  78% { background-color: color-mix(in srgb, rgb(var(--folio-under-rgb) / var(--folio-under-a)) 84%, #C9A0A8); }
+  100% { background-color: rgb(var(--folio-under-rgb) / var(--folio-under-a)); }
+}
+@keyframes folio-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes folio-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 /* ---------------------------------------------------------------- lifting */
 
+/* Lift and Ask: a small slip beside the selection, amber at its edge. */
 .folio-lift {
   position: absolute;
   z-index: 20;
   display: flex;
-  border: 1px solid var(--folio-rule);
-  border-radius: 18px;
+  gap: 2px;
+  border: 0;
+  border-left: 2px solid var(--folio-crease);
+  border-radius: 3px;
   background: var(--folio-notice);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 1px 0 var(--folio-inset-light), 0 8px 20px -10px rgb(var(--folio-shadow-rgb) / 0.35), 0 0 0 1px var(--folio-rule);
   overflow: hidden;
 }
 .folio-lift__button {
@@ -350,11 +620,13 @@
   background: transparent;
   color: var(--folio-ink);
   font: 13px/1 'Inter', system-ui, sans-serif;
+  letter-spacing: 0.01em;
   cursor: pointer;
 }
-.folio-lift__button + .folio-lift__button { border-left: 1px solid var(--folio-rule); }
+.folio-lift__button:hover { background: rgb(var(--folio-shadow-rgb) / 0.04); }
 .folio-lift__button:disabled { color: var(--folio-control); cursor: default; }
 
+/* On a phone, the same slip along the bottom edge. */
 .folio-touchbar {
   position: fixed;
   left: 0;
@@ -365,9 +637,11 @@
   justify-content: center;
   gap: 8px;
   padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--folio-rule);
+  border: 0;
   background: var(--folio-notice);
+  box-shadow: 0 -1px 0 var(--folio-rule), 0 -10px 24px -16px rgb(var(--folio-shadow-rgb) / 0.35);
 }
+.folio-touchbar .folio-button:first-child { color: var(--folio-ink); font-weight: 500; }
 
 /* ---------------------------------------------------------------- lines and notices */
 
@@ -377,11 +651,23 @@
   bottom: 12px;
   z-index: 5;
   font: 12px/1.3 'Inter', system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
   color: var(--folio-control);
 }
 
 .folio-status[data-tone="warn"] { color: var(--folio-ink); }
+.folio-status[data-tone="warn"]::before {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin: 0 6px 1px 0;
+  border-radius: 50%;
+  background: var(--folio-crease);
+  vertical-align: middle;
+}
 
+/* A notice is a slip rising from the bottom edge, amber along its top. */
 .folio-notice {
   position: fixed;
   left: 50%;
@@ -393,30 +679,46 @@
   align-items: center;
   gap: 4px 8px;
   max-width: min(92vw, 560px);
-  padding: 8px 12px;
-  border: 1px solid var(--folio-rule);
-  border-radius: 10px;
+  padding: 10px 14px;
+  border: 0;
+  border-top: 2px solid var(--folio-crease);
+  border-radius: 3px;
   background: var(--folio-notice);
   font: 13px/1.4 'Inter', system-ui, sans-serif;
   color: var(--folio-ink);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 10px 24px -12px rgb(var(--folio-shadow-rgb) / 0.4), 0 0 0 1px var(--folio-rule);
+}
+.folio-notice > span:first-child { font: 15px/1.4 'Spectral', Georgia, serif; }
+/* On wide screens a notice waits at the bottom right, beside the status, off the writing. */
+@media (min-width: 900px) {
+  .folio-notice:not(.folio-settings) { left: auto; right: 16px; bottom: 44px; transform: none; }
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-notice:not(.folio-settings) { animation: folio-rise 220ms var(--ease-out); }
 }
 
+/* The first-visit and intro lines: a margin note in the column. */
 .folio-line {
-  max-width: 680px;
-  margin: 12px auto 0;
+  max-width: 672px;
+  margin: 16px auto 8px;
   padding: 0 24px;
   font: 13px/1.5 'Inter', system-ui, sans-serif;
   color: var(--folio-control);
 }
+.folio-line[role="note"] {
+  box-sizing: border-box;
+  width: calc(100% - 48px);
+  max-width: 624px;
+  padding: 10px 0 10px 14px;
+  border-left: 0;
+}
 
 .folio-shore-line {
-  max-width: 680px;
+  max-width: 672px;
   margin: 16px auto 0;
   padding: 12px 16px;
-  border: 1px solid var(--folio-rule);
-  border-radius: 10px;
+  border: 0;
+  border-radius: 3px;
   background: var(--folio-notice);
+  box-shadow: 0 0 0 1px var(--folio-rule);
   font: 14px/1.5 'Inter', system-ui, sans-serif;
   color: var(--folio-ink);
 }
@@ -434,17 +736,29 @@
 
 /* ---------------------------------------------------------------- lists and reading view */
 
-.folio-list { max-width: 680px; margin: 0 auto; padding: 32px 24px 120px; font-family: 'Inter', system-ui, sans-serif; }
-.folio-list h1 { font: 400 22px/1.3 'Spectral', Georgia, serif; margin: 0 0 16px; }
+/* Headings are the writer's room, not the app's: light Spectral, large. */
+.folio-list { max-width: 672px; margin: 0 auto; padding: 40px 24px 120px; font-family: 'Inter', system-ui, sans-serif; }
+.folio-list h1,
+.folio-floor h1 { font: 300 30px/1.2 'Spectral', Georgia, serif; letter-spacing: -0.005em; margin: 0 0 20px; }
 .folio-list ul { list-style: none; margin: 0; padding: 0; }
-.folio-list li { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--folio-rule); }
-.folio-list li .folio-list__open { flex: 1; text-align: left; min-height: 56px; padding: 8px 4px; border: 0; background: none; color: var(--folio-ink); cursor: pointer; font: 15px/1.4 'Spectral', Georgia, serif; }
-.folio-list__date { display: block; font: 12px/1.4 'Inter', system-ui, sans-serif; color: var(--folio-control); }
+.folio-list li { display: flex; align-items: center; gap: 8px; border: 0; }
+.folio-list li + li { border-top: 1px solid var(--folio-rule); }
+.folio-list li .folio-list__open { flex: 1; text-align: left; min-height: 64px; padding: 10px 4px; border: 0; background: none; color: var(--folio-ink); cursor: pointer; font: 17px/1.45 'Spectral', Georgia, serif; transition: transform 200ms var(--ease-out); }
+.folio-list li .folio-list__open:hover { transform: translateX(3px); }
+.folio-list__date { display: block; margin-top: 2px; font: 12px/1.4 'Inter', system-ui, sans-serif; font-variant-numeric: tabular-nums; color: var(--folio-control); }
 
-.folio-reading { max-width: 680px; margin: 0 auto; padding: 48px 24px 120px; font-size: 19px; line-height: 1.65; }
+/* Reading view: the same paper and the same seen-through sheet as the editor. */
+.folio-reading { max-width: 672px; margin: 0 auto; padding: 40px 24px 120px; font-size: 19px; line-height: 1.6; font-feature-settings: "onum", "kern"; }
 .folio-reading p { margin: 0 0 0.75em; white-space: pre-wrap; }
-.folio-reading__underside { margin: 0 0 1.1em 1.5em; padding-left: 14px; border-left: 2px solid var(--folio-crease); }
-.folio-reading__label { font: 12px/1.4 'Inter', system-ui, sans-serif; color: var(--folio-control); margin-bottom: 4px; }
+.folio-reading__underside { position: relative; margin: 0 0 1.1em; padding-left: 18px; border-left: 0; }
+.folio-reading__underside::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; border-radius: 1px; background: var(--folio-crease); }
+.folio-reading__passage {
+  padding: 8px 16px 2px 14px;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(90deg, rgb(var(--folio-under-rgb) / var(--folio-under-a)), rgb(var(--folio-under-rgb) / calc(var(--folio-under-a) * 0.85)) 72%, rgb(var(--folio-under-rgb) / 0));
+}
+.folio-reading__passage[data-passage="between"] { --folio-under-a: var(--folio-between-a); }
+.folio-reading__label { font: italic 300 15px/1.4 'Spectral', Georgia, serif; color: var(--folio-control); margin: 6px 0 4px; }
 
 @media print {
   .folio-topbar, .folio-status, .folio-notice, .folio-touchbar, .folio-lift, .folio-line { display: none !important; }
@@ -490,37 +804,72 @@
 .folio-input {
   min-height: 44px;
   padding: 8px 10px;
-  border: 1px solid var(--folio-rule);
-  border-radius: 6px;
-  background: var(--folio-paper);
+  border: 0;
+  border-bottom: 1px solid var(--folio-control);
+  border-radius: 0;
+  background: transparent;
   color: var(--folio-ink);
   font: 16px/1.4 'Inter', system-ui, sans-serif;
 }
 .folio-input:focus-visible { outline: 2px solid var(--folio-focus); outline-offset: 1px; }
 
-/* The floor: sediment, newest at the top. Thickness records returns only. */
-.folio-floor { max-width: 680px; margin: 0 auto; padding: 32px 24px 120px; font-family: 'Inter', system-ui, sans-serif; }
-.folio-floor h1 { font: 400 22px/1.3 'Spectral', Georgia, serif; margin: 0 0 8px; }
-.folio-floor h2 { font: 500 13px/1.4 'Inter', system-ui, sans-serif; color: var(--folio-control); margin: 0 0 8px; }
-.folio-floor__promise { font-size: 13px; color: var(--folio-control); margin: 0 0 24px; }
+/* The floor: kept slips, newest on top. A slip's thickness is the stack of
+   edges under it (it records returns only); earlier versions sit tucked
+   beneath it. No tilt: rotated text renders soft and buys nothing. */
+.folio-floor { max-width: 672px; margin: 0 auto; padding: 40px 24px 120px; font-family: 'Inter', system-ui, sans-serif; }
+.folio-floor h1 { margin-bottom: 8px; }
+.folio-floor h2 { font: italic 300 16px/1.4 'Spectral', Georgia, serif; color: var(--folio-control); margin: 0 0 10px; }
+.folio-floor__promise { font: italic 300 15px/1.5 'Spectral', Georgia, serif; color: var(--folio-control); margin: 0 0 28px; }
 .folio-floor ul { list-style: none; margin: 0; padding: 0; }
-.folio-floor__waiting { margin-bottom: 24px; padding: 12px 0; border-top: 1px solid var(--folio-rule); border-bottom: 1px solid var(--folio-rule); }
+.folio-floor__waiting { margin-bottom: 28px; padding: 0; border: 0; }
 .folio-floor__waiting li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.folio-floor__trace { border-bottom: 1px solid var(--folio-crease); }
-.folio-floor__earlier { margin-left: 24px; border-bottom: 1px solid var(--folio-rule); }
-.folio-floor__open { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-height: 56px; padding: 10px 4px; border: 0; background: none; color: var(--folio-ink); text-align: left; cursor: pointer; }
-.folio-floor__name { font: 16px/1.4 'Spectral', Georgia, serif; }
-.folio-floor__earlier .folio-floor__name { font-size: 14px; }
-.folio-floor__meta { font: 12px/1.4 'Inter', system-ui, sans-serif; color: var(--folio-control); }
+.folio-floor__list { margin-top: 8px; }
+/* Sheets laid on each other by hand, newest on top: each group overlaps the
+   one below a little, and every second and third sits a little off the grid
+   (a fixed alternation; nothing about the writing decides it). */
+.folio-floor__group { position: relative; z-index: calc(200 - var(--folio-i, 0)); }
+.folio-floor__group + .folio-floor__group { margin-top: -8px; }
+.folio-floor__group:nth-child(2n) .folio-floor__trace { margin-left: 14px; margin-right: -6px; }
+.folio-floor__group:nth-child(3n) .folio-floor__trace { margin-left: 6px; margin-right: 4px; }
+.folio-floor__trace {
+  position: relative;
+  margin: 0;
+  padding: 6px 18px;
+  border: 0;
+  border-radius: 1px;
+  background: var(--folio-notice);
+  box-shadow: inset 0 1px 0 var(--folio-inset-light), 0 1px 1px rgb(var(--folio-shadow-rgb) / 0.08), 0 14px 22px -16px rgb(var(--folio-shadow-rgb) / 0.45);
+  transition: transform 220ms var(--ease-out);
+}
+/* Its thickness: the stack of edges under it (returns only). */
+.folio-floor__trace::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 100%;
+  height: calc(var(--folio-thickness, 0) * 2px);
+  background: repeating-linear-gradient(180deg, var(--folio-notice) 0 1px, rgb(var(--folio-shadow-rgb) / 0.18) 1px 2px);
+}
+@media (pointer: fine) {
+  .folio-floor__trace:hover { transform: translateY(-1px); }
+}
+.folio-floor__earlier { margin: -6px 0 0 28px; padding: 2px 16px; border: 0; background: color-mix(in srgb, var(--folio-notice) 70%, var(--folio-paper)); box-shadow: 0 1px 1px rgb(var(--folio-shadow-rgb) / 0.06), 0 0 0 1px var(--folio-rule); }
+.folio-floor__open { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; width: 100%; min-height: 56px; padding: 12px 0; border: 0; background: none; color: var(--folio-ink); text-align: left; cursor: pointer; }
+.folio-floor__name { font: 17px/1.4 'Spectral', Georgia, serif; }
+.folio-floor__earlier .folio-floor__name { font-size: 15px; }
+.folio-floor__meta { font: 12px/1.4 'Inter', system-ui, sans-serif; font-variant-numeric: tabular-nums; color: var(--folio-control); }
 
 /* A trace: the composition, with entries beside it on wide screens. */
-.folio-trace { max-width: 960px; margin: 0 auto; padding: 32px 24px 160px; }
-.folio-trace__header h1 { font: 400 24px/1.3 'Spectral', Georgia, serif; margin: 0 0 4px; }
-.folio-trace__meta { font: 12px/1.6 'Inter', system-ui, sans-serif; color: var(--folio-control); }
-.folio-trace__body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; margin-top: 24px; }
+.folio-trace { max-width: 960px; margin: 0 auto; padding: 40px 24px 160px; }
+/* The title is the writer's words: upright, light. */
+.folio-trace__header h1 { font: 300 26px/1.3 'Spectral', Georgia, serif; margin: 0 0 6px; }
+.folio-trace__meta { font: 12px/1.6 'Inter', system-ui, sans-serif; font-variant-numeric: tabular-nums; color: var(--folio-control); }
+.folio-trace__body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; margin-top: 28px; }
 @media (min-width: 900px) {
-  .folio-trace__body { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
-  .folio-trace__entries { border-left: 1px solid var(--folio-rule); padding-left: 20px; }
+  /* The entries sit beside the composition across open paper: no rule. */
+  .folio-trace__body { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 48px; }
+  .folio-trace__entries { border-left: 0; padding-left: 0; }
 }
 .folio-trace__actions, .folio-trace__comeback, .folio-trace__name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 16px; position: relative; }
 .folio-trace__lineage { margin-top: 24px; font-family: 'Inter', system-ui, sans-serif; }
@@ -528,33 +877,63 @@
 .folio-trace__lineage ul { list-style: none; margin: 0; padding: 0; }
 .folio-menu--inline { position: absolute; top: 48px; left: 0; right: auto; z-index: 20; }
 
-.folio-composition { font: 19px/1.65 'Spectral', Georgia, serif; color: var(--folio-ink); }
+/* A kept composition: the page's own fold, line, edge and seen-through sheet. */
+.folio-composition { font: 19px/1.6 'Spectral', Georgia, serif; font-feature-settings: "onum", "kern"; color: var(--folio-ink); }
 .folio-composition p { margin: 0 0 0.6em; }
-.folio-composition__line { text-decoration: underline; text-decoration-color: var(--folio-crease); text-underline-offset: 4px; }
-.folio-composition__under { margin: 0 0 0 1.5em; padding: 0.4em 0.8em; background: var(--folio-underside); border-left: 2px solid var(--folio-crease); }
+.folio-composition__line { text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: color-mix(in srgb, var(--folio-crease) 70%, transparent); text-underline-offset: 0.26em; }
+.folio-composition__under {
+  position: relative;
+  margin: 0;
+  padding: 0 0 2px 18px;
+  background: none;
+  border-left: 0;
+}
+.folio-composition__under::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; border-radius: 1px; background: var(--folio-crease); }
+/* Only the passages carry the cooler sheet; the distance between is paper. */
+.folio-composition__between,
+.folio-composition__beneath {
+  position: relative;
+  isolation: isolate;
+  padding: 10px 16px 4px 14px;
+  clip-path: inset(-16px -16px -16px 0);
+}
+.folio-composition__between::before,
+.folio-composition__beneath::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 4px 10px 4px 2px;
+  background: rgb(var(--folio-under-rgb) / var(--folio-under-a));
+  filter: blur(8px);
+  pointer-events: none;
+}
+.folio-composition__between::before { --folio-under-a: var(--folio-between-a); }
 .folio-composition__between { margin: calc(var(--folio-gap-lines, 0) * 0.5lh) 0; }
+.folio-composition__under:not(:has(.folio-composition__between)) .folio-composition__beneath { margin-top: calc(var(--folio-gap-lines, 0) * 1lh); }
 
-.folio-entry { margin: 0 0 16px; font-family: 'Spectral', Georgia, serif; }
-.folio-entry__date { display: block; font: 12px/1.4 'Inter', system-ui, sans-serif; color: var(--folio-control); margin-bottom: 4px; }
+.folio-entry { margin: 0 0 18px; font-family: 'Spectral', Georgia, serif; }
+.folio-entry__date { display: block; font: 12px/1.4 'Inter', system-ui, sans-serif; font-variant-numeric: tabular-nums; color: var(--folio-control); margin-bottom: 4px; }
 .folio-entry__text { margin: 0 0 4px; font-size: 17px; line-height: 1.6; white-space: pre-wrap; }
 .folio-entry--new label { display: block; }
-.folio-entry__input { width: 100%; box-sizing: border-box; font: 17px/1.5 'Spectral', Georgia, serif; resize: vertical; }
+/* Add is paper, not a form field: a line to write on. */
+.folio-entry__input { width: 100%; box-sizing: border-box; padding: 8px 0; border: 0; border-bottom: 1px solid var(--folio-control); border-radius: 0; background: transparent; color: var(--folio-ink); font: 17px/1.5 'Spectral', Georgia, serif; resize: vertical; }
 
 .folio-comeback { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .folio-comeback__pick { display: flex; align-items: center; gap: 4px; }
 
 /* The come-back slip: one at a time, at the top. */
-.folio-slip { max-width: 680px; margin: 16px auto 0; padding: 12px 16px; border: 1px solid var(--folio-rule); border-left: 2px solid var(--folio-crease); border-radius: 6px; background: var(--folio-notice); font-family: 'Inter', system-ui, sans-serif; }
+/* The come-back slip: the same slip as a notice, at the top of the page. */
+.folio-slip { box-sizing: border-box; width: calc(100% - 48px); max-width: 624px; margin: 16px auto 0; padding: 12px 16px; border: 0; border-top: 2px solid var(--folio-crease); border-radius: 3px; background: var(--folio-notice); box-shadow: 0 10px 24px -14px rgb(var(--folio-shadow-rgb) / 0.4), 0 0 0 1px var(--folio-rule); font-family: 'Inter', system-ui, sans-serif; }
 .folio-slip__asked { font-size: 12px; color: var(--folio-control); }
 .folio-slip__name { font: 17px/1.5 'Spectral', Georgia, serif; color: var(--folio-ink); margin: 4px 0; }
 .folio-slip__actions { display: flex; flex-wrap: wrap; gap: 4px; }
 
 /* "from 14 Oct": a fold lifted from a kept thing. */
-.folio-underside__from { font: 12px/1.4 'Inter', system-ui, sans-serif; color: var(--folio-control); margin: 0 0 4px; user-select: none; }
+.folio-underside__from { font: italic 300 15px/1.4 'Spectral', Georgia, serif; color: var(--folio-control); margin: 0 0 4px; user-select: none; }
 
 /* Dialogs */
 .folio-dialog__backdrop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(20, 17, 14, 0.32); }
-.folio-dialog { max-width: 440px; width: 100%; padding: 20px; border-radius: 10px; background: var(--folio-notice); color: var(--folio-ink); font: 14px/1.5 'Inter', system-ui, sans-serif; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18); }
+.folio-dialog { max-width: 440px; width: 100%; padding: 20px; border-radius: 3px; border-top: 2px solid var(--folio-crease); background: var(--folio-notice); color: var(--folio-ink); font: 14px/1.5 'Inter', system-ui, sans-serif; box-shadow: 0 18px 40px -16px rgb(var(--folio-shadow-rgb) / 0.5), 0 0 0 1px var(--folio-rule); }
 .folio-dialog p { margin: 0 0 12px; }
 .folio-dialog__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
 
@@ -593,25 +972,39 @@
 .folio-root[data-shore="true"] [data-folio-step-inside],
 .folio-root[data-quiet="true"] [data-folio-step-inside] { display: none; }
 
-.folio-inside-backdrop { z-index: 70; animation: folio-inside-in 320ms ease both; }
+/* Step inside: the whole screen is the cooler sheet, lit from the crease's
+   corner; the composition stands in it. */
+.folio-inside-backdrop { z-index: 70; animation: folio-inside-in 360ms ease both; }
 .folio-inside {
   position: relative;
   display: flex;
   flex-direction: column;
   min-height: 100%;
   outline: none;
-  background: linear-gradient(var(--folio-underside), var(--folio-underside)), var(--folio-paper);
+  background: var(--folio-paper);
 }
-/* Soft light from the crease edge. */
+/* Inside the underside: its cooler sheet all round, the room's edges falling
+   away, and warm light leaking in at the fold (warm white, never amber over
+   the cool tint, which turned khaki). */
+.folio-inside::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: rgb(var(--folio-under-rgb) / calc(var(--folio-under-a) * 0.8)); }
 .folio-inside__light {
   position: absolute;
-  inset: 0 auto 0 0;
-  width: min(40vw, 360px);
+  inset: 0;
+  width: auto;
   pointer-events: none;
-  border-left: 2px solid var(--folio-crease);
-  background: linear-gradient(90deg, rgba(168, 118, 58, 0.14), rgba(168, 118, 58, 0));
+  border: 0;
+  background:
+    radial-gradient(55% 75% at 22% 38%, var(--folio-inside-leak), transparent 72%),
+    radial-gradient(150% 125% at 50% 45%, transparent 38%, rgb(var(--folio-shadow-rgb) / 0.10) 100%);
 }
-.folio-inside__stage { flex: 1; width: 100%; max-width: 760px; margin: 0 auto; padding: 72px 24px 32px; box-sizing: border-box; }
+.folio-inside__stage { position: relative; flex: 1; width: 100%; max-width: 720px; margin: 0 auto; padding: 72px 24px 32px; box-sizing: border-box; }
+.folio-root, .folio-inside-backdrop { --folio-inside-leak: rgba(255, 244, 222, 0.6); }
+.folio-inside .folio-composition__under { background: none; }
+.folio-inside .folio-composition__between::before, .folio-inside .folio-composition__beneath::before { content: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .folio-inside-backdrop:not([data-reduce-motion="true"]) .folio-inside__stage { animation: folio-rise-far 480ms var(--ease-out) 60ms both; }
+}
+@keyframes folio-rise-far { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 /* Standing distance scales the text, never below the page's 19 px. */
 .folio-inside__stage .folio-composition { font-size: calc(19px * var(--folio-stand, 1)); transition: font-size 320ms ease; }
 .folio-inside__controls {
@@ -621,9 +1014,10 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px 24px;
-  padding: 12px 16px 24px;
-  border-top: 1px solid var(--folio-rule);
-  background: var(--folio-paper);
+  padding: 28px 16px 24px;
+  border-top: 0;
+  /* The room's own colour, solid under the controls so text never shows through. */
+  background: linear-gradient(transparent, color-mix(in srgb, var(--folio-paper), rgb(var(--folio-under-rgb)) 37%) 40%);
 }
 .folio-inside__group { display: flex; flex-wrap: wrap; gap: 4px; }
 .folio-inside .folio-button[aria-pressed="true"] { color: var(--folio-ink); text-decoration: underline; text-underline-offset: 4px; }
@@ -669,3 +1063,141 @@
   }
 }
 .folio-trace__return { display: flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 8px; font: 13px/1.4 'Inter', system-ui, sans-serif; color: var(--folio-control); }
+
+/* ---------------------------------------------------------------- motion (art pass)
+
+   Arrivals: a page rises 3 px into place; slips rise 6 px; the companion's
+   ghost surfaces out of the paper, its mark blots in. Every one is gated on
+   motion being allowed and on Normal paper; reduced, they are 120 ms fades
+   or nothing. Nothing waits on any of them. */
+@media (prefers-reduced-motion: no-preference) {
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-page,
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-list,
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-floor,
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-trace,
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-reading {
+    animation: folio-arrive 360ms var(--ease-out);
+  }
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-notice {
+    animation: folio-notice-rise 220ms var(--ease-out);
+  }
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-menu,
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-lift,
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-slip,
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-touchbar {
+    animation: folio-rise 160ms var(--ease-out);
+  }
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-page .ProseMirror p.folio-ghost::before {
+    animation: folio-surface 420ms var(--ease-out);
+  }
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-mark::before {
+    animation: folio-blot 240ms var(--ease-out);
+  }
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-marked {
+    animation: folio-mark-line 240ms ease-out;
+  }
+}
+@keyframes folio-arrive { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@keyframes folio-notice-rise { from { opacity: 0; transform: translateX(-50%) translateY(6px); } to { opacity: 1; transform: translateX(-50%); } }
+@keyframes folio-surface { from { opacity: 0; filter: blur(1px); } to { opacity: 0.78; filter: none; } }
+@keyframes folio-blot { from { transform: scale(0.3); } to { transform: none; } }
+@keyframes folio-mark-line { from { text-decoration-color: transparent; } }
+.folio-root[data-reduce-motion="true"]:not([data-shore="true"]):not([data-quiet="true"]) .folio-notice { animation: folio-fade 120ms linear; }
+
+/* ---------------------------------------------------------------- phones */
+
+@media (max-width: 480px) {
+  .folio-root { --folio-light-size: 160% 50%; }
+  .folio-page { padding: 28px 20px 200px; }
+  .folio-list, .folio-floor, .folio-trace { padding: 24px 20px 140px; }
+  .folio-reading { padding: 28px 20px 140px; }
+  .folio-line[role="note"] { width: calc(100% - 40px); }
+  .folio-slip { width: calc(100% - 40px); }
+  /* The tint keeps its depth on a narrow column. */
+  .folio-underside--open [data-folio-beneath],
+  .folio-underside--open [data-folio-between] {
+    background: linear-gradient(90deg,
+      rgb(var(--folio-under-rgb) / var(--folio-under-a)) 0%,
+      rgb(var(--folio-under-rgb) / calc(var(--folio-under-a) * 0.85)) 60%,
+      rgb(var(--folio-under-rgb) / calc(var(--folio-under-a) * 0.35)) 100%);
+  }
+  .folio-underside__controls { gap: 0 4px; }
+  /* No frosting on a phone: opaque paper under the bar. */
+  .folio-topbar { padding: 4px 12px; background: var(--folio-paper); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  /* The menu and settings rise as bottom sheets, except in Shore and Quiet,
+     where the help card holds the bottom of the screen: there they stay at the
+     top, so the card never covers them. */
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]) .folio-menu {
+    position: fixed;
+    top: auto;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 50;
+    border-radius: 8px 8px 0 0;
+    padding: 6px 0 calc(8px + env(safe-area-inset-bottom));
+  }
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]) .folio-menu .folio-button { min-height: 48px; }
+  /* Notices span the screen, a margin's width in from each edge. */
+  .folio-notice:not(.folio-settings) { left: 12px; right: 12px; bottom: 16px; transform: none; max-width: none; }
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-notice:not(.folio-settings) { animation: folio-rise 220ms var(--ease-out); }
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]) .folio-notice.folio-settings {
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 100%;
+    transform: none;
+    border-radius: 8px 8px 0 0;
+    padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+  }
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-settings { animation: folio-rise 220ms var(--ease-out); }
+}
+
+/* ---------------------------------------------------------------- shore and Quiet
+
+   The strange material switches off (§2.2's safety law): flat, warm paper; no
+   light, grain, shadow, film or motion. Structure stays (the fold's edge is
+   the writer's, and passes 3:1 on the shore paper); depth goes; slips lose
+   their amber edge. */
+.folio-root[data-shore="true"],
+.folio-root[data-quiet="true"] {
+  --folio-light: transparent;
+  --folio-grain-a: 0;
+  --folio-selection: rgba(42, 38, 34, 0.14);
+  --folio-under-a: 0.28;
+  --folio-between-a: 0.18;
+  caret-color: var(--folio-ink);
+}
+.folio-root[data-shore="true"]::before, .folio-root[data-quiet="true"]::before,
+.folio-root[data-shore="true"]::after, .folio-root[data-quiet="true"]::after { display: none; }
+.folio-root[data-shore="true"] .folio-underside--open::after,
+.folio-root[data-quiet="true"] .folio-underside--open::after { display: none; }
+.folio-root[data-shore="true"] .folio-underside--open [data-folio-beneath],
+.folio-root[data-quiet="true"] .folio-underside--open [data-folio-beneath],
+.folio-root[data-shore="true"] .folio-underside--open [data-folio-between],
+.folio-root[data-quiet="true"] .folio-underside--open [data-folio-between] {
+  box-shadow: none;
+  background: rgb(var(--folio-under-rgb) / var(--folio-under-a));
+}
+.folio-root[data-shore="true"] *, .folio-root[data-quiet="true"] *,
+.folio-root[data-shore="true"] *::before, .folio-root[data-quiet="true"] *::before,
+.folio-root[data-shore="true"] *::after, .folio-root[data-quiet="true"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+.folio-root[data-shore="true"] .folio-topbar, .folio-root[data-quiet="true"] .folio-topbar { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.folio-root[data-shore="true"] :is(.folio-notice, .folio-slip, .folio-menu, .folio-lift, .folio-touchbar, .folio-dialog, .folio-shore-line),
+.folio-root[data-quiet="true"] :is(.folio-notice, .folio-slip, .folio-menu, .folio-lift, .folio-touchbar, .folio-dialog, .folio-shore-line) {
+  box-shadow: 0 0 0 1px var(--folio-rule);
+  border-top-color: var(--folio-rule);
+  border-left-color: var(--folio-rule);
+}
+.folio-root[data-shore="true"] .folio-floor__trace, .folio-root[data-quiet="true"] .folio-floor__trace { box-shadow: 0 0 0 1px var(--folio-rule); }
+
+@media print {
+  .folio-root::before, .folio-root::after { display: none !important; }
+  .folio-underside--open [data-folio-beneath], .folio-underside--open [data-folio-between], .folio-reading__passage { background: #fff !important; box-shadow: none !important; }
+  .folio-underside--open::before, .folio-reading__underside::before, .folio-composition__under::before { background: #777 !important; }
+}

@@ -41,7 +41,7 @@ export function KeptView({ uid, kept, onOpen }: { uid: string; kept: Kept; onOpe
 
   const date = (ms: number) => shortDate(ms, lang, kept.tz)
   const row = (t: FolioTrace, earlier = false) => (
-    <li key={t.id} className={earlier ? 'folio-floor__earlier' : 'folio-floor__trace'} style={earlier ? undefined : { borderBottomWidth: 1 + Math.min(thickness.get(t.id) ?? 0, MAX_THICKNESS) }}>
+    <li key={t.id} className={earlier ? 'folio-floor__earlier' : 'folio-floor__trace'} style={earlier ? undefined : { ['--folio-thickness' as string]: Math.min(thickness.get(t.id) ?? 0, MAX_THICKNESS) }}>
       <button type="button" className="folio-floor__open" onClick={() => onOpen(t.id)}>
         <span className="folio-floor__name">{traceName(t)}</span>
         <span className="folio-floor__meta">
@@ -74,8 +74,8 @@ export function KeptView({ uid, kept, onOpen }: { uid: string; kept: Kept; onOpe
 
       {kept.loaded && groups.length === 0 && <p className="folio-line">{tr['folio.kept.empty']}</p>}
       <ul className="folio-floor__list">
-        {groups.map((g) => (
-          <li key={g.head.id} className="folio-floor__group">
+        {groups.map((g, i) => (
+          <li key={g.head.id} className="folio-floor__group" style={{ ['--folio-i' as string]: i }}>
             <ul>{row(g.head)}</ul>
             {g.earlier.length > 0 && (
               <ul className="folio-floor__lineage" aria-label={tr['folio.versions']}>
