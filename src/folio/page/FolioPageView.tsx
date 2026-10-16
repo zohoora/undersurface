@@ -56,6 +56,7 @@ import { composition as foldComposition } from '../companion/conductor'
 import type { KeepResult } from '../companion/conductor'
 import { TextSelection } from '@tiptap/pm/state'
 import { NOTICE_MS } from '../companion/levels'
+import { noteMessages } from '../companion/calls'
 import type { InvolvementLevel } from '../companion/levels'
 import { FOLD } from './schema'
 
@@ -681,7 +682,9 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
         l1: detectCrisisKeywords,
         check: checkCrisisRisk,
         generate: (grounded, signal) => new Promise<string>((resolve, reject) => {
-          const messages = buildAskMessages({ selection: comp.slice(0, ASK_MAX_CHARS), passage: 'composition', languageName: lang === 'en' ? null : getLLMLanguageName(), grounded, unasked: true })
+          // An unasked note never comes grounded (askForNote's grounded reply is dropped below).
+          void grounded
+          const messages = noteMessages({ composition: comp.slice(0, ASK_MAX_CHARS), languageName: lang === 'en' ? null : getLLMLanguageName() })
           void streamChatCompletion(messages, { onToken: () => {}, onComplete: resolve, onError: reject }, 1200, 'low', signal).catch(reject)
         }),
         isGrounding: isGroundingActive,

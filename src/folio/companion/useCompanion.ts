@@ -231,7 +231,7 @@ export function useCompanion(p: CompanionPage) {
           if (!r) return false
           editor.view.dispatch(r.tr)
           focusUnlessTouch(editor)
-          if (!a.starter && a.question) dispatchPresence(editor.view, { type: 'ghost', pid: r.beneathPid, text: a.question })
+          if (!a.between && !a.starter && a.question) dispatchPresence(editor.view, { type: 'ghost', pid: r.beneathPid, text: a.question })
           const text = page().t('folio.companion.arrived', { date: page().shortDate(ctx.lastPage.at) })
           page().notify({ kind: 'companion', act: 'arrived', text })
           page().announce(text)
