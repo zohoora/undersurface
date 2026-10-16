@@ -15,7 +15,7 @@ export function PagesList({ uid, onOpen }: { uid: string; onOpen: (pageId: strin
   const fmt = (ms: number) => new Date(ms).toLocaleDateString(getLanguageCode(), { day: 'numeric', month: 'short', year: 'numeric' })
 
   return (
-    <main className="folio-list">
+    <section className="folio-list">
       <h1>{tr['folio.pages.title']}</h1>
       {pages !== null && pages.length === 0 && local.length === 0 && <p>{tr['folio.pages.empty']}</p>}
       <ul>
@@ -36,6 +36,6 @@ export function PagesList({ uid, onOpen }: { uid: string; onOpen: (pageId: strin
           </li>
         ))}
       </ul>
-    </main>
+    </section>
   )
 }

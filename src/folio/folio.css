@@ -93,6 +93,14 @@
   cursor: pointer;
 }
 
+/* A button inside a line of text: 28 px with a mouse (WCAG 2.2's 24 px
+   minimum with room), 44 px on touch screens (§3.10). */
+.folio-button--inline { min-height: 28px; min-width: 0; padding: 0 4px; }
+.folio-button--link { text-decoration: underline; text-underline-offset: 3px; }
+@media (pointer: coarse) {
+  .folio-button--inline { min-height: 44px; }
+}
+
 .folio-button:hover { color: var(--folio-ink); }
 .folio-button[aria-pressed="true"] { color: var(--folio-ink); text-decoration: underline; text-underline-offset: 4px; }
 
@@ -195,12 +203,22 @@
   margin-top: calc(var(--folio-gap-lines, 0) * 1lh);
 }
 
-.folio-underside--open [data-folio-between] p:only-child:empty::before,
-.folio-underside--open [data-folio-between] p.is-empty::before {
+.folio-between-empty::before {
   content: attr(data-between-hint);
+  float: left;
+  height: 0;
+  pointer-events: none;
   color: var(--folio-control);
   font-style: italic;
 }
+
+/* The writer's ink and the settling of paragraphs, from the Journal. Never
+   in shore, Quiet or with reduced motion (the extensions are disabled). */
+/* Lighter than Sessions' 0.55: a Folio page is reread, and settled text
+   must keep its contrast (Phase 1 measures rendered pixels). */
+.folio-page .tiptap p.settled-paragraph { opacity: 0.86; }
+.folio-page .tiptap p { transition: opacity 600ms ease; }
+.folio-root[data-reduce-motion="true"] .folio-page .tiptap p { transition: none; }
 
 .folio-underside__controls {
   display: flex;
@@ -339,4 +357,28 @@
   .folio-topbar, .folio-status, .folio-notice, .folio-touchbar, .folio-lift, .folio-line { display: none !important; }
   .folio-root { position: static; background: #fff; color: #000; }
   .folio-reading__underside { border-left: 0; }
+}
+
+/* ---------------------------------------------------------------- help */
+
+/* The crisis resources card is Sessions' component, styled by Sessions'
+   tokens, which the time-aware palette rewrites. Inside Folio it takes
+   Folio's tokens, so its text keeps 4.5:1 on both papers and in shore. */
+.folio-root .crisis-resources {
+  --surface-primary: var(--folio-notice);
+  --text-primary: var(--folio-ink);
+  --text-secondary: var(--folio-ink);
+  --text-ghost: var(--folio-control);
+  --color-still: var(--folio-ink);
+  --border-subtle: var(--folio-rule);
+  --border-light: var(--folio-rule);
+  --overlay-medium: rgba(0, 0, 0, 0.12);
+}
+
+/* Sessions delays the card 1.5 s and fades it over 1 s. Folio shows help at
+   once with its own reduced motion, which shore and Quiet always use (§3.11:
+   a 120 ms fade). */
+.folio-root[data-reduce-motion="true"] .crisis-resources {
+  animation-duration: 120ms;
+  animation-delay: 0s;
 }

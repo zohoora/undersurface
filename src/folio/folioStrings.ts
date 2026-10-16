@@ -24,6 +24,7 @@ export function folioStringsFrom(t: TranslationStrings): FolioStrings {
     closer: (gap) => fill(t['folio.closer.announce'], gap),
     closerBlocked: t['folio.closerBlocked'],
     alreadyLifted: t['folio.alreadyLifted'],
+    betweenHint: t['folio.between'],
     foldFound: (line, open) => (open ? t['folio.foldFound.open'] : t['folio.foldFound.closed']).replace('{line}', truncate(line)),
   }
 }
