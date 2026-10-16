@@ -18,13 +18,44 @@ service cloud.firestore {
     // - smsSettings: phone-link state, SMS risk state, opt-out time, usage
     //   budget. Written only by the SMS functions.
     // - smsMessages: the SMS transcript, written only by the SMS functions.
-    // The owner keeps read access to both, and keeps write access to every
-    // other collection (including companionPreferences, where the web client
-    // writes field-window consent and lastGroundingAt).
+    // - folioPages, folioTraces: Folio's pages and kept things have their own
+    //   rules below (compare-and-swap on a revision chain; immutable kept
+    //   fields), so they are carved out of the generic owner write too.
+    // The owner keeps read access to all of these, and keeps write access to
+    // every other collection (including companionPreferences, where the web
+    // client writes field-window consent and lastGroundingAt).
     match /users/{userId}/{collectionId}/{document=**} {
       allow read: if isOwner(userId);
       allow write: if isOwner(userId)
-        && !(collectionId in ['smsSettings', 'smsMessages']);
+        && !(collectionId in ['smsSettings', 'smsMessages', 'folioPages', 'folioTraces']);
+    }
+
+    // Folio pages (docs/vision/2026-10-15-folio-v4.md §5.2, C2). A write is
+    // accepted only if it was built on the revision the server holds, so a
+    // save from a stale device or tab is rejected rather than overwriting.
+    // Revision ids are random and chained, so every later write built on a
+    // rejected one is rejected too.
+    function validPage(pageId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['id', 'createdAt', 'updatedAt', 'doc', 'schemaVersion', 'revId',
+                               'parentRevId', 'rev', 'editorId', 'preview', 'foldCount', 'safety', 'notes'])
+        && d.id == pageId
+        && d.doc is string && d.doc.size() <= 950000
+        && d.revId is string && d.revId.size() > 0 && d.revId.size() <= 40
+        && 'parentRevId' in d
+        && (d.parentRevId == null || d.parentRevId is string)
+        && d.safety is map && d.safety.checked is list && d.safety.checked.size() <= 12000
+        && (!('notes' in d) || (d.notes is list && d.notes.size() <= 50));
+    }
+
+    match /users/{userId}/folioPages/{pageId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && validPage(pageId)
+        && request.resource.data.parentRevId == null;
+      allow update: if isOwner(userId) && validPage(pageId)
+        && request.resource.data.parentRevId == resource.data.revId
+        && request.resource.data.revId != resource.data.revId;
+      allow delete: if isOwner(userId);
     }
 
     match /appConfig/{docId} {
