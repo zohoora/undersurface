@@ -8,6 +8,15 @@
 //
 // A local build reaches production's /api through Vite's proxy (vite preview
 // inherits server.proxy), so every check runs against a local build too.
+//
+// Not run here, because they need the owner's signed-in gcloud (admin-rest.cjs)
+// and change more than the test account's pages (plan §8.G, 2026-10-16):
+//   folio-return-slip-check.cjs   the Return slip (clears the checks' own
+//                                 lastGroundingAt, backdates one test trace)
+//   folio-access-check.cjs        EXPECT=bounced|open, with the test account's
+//                                 folio claim removed (admin-rest setTestClaims)
+//   sessions-zoom-card-check.cjs  the web viewport and the Sessions crisis
+//                                 card's contrast (one L1 Talk message)
 import { spawnSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
