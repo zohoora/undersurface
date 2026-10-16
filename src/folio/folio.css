@@ -336,7 +336,8 @@
   border-radius: 4px;
   background: transparent;
   color: var(--folio-crease);
-  font: 18px/1 'Inter', system-ui, sans-serif;
+  /* The text glyph is the fallback without this stylesheet; the dog-ear below replaces it. */
+  font: 0/0 'Inter', system-ui, sans-serif;
   vertical-align: baseline;
   cursor: pointer;
 }
