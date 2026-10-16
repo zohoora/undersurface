@@ -15,6 +15,7 @@ const suites = [
   ['intentions', 'test:intentions'],
   ['stance', 'test:stance'],
   ['depth', 'test:depth'],
+  ['folio-safety', 'test:folio-safety'],
 ]
 
 const promptFiles = [
