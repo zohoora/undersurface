@@ -251,6 +251,14 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
 
         {pageId && !reading && (
           <>
+            {/* Above the page, so it's seen without scrolling on any screen. */}
+            {prefs !== undefined && !prefs?.firstVisitSeenAt && (
+              <div className="folio-line" role="note">
+                {tr['folio.firstVisit']}{' '}
+                <button type="button" className="folio-button folio-button--inline folio-button--link" onClick={() => setPolicyOpen(true)}>{tr['folio.privacyPolicy']}</button>{' · '}
+                <button type="button" className="folio-button folio-button--inline" onClick={() => void updatePreferences(user.uid, { firstVisitSeenAt: Date.now() })}>{tr['folio.firstVisit.dismiss']}</button>
+              </div>
+            )}
             <FolioPageView
               key={pageId}
               uid={user.uid}
@@ -266,13 +274,6 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
               onNavigate={navigateTo}
               onAnnounce={announce}
             />
-            {prefs !== undefined && !prefs?.firstVisitSeenAt && (
-              <div className="folio-line" role="note">
-                {tr['folio.firstVisit']}{' '}
-                <button type="button" className="folio-button folio-button--inline folio-button--link" onClick={() => setPolicyOpen(true)}>{tr['folio.privacyPolicy']}</button>{' · '}
-                <button type="button" className="folio-button folio-button--inline" onClick={() => void updatePreferences(user.uid, { firstVisitSeenAt: Date.now() })}>{tr['folio.firstVisit.dismiss']}</button>
-              </div>
-            )}
           </>
         )}
         {pageId && reading && <ReadingView key={pageId} uid={user.uid} pageId={pageId} />}

@@ -183,6 +183,7 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
       onAnnounce: announce,
       onProtected: (ids) => setNotice({ kind: 'protected', ids }),
       label: tr['folio.pageLabel'],
+      placeholder: tr['folio.placeholder'],
       switches: () => ({ between: switchesRef.current.between, distance: switchesRef.current.distance }),
       locale: () => getLanguageCode(),
       controls,
