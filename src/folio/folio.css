@@ -381,6 +381,7 @@
   --text-secondary: var(--folio-ink);
   --text-ghost: var(--folio-control);
   --color-still: var(--folio-ink);
+  --crisis-link: var(--folio-ink);
   --border-subtle: var(--folio-rule);
   --border-light: var(--folio-rule);
   --overlay-medium: rgba(0, 0, 0, 0.12);
