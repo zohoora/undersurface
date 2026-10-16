@@ -1,6 +1,6 @@
 # Subsystem Details
 
-Room, the July 10–11 companion programs, SMS and field windows are documented in `CLAUDE.md`.
+Room, Folio, the July 10–11 companion programs, SMS and field windows are documented in `CLAUDE.md` (Folio's files: `key-files.md`; its switches: `feature-flags.md`).
 
 ## Dark mode
 

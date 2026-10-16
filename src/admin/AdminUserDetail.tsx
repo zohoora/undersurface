@@ -64,6 +64,11 @@ export function AdminUserDetail({ uid, onBack }: Props) {
         <div>
           <div style={{ fontSize: 16, fontWeight: 500 }}>{data.user.displayName || 'Unknown'}</div>
           <div style={{ fontSize: 13, color: '#A09A94' }}>{data.user.email}</div>
+          {typeof data.user.folioPageCount === 'number' && (
+            <div style={{ fontSize: 12, color: '#A09A94' }}>
+              Folio: {data.user.folioPageCount} pages · {data.user.folioTraceCount ?? 0} kept
+            </div>
+          )}
           {data.user.createdAt && (
             <div style={{ fontSize: 11, color: '#C4BEB8', marginTop: 2 }}>
               Joined {new Date(data.user.createdAt).toLocaleDateString()}

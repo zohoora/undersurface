@@ -14,7 +14,7 @@ export async function handleGetOverview() {
   const db = getFirestore()
 
   // Live counts in parallel: Auth users + collectionGroup aggregations + cached rich metrics
-  const [allAuthUsers, entryCountSnap, thoughtCountSnap, interactionCountSnap, conversationCountSnap, analyticsSnap, recentEntriesSnap, recentConversationsSnap] = await Promise.all([
+  const [allAuthUsers, entryCountSnap, thoughtCountSnap, interactionCountSnap, conversationCountSnap, analyticsSnap, recentEntriesSnap, recentConversationsSnap, folioPagesSnap, folioTracesSnap, folioAdditionsSnap] = await Promise.all([
     getAllUsers(),
     db.collectionGroup('entries').count().get(),
     db.collectionGroup('thoughts').count().get(),
@@ -23,10 +23,17 @@ export async function handleGetOverview() {
     db.collection('appConfig').doc('analytics').get(),
     db.collectionGroup('entries').orderBy('updatedAt', 'desc').limit(10).get(),
     db.collectionGroup('sessions').orderBy('startedAt', 'desc').limit(10).get(),
+    // Folio: counts only, never content (build plan decision 15). Its kept
+    // things' additions share the collection id 'entries' with the legacy
+    // diary, so they're counted apart (author == 'writer') and subtracted.
+    db.collectionGroup('folioPages').count().get(),
+    db.collectionGroup('folioTraces').count().get(),
+    db.collectionGroup('entries').where('author', '==', 'writer').count().get(),
   ])
 
   const userCount = allAuthUsers.length
-  const totalEntries = entryCountSnap.data().count
+  const folioAdditions = folioAdditionsSnap.data().count
+  const totalEntries = entryCountSnap.data().count - folioAdditions
   const totalThoughts = thoughtCountSnap.data().count
   const totalInteractions = interactionCountSnap.data().count
   const totalConversations = conversationCountSnap.data().count
@@ -81,6 +88,7 @@ export async function handleGetOverview() {
   }))
 
   return {
+    folio: { pages: folioPagesSnap.data().count, kept: folioTracesSnap.data().count, additions: folioAdditions },
     userCount,
     totalEntries,
     totalThoughts,
@@ -163,6 +171,11 @@ export async function handleGetUserDetail(uid: string) {
       getCollectionDocs(uid, 'letters'),
       getCollectionDocs(uid, 'fossils'),
     ])
+  // Folio: counts only, never content.
+  const [folioPageCount, folioTraceCount] = await Promise.all([
+    getCollectionCount(uid, 'folioPages'),
+    getCollectionCount(uid, 'folioTraces'),
+  ])
 
   let totalWords = 0
   for (const entry of entries) {
@@ -187,6 +200,8 @@ export async function handleGetUserDetail(uid: string) {
       totalWords,
       lastActive,
       createdAt: new Date(userRecord.metadata.creationTime).getTime(),
+      folioPageCount,
+      folioTraceCount,
     },
     entries: entries.map((e) => ({
       id: e.id,

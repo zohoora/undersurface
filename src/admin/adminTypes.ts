@@ -168,6 +168,8 @@ export interface AdminOverviewResponse {
   writingHabits: WritingHabits | null
   emotionalLandscape: EmotionalLandscape | null
   featureAdoption: FeatureAdoption | null
+  /** Folio: counts only, never content. */
+  folio?: { pages: number; kept: number; additions: number }
 }
 
 export interface RecentActivity {
@@ -192,6 +194,9 @@ export interface AdminUser {
   partCount: number
   sessionCount: number
   createdAt: number | null
+  /** Folio (user detail only): counts, never content. */
+  folioPageCount?: number
+  folioTraceCount?: number
 }
 
 export interface AdminSession {

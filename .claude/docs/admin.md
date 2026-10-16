@@ -69,3 +69,8 @@ Admin components use inline styles with a warm muted palette (Inter font, #FAF8F
 | `src/admin/AdminMessages.tsx` | Contact message inbox |
 | `src/admin/AdminInsights.tsx` | LLM-generated narrative analysis |
 | `src/admin/AdminSettings.tsx` | GlobalConfig editor (sections above) |
+
+## Folio
+
+Admins see Folio only as counts, never content (build plan decision 15): the Overview's "Folio pages" and "Kept in Folio" (collection-group counts) and a user's "Folio: N pages · M kept". Folio trace additions share the collection id `entries` with the legacy diary; the Overview counts them apart (`author == 'writer'`, a collection-group index in `firestore.indexes.json`) and subtracts them from "Entries". Admin Settings has a collapsed "Folio" section: "Open Folio to everyone" (`folioEnabled`) and the sub-switches.
+

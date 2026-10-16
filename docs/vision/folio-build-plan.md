@@ -235,14 +235,57 @@ Everything else, including choices the plan leaves to the implementer, is decide
 
 ## 8. The owner's checklist (never blocks)
 
-The run writes this out in full in step 11, with exact steps. The owner runs it on their own devices whenever they like. Findings become fixes.
+Run these on your own devices whenever you like; none of them blocks anything. Each finding becomes a fix (say what you saw, on which device). Before you start, sign in as yourself (an admin) or as the test account (`folio-test@undersurface.me`, password in the Keychain under `undersurface-folio-test`). Folio is at `https://undersurface.me/folio`. A page used for testing can be deleted from its ••• menu.
 
-- **Hidden writing on real devices:** iPhone Safari and Android Chrome, each row of draft 4 §5.1's table, including the empty-paragraph Backspace and native Cut.
-- **Input methods:** Japanese and Korean keyboards next to and across folds; Android autocorrect; iOS text replacement; a grammar extension (Grammarly or LanguageTool) with folds closed.
-- **Screen readers:** the six scripted tasks in draft 4 §3.10, in VoiceOver (macOS and iOS) and NVDA.
-- **Undo:** the browser's Edit menu and iOS shake-to-undo on a closed fold.
-- **Translations:** native review of Folio's copy and the policy update.
-- **Taste:** the five distances, the crease color, Step inside's light and sound, and the feature switches.
+**A. Hidden writing on real devices** (draft 4 §5.1). Do this on an iPhone (Safari) and an Android phone (Chrome).
+1. Write three paragraphs. Select the middle one's sentence, tap **Lift** in the bottom bar, write a line beneath it, then tap **Close**.
+2. Put the caret at the start of the third paragraph and press Backspace once: the closed fold should become selected, not deleted. Press Backspace again: the writing beneath is kept and the fold opens with a notice.
+3. Hold Backspace from the end of the third paragraph back over the closed fold: nothing beneath may change.
+4. Select from the first paragraph to the third (across the closed fold) and use the system **Cut**: the writing beneath stays, opened, with "Writing beneath a line was kept".
+5. In an empty paragraph right after a closed fold, press Backspace, then type: the text must never go into the fold.
+6. Type over a selection that spans a closed fold: only the visible text is replaced.
+
+**B. Input methods.**
+1. Japanese and Korean keyboards: compose text right after a lifted line and across a selection that spans a closed fold. The fold must stay intact and the composed text must land on the page.
+2. Android: let autocorrect replace a word just before a lifted line.
+3. iOS: set up a text replacement (Settings › General › Keyboard) and use it next to a fold.
+4. A grammar extension on desktop (Grammarly or LanguageTool) with a fold closed: accept a suggestion near the fold and check the writing beneath is unchanged.
+
+**C. Screen readers** (the six tasks of draft 4 §3.10), with the screen curtain on: VoiceOver on macOS (Safari) and iOS, and NVDA on Windows (Chrome or Firefox).
+1. Write a paragraph.
+2. Lift a line (`Cmd/Ctrl+Shift+Enter`) and write beneath it.
+3. Set the distance (`Cmd/Ctrl+Alt+]`) and write between (arrow up from the beneath).
+4. Close the fold (`Esc`), find it again (`Cmd/Ctrl+Alt+,` announces "Writing beneath '…', closed") and reopen it.
+5. Unlift an empty fold (`Esc` in an empty beneath).
+6. Select across a closed fold, delete, and recover with one Undo.
+
+Also listen for: the crease announced as a button; announcements of lifting, distance changes and protection events; save status announced only when it degrades and once when it recovers.
+
+**D. Undo.** With a fold closed, undo from the browser's Edit menu (desktop) and with shake-to-undo (iOS): the fold should open first, and the next undo applies.
+
+**E. Translations.** Native review of Folio's copy (`src/i18n/translations/folio/<locale>.ts`) and the privacy-policy update, in every language you can get read. Known points:
+- Turkish uses the same word for "lift" and "remove" (Kaldır).
+- Russian Keep is "Сохранить копию", chosen to avoid "Сохранено" (Saved).
+- In Japanese and Russian, Folio's first-visit and Talk now lines and the newer Ask label use different words for "companion" (コンパニオン/伴走者, спутник/собеседник).
+- French Step inside's Silence is "Aucun son" (the untranslated-English test rejects "Silence").
+
+**F. Taste.** Open a page and judge:
+- the five distances (`Closer`/`Farther`)
+- the crease color on both papers
+- ink weight and paragraph settle
+- the Keep motion
+- Step inside's light, standing distances and sound (forest, drone)
+- the margin notes' graphite
+- each feature switch in admin Settings › Folio
+
+**G. Decisions found during the build, for you:**
+- **Crisis classifier noise.** `gpt-5-nano` at minimal reasoning flips boundary cases 5–15% of the time with any prompt, so the release eval goes red now and then without a cause. Majority-of-3 or `reasoning_effort: 'low'` would reduce it (cost and latency, your call). §9, 2026-10-16.
+- **L1's historical guard.** It still matches "Ten years ago I tried to end my life" (step 2).
+- **The Journal's character floor** (`partOrchestrator.ts:202`) also skips L1 for short CJK text. You chose to leave the Journal gap (decision 12); this is a separate L1 point.
+- **Sessions (not Folio):**
+  - The app's viewport meta blocks pinch zoom (WCAG 1.4.4).
+  - The Sessions crisis card's ghost-text lines are about 2.8:1 on the light surface.
+- **When you open Folio to everyone:** turn on `folioEnabled` in admin Settings › Folio. The sub-switches are already on. Return still needs each writer to opt in.
 
 ---
 
@@ -434,7 +477,7 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
   - `folio-a11y-check`: 12 scans, 0 violations.
   - The test account is empty afterwards.
 
-**2026-10-16 · Step 10: built, gates green.** H3 automatic Return.
+**2026-10-16 · Step 10: done.** PR #15 (`3b8bb39`): H3 automatic Return.
 - **Built.**
   - `returnTide.ts`, the eligibility rules:
     - both opt-ins
@@ -460,4 +503,40 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
   | `npm run build` | pass |
 
 - **Can't be checked live yet.** The Return slip needs a trace kept at least 14 days ago, and `keptAt` can't be changed (C3). The test account is also held in Recent, because the checks start shore. Its rules are covered by unit and component tests. The setting and the per-trace switch are checked in production.
+- **Deploys:**
+  1. Firestore rules
+  2. the release evals, all eight passing
+  3. `build:release` and hosting at `3b8bb39`
+- **Production checks:** all pass.
+  - Smoke test: 5/5.
+  - Sessions: pass.
+  - `folio-return-check`: 8/8. Covers the setting, the per-trace switch stored as `returnEligible`, the switch hidden while the setting is off, and cleanup.
+  - `folio-check`, `folio-kept-check` (19), `folio-ask-check` (12), `folio-inside-check` and `folio-a11y-check` (12 scans): all pass.
+
+**2026-10-16 · Step 11: built.** Documentation, the owner's checklist, the production checks in the repo, and the admin counts.
+- **Documentation.**
+  - CLAUDE.md: Folio in "What is this project?" and "Current work"; the commands (`test:folio-safety`, `test:folio`, `npx playwright test`, `prodcheck:folio`); eight release evals and the crisis eval's noise; the `browsers` CI job; routes; storage; switches (48 `FEATURE_KEYS`, 37 registered subcollections); a Folio section; key files; Folio gotchas; and the admin counts.
+  - `.claude/docs/`: `feature-flags.md`, `key-files.md`, `subsystems.md` and `admin.md`.
+- **The owner's checklist (§8)** is written out in full, with exact steps and the decisions found during the build.
+- **Production checks** are now in the repo (`scripts/folio-prodcheck/`, `npm run prodcheck:folio`). They hold no secrets; the password stays in the Keychain. They print statuses only, and clean up after themselves.
+- **Admin counts.** The owner's decision 15 ("counts only") wasn't implemented, so step 11 adds it:
+  - The Overview shows "Folio pages" and "Kept in Folio"; a user's detail shows their pages and kept.
+  - **Found:** Folio trace additions share the collection id `entries` with the legacy diary, so the Overview's "Entries" had been counting them. They're now counted apart (`author == 'writer'`, a new collection-group index on `entries.author`) and subtracted.
+- **Gates.**
+
+  | Gate | Result |
+  |---|---|
+  | `tsc -b --force` | pass |
+  | lint | pass |
+  | `npm run test` | 1,995 passed |
+  | functions tests | 362 passed |
+  | `test:indexes` | 83 passed |
+  | `npm run build` | pass |
+
+- **Deploy order:**
+  1. indexes, waiting for the `entries.author` index to finish building
+  2. a read-only REST check that the collection-group count works
+  3. `functions:adminApi`
+  4. the release evals
+  5. hosting
 
