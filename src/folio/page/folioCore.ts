@@ -1,4 +1,5 @@
 import { Extension } from '@tiptap/core'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { AnyExtension } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import type { Node as PMNode } from '@tiptap/pm/model'
@@ -21,6 +22,8 @@ export interface FolioCoreOptions {
   onProtected?: (foldIds: string[]) => void
   onDiagnostic?: ProtectOptions['onDiagnostic']
   now?: () => number
+  /** The page's accessible name (the editable region is a multi-line textbox). */
+  label?: string
   /** Builds the open underside's controls (Close/Unlift, Closer, Farther, Keep). */
   controls?: (args: { view: EditorView; getPos: () => number | undefined; node: PMNode }) => HTMLElement | null
 }
@@ -40,6 +43,7 @@ export function folioExtensions(options: FolioCoreOptions = {}): AnyExtension[] 
     priority: 1000, // input guards run before the default keymaps
     addProseMirrorPlugins() {
       return [
+        new Plugin({ key: new PluginKey('folioA11y'), props: { attributes: { role: 'textbox', 'aria-multiline': 'true', 'aria-label': options.label ?? 'Page' } } }),
         inputGuardPlugin(protect),
         historyGuardPlugin(protect),
         foldViewPlugin({ strings, onAnnounce: options.onAnnounce }),

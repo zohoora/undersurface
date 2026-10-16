@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Folio editor harness</title>
+    <style>
+      body { margin: 0; padding: 24px; font: 18px/1.6 Georgia, serif; background: #F7F3EC; color: #2A2622; }
+      main { max-width: 720px; margin: 0 auto; }
+      .ProseMirror { outline: none; min-height: 200px; white-space: pre-wrap; }
+      .ProseMirror p { margin: 0 0 0.6em; }
+      .folio-fold { text-decoration: underline; text-decoration-color: #A8763A; }
+      .folio-crease { font: inherit; border: 0; background: none; color: #A8763A; cursor: pointer; padding: 0 4px; min-width: 24px; }
+      .folio-underside--closed { height: 0; overflow: hidden; }
+      .folio-underside--closed.ProseMirror-selectednode { height: 4px; background: #A8763A; }
+      .folio-underside--open { margin: 0 0 0.8em 1.5em; padding: 0.4em 0.8em; background: rgba(226, 232, 236, 0.55); border-left: 2px solid #A8763A; }
+      [data-folio-between] { margin: calc(var(--folio-gap-lines, 0) * 0.5lh) 0; font-style: normal; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div id="editor"></div>
+      <div id="announcer" aria-live="polite"></div>
+    </main>
+    <script type="module" src="./folio-editor.ts"></script>
+  </body>
+</html>
