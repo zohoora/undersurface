@@ -14,12 +14,22 @@ export default defineConfig({
   retries: 0,
   reporter: [['list']],
   use: { baseURL: `http://localhost:${PORT}` },
-  webServer: {
-    command: `npx vite --port ${PORT} --strictPort`,
-    url: `http://localhost:${PORT}/e2e/harness/folio-editor.html`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  globalSetup: './e2e/global-setup.ts',
+  webServer: [
+    {
+      command: `npx vite --port ${PORT} --strictPort`,
+      url: `http://localhost:${PORT}/e2e/harness/folio-editor.html`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
+      // The save harness runs the real SDK against the Firestore emulator.
+      command: 'npx firebase emulators:start --only firestore --project demo-folio-e2e',
+      url: 'http://127.0.0.1:8087',
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+    },
+  ],
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     { name: 'webkit', use: { ...devices['Desktop Safari'] } },

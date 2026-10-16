@@ -71,7 +71,10 @@ export interface SaveStart {
   awaitingConfirmation?: boolean
 }
 
+/** A write that broke a rule (not a conflict): slow, it won't fix itself soon. */
 const RETRY_MS = [30_000, 120_000, 600_000]
+/** Reading the server to classify: fast, it's usually a reconnect. */
+const CLASSIFY_RETRY_MS = [2_000, 5_000, 15_000, 60_000]
 const DEBOUNCE_SMALL_MS = 1200
 const DEBOUNCE_LARGE_MS = 3000
 const LARGE_PAGE_CHARS = 50_000
@@ -105,6 +108,15 @@ export class PageSaveController {
   private maxWait: unknown = null
   private retry: unknown = null
   private retryIndex = 0
+  private classifyRetry: unknown = null
+  private classifyRetryIndex = 0
+  private readonly onOnline = () => {
+    if (this.halted && !this.classifying && this.inflight === 0) {
+      if (this.classifyRetry) this.d.clearTimer(this.classifyRetry)
+      this.classifyRetry = null
+      void this.classify()
+    }
+  }
   private status: SaveStatus | null = null
 
   constructor(deps: SaveControllerDeps, start: SaveStart) {
@@ -122,6 +134,7 @@ export class PageSaveController {
     this.awaiting = !!start.awaitingConfirmation
     this.savedDoc = start.serverDoc ?? null
     if (this.awaiting) this.writePendingOnly()
+    if (typeof window !== 'undefined') window.addEventListener('online', this.onOnline)
     this.emit()
   }
 
@@ -178,6 +191,8 @@ export class PageSaveController {
     this.disposed = true
     this.clearTimers()
     if (this.retry) this.d.clearTimer(this.retry)
+    if (this.classifyRetry) this.d.clearTimer(this.classifyRetry)
+    if (typeof window !== 'undefined') window.removeEventListener('online', this.onOnline)
   }
 
   // ------------------------------------------------------------ saving
@@ -319,12 +334,16 @@ export class PageSaveController {
     try {
       server = await this.d.adapter.readServer(this.d.pageId)
     } catch {
-      // Offline: the status stays; classify again later.
+      // Offline or reconnecting: the status stays; classify again soon.
       this.classifying = false
-      this.scheduleRetry(() => void this.classify())
+      if (this.classifyRetry) this.d.clearTimer(this.classifyRetry)
+      const ms = CLASSIFY_RETRY_MS[Math.min(this.classifyRetryIndex, CLASSIFY_RETRY_MS.length - 1)]
+      this.classifyRetryIndex++
+      this.classifyRetry = this.d.setTimer(() => { this.classifyRetry = null; void this.classify() }, ms)
       return
     }
     this.classifying = false
+    this.classifyRetryIndex = 0
     if (this.disposed) return
     const v = classifyChain(server, this.chain)
     switch (v.kind) {
