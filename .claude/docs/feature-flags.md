@@ -1,6 +1,6 @@
 # Feature Flags & Global Config
 
-`appConfig/global` provides feature flags toggleable via admin Settings (real-time via `onSnapshot`). The type is `GlobalConfig.features` in `src/admin/adminTypes.ts`; the server allowlist is `FEATURE_KEYS` in `functions/src/admin/configSchema.ts` (41 keys, booleans only; an unknown key rejects the whole save). Cost paths re-read flags server-side through `functions/src/shared/featureFlags.ts` (60s in-instance cache).
+`appConfig/global` provides feature flags toggleable via admin Settings (real-time via `onSnapshot`). The type is `GlobalConfig.features` in `src/admin/adminTypes.ts`; the server allowlist is `FEATURE_KEYS` in `functions/src/admin/configSchema.ts` (48 keys, booleans only; an unknown key rejects the whole save). Cost paths re-read flags server-side through `functions/src/shared/featureFlags.ts` (60s in-instance cache).
 
 ## Core flags — default **enabled**, checks use `!== false`
 
@@ -9,8 +9,8 @@
 | `features.partsEnabled` | No Journal part thoughts; the Inner voices toggle is hidden |
 | `features.visualEffectsEnabled` | Static background (master switch for the three below) |
 | `features.autocorrectEnabled` | Skip correction |
-| `features.paragraphFade` | No paragraph settle animation |
-| `features.inkWeight` | No text weight variation |
+| `features.paragraphFade` | No paragraph settle animation (Journal and Folio) |
+| `features.inkWeight` | No text weight variation (Journal and Folio) |
 | `features.breathingBackground` | No breathing animation |
 | `features.smsEnabled` | SMS kill switch: the webhook replies "paused" (opt-out still honored); the processor makes no model calls and sends only the fixed paused reply, or the fixed crisis reply when L1 fires; field windows stop. Server-only — the Settings phone-link UI is not gated (`functions/src/sms/state.ts`) |
 
@@ -102,3 +102,19 @@ Admin Settings exposes tunable parameters beyond feature flags (allowlist in `co
 - **Quota** (`GlobalConfig.quota`): `{ enabled, monthlyTokenCap, perRoleCaps }` for the chat token quota
 - **Announcements**: `config.announcement` with `info`/`warning` types, dismissible via sessionStorage
 - **Version signal**: `buildVersion` bumped via "Signal Update" button; clients detect via `onSnapshot` and show refresh banner
+
+## Folio — `folioEnabled` opens it; its sub-switches start **on**
+
+Folio's own switches (`folioSwitches` in `src/folio/access.ts`; admin Settings → Folio). Turning a sub-switch off hides its controls; it never hides, changes or deletes writing that used it.
+
+| Flag | Check | Effect |
+|------|-------|--------|
+| `features.folioEnabled` | `=== true` | Folio opens for everyone. Off (the default): only admins and accounts with the `folio` custom claim (`canOpenFolio`) |
+| `features.folioBetween` | `!== false` | The between (writing between a lifted line and its beneath) |
+| `features.folioDistance` | `!== false` | Closer / Farther, the five distances. Off: the gap is fixed (1 with a between, else 0) |
+| `features.folioLiftToday` | `!== false` | Lift into today's page, from a trace or its come-back slip |
+| `features.folioAsk` | `!== false` | Ask: the companion's margin note on a selection |
+| `features.folioStepInside` | `!== false` | Step inside: the full-screen reading space |
+| `features.folioStepInsideSound` | `!== false` | Step inside's forest/drone sound (web only; never on native) |
+| `features.folioReturn` | `!== false` | Offers "Let kept things come back on their own" in Folio settings; each writer still opts in, twice |
+

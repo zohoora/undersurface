@@ -189,3 +189,27 @@ Each locale is assembled as `{ ...personalScienceEnglish, ...roomFallback, ...<l
 | `eslint.config.js` | Flat config with TypeScript ESLint, React Hooks, React Refresh |
 | `src/types/tiptap.d.ts` | TipTap editor.storage type augmentation |
 | `src/types/env.d.ts` | Vite environment variable type declarations |
+
+## Folio (`src/folio/`, 2026-10-16)
+
+Design `docs/vision/2026-10-15-folio-v4.md`; runbook and log `docs/vision/folio-build-plan.md`.
+
+| File | Role |
+|---|---|
+| `FolioApp.tsx` | Shell: routes, top bar (Pages, Kept, Sessions, •••), first-visit line, shore line, come-back and Return slips, settings, delete dialog, crisis card |
+| `access.ts` | `canOpenFolio` (flag, admin, `folio` claim) and `folioSwitches` |
+| `routes.ts` | `/folio`, `/folio/new`, `/folio/pages`, `/folio/p/:id`, `/folio/kept`, `/folio/kept/:id` |
+| `page/FolioPageView.tsx` | One page: the editor, the save controller, the safety watch, Keep, Ask, Step inside, notices |
+| `page/folioCore.ts` | The editor core: schema, the four C1 layers, keys, ornaments, notes plugin |
+| `page/schema.ts` `foldView.ts` `protect.ts` `integrity.ts` `commands.ts` `keys.ts` | Fold/underside schema, the fold view and fences, input/history guards and the safety net, invariants, Lift/Unlift/Apart, the key table |
+| `page/LiftControl.tsx` `undersideControls.ts` | Lift and Ask by the selection; an open underside's Close, Closer, Farther, Keep, Step inside |
+| `save/PageSaveController.ts` `pendingStore.ts` `classify.ts` `pageLock.ts` `pageSession.ts` | C2: revisions and compare-and-swap, local pending saves, rejection classification, Web Locks and Edit here, move-to-editable |
+| `safety/FolioSafetyWatch.ts` `samples.ts` `checkedSet.ts` | C4: per-unit slots, windows, the checked set |
+| `safety/shorePresentation.ts` `recent.ts` | Shore / Quiet / Normal, and the Recent overlay |
+| `kept/keep.ts` `traceStore.ts` `traceSafety.ts` `useKept.ts` | Snapshots, trace storage, trace safety, the shell's kept state |
+| `kept/KeptView.tsx` `TraceView.tsx` `CorrectedCopy.tsx` `CompositionView.tsx` `ComeBackSlip.tsx` `ComeBackChoices.tsx` | The floor, a trace, corrected copies, the slips |
+| `kept/comeBack.ts` `liftToday.ts` `goToPage.ts` `returnTide.ts` `floor.ts` | Writer-local dates, Lift into today, Go to the page, H3 eligibility, floor grouping |
+| `inside/StepInside.tsx` `useStepInside.ts` `insideSound.ts` | H1 |
+| `ask/askPrompt.ts` `askContract.ts` `notes.ts` `noteViews.ts` | H2 |
+| `ReadingView.tsx` `PagesList.tsx` `DeletePageDialog.tsx` `handoff.ts` `viewState.ts` `zoom.ts` `folio.css` | Reading view, the pages list, deleting, Talk now bringing this, view state, pinch zoom, styles |
+

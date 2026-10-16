@@ -13,13 +13,17 @@ export function AdminOverview() {
     { label: 'Conversations', value: data.totalConversations },
     { label: 'Thoughts', value: data.totalThoughts },
     { label: 'Interactions', value: data.totalInteractions },
+    ...(data.folio ? [
+      { label: 'Folio pages', value: data.folio.pages },
+      { label: 'Kept in Folio', value: data.folio.kept },
+    ] : []),
   ]
 
   return (
     <div>
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(5, 1fr)',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
         gap: 16,
         marginBottom: 16,
       }}>

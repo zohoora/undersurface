@@ -25,6 +25,7 @@
     "test:folio": "RUN_FOLIO_ASK_EVAL=1 vitest run src/folio/ask/folioAsk.live.test.ts",
     "test:depth": "RUN_DEPTH_EVAL=1 vitest run src/engine/companionDepth.live.test.ts",
     "test:release-evals": "node scripts/run-release-evals.mjs",
+    "prodcheck:folio": "node scripts/folio-prodcheck/run-all.mjs",
     "smoke-test": "bash scripts/smoke-test.sh",
     "cap:sync": "npm run build:native && npx cap sync",
     "cap:ios": "npm run build:native && npx cap sync ios && npx cap open ios",
