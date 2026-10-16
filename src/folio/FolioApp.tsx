@@ -18,6 +18,15 @@ import { parseFolioRoute } from './routes'
 import type { FolioPreferences } from '../types/folio'
 import './folio.css'
 import { allowZoomWhileOpen } from './zoom'
+import { useKept } from './kept/useKept'
+import { KeptView } from './kept/KeptView'
+import { TraceView } from './kept/TraceView'
+import { ComeBackSlip } from './kept/ComeBackSlip'
+import { parseComposition } from './kept/keep'
+import { todaysPageId, writeLiftIntent } from './kept/liftToday'
+import { deleteTrace } from './kept/traceStore'
+import { DeletePageDialog } from './DeletePageDialog'
+import type { FolioTrace } from '../types/folio'
 
 // Folio's shell (draft 4 §3.2–§3.4, §3.9): routes, the top bar, the first
 // visit line, shore and the live region. Mounted by App.tsx instead of the
@@ -46,7 +55,9 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
   const [bringPreview, setBringPreview] = useState(false)
   const [announcement, setAnnouncement] = useState('')
   const [policyOpen, setPolicyOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const route = parseFolioRoute(routePath)
+  const kept = useKept(user.uid, shore)
 
   // Unknown /folio paths go to /folio (§3.3).
   useEffect(() => { if (!route) navigateTo('/folio', { replace: true }) }, [route, navigateTo])
@@ -88,12 +99,30 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
   const settleOn = vfx && features?.paragraphFade !== false
   const ornaments = useMemo(() => ({ ink: inkOn, settle: settleOn }), [inkOn, settleOn])
 
-  const onDelete = useCallback(async () => {
-    setMenuOpen(false)
-    if (!pageId || !window.confirm(tr['folio.deletePage.confirm'])) return
+  // Deleting a page asks how, when kept things came from it (§3.7).
+  const onDelete = useCallback(async (withTraces: string[] | null) => {
+    setDeleting(false)
+    if (!pageId) return
     await deletePage(user.uid, pageId).catch(() => {})
+    for (const id of withTraces ?? []) await deleteTrace(user.uid, id).catch(() => {})
     navigateTo('/folio/pages', { replace: true })
-  }, [pageId, tr, user.uid, navigateTo])
+  }, [pageId, user.uid, navigateTo])
+
+  // Lift into today's page (§3.8): today's page is the page edited most
+  // recently if that was today, writer-local; else a new page.
+  const liftToday = useCallback(async (trace: FolioTrace) => {
+    const composition = parseComposition(trace.composition)
+    if (!composition) return
+    const latest = await mostRecentPage(user.uid).catch(() => null)
+    const target = todaysPageId(latest, Date.now(), kept.tz)
+    writeLiftIntent({ uid: user.uid, pageId: target, traceId: trace.id, keptAt: trace.keptAt, line: composition.line, at: Date.now() })
+    navigateTo(`/folio/p/${target}`)
+  }, [user.uid, kept.tz, navigateTo])
+
+  const pageKept = useMemo(() => ({ keep: kept.keep, undo: kept.undoKeep, setComeBack: kept.setComeBack, tz: kept.tz }), [kept.keep, kept.undoKeep, kept.setComeBack, kept.tz])
+  const traceId = route?.kind === 'trace' ? route.traceId : null
+  // The slip shows only on Normal paper (never in Shore or Quiet; Recent holds it in useKept).
+  const slip = presentation === 'normal' && kept.slip && kept.slip.id !== traceId ? kept.slip : null
 
   return (
     <div
@@ -105,6 +134,7 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
       <header className="folio-topbar">
         <div className="folio-topbar__group">
           <button type="button" className="folio-button" onClick={() => navigateTo('/folio/pages')} aria-pressed={route?.kind === 'pages'}>{tr['folio.pages']}</button>
+          <button type="button" className="folio-button" onClick={() => navigateTo('/folio/kept')} aria-pressed={route?.kind === 'kept' || route?.kind === 'trace'}>{tr['folio.kept.nav']}</button>
         </div>
         <div className="folio-topbar__group">
           <button type="button" className="folio-button" onClick={() => goToSessions()}>{tr['folio.sessions']}</button>
@@ -114,7 +144,7 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
           <div className="folio-menu" role="menu">
             {pageId && <button role="menuitem" type="button" className="folio-button" onClick={() => { setReading((v) => !v); setMenuOpen(false) }}>{reading ? tr['folio.writingView'] : tr['folio.readingView']}</button>}
             <button role="menuitem" type="button" className="folio-button" onClick={() => { setMenuOpen(false); setReading(false); navigateTo(`/folio/p/${newId()}`) }}>{tr['folio.newPage']}</button>
-            {pageId && <button role="menuitem" type="button" className="folio-button" onClick={() => void onDelete()}>{tr['folio.deletePage']}</button>}
+            {pageId && <button role="menuitem" type="button" className="folio-button" onClick={() => { setMenuOpen(false); setDeleting(true) }}>{tr['folio.deletePage']}</button>}
             <button role="menuitem" type="button" className="folio-button" onClick={() => { setMenuOpen(false); shore.findHelp() }}>{tr['folio.findHelp']}</button>
             <button role="menuitem" type="button" className="folio-button" onClick={() => { setMenuOpen(false); setSettingsOpen(true) }}>{tr['folio.settings']}</button>
           </div>
@@ -122,7 +152,18 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
       </header>
 
       <main className="folio-main">
-        {route?.kind !== 'pages' && <h1 className="folio-visually-hidden">Folio</h1>}
+        {route?.kind !== 'pages' && route?.kind !== 'kept' && route?.kind !== 'trace' && <h1 className="folio-visually-hidden">Folio</h1>}
+        {slip && (
+          <ComeBackSlip
+            trace={slip}
+            tz={kept.tz}
+            liftToday={switches.liftToday}
+            onOpen={() => { kept.clearComeBack(slip.id); navigateTo(`/folio/kept/${slip.id}`) }}
+            onNotNow={() => kept.notNow(slip.id)}
+            onClear={() => kept.clearComeBack(slip.id)}
+            onLiftToday={() => { kept.clearComeBack(slip.id); void liftToday(slip) }}
+          />
+        )}
         {presentation === 'shore' && (
           <section className="folio-shore-line" aria-live="polite">
             <div>{tr['folio.shore.line']}</div>
@@ -144,6 +185,19 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
         )}
 
         {route?.kind === 'pages' && <PagesList uid={user.uid} onOpen={(id) => navigateTo(`/folio/p/${id}`)} />}
+        {route?.kind === 'kept' && <KeptView uid={user.uid} kept={kept} onOpen={(id) => navigateTo(`/folio/kept/${id}`)} />}
+        {traceId && (
+          <TraceView
+            key={traceId}
+            uid={user.uid}
+            trace={kept.traces.find((t) => t.id === traceId) ?? null}
+            kept={kept}
+            switches={switches}
+            onNavigate={navigateTo}
+            onAnnounce={announce}
+            onLiftToday={(t) => void liftToday(t)}
+          />
+        )}
 
         {pageId && !reading && (
           <>
@@ -155,6 +209,7 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
               shore={shore}
               reduceMotion={reduceMotion}
               ornaments={ornaments}
+              kept={pageKept}
               onNavigate={navigateTo}
               onAnnounce={announce}
             />
@@ -180,6 +235,7 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
         </div>
       )}
 
+      {deleting && pageId && <DeletePageDialog uid={user.uid} pageId={pageId} onDelete={(t) => void onDelete(t)} onCancel={() => setDeleting(false)} />}
       <PolicyModal isOpen={policyOpen} onClose={() => setPolicyOpen(false)} />
       {shoreState.card && (
         <aside className="folio-help" aria-label={tr['folio.findHelp']}>

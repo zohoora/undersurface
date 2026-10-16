@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, getDocs, limit, onSnapshot, orderBy, query, setDoc } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, setDoc } from 'firebase/firestore'
 import { firestore } from '../firebase'
 import type { FolioPage, FolioPreferences } from '../types/folio'
 import { firestorePageAdapter } from './save/firestorePageAdapter'
@@ -26,6 +26,11 @@ export function subscribePages(uid: string, onPages: (pages: FolioPage[]) => voi
 export async function mostRecentPage(uid: string): Promise<FolioPage | null> {
   const snap = await getDocs(query(pagesCollection(uid), orderBy('updatedAt', 'desc'), limit(1)))
   return snap.empty ? null : (snap.docs[0].data() as FolioPage)
+}
+
+export async function pageExists(uid: string, pageId: string): Promise<boolean> {
+  const snap = await getDoc(doc(firestore, 'users', uid, 'folioPages', pageId))
+  return snap.exists()
 }
 
 export async function deletePage(uid: string, pageId: string): Promise<void> {

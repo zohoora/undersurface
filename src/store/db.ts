@@ -1,4 +1,4 @@
-import type { FolioPage, FolioPreferences } from '../types/folio'
+import type { FolioPage, FolioPreferences, FolioTrace, FolioTraceEntry } from '../types/folio'
 import {
   collection,
   doc,
@@ -195,7 +195,15 @@ export const db = {
   livingHypotheses: createCollectionProxy<LivingHypothesis>('livingHypotheses'),
   folioPages: createCollectionProxy<FolioPage>('folioPages'),
   folioPreferences: createCollectionProxy<FolioPreferences>('folioPreferences'),
+  folioTraces: createCollectionProxy<FolioTrace>('folioTraces'),
   smsMessages: createCollectionProxy<SmsMessage>('smsMessages'),
+}
+
+/** A Folio trace's added entries (users/{uid}/folioTraces/{id}/entries), for export. */
+export async function folioTraceEntries(traceId: string): Promise<FolioTraceEntry[]> {
+  const colRef = collection(firestore, 'users', getUid(), 'folioTraces', traceId, 'entries')
+  const snap = await getDocs(query(colRef, orderBy('addedAt', 'asc')))
+  return snap.docs.map(d => d.data() as FolioTraceEntry)
 }
 
 export const sessionMessages = {

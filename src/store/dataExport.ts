@@ -1,5 +1,5 @@
 import type { DocumentData } from 'firebase/firestore'
-import { db, sessionMessages } from './db'
+import { db, folioTraceEntries, sessionMessages } from './db'
 import type { SessionMessage } from '../types'
 import { t, getLanguageCode, getPartDisplayName } from '../i18n'
 import type { TranslationKey } from '../i18n'
@@ -73,6 +73,7 @@ function groupBy<T>(items: T[], keyFn: (item: T) => string): Map<string, T[]> {
 export function buildMarkdownExport(
   collections: Record<string, DocumentData[]>,
   sessionMessagesById: Record<string, SessionMessage[]> = {},
+  traceEntriesById: Record<string, DocumentData[]> = {},
 ): string {
   const entries = (collections.entries ?? []).sort((a, b) => (a.createdAt as number) - (b.createdAt as number))
   const parts = collections.parts ?? []
@@ -511,6 +512,38 @@ export function buildMarkdownExport(
     }
   }
 
+  // ── Folio's kept things (§3.7, §6.8): each composition as it was kept, then
+  // what was added beside it, dated. Oldest first, like the pages.
+  const folioTraces = (collections.folioTraces ?? []).sort((a, b) => (a.keptAt as number) - (b.keptAt as number))
+  if (folioTraces.length > 0) {
+    ln(`## ${t('folio.kept.title')}`)
+    ln()
+    const inline = (content: { text?: string; type?: string; marks?: { type: string }[] }[] | undefined) =>
+      (content ?? []).map((c) => (c.type === 'hardBreak' ? '  \n' : c.marks?.some((m) => m.type === 'italic') ? `*${c.text ?? ''}*` : c.text ?? '')).join('')
+    for (const trace of folioTraces) {
+      const title = typeof trace.title === 'string' && trace.title.trim() ? trace.title : String(trace.surface ?? '')
+      ln(`### ${title} · ${fmtDate(trace.keptAt as number)}`)
+      ln()
+      let c: { line?: { text?: string; type?: string; marks?: { type: string }[] }[]; gap?: number; between?: { content?: [] }[] | null; beneath?: { content?: [] }[] } = {}
+      try { c = JSON.parse(trace.composition as string) } catch { c = {} }
+      ln(inline(c.line) || String(trace.surface ?? ''))
+      ln()
+      const gap = Math.max(0, Math.min(4, Number(c.gap) || 0))
+      if (gap > 0) ln(`(${t(`folio.distance.${gap}` as never)})`)
+      for (const [label, passage] of [[t('folio.between'), c.between], [t('folio.beneath'), c.beneath]] as const) {
+        if (!passage || passage.length === 0) continue
+        ln(`> **${label}:**`)
+        for (const p of passage) ln(`> ${inline(p.content)}`)
+        ln()
+      }
+      for (const entry of traceEntriesById[trace.id as string] ?? []) {
+        ln(`- **${fmtDate(entry.addedAt as number)}:** ${String(entry.text ?? '')}`)
+      }
+      ln('---')
+      ln()
+    }
+  }
+
   return lines.join('\n')
 }
 
@@ -523,7 +556,7 @@ export async function exportAllData() {
     'sessionIntentions', 'stanceProfile', 'userValues', 'companionPromises',
     'companionPreferences', 'fieldMoments', 'interventionOutcomes', 'smsMessages',
     'researchEvents', 'personalProtocols', 'livingHypotheses',
-    'folioPages', 'folioPreferences',
+    'folioPages', 'folioPreferences', 'folioTraces',
   ] as const
 
   const results = await Promise.all(
@@ -542,7 +575,12 @@ export async function exportAllData() {
     messagesById[id] = await sessionMessages.getAll(id)
   }))
 
-  const md = buildMarkdownExport(data, messagesById)
+  const traceEntriesById: Record<string, DocumentData[]> = {}
+  await Promise.all((data.folioTraces ?? []).map(async (tr) => {
+    traceEntriesById[tr.id as string] = await folioTraceEntries(tr.id as string)
+  }))
+
+  const md = buildMarkdownExport(data, messagesById, traceEntriesById)
 
   const blob = new Blob([md], { type: 'text/markdown' })
   const url = URL.createObjectURL(blob)

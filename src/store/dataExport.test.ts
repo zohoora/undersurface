@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 
 // dataExport imports db (Firestore) and i18n; stub the heavy/DOM-touching parts
 // so we can exercise the pure buildMarkdownExport renderer.
-vi.mock('./db', () => ({ db: {}, sessionMessages: { getAll: vi.fn() } }))
+vi.mock('./db', () => ({ db: {}, sessionMessages: { getAll: vi.fn() }, folioTraceEntries: vi.fn() }))
 vi.mock('../i18n', () => ({
   // Render the key's leaf as a stable English-ish label so assertions are
   // locale-independent.
@@ -186,5 +186,24 @@ describe('buildMarkdownExport — completeness (C-8)', () => {
 
   it('omits the Room section when there are no Room visits', () => {
     expect(buildMarkdownExport({ roomSessions: [] }, {})).not.toContain('## room')
+  })
+
+  it('exports Folio\'s kept things exactly, with italic, the distance and dated entries', () => {
+    const composition = JSON.stringify({
+      v: 1,
+      line: [{ type: 'text', text: 'It was ' }, { type: 'text', text: 'nice', marks: [{ type: 'italic' }] }, { type: 'text', text: '.' }],
+      gap: 2,
+      between: [{ type: 'paragraph', content: [{ type: 'text', text: 'The drive home.' }] }],
+      beneath: [{ type: 'paragraph', content: [{ type: 'text', text: 'I felt absent.' }] }],
+    })
+    const collections = { folioTraces: [{ id: 't1', keptAt: 1_792_000_000_000, surface: 'It was nice.', title: 'the dinner', composition }] }
+    const md = buildMarkdownExport(collections, {}, { t1: [{ id: 'e1', addedAt: 1_792_500_000_000, text: 'I think I was waiting.' }] })
+    expect(md).toContain('folio.kept.title')
+    expect(md).toContain('### the dinner')
+    expect(md).toContain('It was *nice*.')
+    expect(md).toContain('(folio.distance.2)')
+    expect(md).toContain('> The drive home.')
+    expect(md).toContain('> I felt absent.')
+    expect(md).toContain('I think I was waiting.')
   })
 })

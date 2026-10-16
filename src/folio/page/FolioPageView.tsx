@@ -28,7 +28,15 @@ import type { SafetyUnit } from '../safety/samples'
 import { checkKeys, pruneChecked } from '../safety/checkedSet'
 import type { ShorePresentation } from '../safety/shorePresentation'
 import type { FolioSwitches } from '../access'
-import type { FolioPage } from '../../types/folio'
+import type { FolioPage, FolioTrace } from '../../types/folio'
+import { keptCheckedKeys, snapshotFold } from '../kept/keep'
+import type { KeepRequest } from '../kept/useKept'
+import { comeBackFields } from '../kept/comeBack'
+import type { ComeBackChoice } from '../kept/comeBack'
+import { ComeBackChoices } from '../kept/ComeBackChoices'
+import { shortDate } from '../kept/dates'
+import { liftFromTrace, takeLiftIntent } from '../kept/liftToday'
+import { takeOpenFoldIntent } from '../kept/goToPage'
 
 // One Folio page (draft 4 §3.4–§3.6, §5.1–§5.5): the editor core, saving
 // (C2), safety coverage (C4) and the notices around them.
@@ -51,9 +59,18 @@ interface Props {
   onAnnounce: (message: string) => void
   /** The page as last seen in a list, for a fast first paint. */
   onFirstContent?: () => void
+  /** Phase 2 (draft 4 §3.7, §3.8): Keep, its undo, and Come back to this. */
+  kept?: {
+    keep: (req: KeepRequest) => FolioTrace
+    undo: (traceId: string) => void
+    setComeBack: (traceId: string, choice: ComeBackChoice) => boolean
+    tz: string
+  }
 }
 
 type Notice =
+  | { kind: 'kept'; traceId: string; choosing: boolean }
+  | { kind: 'comingBack'; at: number }
   | { kind: 'protected'; ids: string[] }
   | { kind: 'conflict' }
   | { kind: 'remoteDeleted'; content: PageContent }
@@ -76,7 +93,7 @@ function textMap(units: SafetyUnit[]): Map<string, string> {
   return new Map(units.map((u) => [u.pid, `${u.line ?? ''}\u0000${u.text}`]))
 }
 
-export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, ornaments, onNavigate, onAnnounce }: Props) {
+export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, ornaments, onNavigate, onAnnounce, kept }: Props) {
   const tr = useTranslation()
   const strings = useMemo(() => folioStringsFrom(tr), [tr])
   const stringsRef = useRef(strings)
@@ -102,6 +119,10 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
   const adapter = useMemo(() => pageAdapter(uid), [uid])
 
   const announce = useCallback((m: string) => { if (m) onAnnounce(m) }, [onAnnounce])
+  const keptRef = useRef(kept)
+  useEffect(() => { keptRef.current = kept }, [kept])
+  const keepRef = useRef<(foldId: string) => void>(() => {})
+  const canKeep = !!kept
 
   // As with the editor below: these callbacks read refs only when a control
   // is pressed, never during render.
@@ -110,14 +131,16 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
     labels: () => ({
       close: tr['folio.close'], unlift: tr['folio.unlift'], closer: tr['folio.closer'], farther: tr['folio.farther'],
       looseTitle: tr['folio.loose.title'], looseKeep: tr['folio.loose.keep'], looseToPage: tr['folio.loose.toPage'], looseRemove: tr['folio.loose.remove'],
+      keep: canKeep ? tr['folio.keep'] : undefined,
     }),
     switches: () => ({ between: switchesRef.current.between, distance: switchesRef.current.distance }),
     onAnnounce: announce,
+    onKeep: (foldId) => keepRef.current(foldId),
     announceGap: (dir: -1 | 1, gap: Gap) => (dir > 0 ? stringsRef.current.farther(gap) : stringsRef.current.closer(gap)),
     closerBlocked: () => stringsRef.current.closerBlocked,
     unlifted: () => stringsRef.current.unlifted,
     looseAcknowledged,
-  }), [tr, announce, looseAcknowledged])
+  }), [tr, announce, looseAcknowledged, canKeep])
 
   // The callbacks below read refs only when the editor calls them from its
   // own event handlers, never during render.
@@ -271,6 +294,19 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
         try { editor.commands.setTextSelection(Math.min(view.caret, editor.state.doc.content.size - 1)) } catch { /* stale caret */ }
       }
       editor.commands.focus()
+      // Go to the page (from a trace): open the fold and put the caret on its line.
+      const openFold = takeOpenFoldIntent(uid, pageId)
+      if (openFold) {
+        editor.view.dispatch(editor.state.tr.setMeta(foldViewKey, { type: 'open', ids: [openFold] } satisfies FoldViewMeta).setMeta('addToHistory', false))
+        const el = editor.view.dom.querySelector(`[data-fold-id="${CSS.escape(openFold)}"]`)
+        el?.scrollIntoView({ block: 'center' })
+      }
+      // Lift into today's page (§3.8): the trace's line, quoted exactly.
+      const intent = takeLiftIntent(uid, pageId)
+      if (intent && bytesRef.current < PAGE_FULL_BYTES) {
+        const r = liftFromTrace(editor.state, intent)
+        if (r) { editor.view.dispatch(r.tr); announce(stringsRef.current.lifted) }
+      }
       if (adopted) {
         const server = await adapter.waitForConfirmed(pageId)
         if (disposed) return
@@ -338,6 +374,7 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
       for (const pid of unitsRef.current.keys()) if (!now.has(pid)) watch?.forget(pid)
       unitsRef.current = now
       pushContent()
+      setNotice((n) => (n?.kind === 'kept' && !n.choosing ? null : n))
     }
     const onSelection = () => {
       const $c = editor.state.selection.$from
@@ -377,6 +414,47 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
     editor.view.focus()
     announce(strings.lifted)
   }, [editor, announce, strings, tr])
+
+  // Keep (draft 4 §3.7): a dated snapshot; the page doesn't change. The
+  // composition settles to the bottom edge (a 120 ms fade with reduced motion);
+  // nothing waits on it.
+  const [settling, setSettling] = useState<{ key: string; text: string; left: number; top: number; width: number; drop: number } | null>(null)
+  const doKeep = useCallback(async (foldId: string) => {
+    const k = keptRef.current
+    if (!editor || !k) return
+    const snapshot = snapshotFold(editor.state.doc, foldId)
+    if (!snapshot || snapshot.empty) return
+    const id = newId()
+    const checked = await keptCheckedKeys(id, snapshot, readingOrderUnits(editor.state.doc), checkedRef.current)
+    const trace = k.keep({ id, pageId, foldId, revId: controllerRef.current?.chainState.baseRevId ?? null, snapshot, checked })
+    setNotice({ kind: 'kept', traceId: trace.id, choosing: false })
+    announce(tr['folio.kept'])
+    const el = editor.view.dom.querySelector(`[data-fold-id="${CSS.escape(foldId)}"]`)
+    const r = el?.getBoundingClientRect()
+    if (r) setSettling({ key: id, text: snapshot.surface, left: r.left, top: r.top, width: r.width, drop: Math.max(0, window.innerHeight - r.top - 56) })
+  }, [editor, pageId, announce, tr])
+  useEffect(() => { keepRef.current = (foldId) => { void doKeep(foldId) } }, [doKeep])
+
+  // "Kept." lasts 10 seconds, or until the next action (an edit ends it too).
+  const keptNotice = notice?.kind === 'kept' && !notice.choosing ? notice.traceId : null
+  useEffect(() => {
+    if (!keptNotice) return
+    const t = setTimeout(() => setNotice((n) => (n?.kind === 'kept' && n.traceId === keptNotice && !n.choosing ? null : n)), 10_000)
+    return () => clearTimeout(t)
+  }, [keptNotice])
+  const comingBackNotice = notice?.kind === 'comingBack' ? notice.at : null
+  useEffect(() => {
+    if (comingBackNotice === null) return
+    const t = setTimeout(() => setNotice((n) => (n?.kind === 'comingBack' ? null : n)), 6_000)
+    return () => clearTimeout(t)
+  }, [comingBackNotice])
+
+  const chooseComeBack = useCallback((traceId: string, choice: ComeBackChoice) => {
+    const k = keptRef.current
+    if (!k || !k.setComeBack(traceId, choice)) return
+    const at = comeBackFields(choice, Date.now(), k.tz)?.comeBackAt
+    setNotice(typeof at === 'number' ? { kind: 'comingBack', at } : null)
+  }, [])
 
   const removeKept = useCallback((ids: string[]) => {
     if (!editor) return
@@ -438,8 +516,34 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
           {status === 'notSaved' && <> · <button type="button" className="folio-button folio-button--inline" onClick={() => void copyPage()}>{tr['folio.copyPage']}</button></>}
         </div>
       )}
+      {settling && (
+        <div
+          key={settling.key}
+          className="folio-keep-slip"
+          aria-hidden="true"
+          style={{ left: settling.left, top: settling.top, width: settling.width, ['--folio-settle-y' as string]: `${settling.drop}px` }}
+          onAnimationEnd={() => setSettling(null)}
+        >
+          {settling.text}
+        </div>
+      )}
       {notice && (
         <div className="folio-notice" role="status">
+          {notice.kind === 'kept' && !notice.choosing && (
+            <>
+              <span>{tr['folio.kept']}</span>
+              <button type="button" className="folio-button" onClick={() => { kept?.undo(notice.traceId); setNotice(null) }}>{tr['folio.undo']}</button>
+              <button type="button" className="folio-button" onClick={() => setNotice({ ...notice, choosing: true })}>{tr['folio.comeBack']}…</button>
+              <button type="button" className="folio-button" aria-label={tr['folio.cancel']} onClick={() => setNotice(null)}>×</button>
+            </>
+          )}
+          {notice.kind === 'kept' && notice.choosing && kept && (
+            <>
+              <ComeBackChoices tz={kept.tz} autoFocus onChoose={(choice) => chooseComeBack(notice.traceId, choice)} />
+              <button type="button" className="folio-button" aria-label={tr['folio.cancel']} onClick={() => setNotice(null)}>×</button>
+            </>
+          )}
+          {notice.kind === 'comingBack' && kept && <span>{tr['folio.comeBack.on'].replace('{date}', shortDate(notice.at, getLanguageCode(), kept.tz))}</span>}
           {notice.kind === 'protected' && (
             <>
               <span>{tr['folio.protected']}</span>

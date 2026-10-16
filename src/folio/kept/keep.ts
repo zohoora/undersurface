@@ -36,7 +36,8 @@ export interface FoldSnapshot {
 function stripFold(node: JSONContent): JSONContent {
   if (!node.marks) return node
   const marks = node.marks.filter((m) => m.type !== FOLD)
-  const { marks: _drop, ...rest } = node
+  const rest: JSONContent = { ...node }
+  delete rest.marks
   return marks.length > 0 ? { ...rest, marks } : rest
 }
 
