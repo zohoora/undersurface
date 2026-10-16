@@ -36,7 +36,6 @@ async function call<T = any>(page: Page, name: string, ...args: unknown[]): Prom
   }, [name, args] as const) as Promise<T>
 }
 
-const mod = (page: Page) => (page.context().browser()?.browserType().name() === 'webkit' || process.platform === 'darwin' ? 'Meta' : 'Control')
 
 test.describe('hidden writing in a real browser', () => {
   test('a closed underside has no text in the DOM; opening shows it', async ({ page }) => {
@@ -90,10 +89,21 @@ test.describe('hidden writing in a real browser', () => {
   test('cut from the keyboard across a closed fold keeps it', async ({ page }) => {
     await setup(page)
     await call(page, 'setSelection', await call<number>(page, 'posOf', 'Before.'), (await call<number>(page, 'posOf', 'After.')) + 6)
-    await page.keyboard.press(`${mod(page)}+x`)
+    await page.keyboard.press('ControlOrMeta+x')
     expect(await call(page, 'undersideText', 'f1')).toBe(HIDDEN)
     expect(await call<string[]>(page, 'diagnostics')).not.toContain('folio.hidden.restored')
     expect((await call<string[]>(page, 'topLevel')).join('|')).not.toContain('Before.') // the cut happened
+  })
+
+  test('a stray modifier chord over a span never changes hidden writing (layer 2, not the net)', async ({ page }) => {
+    // On Linux, Meta+X is not cut; whatever the engine does with it must not
+    // reach the closed fold. The input events are logged for diagnosis.
+    await setup(page)
+    await call(page, 'setSelection', await call<number>(page, 'posOf', 'Before.'), (await call<number>(page, 'posOf', 'After.')) + 6)
+    await page.keyboard.press('Meta+x')
+    expect(await call(page, 'undersideText', 'f1')).toBe(HIDDEN)
+    const events = await call<string[]>(page, 'events')
+    expect(await call<string[]>(page, 'diagnostics'), `input events: ${events.join(', ')}`).not.toContain('folio.hidden.restored')
   })
 
   test('undo of a closed change opens the fold first; the next undo applies', async ({ page }) => {
@@ -102,10 +112,10 @@ test.describe('hidden writing in a real browser', () => {
     await call(page, 'setCaret', (await call<number>(page, 'posOf', 'time.')) + 5)
     await page.keyboard.type(' Really.')
     await call(page, 'close', ['f1'])
-    await page.keyboard.press(`${mod(page)}+z`)
+    await page.keyboard.press('ControlOrMeta+z')
     await expect.poll(() => call(page, 'openIds')).toContain('f1')
     expect(await call(page, 'undersideText', 'f1')).toContain('Really')
-    await page.keyboard.press(`${mod(page)}+z`)
+    await page.keyboard.press('ControlOrMeta+z')
     await expect.poll(() => call(page, 'undersideText', 'f1')).toBe(HIDDEN)
   })
 

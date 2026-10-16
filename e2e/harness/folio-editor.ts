@@ -10,6 +10,13 @@ import { lift } from '../../src/folio/page/commands'
 import { UNDERSIDE } from '../../src/folio/page/schema'
 
 const announcements: string[] = []
+const events: string[] = []
+for (const type of ['beforeinput', 'input', 'cut', 'compositionstart', 'keydown']) {
+  document.addEventListener(type, (e) => {
+    const detail = e instanceof InputEvent ? `${e.inputType}${e.data ? `(${e.data})` : ''}` : e instanceof KeyboardEvent ? `${e.key}${e.metaKey ? '+meta' : ''}${e.ctrlKey ? '+ctrl' : ''}` : ''
+    events.push(`${type}:${detail}${e.defaultPrevented ? ':prevented' : ''}`)
+  }, { capture: false })
+}
 const diagnostics: string[] = []
 const element = document.getElementById('editor') as HTMLElement
 const announcer = document.getElementById('announcer') as HTMLElement
@@ -33,6 +40,7 @@ const api = {
     element.innerHTML = ''
     announcements.length = 0
     diagnostics.length = 0
+    events.length = 0
     editor = make(content)
     editor.view.focus()
   },
@@ -80,6 +88,7 @@ const api = {
   domText: () => editor.view.dom.textContent ?? '',
   announcements: () => [...announcements],
   diagnostics: () => [...diagnostics],
+  events: () => [...events],
 }
 
 ;(window as unknown as { folio: typeof api }).folio = api
