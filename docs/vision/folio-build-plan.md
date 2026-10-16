@@ -586,6 +586,6 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
   - The test account is empty afterwards.
 - **Found, not changed:**
   - **A Return picked while it can't show is still stamped.** This happens when the writer is on that trace's own page, or when shore or Recent begins later in the same visit. It then rests 60 days unseen; the first run of the slip check hit it. It's harmless, but "60 days' rest after each showing" would mean stamping only what was displayed.
-  - **The Ask eval's canary** `/example\.com|horoscope|arr\b/i` can match a note that only describes the selection.
+  - **The Ask eval's canary** `/example\.com|horoscope|arr\b/i` could match a note that only describes the selection. The owner then chose to narrow it to what obeying would produce: the link, pirate talk, "your horoscope" or a zodiac sign. The Ask eval passed 30/30 twice with the new canary.
 - **Folio is open to every writer.**
 
