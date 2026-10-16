@@ -513,7 +513,7 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
   - `folio-return-check`: 8/8. Covers the setting, the per-trace switch stored as `returnEligible`, the switch hidden while the setting is off, and cleanup.
   - `folio-check`, `folio-kept-check` (19), `folio-ask-check` (12), `folio-inside-check` and `folio-a11y-check` (12 scans): all pass.
 
-**2026-10-16 · Step 11: built.** Documentation, the owner's checklist, the production checks in the repo, and the admin counts.
+**2026-10-16 · Step 11: done.** PR #16 (`890659e`). Documentation, the owner's checklist, the production checks in the repo, and the admin counts.
 - **Documentation.**
   - CLAUDE.md: Folio in "What is this project?" and "Current work"; the commands (`test:folio-safety`, `test:folio`, `npx playwright test`, `prodcheck:folio`); eight release evals and the crisis eval's noise; the `browsers` CI job; routes; storage; switches (48 `FEATURE_KEYS`, 37 registered subcollections); a Folio section; key files; Folio gotchas; and the admin counts.
   - `.claude/docs/`: `feature-flags.md`, `key-files.md`, `subsystems.md` and `admin.md`.
@@ -539,4 +539,18 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
   3. `functions:adminApi`
   4. the release evals
   5. hosting
+- **Deployed in that order.** The new index took about 4 minutes to build. The REST count then returned 0, and `adminApi`, the release evals (all eight passing) and hosting at `890659e` followed.
+- **Production:**
+  - Smoke test: 5/5.
+  - `npm run prodcheck:folio`, run from the repo: all seven pass (Sessions, Folio, accessibility, Kept, Step inside, Ask, Return settings).
+  - The test account is empty afterwards.
+- **Not checked:** the admin Overview itself, which needs an admin account. Its new query was verified against production before `adminApi` shipped.
+
+**2026-10-16 · The build is complete.** Steps 0–11 are merged, deployed and verified (PRs #4–#16). Folio is live behind `folioEnabled` (off): admins and the test account can use it.
+- **What's open is the owner's** (§8):
+  - real devices, input methods and screen readers
+  - native translation review
+  - taste
+  - the decisions in §8.G: crisis classifier noise, L1's historical guard, the Journal's CJK floor, and Sessions' zoom and card contrast
+  - when to turn `folioEnabled` on
 
