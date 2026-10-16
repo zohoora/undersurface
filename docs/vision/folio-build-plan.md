@@ -635,3 +635,14 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
 - **The eval** gains the owner's line, two typo cases and a `commentsOnWriting` check. Three runs: 25/25, 23/25 (two judge calls), 25/25.
 - **Also:** local preview builds now report to Sentry as `local`. An error from the involvement build's local test (an early version crashed every Folio reload, fixed before deploy) had shown up as a production issue.
 
+**2026-10-16 · The art pass.** The owner: "the general UX/UI for folio is very bland and boring. This is meant to be artwork. Spend considerable amount of time making it a delight to see and use." Fable art-directed in three rounds: a spec, a hard critique of the first build ("a tasteful text editor with a tint"), and a final verdict ("it has crossed the line"). Design doc §3.11 is now real (see CLAUDE.md, Folio, Art direction).
+- **What changed:**
+  - paper and light by the writer-local hour, and fibre grain
+  - the underside as soft washes of a cooler sheet behind the page, a paper-flap lift with a faint thin film, and an outline dog-ear
+  - slips instead of panels, light Spectral headings
+  - the Kept floor as overlapping sheets, Step inside as a room, the involvement slider as an amber bead on a thread
+  - bottom sheets on phones
+- **Verified by eye:** light and dark, every hour, desktop, Pixel and iPhone (WebKit), and Shore. The motion was checked frame by frame, from recordings and from screenshots with animations slowed 8x; a pale flash in the recordings was the video encoder.
+- **Accessibility:** axe is clean on all screens on desktop and Pixel.
+- **Found and fixed:** on a phone in Shore or Quiet, the new bottom-sheet menu opened under the help card, which blocked its lower items. In those states the menu and settings stay at the top.
+

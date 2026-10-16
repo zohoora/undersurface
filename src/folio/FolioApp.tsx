@@ -31,6 +31,7 @@ import { DeletePageDialog } from './DeletePageDialog'
 import { Capacitor } from '@capacitor/core'
 import type { FolioTrace } from '../types/folio'
 import { LEVELS, effectiveLevel } from './companion/levels'
+import { useFolioLight } from './light'
 import type { InvolvementLevel } from './companion/levels'
 
 // Folio's shell (draft 4 §3.2–§3.4, §3.9): routes, the top bar, the first
@@ -66,6 +67,15 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
   // the preferences arrive, level 1: nothing unasked before the writer's choice is known.
   const level: InvolvementLevel = prefs === undefined ? 1 : effectiveLevel(prefs?.involvement, { switchOn: switches.involvement, firstVisitSeenAt: prefs?.firstVisitSeenAt })
   const kept = useKept(user.uid, shore, { dances: level === 5 })
+  // The page's light follows the writer-local hour (Time is a material).
+  const light = useFolioLight(kept.tz)
+  // Arrival animations (a fold unfolding, its thin film) play only for what
+  // happens after Folio has settled, never for folds already open on load.
+  const [arrived, setArrived] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setArrived(true), 600)
+    return () => clearTimeout(t)
+  }, [])
 
   // Unknown /folio paths go to /folio (§3.3).
   useEffect(() => { if (!route) navigateTo('/folio', { replace: true }) }, [route, navigateTo])
@@ -181,6 +191,8 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
       data-shore={presentation === 'shore' ? 'true' : undefined}
       data-quiet={presentation === 'quiet' ? 'true' : undefined}
       data-reduce-motion={reduceMotion || presentation !== 'normal' ? 'true' : undefined}
+      data-light={light}
+      data-arrived={arrived ? 'true' : undefined}
     >
       <header className="folio-topbar">
         <div className="folio-topbar__group">
@@ -195,8 +207,8 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
           <div className="folio-menu" role="menu">
             {pageId && <button role="menuitem" type="button" className="folio-button" onClick={() => { setReading((v) => !v); setMenuOpen(false) }}>{reading ? tr['folio.writingView'] : tr['folio.readingView']}</button>}
             <button role="menuitem" type="button" className="folio-button" onClick={() => { setMenuOpen(false); setReading(false); navigateTo(`/folio/p/${newId()}`) }}>{tr['folio.newPage']}</button>
-            {pageId && <button role="menuitem" type="button" className="folio-button" onClick={() => { setMenuOpen(false); setDeleting(true) }}>{tr['folio.deletePage']}</button>}
-            <button role="menuitem" type="button" className="folio-button" onClick={() => { setMenuOpen(false); shore.findHelp() }}>{tr['folio.findHelp']}</button>
+            {pageId && <button role="menuitem" type="button" className="folio-button" data-group-start="" onClick={() => { setMenuOpen(false); setDeleting(true) }}>{tr['folio.deletePage']}</button>}
+            <button role="menuitem" type="button" className="folio-button" data-group-start="" onClick={() => { setMenuOpen(false); shore.findHelp() }}>{tr['folio.findHelp']}</button>
             <button role="menuitem" type="button" className="folio-button" onClick={() => { setMenuOpen(false); setSettingsOpen(true) }}>{tr['folio.settings']}</button>
           </div>
         )}
