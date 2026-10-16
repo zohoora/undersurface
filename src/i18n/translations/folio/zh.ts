@@ -140,4 +140,17 @@ export const folio_zh: FolioStringsTable = {
   'folio.sound.silence': '静默',
   'folio.sound.forest': '森林',
   'folio.sound.drone': '低鸣',
+
+  // Ask
+  'folio.ask': '问问',
+  'folio.ask.label': '陪伴者',
+  'folio.ask.asking': '正在询问…',
+  'folio.ask.failed': '暂时无法询问。',
+  'folio.ask.keep': '保留',
+  'folio.ask.dismiss': '关闭',
+  'folio.ask.copy': '复制',
+  'folio.ask.delete': '删除笔记',
+  'folio.ask.kept': '已保留笔记。',
+  'folio.ask.full': '这个页面最多可容纳 50 条笔记。删除一条，才能保留另一条。',
+  'folio.notes.title': '陪伴者的笔记',
 }

@@ -140,4 +140,17 @@ export const folio_ru: FolioStringsTable = {
   'folio.sound.silence': 'Тишина',
   'folio.sound.forest': 'Лес',
   'folio.sound.drone': 'Гул',
+
+  // Ask
+  'folio.ask': 'Спросить',
+  'folio.ask.label': 'Собеседник',
+  'folio.ask.asking': 'Спрашиваем…',
+  'folio.ask.failed': 'Сейчас не удалось спросить.',
+  'folio.ask.keep': 'Сохранить',
+  'folio.ask.dismiss': 'Закрыть',
+  'folio.ask.copy': 'Копировать',
+  'folio.ask.delete': 'Удалить заметку',
+  'folio.ask.kept': 'Заметка сохранена.',
+  'folio.ask.full': 'На этой странице помещается 50 заметок. Удалите одну, чтобы сохранить ещё одну.',
+  'folio.notes.title': 'Заметки собеседника',
 }

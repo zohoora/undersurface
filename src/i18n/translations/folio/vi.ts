@@ -140,4 +140,17 @@ export const folio_vi: FolioStringsTable = {
   'folio.sound.silence': 'Im lặng',
   'folio.sound.forest': 'Rừng',
   'folio.sound.drone': 'Tiếng ngân',
+
+  // Ask
+  'folio.ask': 'Hỏi',
+  'folio.ask.label': 'Người đồng hành',
+  'folio.ask.asking': 'Đang hỏi…',
+  'folio.ask.failed': 'Lúc này không hỏi được.',
+  'folio.ask.keep': 'Giữ lại',
+  'folio.ask.dismiss': 'Bỏ qua',
+  'folio.ask.copy': 'Sao chép',
+  'folio.ask.delete': 'Xóa ghi chú',
+  'folio.ask.kept': 'Đã giữ lại ghi chú.',
+  'folio.ask.full': 'Trang này chứa được 50 ghi chú. Hãy xóa một ghi chú để giữ lại ghi chú khác.',
+  'folio.notes.title': 'Ghi chú của người đồng hành',
 }

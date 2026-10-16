@@ -39,6 +39,16 @@ import { liftFromTrace, takeLiftIntent } from '../kept/liftToday'
 import { takeOpenFoldIntent } from '../kept/goToPage'
 import { StepInside } from '../inside/StepInside'
 import { useStepInside } from '../inside/useStepInside'
+import { loadDoc, notesKey, withNote, withoutNote } from '../ask/notes'
+import type { PendingNote } from '../ask/notes'
+import { noteRender } from '../ask/noteViews'
+import { askForNote } from '../ask/askContract'
+import { ASK_MAX_CHARS, buildAskMessages } from '../ask/askPrompt'
+import type { AskPassage } from '../ask/askPrompt'
+import { streamChatCompletion } from '../../ai/openrouter'
+import { isGroundingActive } from '../../store/groundingState'
+import { getLLMLanguageName } from '../../i18n'
+import { FOLD } from './schema'
 
 // One Folio page (draft 4 §3.4–§3.6, §5.1–§5.5): the editor core, saving
 // (C2), safety coverage (C4) and the notices around them.
@@ -65,6 +75,8 @@ interface Props {
   presentation?: 'normal' | 'shore' | 'quiet'
   /** H1, when its switch is on; `sound` when its own switch is on, on the web. */
   stepInside?: { sound: boolean }
+  /** H2, when its switch is on: Ask, and the shore door on a grounded note. */
+  ask?: { isRecent: () => boolean; onTalkNow: () => void }
   /** Phase 2 (draft 4 §3.7, §3.8): Keep, its undo, and Come back to this. */
   kept?: {
     keep: (req: KeepRequest) => FolioTrace
@@ -99,7 +111,7 @@ function textMap(units: SafetyUnit[]): Map<string, string> {
   return new Map(units.map((u) => [u.pid, `${u.line ?? ''}\u0000${u.text}`]))
 }
 
-export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, ornaments, onNavigate, onAnnounce, kept, presentation = 'normal', stepInside }: Props) {
+export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, ornaments, onNavigate, onAnnounce, kept, presentation = 'normal', stepInside, ask }: Props) {
   const tr = useTranslation()
   const strings = useMemo(() => folioStringsFrom(tr), [tr])
   const stringsRef = useRef(strings)
@@ -131,6 +143,16 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
   const canKeep = !!kept
   const stepInsideRef = useRef<(foldId: string) => void>(() => {})
   const canStepInside = !!stepInside
+  const askRef = useRef(ask)
+  useEffect(() => { askRef.current = ask }, [ask])
+  const noteHandlers = useRef<Parameters<typeof noteRender>[1]>(() => ({ keep: () => {}, dismiss: () => {}, copy: () => {}, deleteNote: () => {}, talkNow: null }))
+  // The notes' handlers read refs only when a note is drawn or pressed.
+  /* eslint-disable react-hooks/refs */
+  const notes = useMemo(() => noteRender(() => ({
+    label: tr['folio.ask.label'], asking: tr['folio.ask.asking'], failed: tr['folio.ask.failed'], keep: tr['folio.ask.keep'],
+    dismiss: tr['folio.ask.dismiss'], copy: tr['folio.ask.copy'], deleteNote: tr['folio.ask.delete'], talkNow: tr['folio.shore.talk'],
+  }), () => noteHandlers.current()), [tr])
+  /* eslint-enable react-hooks/refs */
 
   // As with the editor below: these callbacks read refs only when a control
   // is pressed, never during render.
@@ -165,6 +187,7 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
       locale: () => getLanguageCode(),
       controls,
       onStepInside: (foldId) => stepInsideRef.current(foldId),
+      notes: () => notes,
     }),
     editable: false,
     content: JSON.parse(EMPTY_DOC) as JSONContent,
@@ -173,7 +196,7 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
       handlePaste: () => bytesRef.current >= PAGE_FULL_BYTES,
     },
     immediatelyRender: true,
-  }, [controls])
+  }, [controls, notes])
 
   useEffect(() => {
     if (editor) setOrnaments(editor, ornaments)
@@ -230,15 +253,13 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
       if (first === undefined) first = snap.page
       if (!lock.isHolder() && snap.page && !snap.hasPendingWrites) {
         // Read-only: show the latest saved words.
-        editor.view.dispatch(editor.state.tr
-          .replaceWith(0, editor.state.doc.content.size, editor.schema.nodeFromJSON(JSON.parse(snap.page.doc)).content)
+        editor.view.dispatch(loadDoc(editor.state.tr, editor.schema, snap.page.doc)
           .setMeta(TR_LOAD, true).setMeta('addToHistory', false))
       } else if (lock.isHolder() && snap.page && !snap.fromCache && !snap.hasPendingWrites) {
         // A revision from another device while this one is idle: adopt it.
         const c = controllerRef.current
         if (c && c.adoptRemote(snap.page)) {
-          editor.view.dispatch(editor.state.tr
-            .replaceWith(0, editor.state.doc.content.size, editor.schema.nodeFromJSON(JSON.parse(snap.page.doc)).content)
+          editor.view.dispatch(loadDoc(editor.state.tr, editor.schema, snap.page.doc)
             .setMeta(TR_LOAD, true).setMeta('addToHistory', false)
             .setMeta(foldViewKey, { type: 'load', open: [...getFoldView(editor.state).open] } satisfies FoldViewMeta))
           void watchRef.current?.sweep('remote')
@@ -267,8 +288,7 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
       const { start, others, adopted } = await prepareEditable(deps, page, EMPTY_DOC, Date.now())
       if (disposed) return
       checkedRef.current = new Set(start.content.checked)
-      editor.view.dispatch(editor.state.tr
-        .replaceWith(0, editor.state.doc.content.size, editor.schema.nodeFromJSON(JSON.parse(start.content.doc)).content)
+      editor.view.dispatch(loadDoc(editor.state.tr, editor.schema, start.content.doc)
         .setMeta(TR_LOAD, true).setMeta('addToHistory', false)
         .setMeta(foldViewKey, { type: 'load', open: readViewState(uid, pageId)?.open ?? [] } satisfies FoldViewMeta))
       unitsRef.current = textMap(readingOrderUnits(editor.state.doc))
@@ -473,6 +493,79 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
   })
   useEffect(() => { stepInsideRef.current = openInside }, [openInside])
 
+  // Ask (H2; draft 4 §5.4's contract): only the selection, its passage and the
+  // language are sent. The note is buffered and shown once L2 clears it.
+  const [asking, setAsking] = useState(false)
+  const askAbort = useRef<AbortController | null>(null)
+  const setPending = useCallback((pending: PendingNote | null) => {
+    if (!editor || editor.isDestroyed) return
+    editor.view.dispatch(editor.state.tr.setMeta(notesKey, { pending }).setMeta('addToHistory', false))
+  }, [editor])
+  const doAsk = useCallback(async () => {
+    const a = askRef.current
+    if (!editor || !a || asking) return
+    const sel = editor.state.selection
+    const $f = sel.$from
+    if ($f.parent !== sel.$to.parent || $f.parent.type.name !== 'paragraph') return
+    const selection = editor.state.doc.textBetween(sel.from, sel.to, '\n').slice(0, ASK_MAX_CHARS)
+    if (!selection.trim()) return
+    const pid = String($f.parent.attrs.pid ?? '')
+    let onLine = false
+    editor.state.doc.nodesBetween(sel.from, sel.to, (n) => { if (n.marks.some((m) => m.type.name === FOLD)) onLine = true })
+    const passage: AskPassage = $f.depth > 1 ? ($f.node(2).type.name === 'between' ? 'between' : 'beneath') : onLine ? 'line' : 'page'
+    const lang = getLanguageCode()
+    setAsking(true)
+    setPending({ pid, status: 'asking' })
+    announce(tr['folio.ask.asking'])
+    const controller = new AbortController()
+    askAbort.current = controller
+    const outcome = await askForNote({
+      selection,
+      language: lang,
+      l1: detectCrisisKeywords,
+      check: checkCrisisRisk,
+      generate: (grounded, signal) => new Promise<string>((resolve, reject) => {
+        const messages = buildAskMessages({ selection, passage, languageName: lang === 'en' ? null : getLLMLanguageName(), grounded })
+        void streamChatCompletion(messages, { onToken: () => {}, onComplete: resolve, onError: reject }, 1200, 'low', signal).catch(reject)
+      }),
+      isGrounding: isGroundingActive,
+      isRecent: a.isRecent,
+      activate: () => { activateGrounding('auto'); shore.activation(`ask:${pid}`, selection) },
+      signal: controller.signal,
+    })
+    askAbort.current = null
+    setAsking(false)
+    if (outcome.kind === 'note') {
+      setPending({ pid, status: 'note', text: outcome.text, grounded: outcome.grounded })
+      announce(`${tr['folio.ask.label']}: ${outcome.text}`)
+    } else if (outcome.kind === 'failed') {
+      setPending({ pid, status: 'failed' })
+      announce(tr['folio.ask.failed'])
+    } else {
+      setPending(null)
+    }
+  }, [editor, asking, setPending, announce, tr, shore])
+  useEffect(() => () => askAbort.current?.abort(), [])
+
+  // The notes' actions read the latest state when pressed.
+  const presentationRef2 = useRef(presentation)
+  useEffect(() => { presentationRef2.current = presentation }, [presentation])
+  useEffect(() => {
+    noteHandlers.current = () => ({
+      keep: (p) => {
+        if (!editor) return
+        const tr2 = withNote(editor.state.tr, { id: newId(), pid: p.pid, text: p.text, createdAt: Date.now() })
+        if (!tr2) { announce(tr['folio.ask.full']); return }
+        editor.view.dispatch(tr2.setMeta(notesKey, { pending: null }))
+        announce(tr['folio.ask.kept'])
+      },
+      dismiss: () => setPending(null),
+      copy: (text) => { void navigator.clipboard?.writeText(text).then(() => announce(tr['folio.copied'])).catch(() => {}) },
+      deleteNote: (id) => { if (editor) editor.view.dispatch(withoutNote(editor.state.tr, id)) },
+      talkNow: presentationRef2.current === 'shore' && askRef.current ? () => askRef.current?.onTalkNow() : null,
+    })
+  }, [editor, announce, tr, setPending])
+
   const removeKept = useCallback((ids: string[]) => {
     if (!editor) return
     const s = editor.state
@@ -523,7 +616,13 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
       {!ready && <div className="folio-line">{tr['folio.opening']}</div>}
       <EditorContent editor={editor} />
       {editor && holder && (
-        <LiftControl editor={editor} label={tr['folio.lift']} onLift={doLift} disabled={bytes >= PAGE_FULL_BYTES} />
+        <LiftControl
+          editor={editor}
+          label={tr['folio.lift']}
+          onLift={doLift}
+          disabled={bytes >= PAGE_FULL_BYTES}
+          ask={ask ? { label: tr['folio.ask'], onAsk: () => void doAsk(), busy: asking } : undefined}
+        />
       )}
       {bytes >= PAGE_WARN_BYTES && bytes < PAGE_FULL_BYTES && <div className="folio-line">{tr['folio.pageLong']}</div>}
       {bytes >= PAGE_FULL_BYTES && <div className="folio-line">{tr['folio.pageFull']}</div>}

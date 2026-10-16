@@ -22,6 +22,7 @@
     "test:intentions": "RUN_INTENTIONS_EVAL=1 vitest run src/engine/intentionExtraction.live.test.ts",
     "test:stance": "RUN_STANCE_EVAL=1 vitest run src/engine/stanceObservation.live.test.ts",
     "test:folio-safety": "RUN_FOLIO_SAFETY_EVAL=1 vitest run src/folio/safety/folioSafety.live.test.ts",
+    "test:folio": "RUN_FOLIO_ASK_EVAL=1 vitest run src/folio/ask/folioAsk.live.test.ts",
     "test:depth": "RUN_DEPTH_EVAL=1 vitest run src/engine/companionDepth.live.test.ts",
     "test:release-evals": "node scripts/run-release-evals.mjs",
     "smoke-test": "bash scripts/smoke-test.sh",

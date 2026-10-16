@@ -6,7 +6,7 @@
  * transport affordances it can actually support.
  */
 
-export type CompanionChannel = 'web' | 'voice' | 'sms'
+export type CompanionChannel = 'web' | 'voice' | 'sms' | 'page'
 export type MemoryAperture = 'fresh' | 'pattern'
 export type CompanionResponseMode =
   | 'witness'
@@ -81,6 +81,19 @@ export const COMPANION_CHANNEL_CAPABILITIES: Record<CompanionChannel, CompanionC
     riskPreamble: false,
     maxResponseCharacters: 1200,
   },
+  // Folio's margin (H2, Ask): a note beside the writer's own words, by invitation.
+  page: {
+    channel: 'page',
+    streaming: true,
+    spoken: false,
+    images: false,
+    richActions: false,
+    trackedPromises: false,
+    biometrics: false,
+    sessionLifecycle: false,
+    riskPreamble: false,
+    maxResponseCharacters: 400,
+  },
 }
 
 export const SHARED_COMPANION_PRINCIPLES = `SHARED COMPANION KERNEL:
@@ -103,6 +116,14 @@ Speak naturally for listening, not reading. Never emit markdown, hidden markers,
     case 'sms':
       return `CURRENT CHANNEL: carrier SMS/MMS between app sessions.
 Write for a phone notification, not an app chat window. Images may accompany the current message. There are no rich actions, session-phase mechanics, biometrics, streaming markers, or tracked-action acknowledgements. Never emit markdown or interface syntax. The final reply must not exceed 1,200 characters.`
+    case 'page':
+      return `CURRENT CHANNEL: a margin note on a Folio page, by invitation.
+The writer selected a passage of their own writing and asked for a note. You see only that passage and which part of the page it comes from; nothing else from the page or from any conversation. The note appears beside their words, labelled as the companion's.
+- At most two sentences, in plain words. You may ask one open question.
+- Respond to the words themselves: their images, turns and sounds, what they do, what they make you notice. Talk about the words, never about the writer's body, mind or life.
+- Never say who the writer is or what they feel. Never name a mood, a part, or what the words "really" mean.
+- Never say you will remember this, and never promise to come back to it.
+- No rich actions, markers, tracked promises or session mechanics. Never emit markdown, quotation of the whole passage, lists, URLs, or interface syntax.`
   }
 }
 
@@ -254,6 +275,9 @@ export function buildCompanionExperienceBlock(
     return `EXPERIENCE POLICY DURING GROUNDING:
 Do not experiment with response form, autobiographical challenge, user-first exercises, outcome prompts, optimal-ending markers, or surface handoffs. Stay with the grounding and safety instructions.`
   }
+
+  // The margin's own rules live in its channel block; it has no response grammar.
+  if (channel === 'page') return ''
 
   const channelRules = channel === 'web'
     ? `When a handoff would materially help, rich-action instructions elsewhere may provide an exact marker. Never invent a marker. When the moment feels complete and a clean ending would serve better than another question, you may wrap a natural ending phrase in [phrase](#end:session). Use this rarely, never on the first response, and never to escape something difficult.`

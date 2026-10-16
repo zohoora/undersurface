@@ -140,4 +140,17 @@ export const folio_hi: FolioStringsTable = {
   'folio.sound.silence': 'मौन',
   'folio.sound.forest': 'जंगल',
   'folio.sound.drone': 'गुंजन',
+
+  // Ask
+  'folio.ask': 'पूछें',
+  'folio.ask.label': 'साथी',
+  'folio.ask.asking': 'पूछा जा रहा है…',
+  'folio.ask.failed': 'अभी पूछा नहीं जा सका।',
+  'folio.ask.keep': 'रख लें',
+  'folio.ask.dismiss': 'छोड़ दें',
+  'folio.ask.copy': 'कॉपी करें',
+  'folio.ask.delete': 'नोट हटाएँ',
+  'folio.ask.kept': 'नोट रख लिया।',
+  'folio.ask.full': 'इस पन्ने पर 50 नोट रखे जा सकते हैं। नया नोट रखने के लिए कोई एक हटाएँ।',
+  'folio.notes.title': 'साथी के नोट',
 }

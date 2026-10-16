@@ -140,4 +140,17 @@ export const folio_ko: FolioStringsTable = {
   'folio.sound.silence': '고요',
   'folio.sound.forest': '숲',
   'folio.sound.drone': '낮은 울림',
+
+  // Ask
+  'folio.ask': '물어보기',
+  'folio.ask.label': '동반자',
+  'folio.ask.asking': '물어보는 중…',
+  'folio.ask.failed': '지금은 물어보지 못했어요.',
+  'folio.ask.keep': '남기기',
+  'folio.ask.dismiss': '닫기',
+  'folio.ask.copy': '복사',
+  'folio.ask.delete': '메모 삭제',
+  'folio.ask.kept': '메모를 남겼어요.',
+  'folio.ask.full': '이 페이지에는 메모를 50개까지 남길 수 있어요. 다른 메모를 남기려면 하나를 삭제하세요.',
+  'folio.notes.title': '동반자의 메모',
 }

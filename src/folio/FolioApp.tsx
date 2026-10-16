@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { User } from 'firebase/auth'
 import { useTranslation } from '../i18n'
 import { useGlobalConfig } from '../store/globalConfig'
@@ -124,6 +124,11 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
   const insideOn = switches.stepInside
   const insideSound = switches.stepInsideSound && !Capacitor.isNativePlatform()
   const stepInside = useMemo(() => (insideOn ? { sound: insideSound } : undefined), [insideOn, insideSound])
+  // Ask (H2) under its switch. Recent is read when asked, never from render.
+  const recentRef = useRef(kept.recent)
+  useEffect(() => { recentRef.current = kept.recent }, [kept.recent])
+  const askOn = switches.ask
+  const ask = useMemo(() => (askOn ? { isRecent: () => recentRef.current, onTalkNow: () => goToSessions() } : undefined), [askOn, goToSessions])
   const pageKept = useMemo(() => ({ keep: kept.keep, undo: kept.undoKeep, setComeBack: kept.setComeBack, tz: kept.tz }), [kept.keep, kept.undoKeep, kept.setComeBack, kept.tz])
   const traceId = route?.kind === 'trace' ? route.traceId : null
   // The slip shows only on Normal paper (never in Shore or Quiet; Recent holds it in useKept).
@@ -217,6 +222,7 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
               kept={pageKept}
               presentation={presentation}
               stepInside={stepInside}
+              ask={ask}
               onNavigate={navigateTo}
               onAnnounce={announce}
             />

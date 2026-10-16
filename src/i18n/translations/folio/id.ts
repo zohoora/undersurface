@@ -140,4 +140,17 @@ export const folio_id: FolioStringsTable = {
   'folio.sound.silence': 'Hening',
   'folio.sound.forest': 'Hutan',
   'folio.sound.drone': 'Dengung',
+
+  // Ask
+  'folio.ask': 'Tanya',
+  'folio.ask.label': 'Pendamping',
+  'folio.ask.asking': 'Bertanya…',
+  'folio.ask.failed': 'Tidak bisa bertanya sekarang.',
+  'folio.ask.keep': 'Simpan',
+  'folio.ask.dismiss': 'Abaikan',
+  'folio.ask.copy': 'Salin',
+  'folio.ask.delete': 'Hapus catatan',
+  'folio.ask.kept': 'Catatan disimpan.',
+  'folio.ask.full': 'Halaman ini bisa memuat 50 catatan. Hapus satu untuk menyimpan catatan lain.',
+  'folio.notes.title': 'Catatan pendamping',
 }

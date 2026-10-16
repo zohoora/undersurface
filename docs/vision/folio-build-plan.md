@@ -380,3 +380,43 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
   - Native review: Turkish uses the same word for "lift" and "remove" (Kaldır), as it already did. Russian Keep is "Сохранить копию", to avoid colliding with "Сохранено".
   - A come-back cleared by Open can come back if the tab is closed within a second of opening it, because the write is fire-and-forget so it works offline.
 
+
+**2026-10-16 · Step 8: done.** PR #13 (`dac0317`): H1 Step inside, with its sound.
+- **Built.**
+  - A full-screen reading space in Room's structure: a portal, a named dialog, a focus trap and an inert root.
+  - Three standing distances that never take text below the page's size.
+  - Back to the page restores the exact selection and scroll. Back and write ends in the beneath.
+  - Shore or Quiet closes the space at once.
+  - Sound: forest and drone only, silence by default, a Web Audio gain and low-pass (closer is quieter and darker), and volume alone without CORS or Web Audio.
+  - 10 strings in 17 languages.
+- **Found and fixed.** While the dialog was open the page was inert, so focusing the editor on leaving silently failed. The restore now runs after the dialog unmounts. It was found on CI's Linux Chromium and reproduced in the Playwright Linux image.
+- **Gates:** `npm run test` 1,956, Playwright 126, all green. Release evals: all seven pass.
+- **Deploy:** hosting at `dac0317`.
+- **Production checks:** all pass.
+  - Smoke test: 5/5.
+  - Sessions: pass.
+  - `folio-inside-check`: entering, axe on both papers, stand closer, Forest over CORS through Web Audio (an Origin request, a 206 with the allow-origin header), the choice remembered, Back and write, delete.
+  - `folio-check`, `folio-kept-check` (19/19) and `folio-a11y-check` (12 scans): all pass.
+
+**2026-10-16 · Step 9: built, gates green.** H2 Ask.
+- **Built.**
+  - The kernel's `'page'` channel: no actions, no promises, no preamble, the fresh memory aperture, and margin rules in its channel block.
+  - `buildAskMessages`: the selection only, at most 1,000 characters and wrapped as untrusted; its passage; and the writer's language.
+  - The Ask contract (`askForNote`): L1 first; L2 and the reply race; the display is gated on L2; risk 2 regenerates grounded; grounding and Recent are read at call time and again before display.
+  - Notes beside their paragraph: Keep, Dismiss, Copy and Delete, plus Talk now on a grounded note in shore.
+  - Export under "Companion notes".
+  - `test:folio`, added to the release evals.
+  - 11 strings in 17 languages.
+- **Decision.** Kept notes are a document attribute on the page (`doc.attrs.folioNotes`), not a separate `notes` field. The save controller detects changes and conflicts by the `doc` string, so a separate field would have been skipped and could be lost in a conflict copy. As an attribute, notes are saved, copied and recovered under C2 like the words; they're outside undo, and never part of a trace. The limit of 50 is kept in the client.
+- **The eval.** The first run was 28/30. Two fixes:
+  - One note inferred something about the writer's body ("a place the body still knows to avoid"). The channel rule now says to talk about the words, never the writer's body, mind or life.
+  - The canary caught a quoted "forever". It now looks for a promise to remember, not a quoted word.
+
+  Then 30/30 on two consecutive runs.
+- **Local production check** (a local build, `/api` proxied to production): `folio-ask-check` passes 12 of 12 with axe clean.
+  - The companion request carried only the selected sentence, not the page's other sentence.
+  - L2 ran.
+  - Keep survived a reload, and Delete removed the note.
+  - Dismiss stored nothing.
+  - An L1 selection grounded and sent nothing.
+- **For the owner's checklist:** in Japanese and Russian, Folio's earlier lines and the main app use different words for "companion" (コンパニオン/伴走者, спутник/собеседник).

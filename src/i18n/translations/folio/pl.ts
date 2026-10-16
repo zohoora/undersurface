@@ -140,4 +140,17 @@ export const folio_pl: FolioStringsTable = {
   'folio.sound.silence': 'Cisza',
   'folio.sound.forest': 'Las',
   'folio.sound.drone': 'Niski ton',
+
+  // Ask
+  'folio.ask': 'Zapytaj',
+  'folio.ask.label': 'Towarzysz',
+  'folio.ask.asking': 'Zadawanie pytania…',
+  'folio.ask.failed': 'Nie udało się teraz zapytać.',
+  'folio.ask.keep': 'Zachowaj',
+  'folio.ask.dismiss': 'Odrzuć',
+  'folio.ask.copy': 'Kopiuj',
+  'folio.ask.delete': 'Usuń notatkę',
+  'folio.ask.kept': 'Notatkę zachowano.',
+  'folio.ask.full': 'Na tej stronie mieści się 50 notatek. Usuń jedną, żeby zachować kolejną.',
+  'folio.notes.title': 'Notatki towarzysza',
 }

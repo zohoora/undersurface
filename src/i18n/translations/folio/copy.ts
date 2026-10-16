@@ -147,6 +147,19 @@ export const folioEnglish = {
   'folio.sound.silence': 'Silence',
   'folio.sound.forest': 'Forest',
   'folio.sound.drone': 'Drone',
+
+  // Ask (H2: build plan §4)
+  'folio.ask': 'Ask',
+  'folio.ask.label': 'Companion',
+  'folio.ask.asking': 'Asking…',
+  'folio.ask.failed': 'Couldn\'t ask right now.',
+  'folio.ask.keep': 'Keep',
+  'folio.ask.dismiss': 'Dismiss',
+  'folio.ask.copy': 'Copy',
+  'folio.ask.delete': 'Delete note',
+  'folio.ask.kept': 'Note kept.',
+  'folio.ask.full': 'This page holds 50 notes. Delete one to keep another.',
+  'folio.notes.title': 'Companion notes',
 } as const
 
 export type FolioKey = keyof typeof folioEnglish
