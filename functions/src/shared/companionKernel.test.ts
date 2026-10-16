@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildCompanionChannelBlock,
+  buildCompanionKernelPrompt,
   buildCompanionExperienceBlock,
   buildMemoryApertureBlock,
   buildAlliancePreferencesBlock,
@@ -123,5 +124,19 @@ describe('shared companion kernel', () => {
     expect(grounded).toContain('Grounding overrides')
     expect(grounded).not.toContain('welcomes plain, respectful directness')
     expect(grounded).not.toContain('nonexclusive possibilities')
+  })
+
+  it('gives Folio\'s margin its own plain channel: no actions, no promises, no preamble, two sentences, no memory', () => {
+    const page = COMPANION_CHANNEL_CAPABILITIES.page
+    expect(page).toMatchObject({ richActions: false, trackedPromises: false, riskPreamble: false, sessionLifecycle: false, biometrics: false })
+    const block = buildCompanionChannelBlock('page')
+    expect(block).toContain('At most two sentences')
+    expect(block).toContain('Never say who the writer is or what they feel')
+    expect(block).toContain('Never say you will remember')
+    expect(buildCompanionExperienceBlock('page', false)).toBe('')
+    expect(buildCompanionExperienceBlock('page', true)).toContain('EXPERIENCE POLICY DURING GROUNDING')
+    const prompt = buildCompanionKernelPrompt('page', { memoryAperture: 'fresh' })
+    expect(prompt).toContain('MEMORY APERTURE: fresh eyes')
+    expect(prompt).not.toContain('RESPONSE GRAMMAR')
   })
 })

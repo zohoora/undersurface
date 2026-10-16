@@ -140,4 +140,17 @@ export const folio_nl: FolioStringsTable = {
   'folio.sound.silence': 'Stilte',
   'folio.sound.forest': 'Bos',
   'folio.sound.drone': 'Bromtoon',
+
+  // Ask
+  'folio.ask': 'Vragen',
+  'folio.ask.label': 'Metgezel',
+  'folio.ask.asking': 'Bezig met vragen…',
+  'folio.ask.failed': 'Kon nu niet vragen.',
+  'folio.ask.keep': 'Bewaren',
+  'folio.ask.dismiss': 'Negeren',
+  'folio.ask.copy': 'Kopiëren',
+  'folio.ask.delete': 'Notitie verwijderen',
+  'folio.ask.kept': 'Notitie bewaard.',
+  'folio.ask.full': 'Op deze pagina passen 50 notities. Verwijder er één om een andere te bewaren.',
+  'folio.notes.title': 'Notities van de metgezel',
 }

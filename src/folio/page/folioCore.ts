@@ -13,6 +13,8 @@ import { ENGLISH_STRINGS } from './strings'
 import { folioKeyHandlers } from './keys'
 import { InkWeight } from '../../extensions/inkWeight'
 import { ParagraphSettle } from '../../extensions/paragraphSettle'
+import { FolioDocument, notesPlugin } from '../ask/notes'
+import type { NoteRender } from '../ask/notes'
 import type { FolioStrings } from './strings'
 
 // The Folio editor core: schema, the four C1 layers, integrity and the
@@ -30,6 +32,8 @@ export interface FolioCoreOptions {
   /** The admin switches that shape Apart (build plan §3.1). */
   switches?: () => { between: boolean; distance: boolean }
   onStepInside?: (foldId: string) => void
+  /** H2: how companion notes are drawn beside their paragraphs (absent: not drawn). */
+  notes?: () => NoteRender | null
   locale?: () => string | undefined
   /** Builds the open underside's controls (Close/Unlift, Closer, Farther, Keep). */
   controls?: (args: { view: EditorView; getPos: () => number | undefined; node: PMNode }) => HTMLElement | null
@@ -66,6 +70,7 @@ export function folioExtensions(options: FolioCoreOptions = {}): AnyExtension[] 
         foldViewPlugin({ strings, onAnnounce: options.onAnnounce }),
         integrityPlugin(),
         hiddenWritingPlugin(protect),
+        notesPlugin(options.notes ?? (() => null)),
       ]
     },
   })
@@ -79,6 +84,7 @@ export function folioExtensions(options: FolioCoreOptions = {}): AnyExtension[] 
 
   return [
     StarterKit.configure({
+      document: false,
       heading: false,
       codeBlock: false,
       code: false,
@@ -93,6 +99,7 @@ export function folioExtensions(options: FolioCoreOptions = {}): AnyExtension[] 
       underline: false,
       link: false,
     }),
+    FolioDocument,
     ParagraphId,
     Fold,
     UndersideWithView,

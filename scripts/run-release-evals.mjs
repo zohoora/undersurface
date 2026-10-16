@@ -16,6 +16,7 @@ const suites = [
   ['stance', 'test:stance'],
   ['depth', 'test:depth'],
   ['folio-safety', 'test:folio-safety'],
+  ['folio-ask', 'test:folio'],
 ]
 
 const promptFiles = [
@@ -24,6 +25,8 @@ const promptFiles = [
   'src/ai/therapistPrompts.ts',
   'src/ai/partPrompts.ts',
   'src/engine/crisisClassifier.eval.ts',
+  'src/folio/ask/askPrompt.ts',
+  'functions/src/shared/companionKernel.ts',
 ]
 
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-')

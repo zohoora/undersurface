@@ -140,4 +140,17 @@ export const folio_es: FolioStringsTable = {
   'folio.sound.silence': 'Silencio',
   'folio.sound.forest': 'Bosque',
   'folio.sound.drone': 'Tono grave',
+
+  // Ask
+  'folio.ask': 'Preguntar',
+  'folio.ask.label': 'Acompañante',
+  'folio.ask.asking': 'Preguntando…',
+  'folio.ask.failed': 'No se pudo preguntar ahora.',
+  'folio.ask.keep': 'Conservar',
+  'folio.ask.dismiss': 'Descartar',
+  'folio.ask.copy': 'Copiar',
+  'folio.ask.delete': 'Eliminar nota',
+  'folio.ask.kept': 'Nota conservada.',
+  'folio.ask.full': 'Esta página admite 50 notas. Elimina una para conservar otra.',
+  'folio.notes.title': 'Notas del acompañante',
 }

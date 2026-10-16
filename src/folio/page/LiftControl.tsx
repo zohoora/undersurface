@@ -1,19 +1,31 @@
 import { useEffect, useState } from 'react'
 import type { Editor } from '@tiptap/core'
+import { ASK_MAX_CHARS } from '../ask/askPrompt'
 
 // Lift (draft 4 §3.5; S2): a button near the selection on pointer devices,
 // a bar at the bottom on touch screens. It appears only for a selection
 // inside one page paragraph (not inside an underside).
+// Ask (H2): beside Lift, for a selection inside one paragraph anywhere — the
+// page, a between or a beneath — of at most 1,000 characters, while no other
+// request is pending.
 
 function coarsePointer(): boolean {
   try { return window.matchMedia('(pointer: coarse)').matches } catch { return false }
 }
 
-interface Position { left: number; top: number }
+interface Position { left: number; top: number; lift: boolean; ask: boolean }
 
-export function LiftControl({ editor, label, onLift, disabled }: { editor: Editor; label: string; onLift: () => void; disabled?: boolean }) {
+export interface AskControl {
+  label: string
+  onAsk: () => void
+  /** A request is pending. */
+  busy: boolean
+}
+
+export function LiftControl({ editor, label, onLift, disabled, ask }: { editor: Editor; label: string; onLift: () => void; disabled?: boolean; ask?: AskControl }) {
   const [position, setPosition] = useState<Position | null>(null)
   const [touch] = useState(coarsePointer)
+  const askOn = !!ask
 
   useEffect(() => {
     const update = () => {
@@ -22,10 +34,13 @@ export function LiftControl({ editor, label, onLift, disabled }: { editor: Edito
       if (sel.empty || !editor.isEditable) { setPosition(null); return }
       const $from = sel.$from
       const $to = sel.$to
-      if ($from.depth !== 1 || $to.depth !== 1 || $from.parent !== $to.parent || $from.parent.type.name !== 'paragraph') { setPosition(null); return }
+      if ($from.parent !== $to.parent || $from.parent.type.name !== 'paragraph') { setPosition(null); return }
+      const lift = $from.depth === 1
+      const askable = askOn && state.doc.textBetween(sel.from, sel.to, '\n').trim().length > 0 && sel.to - sel.from <= ASK_MAX_CHARS
+      if (!lift && !askable) { setPosition(null); return }
       try {
         const end = view.coordsAtPos(sel.to)
-        setPosition({ left: end.left, top: end.bottom + 8 })
+        setPosition({ left: end.left, top: end.bottom + 8, lift, ask: askable })
       } catch {
         setPosition(null)
       }
@@ -41,20 +56,30 @@ export function LiftControl({ editor, label, onLift, disabled }: { editor: Edito
       document.removeEventListener('scroll', update, true)
       window.removeEventListener('resize', update)
     }
-  }, [editor])
+  }, [editor, askOn])
 
   if (!position) return null
-  const button = (
-    <button
-      type="button"
-      className={touch ? 'folio-button' : 'folio-lift'}
-      disabled={disabled}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={onLift}
-      style={touch ? undefined : { left: Math.max(8, Math.min(position.left, window.innerWidth - 120)), top: Math.min(position.top, window.innerHeight - 52), position: 'fixed' }}
-    >
-      {label}
-    </button>
+  const buttons = (
+    <>
+      {position.lift && (
+        <button type="button" className={touch ? 'folio-button' : 'folio-lift__button'} disabled={disabled} onMouseDown={(e) => e.preventDefault()} onClick={onLift}>
+          {label}
+        </button>
+      )}
+      {position.ask && ask && (
+        <button type="button" className={touch ? 'folio-button' : 'folio-lift__button'} disabled={ask.busy} onMouseDown={(e) => e.preventDefault()} onClick={ask.onAsk}>
+          {ask.label}
+        </button>
+      )}
+    </>
   )
-  return touch ? <div className="folio-touchbar">{button}</div> : button
+  if (touch) return <div className="folio-touchbar">{buttons}</div>
+  return (
+    <div
+      className="folio-lift"
+      style={{ left: Math.max(8, Math.min(position.left, window.innerWidth - 180)), top: Math.min(position.top, window.innerHeight - 52), position: 'fixed' }}
+    >
+      {buttons}
+    </div>
+  )
 }

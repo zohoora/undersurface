@@ -140,4 +140,17 @@ export const folio_ja: FolioStringsTable = {
   'folio.sound.silence': '静寂',
   'folio.sound.forest': '森',
   'folio.sound.drone': '低音',
+
+  // Ask
+  'folio.ask': '尋ねる',
+  'folio.ask.label': '伴走者',
+  'folio.ask.asking': '尋ねています…',
+  'folio.ask.failed': 'いまは尋ねられませんでした。',
+  'folio.ask.keep': '残す',
+  'folio.ask.dismiss': '閉じる',
+  'folio.ask.copy': 'コピー',
+  'folio.ask.delete': 'メモを削除',
+  'folio.ask.kept': 'メモを残しました。',
+  'folio.ask.full': 'このページに残せるメモは50件までです。別のメモを残すには、どれかを削除してください。',
+  'folio.notes.title': '伴走者のメモ',
 }

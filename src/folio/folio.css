@@ -12,6 +12,7 @@
   --folio-focus: #A8763A;
   --folio-notice: #FFFDF8;
   --folio-shore-paper: #F4EFE6;
+  --folio-graphite: #46433F;
   position: fixed;
   inset: 0;
   overflow-y: auto;
@@ -32,10 +33,12 @@
     --folio-focus: #D2A060;
     --folio-notice: #1D1915;
     --folio-shore-paper: #1A1612;
+    --folio-graphite: #C9C3B9;
   }
 }
 
 :root[data-theme="dark"] .folio-root {
+  --folio-graphite: #C9C3B9;
   --folio-paper: #14110E;
   --folio-ink: #ECE6DC;
   --folio-underside: rgba(52, 58, 64, 0.5);
@@ -251,16 +254,24 @@
 .folio-lift {
   position: absolute;
   z-index: 20;
-  min-height: 36px;
-  padding: 0 14px;
+  display: flex;
   border: 1px solid var(--folio-rule);
   border-radius: 18px;
   background: var(--folio-notice);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+.folio-lift__button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
   color: var(--folio-ink);
   font: 13px/1 'Inter', system-ui, sans-serif;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   cursor: pointer;
 }
+.folio-lift__button + .folio-lift__button { border-left: 1px solid var(--folio-rule); }
+.folio-lift__button:disabled { color: var(--folio-control); cursor: default; }
 
 .folio-touchbar {
   position: fixed;
@@ -538,4 +549,34 @@
 @media (prefers-reduced-motion: reduce) {
   .folio-inside-backdrop, .folio-inside-afterglow { animation: none !important; }
   .folio-inside__stage .folio-composition { transition: none; }
+}
+
+/* ---------------------------------------------------------------- companion notes (H2) */
+
+/* Graphite, labelled "Companion", visually apart from the writer's words:
+   below the paragraph on narrow screens, in the margin beside it on wide ones. */
+.folio-note {
+  display: block;
+  margin: 6px 0 4px;
+  padding: 6px 10px;
+  border-left: 2px solid var(--folio-control);
+  border-radius: 0 4px 4px 0;
+  font: 400 13px/1.5 'Inter', system-ui, sans-serif;
+  font-style: normal;
+  color: var(--folio-graphite);
+  white-space: normal;
+  cursor: default;
+}
+.folio-note__label { display: block; font-size: 12px; color: var(--folio-control); }
+.folio-note__text { display: block; }
+.folio-note__actions { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 2px; }
+.folio-note--asking .folio-note__text { color: var(--folio-control); }
+@media (min-width: 1200px) {
+  .folio-page .tiptap p > .folio-note {
+    position: absolute;
+    top: 0;
+    left: calc(100% + 32px);
+    width: 220px;
+    margin: 0;
+  }
 }

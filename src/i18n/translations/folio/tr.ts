@@ -140,4 +140,17 @@ export const folio_tr: FolioStringsTable = {
   'folio.sound.silence': 'Sessizlik',
   'folio.sound.forest': 'Orman',
   'folio.sound.drone': 'Uğultu',
+
+  // Ask
+  'folio.ask': 'Sor',
+  'folio.ask.label': 'Yol arkadaşı',
+  'folio.ask.asking': 'Soruluyor…',
+  'folio.ask.failed': 'Şu an sorulamadı.',
+  'folio.ask.keep': 'Tut',
+  'folio.ask.dismiss': 'Bırak',
+  'folio.ask.copy': 'Kopyala',
+  'folio.ask.delete': 'Notu sil',
+  'folio.ask.kept': 'Not tutuldu.',
+  'folio.ask.full': 'Bu sayfaya 50 not sığar. Yenisini tutmak için birini sil.',
+  'folio.notes.title': 'Yol arkadaşının notları',
 }

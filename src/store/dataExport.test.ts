@@ -206,4 +206,12 @@ describe('buildMarkdownExport — completeness (C-8)', () => {
     expect(md).toContain('> I felt absent.')
     expect(md).toContain('I think I was waiting.')
   })
+
+  it('exports the companion notes a writer kept on a Folio page, labelled', () => {
+    const doc = JSON.stringify({ type: 'doc', attrs: { folioNotes: [{ id: 'n1', pid: 'p1', text: 'The cold soup holds the whole evening.', createdAt: 1_792_000_000_000 }] }, content: [{ type: 'paragraph', attrs: { pid: 'p1' }, content: [{ type: 'text', text: 'The soup was cold.' }] }] })
+    const md = buildMarkdownExport({ folioPages: [{ id: 'pg', createdAt: 1, doc }] })
+    expect(md).toContain('#### folio.notes.title')
+    expect(md).toContain('The cold soup holds the whole evening.')
+  })
 })
+

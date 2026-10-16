@@ -507,6 +507,16 @@ export function buildMarkdownExport(
           ln()
         }
       }
+      // The companion's notes the writer kept, labelled as the companion's (H2).
+      const notes = Array.isArray((parsed as { attrs?: { folioNotes?: unknown } }).attrs?.folioNotes)
+        ? ((parsed as { attrs: { folioNotes: { text?: string; createdAt?: number }[] } }).attrs.folioNotes)
+        : []
+      if (notes.length > 0) {
+        ln(`#### ${t('folio.notes.title')}`)
+        ln()
+        for (const note of notes) ln(`- ${note.createdAt ? `${fmtDate(note.createdAt)}: ` : ''}${String(note.text ?? '')}`)
+        ln()
+      }
       ln('---')
       ln()
     }

@@ -140,4 +140,17 @@ export const folio_th: FolioStringsTable = {
   'folio.sound.silence': 'ความเงียบ',
   'folio.sound.forest': 'ป่า',
   'folio.sound.drone': 'เสียงฮัม',
+
+  // Ask
+  'folio.ask': 'ถาม',
+  'folio.ask.label': 'เพื่อนร่วมทาง',
+  'folio.ask.asking': 'กำลังถาม…',
+  'folio.ask.failed': 'ตอนนี้ยังถามไม่ได้',
+  'folio.ask.keep': 'เก็บไว้',
+  'folio.ask.dismiss': 'ปิด',
+  'folio.ask.copy': 'คัดลอก',
+  'folio.ask.delete': 'ลบบันทึก',
+  'folio.ask.kept': 'เก็บบันทึกไว้แล้ว',
+  'folio.ask.full': 'หน้านี้เก็บบันทึกได้ 50 รายการ ลบสักรายการเพื่อเก็บรายการใหม่',
+  'folio.notes.title': 'บันทึกจากเพื่อนร่วมทาง',
 }
