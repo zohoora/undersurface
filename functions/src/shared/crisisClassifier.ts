@@ -71,7 +71,7 @@ D. **Goodbye / note framing — this OVERRIDES the strict bar above.** If the wr
    · "I'm sorry. I love you. Goodbye."
 E. Acquired-method statement: "I bought the gun yesterday," "I have the pills."
 F. Plan + sudden calm (relief-at-decision): "I have a plan now and it makes me feel calm for the first time in a long time."
-G. Coded finality tied to the writer's own near-future: "I'll be with God soon, sooner than I thought," "I won't see another sunrise."
+G. Coded finality tied to the writer's own near-future: "I'll be with God soon, sooner than I thought," "I won't see another sunrise" — even when written calmly, at peace with it ("I think I've made peace with that").
 
 PROMOTION RULE: if a single message hits BOTH a risk-1 pattern (e.g. "I don't want to live") AND a risk-2 pattern (e.g. "thinking about how"), it is 2. Do not let the strict risk-1 bar suppress promotion.
 
