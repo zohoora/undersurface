@@ -180,6 +180,13 @@ export function validateChatMessages(raw: unknown, pinned: PinnedShape | null): 
 }
 
 const checkRateLimit = makeRateLimiter({ windowMs: 60_000, max: 30 })
+// The pinned classifier routes (crisis_check, signal_check) have their own
+// per-user limiter. With one shared limiter, classifier traffic and companion
+// traffic could starve each other, and a 429 on Talk's standalone crisis check
+// fails open to risk 0 on the client. A tripped limit returns RATE_LIMITED_CODE
+// so callers can tell it apart from other failures and back off.
+const checkClassifierRateLimit = makeRateLimiter({ windowMs: 60_000, max: 20 })
+export const RATE_LIMITED_CODE = 'rate_limited'
 
 // Quota config is read from appConfig/global and cached in-instance so we don't
 // add a Firestore read to every chat request. 60s TTL: admin changes propagate
@@ -283,9 +290,12 @@ export const chat = onRequest(
     }
     const { uid, role } = authed
 
-    // Rate limit
-    if (!checkRateLimit(uid)) {
-      res.status(429).json({ error: 'Too many requests. Please wait a moment.' })
+    // Rate limit: classifier routes and everything else are counted separately.
+    const requestedTask = (req.body || {}).task
+    const isClassifierRoute = requestedTask === 'crisis_check' || requestedTask === 'signal_check'
+    const withinLimit = isClassifierRoute ? checkClassifierRateLimit(uid) : checkRateLimit(uid)
+    if (!withinLimit) {
+      res.status(429).json({ error: 'Too many requests. Please wait a moment.', code: RATE_LIMITED_CODE })
       return
     }
 

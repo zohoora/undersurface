@@ -449,24 +449,33 @@ Distress scale (err on the side of LOW scores — processing hard feelings is no
 }
 
 /**
+ * The result of one L2 crisis check, with failures kept apart from a real
+ * negative. `classifyCrisisRisk` folds `unavailable` into `{ risk: 0 }` (the
+ * shared fail-open); callers that must never treat a failed check as clear,
+ * such as Folio's coverage, use `checkCrisisRisk` and see the cause.
+ */
+export type CrisisCheckUnavailableCause = 'timeout' | 'http' | 'malformed' | 'network' | 'rate_limited'
+
+export type CrisisCheck =
+  | { status: 'classified'; risk: CrisisRisk; reason?: string }
+  | { status: 'unavailable'; cause: CrisisCheckUnavailableCause }
+
+/**
  * Synchronous L2 crisis classifier — multilingual, narrow-by-construction.
  *
  * Calls the chat function with `task: 'crisis_check'`, which routes to a
  * smaller/faster model with structured-output enforcement. Risk tier semantics
  * are documented in crisisClassifierPrompt.ts.
  *
- * Fails open on timeout / network error / parse failure: returns {risk: 0}.
- * The L1 regex layer in sessionOrchestrator already ran by the time we get
- * here, so falling open leaves the existing safety net intact. The
- * alternative — bricking message send on transient API failure — is worse.
- *
- * Used by partOrchestrator for diary-mode crisis classification. In session
- * mode, L2 is folded into the therapist stream as a `<<RISK:N>>` preamble.
+ * Never resolves `classified` on a failure: a timeout, a network error, a
+ * non-OK response (`rate_limited` when the classifier's own limit tripped) and
+ * a malformed body are each `unavailable` with their cause. Rejects only when
+ * no auth token can be obtained, exactly as classifyCrisisRisk always has.
  */
-export async function classifyCrisisRisk(
+export async function checkCrisisRisk(
   text: string,
   language?: string,
-): Promise<CrisisRiskResult> {
+): Promise<CrisisCheck> {
   const token = await getAuthToken()
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 5000)
@@ -477,42 +486,84 @@ export async function classifyCrisisRisk(
   const userContent = language && language !== 'en'
     ? `Language: ${language}\n\nText:\n${sample}`
     : sample
+  const unavailable = (cause: CrisisCheckUnavailableCause): CrisisCheck => ({ status: 'unavailable', cause })
 
   try {
-    const response = await fetch(apiUrl('/api/chat'), {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        task: 'crisis_check',
-        messages: [
-          { role: 'system', content: CRISIS_CLASSIFIER_PROMPT },
-          { role: 'user', content: userContent },
-        ],
-      }),
-      signal: controller.signal,
-    })
+    let response: Response
+    try {
+      response = await fetch(apiUrl('/api/chat'), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          task: 'crisis_check',
+          messages: [
+            { role: 'system', content: CRISIS_CLASSIFIER_PROMPT },
+            { role: 'user', content: userContent },
+          ],
+        }),
+        signal: controller.signal,
+      })
+    } catch {
+      return unavailable(controller.signal.aborted ? 'timeout' : 'network')
+    }
 
-    if (!response.ok) return { risk: 0 }
+    if (!response.ok) {
+      if (response.status === 429) {
+        const body = await response.json().catch(() => null) as { code?: unknown } | null
+        if (body?.code === 'rate_limited') return unavailable('rate_limited')
+      }
+      return unavailable('http')
+    }
 
-    const data = await response.json()
-    const content = data?.choices?.[0]?.message?.content
-    if (typeof content !== 'string') return { risk: 0 }
+    let content: unknown
+    try {
+      const data = await response.json()
+      content = data?.choices?.[0]?.message?.content
+    } catch {
+      return unavailable(controller.signal.aborted ? 'timeout' : 'malformed')
+    }
+    if (typeof content !== 'string') return unavailable('malformed')
 
-    const parsed = JSON.parse(content) as { risk?: unknown; reason?: unknown }
-    const risk = parsed.risk
-    if (risk !== 0 && risk !== 1 && risk !== 2) return { risk: 0 }
+    let parsed: { risk?: unknown; reason?: unknown }
+    try {
+      parsed = JSON.parse(content) as { risk?: unknown; reason?: unknown }
+    } catch {
+      return unavailable('malformed')
+    }
+    const risk = parsed?.risk
+    if (risk !== 0 && risk !== 1 && risk !== 2) return unavailable('malformed')
     return {
+      status: 'classified',
       risk: risk as CrisisRisk,
       reason: typeof parsed.reason === 'string' ? parsed.reason : undefined,
     }
-  } catch {
-    return { risk: 0 }
   } finally {
     clearTimeout(timeout)
   }
+}
+
+/**
+ * The shared fail-open form of `checkCrisisRisk`: a classified result passes
+ * through, and every unavailable cause becomes `{ risk: 0 }`. The L1 regex
+ * layer has already run by the time anything calls this, so falling open
+ * leaves the deterministic floor intact; bricking a send on a transient API
+ * failure would be worse.
+ *
+ * Used by partOrchestrator for Journal-mode crisis classification and by the
+ * session's standalone L2 race. In session mode, L2 is also folded into the
+ * therapist stream as a `<<RISK:N>>` preamble.
+ */
+export async function classifyCrisisRisk(
+  text: string,
+  language?: string,
+): Promise<CrisisRiskResult> {
+  const result = await checkCrisisRisk(text, language)
+  return result.status === 'classified'
+    ? { risk: result.risk, reason: result.reason }
+    : { risk: 0 }
 }
 
 export type SignalLevel = 0 | 1 | 2
