@@ -128,4 +128,16 @@ export const folio_tr: FolioStringsTable = {
   'folio.deletePage.traces': 'Bu sayfadan tutulanlar: {n}. Tutulanlar kopyadır; sen onları da silmedikçe kalırlar.',
   'folio.deletePage.justPage': 'Yalnızca sayfayı sil',
   'folio.deletePage.withTraces': 'Sayfayı ve ondan tutulanları sil',
+
+  // Step inside
+  'folio.stepInside': 'İçeri adım at',
+  'folio.inside': '{line}, içeriden',
+  'folio.standCloser': 'Yaklaş',
+  'folio.standBack': 'Geri çekil',
+  'folio.backToPage': 'Sayfaya dön',
+  'folio.backAndWrite': 'Dön ve yaz',
+  'folio.sound': 'Ses',
+  'folio.sound.silence': 'Sessizlik',
+  'folio.sound.forest': 'Orman',
+  'folio.sound.drone': 'Uğultu',
 }

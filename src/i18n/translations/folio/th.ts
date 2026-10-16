@@ -128,4 +128,16 @@ export const folio_th: FolioStringsTable = {
   'folio.deletePage.traces': 'เก็บไว้จากหน้านี้: {n} สิ่งที่เก็บไว้เป็นสำเนา จึงยังอยู่ เว้นแต่คุณจะลบด้วย',
   'folio.deletePage.justPage': 'ลบเฉพาะหน้า',
   'folio.deletePage.withTraces': 'ลบหน้าและสิ่งที่เก็บไว้จากหน้านั้น',
+
+  // Step inside
+  'folio.stepInside': 'ก้าวเข้าไปข้างใน',
+  'folio.inside': 'ข้างใน “{line}”',
+  'folio.standCloser': 'ขยับเข้าใกล้',
+  'folio.standBack': 'ถอยออกมา',
+  'folio.backToPage': 'กลับไปที่หน้า',
+  'folio.backAndWrite': 'กลับไปเขียนต่อ',
+  'folio.sound': 'เสียง',
+  'folio.sound.silence': 'ความเงียบ',
+  'folio.sound.forest': 'ป่า',
+  'folio.sound.drone': 'เสียงฮัม',
 }

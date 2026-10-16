@@ -128,4 +128,16 @@ export const folio_ja: FolioStringsTable = {
   'folio.deletePage.traces': 'このページから残したもの：{n}。残したものはコピーなので、一緒に削除しない限りそのまま残ります。',
   'folio.deletePage.justPage': 'ページだけ削除',
   'folio.deletePage.withTraces': 'ページと、そこから残したものを削除',
+
+  // Step inside
+  'folio.stepInside': '中に入る',
+  'folio.inside': '「{line}」の中',
+  'folio.standCloser': '近寄って見る',
+  'folio.standBack': '離れて見る',
+  'folio.backToPage': 'ページに戻る',
+  'folio.backAndWrite': '戻って書く',
+  'folio.sound': '音',
+  'folio.sound.silence': '静寂',
+  'folio.sound.forest': '森',
+  'folio.sound.drone': '低音',
 }

@@ -128,4 +128,16 @@ export const folio_zh: FolioStringsTable = {
   'folio.deletePage.traces': '从此页面保留的内容：{n}。保留的内容是副本，所以会留下，除非你也删除它们。',
   'folio.deletePage.justPage': '只删除页面',
   'folio.deletePage.withTraces': '删除页面以及从中保留的内容',
+
+  // Step inside
+  'folio.stepInside': '走进去',
+  'folio.inside': '“{line}”里面',
+  'folio.standCloser': '走近一些',
+  'folio.standBack': '退后一些',
+  'folio.backToPage': '回到页面',
+  'folio.backAndWrite': '回去继续写',
+  'folio.sound': '声音',
+  'folio.sound.silence': '静默',
+  'folio.sound.forest': '森林',
+  'folio.sound.drone': '低鸣',
 }

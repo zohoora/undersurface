@@ -487,3 +487,55 @@
 }
 
 .folio-correction__page { padding: 16px 0; }
+
+/* ---------------------------------------------------------------- step inside (H1) */
+
+/* Unavailable in Shore and Quiet (§5.5). */
+.folio-root[data-shore="true"] [data-folio-step-inside],
+.folio-root[data-quiet="true"] [data-folio-step-inside] { display: none; }
+
+.folio-inside-backdrop { z-index: 70; animation: folio-inside-in 320ms ease both; }
+.folio-inside {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  outline: none;
+  background: linear-gradient(var(--folio-underside), var(--folio-underside)), var(--folio-paper);
+}
+/* Soft light from the crease edge. */
+.folio-inside__light {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: min(40vw, 360px);
+  pointer-events: none;
+  border-left: 2px solid var(--folio-crease);
+  background: linear-gradient(90deg, rgba(168, 118, 58, 0.14), rgba(168, 118, 58, 0));
+}
+.folio-inside__stage { flex: 1; width: 100%; max-width: 760px; margin: 0 auto; padding: 72px 24px 32px; box-sizing: border-box; }
+/* Standing distance scales the text, never below the page's 19 px. */
+.folio-inside__stage .folio-composition { font-size: calc(19px * var(--folio-stand, 1)); transition: font-size 320ms ease; }
+.folio-inside__controls {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 24px;
+  padding: 12px 16px 24px;
+  border-top: 1px solid var(--folio-rule);
+  background: var(--folio-paper);
+}
+.folio-inside__group { display: flex; flex-wrap: wrap; gap: 4px; }
+.folio-inside .folio-button[aria-pressed="true"] { color: var(--folio-ink); text-decoration: underline; text-underline-offset: 4px; }
+
+/* Leaving fades the space out over the page; the page is usable at once. */
+.folio-inside-afterglow { position: fixed; inset: 0; z-index: 69; pointer-events: none; background: var(--folio-paper); animation: folio-inside-out 320ms ease forwards; }
+@keyframes folio-inside-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes folio-inside-out { from { opacity: 1; } to { opacity: 0; } }
+.folio-inside-backdrop[data-reduce-motion="true"] { animation: none; }
+.folio-inside-backdrop[data-reduce-motion="true"] .folio-inside__stage .folio-composition { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .folio-inside-backdrop, .folio-inside-afterglow { animation: none !important; }
+  .folio-inside__stage .folio-composition { transition: none; }
+}

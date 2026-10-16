@@ -37,6 +37,8 @@ import { ComeBackChoices } from '../kept/ComeBackChoices'
 import { shortDate } from '../kept/dates'
 import { liftFromTrace, takeLiftIntent } from '../kept/liftToday'
 import { takeOpenFoldIntent } from '../kept/goToPage'
+import { StepInside } from '../inside/StepInside'
+import { useStepInside } from '../inside/useStepInside'
 
 // One Folio page (draft 4 §3.4–§3.6, §5.1–§5.5): the editor core, saving
 // (C2), safety coverage (C4) and the notices around them.
@@ -59,6 +61,10 @@ interface Props {
   onAnnounce: (message: string) => void
   /** The page as last seen in a list, for a fast first paint. */
   onFirstContent?: () => void
+  /** Shore and Quiet close Step inside and make it unavailable (§5.5). */
+  presentation?: 'normal' | 'shore' | 'quiet'
+  /** H1, when its switch is on; `sound` when its own switch is on, on the web. */
+  stepInside?: { sound: boolean }
   /** Phase 2 (draft 4 §3.7, §3.8): Keep, its undo, and Come back to this. */
   kept?: {
     keep: (req: KeepRequest) => FolioTrace
@@ -93,7 +99,7 @@ function textMap(units: SafetyUnit[]): Map<string, string> {
   return new Map(units.map((u) => [u.pid, `${u.line ?? ''}\u0000${u.text}`]))
 }
 
-export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, ornaments, onNavigate, onAnnounce, kept }: Props) {
+export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, ornaments, onNavigate, onAnnounce, kept, presentation = 'normal', stepInside }: Props) {
   const tr = useTranslation()
   const strings = useMemo(() => folioStringsFrom(tr), [tr])
   const stringsRef = useRef(strings)
@@ -123,6 +129,8 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
   useEffect(() => { keptRef.current = kept }, [kept])
   const keepRef = useRef<(foldId: string) => void>(() => {})
   const canKeep = !!kept
+  const stepInsideRef = useRef<(foldId: string) => void>(() => {})
+  const canStepInside = !!stepInside
 
   // As with the editor below: these callbacks read refs only when a control
   // is pressed, never during render.
@@ -132,15 +140,17 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
       close: tr['folio.close'], unlift: tr['folio.unlift'], closer: tr['folio.closer'], farther: tr['folio.farther'],
       looseTitle: tr['folio.loose.title'], looseKeep: tr['folio.loose.keep'], looseToPage: tr['folio.loose.toPage'], looseRemove: tr['folio.loose.remove'],
       keep: canKeep ? tr['folio.keep'] : undefined,
+      stepInside: canStepInside ? tr['folio.stepInside'] : undefined,
     }),
     switches: () => ({ between: switchesRef.current.between, distance: switchesRef.current.distance }),
     onAnnounce: announce,
     onKeep: (foldId) => keepRef.current(foldId),
+    onStepInside: (foldId) => stepInsideRef.current(foldId),
     announceGap: (dir: -1 | 1, gap: Gap) => (dir > 0 ? stringsRef.current.farther(gap) : stringsRef.current.closer(gap)),
     closerBlocked: () => stringsRef.current.closerBlocked,
     unlifted: () => stringsRef.current.unlifted,
     looseAcknowledged,
-  }), [tr, announce, looseAcknowledged, canKeep])
+  }), [tr, announce, looseAcknowledged, canKeep, canStepInside])
 
   // The callbacks below read refs only when the editor calls them from its
   // own event handlers, never during render.
@@ -154,6 +164,7 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
       switches: () => ({ between: switchesRef.current.between, distance: switchesRef.current.distance }),
       locale: () => getLanguageCode(),
       controls,
+      onStepInside: (foldId) => stepInsideRef.current(foldId),
     }),
     editable: false,
     content: JSON.parse(EMPTY_DOC) as JSONContent,
@@ -456,6 +467,12 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
     setNotice(typeof at === 'number' ? { kind: 'comingBack', at } : null)
   }, [])
 
+  // Step inside (H1).
+  const { inside, open: openInside, leave: leaveInside, afterglow, clearAfterglow } = useStepInside({
+    editor, shore, enabled: canStepInside, reduceMotion: reduceMotion || presentation !== 'normal', strings: () => stringsRef.current,
+  })
+  useEffect(() => { stepInsideRef.current = openInside }, [openInside])
+
   const removeKept = useCallback((ids: string[]) => {
     if (!editor) return
     const s = editor.state
@@ -516,6 +533,18 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
           {status === 'notSaved' && <> · <button type="button" className="folio-button folio-button--inline" onClick={() => void copyPage()}>{tr['folio.copyPage']}</button></>}
         </div>
       )}
+      {inside && (
+        <StepInside
+          uid={uid}
+          composition={inside.composition}
+          line={inside.line}
+          undersideLabel={inside.label}
+          soundAvailable={!!stepInside?.sound}
+          reduceMotion={reduceMotion || presentation !== 'normal'}
+          onLeave={leaveInside}
+        />
+      )}
+      {afterglow > 0 && !inside && <div key={afterglow} className="folio-inside-afterglow" aria-hidden="true" onAnimationEnd={clearAfterglow} />}
       {settling && (
         <div
           key={settling.key}
