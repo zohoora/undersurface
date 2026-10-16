@@ -76,7 +76,7 @@ describe('the floor', () => {
 })
 
 describe('a trace', () => {
-  const props = (kept: Kept, t: FolioTrace | null) => ({ uid: 'u', trace: t, kept, switches: { between: true, distance: true, liftToday: true, ask: true, stepInside: true, stepInsideSound: true, returnOn: true }, onNavigate: vi.fn(), onAnnounce: vi.fn(), onLiftToday: vi.fn() })
+  const props = (kept: Kept, t: FolioTrace | null) => ({ uid: 'u', trace: t, kept, switches: { between: true, distance: true, liftToday: true, ask: true, stepInside: true, stepInsideSound: true, returnOn: true, involvement: true }, onNavigate: vi.fn(), onAnnounce: vi.fn(), onLiftToday: vi.fn() })
 
   it('shows the composition read-only and sweeps its units once', () => {
     const t = trace('t1')
@@ -152,7 +152,7 @@ describe('the come-back slip', () => {
 })
 
 describe('opening a trace that was just created', () => {
-  const props = (kept: Kept, t: FolioTrace | null, onNavigate = vi.fn()) => ({ uid: 'u', trace: t, kept, switches: { between: true, distance: true, liftToday: true, ask: true, stepInside: true, stepInsideSound: true, returnOn: true }, onNavigate, onAnnounce: vi.fn(), onLiftToday: vi.fn() })
+  const props = (kept: Kept, t: FolioTrace | null, onNavigate = vi.fn()) => ({ uid: 'u', trace: t, kept, switches: { between: true, distance: true, liftToday: true, ask: true, stepInside: true, stepInsideSound: true, returnOn: true, involvement: true }, onNavigate, onAnnounce: vi.fn(), onLiftToday: vi.fn() })
 
   it('waits for the listener instead of bouncing to the floor', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
@@ -192,7 +192,7 @@ describe('Return (H3)', () => {
   it('a trace\'s own switch shows only while the setting is on, and writes returnEligible', () => {
     const t = trace('t1')
     const kept = keptWith([t])
-    const props = { uid: 'u', trace: t, kept, switches: { between: true, distance: true, liftToday: true, ask: true, stepInside: true, stepInsideSound: true, returnOn: true }, onNavigate: vi.fn(), onAnnounce: vi.fn(), onLiftToday: vi.fn() }
+    const props = { uid: 'u', trace: t, kept, switches: { between: true, distance: true, liftToday: true, ask: true, stepInside: true, stepInsideSound: true, returnOn: true, involvement: true }, onNavigate: vi.fn(), onAnnounce: vi.fn(), onLiftToday: vi.fn() }
     const { unmount } = render(<TraceView {...props} />)
     expect(screen.queryByRole('checkbox')).toBeNull()
     unmount()

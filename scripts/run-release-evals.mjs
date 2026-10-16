@@ -17,6 +17,7 @@ const suites = [
   ['depth', 'test:depth'],
   ['folio-safety', 'test:folio-safety'],
   ['folio-ask', 'test:folio'],
+  ['folio-companion', 'test:folio-companion'],
 ]
 
 const promptFiles = [
@@ -26,6 +27,7 @@ const promptFiles = [
   'src/ai/partPrompts.ts',
   'src/engine/crisisClassifier.eval.ts',
   'src/folio/ask/askPrompt.ts',
+  'src/folio/companion/calls.ts',
   'functions/src/shared/companionKernel.ts',
 ]
 

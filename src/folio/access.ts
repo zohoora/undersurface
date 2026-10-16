@@ -21,6 +21,8 @@ export interface FolioSwitches {
   stepInside: boolean
   stepInsideSound: boolean
   returnOn: boolean
+  /** The companion-involvement slider; off: every writer is at level 1. */
+  involvement: boolean
 }
 
 /** Every sub-switch is on unless explicitly false (build plan §3.1). */
@@ -34,6 +36,7 @@ export function folioSwitches(features: Features): FolioSwitches {
     stepInside: on(features?.folioStepInside),
     stepInsideSound: on(features?.folioStepInsideSound),
     returnOn: on(features?.folioReturn),
+    involvement: on(features?.folioInvolvement),
   }
 }
 

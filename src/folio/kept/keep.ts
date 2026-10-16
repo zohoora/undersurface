@@ -5,6 +5,7 @@ import type { Gap } from '../page/schema'
 import { checkKey, checkKeys } from '../safety/checkedSet'
 import type { SafetyUnit } from '../safety/samples'
 import type { FolioTrace, FolioTraceEntry } from '../../types/folio'
+import { COMPANION_TEXT, safetyTextJSON } from '../companion/companionText'
 
 // Keep (draft 4 §3.7, C3): a dated snapshot of the lifted line, the distance,
 // the between and the beneath. The composition is stored as ProseMirror JSON
@@ -54,6 +55,24 @@ export function inlineText(content: JSONContent[] | undefined): string {
 /** A passage's text: paragraphs separated by a blank line. */
 export function passageText(paragraphs: JSONContent[] | null): string {
   return (paragraphs ?? []).map((p) => inlineText(p.content)).join('\n\n')
+}
+
+/** True when some of this inline content is the companion's own, unchanged words. */
+function hasCompanion(content: JSONContent[] | undefined): boolean {
+  return (content ?? []).some((c) => (c.marks ?? []).some((m) => m.type === COMPANION_TEXT))
+}
+
+/**
+ * As passageText, read the way the safety checks read a page (samples.ts): a
+ * paragraph only the companion wrote is left out; a paragraph the writer wrote
+ * in is read whole. Identical to passageText when the companion wrote nothing,
+ * so existing traces keep their check keys.
+ */
+export function writerPassageText(paragraphs: JSONContent[] | null): string {
+  return (paragraphs ?? [])
+    .filter((p) => !(hasCompanion(p.content) && safetyTextJSON(p.content) === ''))
+    .map((p) => safetyTextJSON(p.content))
+    .join('\n\n')
 }
 
 /** Snapshot an underside and its line. Null when the fold isn't on the page. */
@@ -115,10 +134,12 @@ export function tracePid(traceId: string, part: string): string {
 export function traceUnits(trace: Pick<FolioTrace, 'id' | 'surface' | 'composition'>, entries: Pick<FolioTraceEntry, 'id' | 'text'>[] = []): SafetyUnit[] {
   const c = parseComposition(trace.composition)
   const units: SafetyUnit[] = []
-  const between = passageText(c?.between ?? null)
-  const beneath = passageText(c?.beneath ?? [])
-  if (between.trim() !== '') units.push({ pid: tracePid(trace.id, 'between'), kind: 'between', text: between, line: trace.surface })
-  if (beneath.trim() !== '') units.push({ pid: tracePid(trace.id, 'beneath'), kind: 'beneath', text: beneath, line: trace.surface })
+  // The line as the checks read it (unchanged from `surface` when the companion wrote none of it).
+  const line = c && hasCompanion(c.line) ? safetyTextJSON(c.line) : trace.surface
+  const between = writerPassageText(c?.between ?? null)
+  const beneath = writerPassageText(c?.beneath ?? [])
+  if (between.trim() !== '') units.push({ pid: tracePid(trace.id, 'between'), kind: 'between', text: between, line })
+  if (beneath.trim() !== '') units.push({ pid: tracePid(trace.id, 'beneath'), kind: 'beneath', text: beneath, line })
   for (const e of entries) if (e.text.trim() !== '') units.push({ pid: tracePid(trace.id, `e:${e.id}`), kind: 'page', text: e.text })
   return units
 }
@@ -158,6 +179,7 @@ export function buildTrace(args: {
   groundedNearKeep: boolean
   previousTraceId?: string | null
   correctedFromId?: string | null
+  keptBy?: 'companion'
 }): FolioTrace {
   const trace: FolioTrace = {
     id: args.id,
@@ -174,6 +196,7 @@ export function buildTrace(args: {
   // Firestore rejects undefined, so optional links are left out when absent.
   if (args.previousTraceId) trace.previousTraceId = args.previousTraceId
   if (args.correctedFromId) trace.correctedFromId = args.correctedFromId
+  if (args.keptBy) trace.keptBy = args.keptBy
   return trace
 }
 

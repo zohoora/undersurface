@@ -7,7 +7,7 @@ import type { FolioTrace, FolioTraceEntry } from '../../types/folio'
 // text; these helpers only ever create, delete, or update the fields the
 // rules allow (title, the come-back fields and the checked set).
 
-export type TracePatch = Partial<Pick<FolioTrace, 'title' | 'comeBackAt' | 'comeBackTz' | 'comeBackSetAt' | 'lastComeBackShownAt' | 'returnEligible' | 'lastReturnShownAt'>>
+export type TracePatch = Partial<Pick<FolioTrace, 'title' | 'titleBy' | 'comeBackAt' | 'comeBackTz' | 'comeBackSetAt' | 'lastComeBackShownAt' | 'returnEligible' | 'lastReturnShownAt'>>
 
 export function tracesCollection(uid: string) {
   return collection(firestore, 'users', uid, 'folioTraces')

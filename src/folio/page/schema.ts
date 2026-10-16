@@ -70,6 +70,10 @@ export const Underside = Node.create({
       createdAt: dataAttr('created-at', 0, parseIntOr(0)),
       fromTraceId: dataAttr('from-trace-id', null),
       fromKeptAt: dataAttr('from-kept-at', null, (v) => (v === null ? null : parseIntOr(0)(v))),
+      /** Involvement: 'companion' when the companion lifted this line. */
+      liftedBy: dataAttr('lifted-by', null),
+      /** Level 5's arrival: the page this line was lifted from (its date is fromKeptAt). */
+      fromPageId: dataAttr('from-page-id', null),
     }
   },
   parseHTML() {

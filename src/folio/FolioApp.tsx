@@ -30,6 +30,8 @@ import { deleteTrace } from './kept/traceStore'
 import { DeletePageDialog } from './DeletePageDialog'
 import { Capacitor } from '@capacitor/core'
 import type { FolioTrace } from '../types/folio'
+import { LEVELS, effectiveLevel } from './companion/levels'
+import type { InvolvementLevel } from './companion/levels'
 
 // Folio's shell (draft 4 §3.2–§3.4, §3.9): routes, the top bar, the first
 // visit line, shore and the live region. Mounted by App.tsx instead of the
@@ -60,7 +62,10 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
   const [policyOpen, setPolicyOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const route = parseFolioRoute(routePath)
-  const kept = useKept(user.uid, shore)
+  // Companion involvement (docs/vision/2026-10-16-folio-involvement.md). Until
+  // the preferences arrive, level 1: nothing unasked before the writer's choice is known.
+  const level: InvolvementLevel = prefs === undefined ? 1 : effectiveLevel(prefs?.involvement, { switchOn: switches.involvement, firstVisitSeenAt: prefs?.firstVisitSeenAt })
+  const kept = useKept(user.uid, shore, { dances: level === 5 })
 
   // Unknown /folio paths go to /folio (§3.3).
   useEffect(() => { if (!route) navigateTo('/folio', { replace: true }) }, [route, navigateTo])
@@ -131,11 +136,13 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
   useEffect(() => { recentRef.current = kept.recent }, [kept.recent])
   const askOn = switches.ask
   const ask = useMemo(() => (askOn ? { isRecent: () => recentRef.current, onTalkNow: () => goToSessions() } : undefined), [askOn, goToSessions])
+  const isRecentNow = useCallback(() => recentRef.current, [])
   const traceId = route?.kind === 'trace' ? route.traceId : null
   // H3, automatic Return: at most one per visit, after any asked come-back,
   // never under Recent, Shore or Quiet; both opt-ins on (build plan §4).
   const [visitReturn, setVisitReturn] = useState<{ id: string; dismissed: boolean } | null>(null)
-  const returnSettingOn = switches.returnOn && prefs?.returnEnabled === true
+  // Level 5 lets kept things come back without the setting (each trace's own "Don't" still holds).
+  const returnSettingOn = switches.returnOn && (prefs?.returnEnabled === true || level === 5)
   const candidate = kept.returnCandidate
   if (visitReturn === null && candidate && returnAllowed({
     settingOn: returnSettingOn, switchOn: switches.returnOn, recent: kept.recent, presentation, askedDue: kept.slip !== null, shownThisVisit: false,
@@ -160,7 +167,11 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
     ? kept.traces.find((t) => t.id === visitReturn.id) ?? null
     : null
 
-  const pageKept = useMemo(() => ({ keep: kept.keep, undo: kept.undoKeep, setComeBack: kept.setComeBack, tz: kept.tz }), [kept.keep, kept.undoKeep, kept.setComeBack, kept.tz])
+  const keptUpdate = kept.update
+  const pageKept = useMemo(() => ({
+    keep: kept.keep, undo: kept.undoKeep, setComeBack: kept.setComeBack, tz: kept.tz, traces: kept.traces,
+    name: (traceId: string, title: string, by: 'companion' | null) => { void keptUpdate(traceId, { title, titleBy: by }).catch(() => {}) },
+  }), [kept.keep, kept.undoKeep, kept.setComeBack, kept.tz, kept.traces, keptUpdate])
   // The slip shows only on Normal paper (never in Shore or Quiet; Recent holds it in useKept).
   const slip = presentation === 'normal' && kept.slip && kept.slip.id !== traceId ? kept.slip : null
 
@@ -254,9 +265,16 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
             {/* Above the page, so it's seen without scrolling on any screen. */}
             {prefs !== undefined && !prefs?.firstVisitSeenAt && (
               <div className="folio-line" role="note">
-                {tr['folio.firstVisit']}{' '}
+                {level === 1 ? tr['folio.firstVisit'] : level === 5 ? tr['folio.firstVisit.dances'] : tr['folio.firstVisit.reads']}{' '}
                 <button type="button" className="folio-button folio-button--inline folio-button--link" onClick={() => setPolicyOpen(true)}>{tr['folio.privacyPolicy']}</button>{' · '}
                 <button type="button" className="folio-button folio-button--inline" onClick={() => void updatePreferences(user.uid, { firstVisitSeenAt: Date.now() })}>{tr['folio.firstVisit.dismiss']}</button>
+              </div>
+            )}
+            {switches.involvement && prefs?.firstVisitSeenAt && prefs.involvement === undefined && !prefs.involvementIntroSeenAt && (
+              <div className="folio-line" role="note">
+                {tr['folio.involvement.intro']}{' '}
+                <button type="button" className="folio-button folio-button--inline folio-button--link" onClick={() => setSettingsOpen(true)}>{tr['folio.involvement.choose']}</button>{' · '}
+                <button type="button" className="folio-button folio-button--inline" aria-label={tr['folio.cancel']} onClick={() => void updatePreferences(user.uid, { involvementIntroSeenAt: Date.now() })}>×</button>
               </div>
             )}
             <FolioPageView
@@ -271,6 +289,8 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
               presentation={presentation}
               stepInside={stepInside}
               ask={ask}
+              involvement={level}
+              isRecent={isRecentNow}
               onNavigate={navigateTo}
               onAnnounce={announce}
             />
@@ -280,7 +300,7 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
       </main>
 
       {settingsOpen && (
-        <div className="folio-notice" role="dialog" aria-label={tr['folio.settings']} style={{ bottom: 'auto', top: 80 }}>
+        <div className="folio-notice folio-settings" role="dialog" aria-label={tr['folio.settings']} style={{ bottom: 'auto', top: 80 }}>
           <label style={{ display: 'flex', gap: 8, alignItems: 'center', minHeight: 44 }}>
             <input type="checkbox" checked={reduceMotion} onChange={(e) => void updatePreferences(user.uid, { reduceMotion: e.target.checked })} />
             {tr['folio.settings.reduceMotion']}
@@ -290,6 +310,29 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
               <input type="checkbox" checked={prefs?.returnEnabled === true} onChange={(e) => void updatePreferences(user.uid, { returnEnabled: e.target.checked })} />
               {tr['folio.return.setting']}
             </label>
+          )}
+          {switches.involvement && (
+            <div className="folio-involvement">
+              <label htmlFor="folio-involvement" className="folio-involvement__label">{tr['folio.involvement']}</label>
+              <input
+                id="folio-involvement"
+                type="range"
+                min={1}
+                max={5}
+                step={1}
+                value={level}
+                aria-valuetext={tr['folio.involvement.level'].replace('{n}', String(level)).replace('{name}', tr[`folio.involvement.${level}`])}
+                onChange={(e) => {
+                  const next = Number(e.target.value) as InvolvementLevel
+                  void updatePreferences(user.uid, { involvement: next, ...(prefs?.involvementIntroSeenAt ? {} : { involvementIntroSeenAt: Date.now() }) })
+                }}
+              />
+              <div className="folio-involvement__scale" aria-hidden="true">
+                {LEVELS.map((l) => <span key={l} data-on={l === level ? 'true' : undefined}>{tr[`folio.involvement.${l}`]}</span>)}
+              </div>
+              <p className="folio-involvement__line">{tr[`folio.involvement.${level}.line`]}</p>
+              {level >= 2 && <p className="folio-involvement__line">{tr['folio.involvement.afterHard']}</p>}
+            </div>
           )}
           <button type="button" className="folio-button" onClick={() => setSettingsOpen(false)}>{tr['folio.settings.close']}</button>
         </div>

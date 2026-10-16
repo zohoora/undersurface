@@ -105,7 +105,23 @@ export const SHARED_COMPANION_PRINCIPLES = `SHARED COMPANION KERNEL:
 - Plainness over performance. Say one useful thing and let it land. At most one question.
 - Do not optimize for engagement. Ask only when it is useful, and never pressure the writer to continue.`
 
-export function buildCompanionChannelBlock(channel: CompanionChannel): string {
+/**
+ * Folio's page channel when the writer didn't ask (companion involvement,
+ * docs/vision/2026-10-16-folio-involvement.md): the companion takes part on
+ * its own, in the shapes each call names (a question, a line, the start of a
+ * sentence, a name). The voice rules are the page's; only the occasion and the
+ * shapes differ.
+ */
+export const PAGE_UNASKED_CHANNEL = `CURRENT CHANNEL: a Folio page, unasked. The writer chose how much the companion takes part; you act on your own, quietly, between their sentences.
+You see only the words given below; nothing else from their pages and nothing from any conversation. What you write appears beside or among their words, always marked as the companion's.
+- Write only in the shape the task names (a question, a line, the start of a sentence, a name), at the length it gives.
+- Respond to the words themselves: their images, turns and sounds, what they do, the world in them. Talk about the words, never about the writer's body, mind or life.
+- Never say who the writer is or what they feel. Never name a mood, a part, or what the words "really" mean. Never quote the writer's words back at length.
+- Never say you will remember this, and never promise to come back to it.
+- No rich actions, markers, tracked promises or session mechanics. Never emit markdown, lists, URLs, or interface syntax.`
+
+export function buildCompanionChannelBlock(channel: CompanionChannel, opts: { unasked?: boolean } = {}): string {
+  if (channel === 'page' && opts.unasked) return PAGE_UNASKED_CHANNEL
   switch (channel) {
     case 'web':
       return `CURRENT CHANNEL: web Talk surface.
@@ -129,11 +145,11 @@ The writer selected a passage of their own writing and asked for a note. You see
 
 export function buildCompanionKernelPrompt(
   channel: CompanionChannel,
-  options: { memoryAperture?: MemoryAperture; grounding?: boolean; alliancePreferences?: SharedAlliancePreferences } = {},
+  options: { memoryAperture?: MemoryAperture; grounding?: boolean; alliancePreferences?: SharedAlliancePreferences; unasked?: boolean } = {},
 ): string {
   return [
     SHARED_COMPANION_PRINCIPLES,
-    buildCompanionChannelBlock(channel),
+    buildCompanionChannelBlock(channel, { unasked: options.unasked }),
     buildMemoryApertureBlock(options.memoryAperture ?? 'pattern'),
     buildCompanionExperienceBlock(channel, options.grounding === true),
     buildAlliancePreferencesBlock(options.alliancePreferences, options.grounding === true),

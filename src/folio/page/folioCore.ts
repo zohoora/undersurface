@@ -12,6 +12,9 @@ import type { ProtectOptions } from './protect'
 import { ENGLISH_STRINGS } from './strings'
 import { folioKeyHandlers } from './keys'
 import { placeholderPlugin } from './placeholder'
+import { CompanionText, takeOverPlugin } from '../companion/companionText'
+import { presencePlugin } from '../companion/presence'
+import type { PresenceOptions } from '../companion/presence'
 import { InkWeight } from '../../extensions/inkWeight'
 import { ParagraphSettle } from '../../extensions/paragraphSettle'
 import { FolioDocument, notesPlugin } from '../ask/notes'
@@ -32,6 +35,8 @@ export interface FolioCoreOptions {
   label?: string
   /** The blank page's hint, shown while the page is one empty paragraph (absent: none). */
   placeholder?: string
+  /** The companion's ghosts and marks (involvement §3). */
+  presence?: PresenceOptions
   /** The admin switches that shape Apart (build plan §3.1). */
   switches?: () => { between: boolean; distance: boolean }
   onStepInside?: (foldId: string) => void
@@ -75,6 +80,8 @@ export function folioExtensions(options: FolioCoreOptions = {}): AnyExtension[] 
         hiddenWritingPlugin(protect),
         notesPlugin(options.notes ?? (() => null)),
         placeholderPlugin(options.placeholder),
+        presencePlugin(options.presence),
+        takeOverPlugin(),
       ]
     },
   })
@@ -106,6 +113,7 @@ export function folioExtensions(options: FolioCoreOptions = {}): AnyExtension[] 
     FolioDocument,
     ParagraphId,
     Fold,
+    CompanionText,
     UndersideWithView,
     Between,
     Beneath,

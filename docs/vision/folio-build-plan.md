@@ -610,3 +610,16 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
 - **Native controls were drawn light on the dark paper.** Nothing in the app set `color-scheme`, so the settings checkboxes were bright white squares. `.folio-root` now says `light`, and both ways into dark (the system's and the app's theme) say `dark` (`theme.test.ts`).
 - **The first-visit line was below the fold.** Under a 60vh page it started at the bottom edge on a laptop, with Got it out of sight, and below the screen on a phone. It now sits above the page.
 - Everything else looked as designed in dark mode: paper, crease, underside, menus, Kept, a trace, Pages.
+
+**2026-10-16 · Companion involvement: built and shipped.** The owner asked for a "Companion Involvement" slider, from today's Folio (level 1) to a level 5 where the app reads, nudges and guides, makes the interface's decisions and writes some of the text: "an organic dance with the AI mind in the self-discovery process." Designed with Fable in two rounds: a proposal, then a red-team and a code review. The design is `docs/vision/2026-10-16-folio-involvement.md`.
+- **Levels:** 1 Quiet · 2 Points (a mark beside a line worth lifting) · 3 Asks (ghost questions, an opening ghost, an offered name and day) · 4 Arranges (lifts, keeps, names, come-backs, one unasked note) · 5 Dances (arrival from the last page, distances, the between and a starter in the companion's own marked words, Step inside, closing, Return on).
+- **Defaults:** writers who saw Folio before stay at 1, with a one-time line. New writers start at 3. The admin switch `folioInvolvement` puts everyone at 1.
+- **Owner calls over Fable's advice:** Fable argued against the companion writing text, choosing distances and closing folds, even at level 5. The owner's words decided. Fable's safeguards were kept: companion text is marked and records what it wrote; a paragraph the writer touched is checked whole; nothing is shown or written beside a paragraph classified above 0; companion acts stay out of the undo history; Step inside opens itself only on stillness, with no sound and with motion allowed; a fold closes only after a writer turn and out of view.
+- **Law 2 holds:** nothing from Sessions at any level. A recorded owner decision changes at level 5: Return no longer needs the settings opt-in there (decision 15). Choosing level 5 is that opt-in; a trace's own "Don't" still holds.
+- **Found while testing:** open folds never survived a reload, a bug that predates this work, also seen on the live site. The view state was written during the first paint. Fixed (`viewStateReady`). Also caught before shipping: the companion hook read the editor view before mount, which crashed every reload of a page.
+- **Gates:**
+  - `test:folio-companion` 21/21, added to the release gate (now nine suites)
+  - unit and component tests: conductor 16, page 21, calls 9
+  - rules emulator 84 (`keptBy`/`titleBy`)
+  - `folio-involvement-check.cjs` 21/21 against a local build with the production API, axe-clean at every level and on the slider in light and dark.
+

@@ -368,7 +368,9 @@ export function visibleSlice(slice: Slice, open: ReadonlySet<string> | null, kee
     return Fragment.from(out)
   }
   const cleanNode = (node: PMNode): PMNode => {
-    if (node.isText) return node.mark(node.marks.filter((m) => m.type !== foldType))
+    // Fold marks and the companion's mark never travel through the clipboard:
+    // pasted words are the writer's.
+    if (node.isText) return node.mark(node.marks.filter((m) => m.type !== foldType && m.type.name !== 'companionText'))
     const attrs = node.type.name === 'paragraph' && !keepPids ? { ...node.attrs, pid: null } : node.attrs
     return node.type.create(attrs, mapFragment(node.content), node.marks)
   }

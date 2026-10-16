@@ -47,6 +47,7 @@ export function KeptView({ uid, kept, onOpen }: { uid: string; kept: Kept; onOpe
         <span className="folio-floor__meta">
           {tr['folio.keptOn'].replace('{date}', date(t.keptAt))}
           {typeof t.comeBackAt === 'number' && <> · {tr['folio.comeBack.on'].replace('{date}', date(t.comeBackAt))}</>}
+          {t.keptBy === 'companion' && <> · {tr['folio.companion.keptBy']}</>}
         </span>
       </button>
     </li>

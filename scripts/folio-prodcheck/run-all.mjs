@@ -19,6 +19,9 @@
 //                                 folio claim removed (admin-rest setTestClaims)
 //   sessions-zoom-card-check.cjs  the web viewport and the Sessions crisis
 //                                 card's contrast (one L1 Talk message)
+//   folio-involvement-check.cjs   companion involvement, levels 3–5 and the
+//                                 slider (clears the checks' own lastGroundingAt;
+//                                 leaves the test account at level 1)
 import { spawnSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'

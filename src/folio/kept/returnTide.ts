@@ -15,8 +15,13 @@ export type ReturnTrace = Pick<FolioTrace, 'id' | 'keptAt' | 'comeBackAt' | 'gro
   lastReturnShownAt?: number | null
 }
 
-export function isReturnEligible(t: ReturnTrace, now: number): boolean {
-  if (t.returnEligible !== true) return false
+/**
+ * `dances` (companion involvement level 5): a trace may come back unless the
+ * writer said "Don't bring this back on its own" for it; otherwise each trace
+ * needs its own opt-in.
+ */
+export function isReturnEligible(t: ReturnTrace, now: number, opts: { dances?: boolean } = {}): boolean {
+  if (opts.dances ? t.returnEligible === false : t.returnEligible !== true) return false
   if (t.groundedNearKeep) return false
   if (now - t.keptAt < RETURN_MIN_AGE_MS) return false
   if (typeof t.lastReturnShownAt === 'number' && now - t.lastReturnShownAt < RETURN_REST_MS) return false
@@ -32,8 +37,8 @@ export function isAnniversary(t: Pick<FolioTrace, 'keptAt'>, now: number, tz: st
 }
 
 /** The trace Return would bring now, or none. The caller checks the other conditions. */
-export function nextReturn<T extends ReturnTrace>(traces: T[], now: number, tz: string): T | null {
-  const eligible = traces.filter((t) => isReturnEligible(t, now))
+export function nextReturn<T extends ReturnTrace>(traces: T[], now: number, tz: string, opts: { dances?: boolean } = {}): T | null {
+  const eligible = traces.filter((t) => isReturnEligible(t, now, opts))
   if (eligible.length === 0) return null
   const anniversaries = eligible.filter((t) => isAnniversary(t, now, tz)).sort((a, b) => a.keptAt - b.keptAt)
   if (anniversaries.length > 0) return anniversaries[0]

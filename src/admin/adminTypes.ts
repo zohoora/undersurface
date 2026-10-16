@@ -75,6 +75,8 @@ export interface GlobalConfig {
     folioStepInside?: boolean
     folioStepInsideSound?: boolean
     folioReturn?: boolean
+    /** The companion-involvement slider (levels 2–5); off: every writer is at level 1. */
+    folioInvolvement?: boolean
   }
   announcement: {
     message: string

@@ -8,7 +8,7 @@ import type { FolioTrace, FolioTraceEntry } from '../../types/folio'
 import { isRecent, useLastGrounding } from '../safety/recent'
 import type { ShorePresentation } from '../safety/shorePresentation'
 import { newId } from '../page/schema'
-import { buildTrace, parseComposition, passageText, tracePid, traceUnits } from './keep'
+import { buildTrace, parseComposition, tracePid, traceUnits, writerPassageText } from './keep'
 import { checkKey } from '../safety/checkedSet'
 import type { FoldSnapshot } from './keep'
 import { CLEARED, comeBackFields, dueTraces, nextSlip, usableTimezone } from './comeBack'
@@ -30,6 +30,8 @@ export interface KeepRequest {
   snapshot: FoldSnapshot
   /** Keys recorded as checked in the same write (§5.4). */
   checked: string[]
+  /** Involvement level 4+: the companion kept it. */
+  keptBy?: 'companion'
 }
 
 export interface Kept {
@@ -56,7 +58,7 @@ export interface Kept {
   safety: TraceSafety
 }
 
-export function useKept(uid: string, shore: ShorePresentation): Kept {
+export function useKept(uid: string, shore: ShorePresentation, opts: { dances?: boolean } = {}): Kept {
   const [traces, setTraces] = useState<FolioTrace[]>([])
   const [loaded, setLoaded] = useState(false)
   useEffect(() => subscribeTraces(uid, (t) => { setTraces(t); setLoaded(true) }, () => setLoaded(true)), [uid])
@@ -77,7 +79,8 @@ export function useKept(uid: string, shore: ShorePresentation): Kept {
   const recent = isRecent(lastGrounding, Math.max(now, lastGrounding ?? 0))
   const slip = useMemo(() => (recent ? null : nextSlip(traces, now, tz)), [recent, traces, now, tz])
   const waiting = useMemo(() => (recent ? dueTraces(traces, now) : []), [recent, traces, now])
-  const returnCandidate = useMemo(() => (recent ? null : nextReturn(traces, now, tz)), [recent, traces, now, tz])
+  const dances = opts.dances === true
+  const returnCandidate = useMemo(() => (recent ? null : nextReturn(traces, now, tz, { dances })), [recent, traces, now, tz, dances])
 
   const safety = useMemo(() => new TraceSafety({
     l1: detectCrisisKeywords,
@@ -100,6 +103,7 @@ export function useKept(uid: string, shore: ShorePresentation): Kept {
       checked: req.checked,
       groundedNearKeep: isRecent(lastGrounding, keptAt),
       previousTraceId: previous?.id ?? null,
+      keptBy: req.keptBy,
     })
     // The cache shows it at once; the promise settles when the server answers.
     void createTrace(uid, trace).catch(() => {})
@@ -114,7 +118,7 @@ export function useKept(uid: string, shore: ShorePresentation): Kept {
     // Passages whose text and line didn't change keep their checked state;
     // changed ones are checked as new text.
     const before = parseComposition(original.composition)
-    const was = { between: passageText(before?.between ?? null), beneath: passageText(before?.beneath ?? []) }
+    const was = { between: writerPassageText(before?.between ?? null), beneath: writerPassageText(before?.beneath ?? []) }
     const draft = buildTrace({ id, snapshot, source: original.source, keptAt, checked: [], groundedNearKeep: isRecent(lastGrounding, keptAt), correctedFromId: original.id })
     const units = traceUnits(draft)
     const checked: string[] = []
