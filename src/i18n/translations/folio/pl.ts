@@ -153,4 +153,10 @@ export const folio_pl: FolioStringsTable = {
   'folio.ask.kept': 'Notatkę zachowano.',
   'folio.ask.full': 'Na tej stronie mieści się 50 notatek. Usuń jedną, żeby zachować kolejną.',
   'folio.notes.title': 'Notatki towarzysza',
+
+  // Return
+  'folio.return.setting': 'Niech zachowane rzeczy wracają same',
+  'folio.return.trace': 'Może wrócić samo',
+  'folio.return.slip': 'Z tego, co zachowano · {date}',
+  'folio.return.off': 'Niech to nie wraca samo',
 }

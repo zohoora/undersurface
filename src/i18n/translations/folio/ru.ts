@@ -153,4 +153,10 @@ export const folio_ru: FolioStringsTable = {
   'folio.ask.kept': 'Заметка сохранена.',
   'folio.ask.full': 'На этой странице помещается 50 заметок. Удалите одну, чтобы сохранить ещё одну.',
   'folio.notes.title': 'Заметки собеседника',
+
+  // Return
+  'folio.return.setting': 'Пусть сохранённое возвращается само',
+  'folio.return.trace': 'Может вернуться само',
+  'folio.return.slip': 'Из того, что вы сохранили · {date}',
+  'folio.return.off': 'Пусть это не возвращается само',
 }

@@ -27,7 +27,7 @@ vi.mock('../store', () => ({ pageExists: vi.fn(async () => true) }))
 
 const { KeptView } = await import('./KeptView')
 const { TraceView } = await import('./TraceView')
-const { ComeBackSlip } = await import('./ComeBackSlip')
+const { ComeBackSlip, ReturnSlip } = await import('./ComeBackSlip')
 
 const COMPOSITION = JSON.stringify({ v: 1, line: [{ type: 'text', text: 'It was nice to see everyone.' }], gap: 1, between: null, beneath: [{ type: 'paragraph', content: [{ type: 'text', text: 'I felt absent.' }] }] })
 const trace = (id: string, extra: Partial<FolioTrace> = {}): FolioTrace => ({
@@ -174,6 +174,31 @@ describe('opening a trace that was just created', () => {
     render(<TraceView {...props(keptWith([]), null, onNavigate)} />)
     await act(async () => { vi.advanceTimersByTime(4_001) })
     expect(onNavigate).toHaveBeenCalledWith('/folio/kept', { replace: true })
+  })
+})
+
+describe('Return (H3)', () => {
+  it('the slip names when it was kept, never that the app thought of the writer, and offers its three actions', () => {
+    const t = trace('r1', { returnEligible: true })
+    const h = { onOpen: vi.fn(), onNotNow: vi.fn(), onOff: vi.fn() }
+    render(<ReturnSlip trace={t} tz="UTC" {...h} />)
+    expect(screen.getByText(/folio\.return\.slip/).textContent).toContain('Oct 14')
+    fireEvent.click(screen.getByRole('button', { name: 'folio.open{date}' }))
+    fireEvent.click(screen.getByRole('button', { name: 'folio.notNow{date}' }))
+    fireEvent.click(screen.getByRole('button', { name: 'folio.return.off{date}' }))
+    expect([h.onOpen, h.onNotNow, h.onOff].every((f) => f.mock.calls.length === 1)).toBe(true)
+  })
+
+  it('a trace\'s own switch shows only while the setting is on, and writes returnEligible', () => {
+    const t = trace('t1')
+    const kept = keptWith([t])
+    const props = { uid: 'u', trace: t, kept, switches: { between: true, distance: true, liftToday: true, ask: true, stepInside: true, stepInsideSound: true, returnOn: true }, onNavigate: vi.fn(), onAnnounce: vi.fn(), onLiftToday: vi.fn() }
+    const { unmount } = render(<TraceView {...props} />)
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    unmount()
+    render(<TraceView {...props} returnSetting />)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'folio.return.trace{date}' }))
+    expect(kept.update).toHaveBeenCalledWith('t1', { returnEligible: true })
   })
 })
 

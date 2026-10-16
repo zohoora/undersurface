@@ -153,4 +153,10 @@ export const folio_de: FolioStringsTable = {
   'folio.ask.kept': 'Notiz behalten.',
   'folio.ask.full': 'Diese Seite fasst 50 Notizen. Lösche eine, um eine weitere zu behalten.',
   'folio.notes.title': 'Notizen des Begleiters',
+
+  // Return
+  'folio.return.setting': 'Behaltene Dinge von selbst zurückkommen lassen',
+  'folio.return.trace': 'Darf von selbst zurückkommen',
+  'folio.return.slip': 'Aus dem, was du behalten hast · {date}',
+  'folio.return.off': 'Nicht von selbst zurückkommen lassen',
 }

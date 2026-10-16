@@ -153,4 +153,10 @@ export const folio_zh: FolioStringsTable = {
   'folio.ask.kept': '已保留笔记。',
   'folio.ask.full': '这个页面最多可容纳 50 条笔记。删除一条，才能保留另一条。',
   'folio.notes.title': '陪伴者的笔记',
+
+  // Return
+  'folio.return.setting': '让保留的内容自己回来',
+  'folio.return.trace': '可以自己回来',
+  'folio.return.slip': '来自你保留的内容 · {date}',
+  'folio.return.off': '不让它自己回来',
 }

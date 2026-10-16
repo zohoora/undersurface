@@ -153,4 +153,10 @@ export const folio_es: FolioStringsTable = {
   'folio.ask.kept': 'Nota conservada.',
   'folio.ask.full': 'Esta página admite 50 notas. Elimina una para conservar otra.',
   'folio.notes.title': 'Notas del acompañante',
+
+  // Return
+  'folio.return.setting': 'Dejar que lo conservado vuelva por sí solo',
+  'folio.return.trace': 'Puede volver por sí solo',
+  'folio.return.slip': 'De lo que conservaste · {date}',
+  'folio.return.off': 'No dejar que esto vuelva por sí solo',
 }

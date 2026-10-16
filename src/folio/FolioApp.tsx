@@ -21,7 +21,9 @@ import { allowZoomWhileOpen } from './zoom'
 import { useKept } from './kept/useKept'
 import { KeptView } from './kept/KeptView'
 import { TraceView } from './kept/TraceView'
-import { ComeBackSlip } from './kept/ComeBackSlip'
+import { ComeBackSlip, ReturnSlip } from './kept/ComeBackSlip'
+import { returnAllowed } from './kept/returnTide'
+import { VISIT_IDLE_MS } from './safety/shorePresentation'
 import { parseComposition } from './kept/keep'
 import { todaysPageId, writeLiftIntent } from './kept/liftToday'
 import { deleteTrace } from './kept/traceStore'
@@ -129,8 +131,36 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
   useEffect(() => { recentRef.current = kept.recent }, [kept.recent])
   const askOn = switches.ask
   const ask = useMemo(() => (askOn ? { isRecent: () => recentRef.current, onTalkNow: () => goToSessions() } : undefined), [askOn, goToSessions])
-  const pageKept = useMemo(() => ({ keep: kept.keep, undo: kept.undoKeep, setComeBack: kept.setComeBack, tz: kept.tz }), [kept.keep, kept.undoKeep, kept.setComeBack, kept.tz])
   const traceId = route?.kind === 'trace' ? route.traceId : null
+  // H3, automatic Return: at most one per visit, after any asked come-back,
+  // never under Recent, Shore or Quiet; both opt-ins on (build plan §4).
+  const [visitReturn, setVisitReturn] = useState<{ id: string; dismissed: boolean } | null>(null)
+  const returnSettingOn = switches.returnOn && prefs?.returnEnabled === true
+  const candidate = kept.returnCandidate
+  if (visitReturn === null && candidate && returnAllowed({
+    settingOn: returnSettingOn, switchOn: switches.returnOn, recent: kept.recent, presentation, askedDue: kept.slip !== null, shownThisVisit: false,
+  })) setVisitReturn({ id: candidate.id, dismissed: false })
+  const stamped = useRef(new Set<string>())
+  useEffect(() => {
+    if (!visitReturn || stamped.current.has(visitReturn.id)) return
+    stamped.current.add(visitReturn.id)
+    void kept.update(visitReturn.id, { lastReturnShownAt: Date.now() }).catch(() => {})
+  }, [visitReturn, kept])
+  useEffect(() => {
+    let hiddenAt: number | null = null
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return }
+      if (hiddenAt !== null && Date.now() - hiddenAt >= VISIT_IDLE_MS) setVisitReturn(null)
+      hiddenAt = null
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [])
+  const returnTrace = visitReturn && !visitReturn.dismissed && presentation === 'normal' && !kept.recent && !kept.slip && visitReturn.id !== traceId
+    ? kept.traces.find((t) => t.id === visitReturn.id) ?? null
+    : null
+
+  const pageKept = useMemo(() => ({ keep: kept.keep, undo: kept.undoKeep, setComeBack: kept.setComeBack, tz: kept.tz }), [kept.keep, kept.undoKeep, kept.setComeBack, kept.tz])
   // The slip shows only on Normal paper (never in Shore or Quiet; Recent holds it in useKept).
   const slip = presentation === 'normal' && kept.slip && kept.slip.id !== traceId ? kept.slip : null
 
@@ -174,6 +204,15 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
             onLiftToday={() => { kept.clearComeBack(slip.id); void liftToday(slip) }}
           />
         )}
+        {!slip && returnTrace && (
+          <ReturnSlip
+            trace={returnTrace}
+            tz={kept.tz}
+            onOpen={() => { setVisitReturn({ id: returnTrace.id, dismissed: true }); navigateTo(`/folio/kept/${returnTrace.id}`) }}
+            onNotNow={() => setVisitReturn({ id: returnTrace.id, dismissed: true })}
+            onOff={() => { setVisitReturn({ id: returnTrace.id, dismissed: true }); void kept.update(returnTrace.id, { returnEligible: false }).catch(() => {}) }}
+          />
+        )}
         {presentation === 'shore' && (
           <section className="folio-shore-line" aria-live="polite">
             <div>{tr['folio.shore.line']}</div>
@@ -206,6 +245,7 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
             onNavigate={navigateTo}
             onAnnounce={announce}
             onLiftToday={(t) => void liftToday(t)}
+            returnSetting={returnSettingOn}
           />
         )}
 
@@ -244,6 +284,12 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
             <input type="checkbox" checked={reduceMotion} onChange={(e) => void updatePreferences(user.uid, { reduceMotion: e.target.checked })} />
             {tr['folio.settings.reduceMotion']}
           </label>
+          {switches.returnOn && (
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', minHeight: 44 }}>
+              <input type="checkbox" checked={prefs?.returnEnabled === true} onChange={(e) => void updatePreferences(user.uid, { returnEnabled: e.target.checked })} />
+              {tr['folio.return.setting']}
+            </label>
+          )}
           <button type="button" className="folio-button" onClick={() => setSettingsOpen(false)}>{tr['folio.settings.close']}</button>
         </div>
       )}

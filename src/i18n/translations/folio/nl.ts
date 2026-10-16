@@ -153,4 +153,10 @@ export const folio_nl: FolioStringsTable = {
   'folio.ask.kept': 'Notitie bewaard.',
   'folio.ask.full': 'Op deze pagina passen 50 notities. Verwijder er één om een andere te bewaren.',
   'folio.notes.title': 'Notities van de metgezel',
+
+  // Return
+  'folio.return.setting': 'Bewaarde dingen vanzelf terug laten komen',
+  'folio.return.trace': 'Mag vanzelf terugkomen',
+  'folio.return.slip': 'Uit wat je hebt bewaard · {date}',
+  'folio.return.off': 'Niet vanzelf terug laten komen',
 }

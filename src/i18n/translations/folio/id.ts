@@ -153,4 +153,10 @@ export const folio_id: FolioStringsTable = {
   'folio.ask.kept': 'Catatan disimpan.',
   'folio.ask.full': 'Halaman ini bisa memuat 50 catatan. Hapus satu untuk menyimpan catatan lain.',
   'folio.notes.title': 'Catatan pendamping',
+
+  // Return
+  'folio.return.setting': 'Biarkan yang disimpan kembali dengan sendirinya',
+  'folio.return.trace': 'Boleh kembali dengan sendirinya',
+  'folio.return.slip': 'Dari yang kamu simpan · {date}',
+  'folio.return.off': 'Jangan biarkan kembali dengan sendirinya',
 }

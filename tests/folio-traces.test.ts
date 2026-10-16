@@ -91,6 +91,10 @@ describe('traces', () => {
     await assertSucceeds(updateDoc(ref, { comeBackAt: 1_792_500_000_000, comeBackTz: 'America/Toronto', comeBackSetAt: 1_792_000_000_000, lastComeBackShownAt: null }))
     await assertSucceeds(updateDoc(ref, { comeBackAt: null, comeBackTz: null, comeBackSetAt: null }))
     await assertSucceeds(updateDoc(ref, { 'safety.checked': ['0123456789abcdef'] }))
+    // H3: the trace's own Return switch and when Return last showed it.
+    await assertSucceeds(updateDoc(ref, { returnEligible: true }))
+    await assertSucceeds(updateDoc(ref, { lastReturnShownAt: 1_792_900_000_000 }))
+    await assertFails(updateDoc(ref, { returnEligible: 'yes' }))
   })
 
   it('another writer can do nothing', async () => {
