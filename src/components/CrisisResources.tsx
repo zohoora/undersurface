@@ -86,7 +86,7 @@ function CrisisResourcesCard({ onDismiss }: { onDismiss?: () => void }) {
               {t['crisis.988.action']}{' '}
               <a
                 href="tel:988"
-                style={{ color: 'var(--color-still)', textDecoration: 'underline', textUnderlineOffset: 3 }}
+                style={{ color: 'var(--crisis-link)', textDecoration: 'underline', textUnderlineOffset: 3 }}
               >
                 988
               </a>
@@ -98,7 +98,7 @@ function CrisisResourcesCard({ onDismiss }: { onDismiss?: () => void }) {
               {t['crisis.textLine.action']}{' '}
               <a
                 href="sms:741741&body=HOME"
-                style={{ color: 'var(--color-still)', textDecoration: 'underline', textUnderlineOffset: 3 }}
+                style={{ color: 'var(--crisis-link)', textDecoration: 'underline', textUnderlineOffset: 3 }}
               >
                 741741
               </a>
@@ -118,7 +118,7 @@ function CrisisResourcesCard({ onDismiss }: { onDismiss?: () => void }) {
             href="https://findahelpline.com"
             target="_blank"
             rel="noopener noreferrer"
-            style={{ color: 'var(--color-still)', textDecoration: 'underline', textUnderlineOffset: 3 }}
+            style={{ color: 'var(--crisis-link)', textDecoration: 'underline', textUnderlineOffset: 3 }}
           >
             {t['crisis.findHelpline']}
           </a>

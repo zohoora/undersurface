@@ -12,6 +12,8 @@
   --color-watcher: #5A7F94;
   --color-tender: #B58548;
   --color-still: #628E66;
+  /* The crisis card's links: Still's green, deep enough for 4.5:1 on the card (§8.G) */
+  --crisis-link: #577D5A;
   --color-spark: #A06A7A;
   --color-weaver: #7E6BA0;
 
@@ -54,6 +56,7 @@
   --color-watcher: #7FA3B8;
   --color-tender: #D4A76A;
   --color-still: #8FB893;
+  --crisis-link: #8FB893;
   --color-spark: #C08A9A;
   --color-weaver: #A08BC0;
 
