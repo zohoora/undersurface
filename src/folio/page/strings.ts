@@ -18,6 +18,8 @@ export interface FolioStrings {
   closer: (gap: Gap) => string
   closerBlocked: string
   alreadyLifted: string
+  /** The faint placeholder in an empty between. */
+  betweenHint: string
   /** "Writing beneath '‹line›', closed" — the discovery path's announcement. */
   foldFound: (line: string, open: boolean) => string
 }
@@ -41,5 +43,6 @@ export const ENGLISH_STRINGS: FolioStrings = {
   closer: (gap) => `Closer: ${DISTANCES[gap]}, ${gap + 1} of 5`,
   closerBlocked: "There's writing between them.",
   alreadyLifted: 'This line already has something beneath it.',
+  betweenHint: 'between',
   foldFound: (line, open) => `Writing beneath '${truncate(line)}', ${open ? 'open' : 'closed'}`,
 }

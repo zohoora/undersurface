@@ -167,7 +167,16 @@ export function foldViewPlugin(options: FoldViewOptions): Plugin<FoldViewState> 
         state.doc.forEach((node, offset) => {
           if (node.type.name === UNDERSIDE) {
             const id = node.attrs.foldId as string | null
-            if (id && open.has(id)) decos.push(Decoration.node(offset, offset + node.nodeSize, {}, { folioOpen: true }))
+            if (id && open.has(id)) {
+              decos.push(Decoration.node(offset, offset + node.nodeSize, {}, { folioOpen: true }))
+              // An empty between shows a faint "between" (§3.6).
+              const first = node.firstChild
+              if (first?.type.name === BETWEEN && first.textContent === '' && first.childCount === 1) {
+                const pPos = offset + 2
+                const para = first.firstChild
+                if (para) decos.push(Decoration.node(pPos, pPos + para.nodeSize, { class: 'folio-between-empty', 'data-between-hint': strings.betweenHint }))
+              }
+            }
             return
           }
           if (node.type.name !== 'paragraph') return

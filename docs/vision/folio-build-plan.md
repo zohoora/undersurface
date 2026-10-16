@@ -290,3 +290,32 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
 - **Found and fixed before merge:** the Talk handoff wasn't bound to an account. It's now bound to its uid and cleared on sign-out and deletion. A background security review had flagged `AuthContext`; this was the risk found on review.
 - **The Sessions check** now waits for a new session's opener before sending. Before that, a send during the opener's stream was never tested.
 - **Not verified live:** that a signed-in account without the claim is bounced from `/folio`. Covered by unit tests and the access logic; noted for a future check.
+
+**2026-10-16 · Step 6: built, gates green (PR pending).** The art pass and the automated accessibility acceptance. Copy in 17 locales and the policy update shipped in step 3.
+- **Art pass.**
+  - The Journal's ink weight and paragraph settle run in the Folio editor and follow their admin switches (`visualEffectsEnabled`, `inkWeight`, `paragraphFade`). Both turn off in shore and Quiet.
+  - Paragraph settle has a `descend` option, so it reaches paragraphs in a between or a beneath. Sessions keeps the default.
+  - Settled text dims to 0.86, not Sessions' 0.55. A page is reread, and settled text keeps 4.5:1 on both papers.
+  - An empty between shows a faint "between" (`folio.between`).
+- **Accessibility.**
+  - Folio now has a `<main>` landmark with a heading. The pages list became a `<section>`, so there's no nested main.
+  - The crisis card sits in an `<aside>`, rendered only while it shows.
+  - Inline buttons are 28 px with a mouse and 44 px on touch screens.
+  - Pinch zoom is allowed while Folio is open; the app's viewport meta is restored on leaving.
+- **The crisis card inside Folio.** It is Sessions' component, styled by Sessions' tokens. Inside `.folio-root` those tokens now point at Folio's, so its text keeps 4.5:1 in shore on both papers. With Folio's reduced motion, which shore always uses, it appears with a 120 ms fade instead of after 1.5 s. Sessions is unchanged.
+- **Automated acceptance** (`e2e/folio/a11y.spec.ts` with `e2e/harness/folio-page.*`, the app's real CSS) on five projects:
+  - axe (WCAG 2.2 AA plus best practice) on light and dark paper, normal and shore, with a fold open, a between and a closed fold
+  - a visible 2 px focus ring on the crease, the underside controls and the top bar
+  - 44 px targets and text of at least 12 px on touch
+  - the six scripted tasks of draft 4 §3.10, keyboard only: write, lift and write beneath, distance and between, close and find by `Mod+Alt+,` and reopen, unlift an empty fold, recover from a delete across a closed fold with one undo
+- **The production accessibility check** (`folio-a11y-check`) signs in as the test account. It runs axe on the pages list, a blank page, a fold open (light, settled, dark), shore (dark and light), Quiet, the menu, Reading view (light and dark) and the settings dialog, and the keyboard path through the discovery keys. Against a local build on production data: 12 scans, 0 violations. The keyboard path passes. Its own pages are deleted.
+- **Found by the check, against the live step-5 build** (all fixed above):
+  - the viewport meta blocks zoom
+  - content outside landmarks
+  - the crisis card's international line and Dismiss button at 3.5:1, in light shore
+- **Found, not changed (Sessions; reported to the owner):**
+  - The app's viewport meta (`maximum-scale=1.0, user-scalable=no`) blocks pinch zoom in Sessions (WCAG 1.4.4).
+  - In Sessions, the crisis card's `--text-ghost` lines (the international helpline and Dismiss) compute at about 2.8:1 on the light surface.
+- **Decisions:**
+  - Keyboard tests wait for ProseMirror to read the caret after an arrow key, and on iOS for its deferred Enter. Playwright sends keys about 1 ms apart; a person doesn't.
+  - Each control's focus ring is measured directly, because WebKit doesn't Tab to buttons by default.

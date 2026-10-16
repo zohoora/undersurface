@@ -17,6 +17,7 @@ import { writeHandoff } from './handoff'
 import { parseFolioRoute } from './routes'
 import type { FolioPreferences } from '../types/folio'
 import './folio.css'
+import { allowZoomWhileOpen } from './zoom'
 
 // Folio's shell (draft 4 §3.2–§3.4, §3.9): routes, the top bar, the first
 // visit line, shore and the live region. Mounted by App.tsx instead of the
@@ -69,6 +70,7 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
   useEffect(() => onGroundingActivated((at) => writeActivationMirror(user.uid, at)), [user.uid])
 
   useEffect(() => subscribePreferences(user.uid, setPrefs), [user.uid])
+  useEffect(() => allowZoomWhileOpen(), [])
   const reduceMotion = prefs?.reduceMotion === true
 
   const announce = useCallback((m: string) => {
@@ -78,6 +80,13 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
 
   const pageId = route?.kind === 'page' ? route.pageId : null
   const presentation = shoreState.presentation
+  // The Journal's ink weight and settle follow their admin switches, and go
+  // quiet with the rest of the page in shore and Quiet.
+  const features = config?.features
+  const vfx = features?.visualEffectsEnabled !== false && presentation === 'normal'
+  const inkOn = vfx && features?.inkWeight !== false
+  const settleOn = vfx && features?.paragraphFade !== false
+  const ornaments = useMemo(() => ({ ink: inkOn, settle: settleOn }), [inkOn, settleOn])
 
   const onDelete = useCallback(async () => {
     setMenuOpen(false)
@@ -112,50 +121,54 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
         )}
       </header>
 
-      {presentation === 'shore' && (
-        <section className="folio-shore-line" aria-live="polite">
-          <div>{tr['folio.shore.line']}</div>
-          <div className="folio-shore-line__actions">
-            <button type="button" className="folio-button" onClick={() => goToSessions()}>{tr['folio.shore.talk']}</button>
-            {shoreState.bring && <button type="button" className="folio-button" onClick={() => setBringPreview(true)}>{tr['folio.shore.bringThis']}</button>}
-            <button type="button" className="folio-button" onClick={() => shore.findHelp()}>{tr['folio.shore.help']}</button>
-            <button type="button" className="folio-button" onClick={() => shore.okay()}>{tr['folio.shore.okay']}</button>
-          </div>
-          {bringPreview && shoreState.bring && (
-            <div style={{ marginTop: 10 }}>
-              <div style={{ fontSize: 12, color: 'var(--folio-control)' }}>{tr['folio.shore.bringPreview']}</div>
-              <blockquote style={{ margin: '8px 0', whiteSpace: 'pre-wrap', fontFamily: "'Spectral', Georgia, serif" }}>{shoreState.bring.text}</blockquote>
-              <button type="button" className="folio-button" onClick={() => { const text = shoreState.bring?.text ?? ''; writeHandoff(user.uid, text); shore.clearBring(); goToSessions(text) }}>{tr['folio.shore.go']}</button>
-              <button type="button" className="folio-button" onClick={() => setBringPreview(false)}>{tr['folio.shore.notThis']}</button>
+      <main className="folio-main">
+        {route?.kind !== 'pages' && <h1 className="folio-visually-hidden">Folio</h1>}
+        {presentation === 'shore' && (
+          <section className="folio-shore-line" aria-live="polite">
+            <div>{tr['folio.shore.line']}</div>
+            <div className="folio-shore-line__actions">
+              <button type="button" className="folio-button" onClick={() => goToSessions()}>{tr['folio.shore.talk']}</button>
+              {shoreState.bring && <button type="button" className="folio-button" onClick={() => setBringPreview(true)}>{tr['folio.shore.bringThis']}</button>}
+              <button type="button" className="folio-button" onClick={() => shore.findHelp()}>{tr['folio.shore.help']}</button>
+              <button type="button" className="folio-button" onClick={() => shore.okay()}>{tr['folio.shore.okay']}</button>
             </div>
-          )}
-        </section>
-      )}
+            {bringPreview && shoreState.bring && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 12, color: 'var(--folio-control)' }}>{tr['folio.shore.bringPreview']}</div>
+                <blockquote style={{ margin: '8px 0', whiteSpace: 'pre-wrap', fontFamily: "'Spectral', Georgia, serif" }}>{shoreState.bring.text}</blockquote>
+                <button type="button" className="folio-button" onClick={() => { const text = shoreState.bring?.text ?? ''; writeHandoff(user.uid, text); shore.clearBring(); goToSessions(text) }}>{tr['folio.shore.go']}</button>
+                <button type="button" className="folio-button" onClick={() => setBringPreview(false)}>{tr['folio.shore.notThis']}</button>
+              </div>
+            )}
+          </section>
+        )}
 
-      {route?.kind === 'pages' && <PagesList uid={user.uid} onOpen={(id) => navigateTo(`/folio/p/${id}`)} />}
+        {route?.kind === 'pages' && <PagesList uid={user.uid} onOpen={(id) => navigateTo(`/folio/p/${id}`)} />}
 
-      {pageId && !reading && (
-        <>
-          <FolioPageView
-            key={pageId}
-            uid={user.uid}
-            pageId={pageId}
-            switches={switches}
-            shore={shore}
-            reduceMotion={reduceMotion}
-            onNavigate={navigateTo}
-            onAnnounce={announce}
-          />
-          {prefs !== undefined && !prefs?.firstVisitSeenAt && (
-            <div className="folio-line" role="note">
-              {tr['folio.firstVisit']}{' '}
-              <button type="button" className="folio-button" style={{ minHeight: 28, padding: '0 4px', textDecoration: 'underline' }} onClick={() => setPolicyOpen(true)}>{tr['folio.privacyPolicy']}</button>{' · '}
-              <button type="button" className="folio-button" style={{ minHeight: 28, padding: '0 4px' }} onClick={() => void updatePreferences(user.uid, { firstVisitSeenAt: Date.now() })}>{tr['folio.firstVisit.dismiss']}</button>
-            </div>
-          )}
-        </>
-      )}
-      {pageId && reading && <ReadingView key={pageId} uid={user.uid} pageId={pageId} />}
+        {pageId && !reading && (
+          <>
+            <FolioPageView
+              key={pageId}
+              uid={user.uid}
+              pageId={pageId}
+              switches={switches}
+              shore={shore}
+              reduceMotion={reduceMotion}
+              ornaments={ornaments}
+              onNavigate={navigateTo}
+              onAnnounce={announce}
+            />
+            {prefs !== undefined && !prefs?.firstVisitSeenAt && (
+              <div className="folio-line" role="note">
+                {tr['folio.firstVisit']}{' '}
+                <button type="button" className="folio-button folio-button--inline folio-button--link" onClick={() => setPolicyOpen(true)}>{tr['folio.privacyPolicy']}</button>{' · '}
+                <button type="button" className="folio-button folio-button--inline" onClick={() => void updatePreferences(user.uid, { firstVisitSeenAt: Date.now() })}>{tr['folio.firstVisit.dismiss']}</button>
+              </div>
+            )}
+          </>
+        )}
+        {pageId && reading && <ReadingView key={pageId} uid={user.uid} pageId={pageId} />}
+      </main>
 
       {settingsOpen && (
         <div className="folio-notice" role="dialog" aria-label={tr['folio.settings']} style={{ bottom: 'auto', top: 80 }}>
@@ -168,7 +181,11 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
       )}
 
       <PolicyModal isOpen={policyOpen} onClose={() => setPolicyOpen(false)} />
-      <CrisisResources visible={shoreState.card} showToken={shoreState.cardToken} onDismiss={() => shore.cardDismissed()} />
+      {shoreState.card && (
+        <aside className="folio-help" aria-label={tr['folio.findHelp']}>
+          <CrisisResources visible showToken={shoreState.cardToken} onDismiss={() => shore.cardDismissed()} />
+        </aside>
+      )}
       <div className="folio-visually-hidden" aria-live="polite" role="status">{announcement}</div>
     </div>
   )

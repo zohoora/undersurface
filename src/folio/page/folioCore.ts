@@ -1,6 +1,6 @@
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
-import type { AnyExtension } from '@tiptap/core'
+import type { AnyExtension, Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import type { EditorView } from '@tiptap/pm/view'
@@ -11,6 +11,8 @@ import { hiddenWritingPlugin, historyGuardPlugin, inputGuardPlugin } from './pro
 import type { ProtectOptions } from './protect'
 import { ENGLISH_STRINGS } from './strings'
 import { folioKeyHandlers } from './keys'
+import { InkWeight } from '../../extensions/inkWeight'
+import { ParagraphSettle } from '../../extensions/paragraphSettle'
 import type { FolioStrings } from './strings'
 
 // The Folio editor core: schema, the four C1 layers, integrity and the
@@ -96,6 +98,23 @@ export function folioExtensions(options: FolioCoreOptions = {}): AnyExtension[] 
     UndersideWithView,
     Between,
     Beneath,
+    InkWeight,
+    ParagraphSettle.configure({ descend: true }),
     Core,
   ]
+}
+
+/**
+ * Turn the Journal's ink weight and paragraph settle on or off. As in the
+ * Journal, the extensions read `disabled` from their storage; an empty
+ * transaction redraws the decorations.
+ */
+export function setOrnaments(editor: Editor, on: { ink: boolean; settle: boolean }): void {
+  const ink = editor.storage.inkWeight
+  const settle = editor.storage.paragraphSettle
+  if (!ink || !settle) return
+  if (ink.disabled === !on.ink && settle.disabled === !on.settle) return
+  ink.disabled = !on.ink
+  settle.disabled = !on.settle
+  editor.view.dispatch(editor.state.tr)
 }

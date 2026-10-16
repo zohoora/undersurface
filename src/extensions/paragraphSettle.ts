@@ -7,12 +7,19 @@ const paragraphSettleKey = new PluginKey('paragraphSettle')
 export const ParagraphSettle = Extension.create({
   name: 'paragraphSettle',
 
+  addOptions() {
+    // Folio sets this so paragraphs in a between or a beneath settle too;
+    // Sessions keeps the default (top-level paragraphs only).
+    return { descend: false }
+  },
+
   addStorage() {
     return { disabled: false }
   },
 
   addProseMirrorPlugins() {
     const storage = this.storage
+    const descend = this.options.descend
 
     return [
       new Plugin({
@@ -25,21 +32,23 @@ export const ParagraphSettle = Extension.create({
             const cursorPos = selection.from
             const decorations: Decoration[] = []
 
-            doc.forEach((node, offset) => {
-              if (node.type.name === 'paragraph') {
-                const from = offset
-                const to = offset + node.nodeSize
-                const isCurrent = cursorPos >= from && cursorPos <= to
-
-                if (!isCurrent && node.textContent.length > 0) {
-                  decorations.push(
-                    Decoration.node(from, to, {
-                      class: 'settled-paragraph',
-                    }),
-                  )
-                }
+            const settle = (node: { type: { name: string }; nodeSize: number; textContent: string }, offset: number) => {
+              if (node.type.name !== 'paragraph') return
+              const from = offset
+              const to = offset + node.nodeSize
+              const isCurrent = cursorPos >= from && cursorPos <= to
+              if (!isCurrent && node.textContent.length > 0) {
+                decorations.push(Decoration.node(from, to, { class: 'settled-paragraph' }))
               }
-            })
+            }
+            if (descend) {
+              doc.descendants((node, pos) => {
+                settle(node, pos)
+                return node.type.name !== 'paragraph'
+              })
+            } else {
+              doc.forEach((node, offset) => settle(node, offset))
+            }
 
             return DecorationSet.create(doc, decorations)
           },

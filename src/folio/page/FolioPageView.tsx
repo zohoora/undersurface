@@ -5,7 +5,7 @@ import { useTranslation, getLanguageCode } from '../../i18n'
 import { activateGrounding } from '../../store/groundingState'
 import { checkCrisisRisk } from '../../ai/openrouter'
 import { detectCrisisKeywords } from '../../engine/sessionOrchestrator'
-import { folioExtensions } from './folioCore'
+import { folioExtensions, setOrnaments } from './folioCore'
 import { foldViewKey, getFoldView, TR_LOAD } from './foldView'
 import type { FoldViewMeta } from './foldView'
 import { lift } from './commands'
@@ -44,6 +44,8 @@ interface Props {
   switches: FolioSwitches
   shore: ShorePresentation
   reduceMotion: boolean
+  /** The Journal's ink weight and paragraph settle, after the admin switches and shore. */
+  ornaments: { ink: boolean; settle: boolean }
   readOnlyForShore?: boolean
   onNavigate: (path: string, opts?: { replace?: boolean }) => void
   onAnnounce: (message: string) => void
@@ -74,7 +76,7 @@ function textMap(units: SafetyUnit[]): Map<string, string> {
   return new Map(units.map((u) => [u.pid, `${u.line ?? ''}\u0000${u.text}`]))
 }
 
-export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, onNavigate, onAnnounce }: Props) {
+export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, ornaments, onNavigate, onAnnounce }: Props) {
   const tr = useTranslation()
   const strings = useMemo(() => folioStringsFrom(tr), [tr])
   const stringsRef = useRef(strings)
@@ -138,6 +140,10 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, onNa
     },
     immediatelyRender: true,
   }, [controls])
+
+  useEffect(() => {
+    if (editor) setOrnaments(editor, ornaments)
+  }, [editor, ornaments])
 
   // ------------------------------------------------------------ content
 
@@ -429,7 +435,7 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, onNa
       {statusText && (
         <div className="folio-status" data-tone={status === 'notSaved' || status === 'couldNotSave' ? 'warn' : undefined}>
           {statusText}
-          {status === 'notSaved' && <> · <button type="button" className="folio-button" style={{ minHeight: 28, padding: '0 4px' }} onClick={() => void copyPage()}>{tr['folio.copyPage']}</button></>}
+          {status === 'notSaved' && <> · <button type="button" className="folio-button folio-button--inline" onClick={() => void copyPage()}>{tr['folio.copyPage']}</button></>}
         </div>
       )}
       {notice && (
