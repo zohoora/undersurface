@@ -6,6 +6,8 @@ A session-first reflective companion app. Opening the app drops the user into a 
 
 ## Current work
 
+**Folio** (a writing-first mode alongside Sessions) is being built autonomously from `docs/vision/folio-build-plan.md`, the runbook: the owner's decisions, the step order, the gates, the deploy and rollback protocol, and a progress log. Its design is `docs/vision/2026-10-15-folio-v4.md`; the plan overrides it where they differ. Read the plan before touching `src/folio/` or any seam it lists.
+
 The current fix list is `TECH_ISSUES_2026-10-14.md` (40 items, worked on branch `fix/audit-2026-10-14`); its creative companion is `docs/vision/2026-10-14-the-deep.md`. The earlier remediation master plan is `docs/superpowers/plans/2026-07-03-full-remediation-master.md` (stage plans alongside it). Specs for the July 10–11 programs live in `docs/superpowers/specs/2026-07-1*.md`. Check these before starting significant work — your task may already be scoped there.
 
 ## Review docs
@@ -402,7 +404,7 @@ Add it to `GlobalConfig.features` (`src/admin/adminTypes.ts`), `FEATURE_KEYS` in
 | Hosting | [console.firebase.google.com/.../hosting](https://console.firebase.google.com/project/undersurfaceme/hosting/sites/undersurfaceme) |
 | Auth | [console.firebase.google.com/.../authentication](https://console.firebase.google.com/project/undersurfaceme/authentication/users) |
 | DNS | [dash.cloudflare.com](https://dash.cloudflare.com) → undersurface.me |
-| GitHub | [github.com/zohoora/undersurface](https://github.com/zohoora/undersurface) (private) |
+| GitHub | [github.com/zohoora/undersurface](https://github.com/zohoora/undersurface) (public) |
 
 ## Known Gotchas
 

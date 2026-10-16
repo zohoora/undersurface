@@ -1,0 +1,46 @@
+false for 'create' @ L28, false for 'create' @ L34, false for 'update' @ L28, evaluation error at L36:24 for 'update' @ L36, false for 'update' @ L28, false for 'update' @ L36
+false for 'create' @ L28, false for 'create' @ L34, false for 'update' @ L28, evaluation error at L36:24 for 'update' @ L36, false for 'update' @ L28, false for 'update' @ L36
+false for 'create' @ L28, evaluation error at L34:24 for 'create' @ L34, false for 'update' @ L28, evaluation error at L36:24 for 'update' @ L36, false for 'update' @ L28, false for 'update' @ L36
+false for 'create' @ L28, false for 'create' @ L34, false for 'update' @ L28, evaluation error at L36:24 for 'update' @ L36, false for 'update' @ L28, false for 'update' @ L36
+false for 'create' @ L28, false for 'create' @ L34, false for 'update' @ L28, evaluation error at L36:24 for 'update' @ L36, false for 'update' @ L28, false for 'update' @ L36
+false for 'create' @ L28, false for 'create' @ L34, false for 'update' @ L28, evaluation error at L36:24 for 'update' @ L36, false for 'update' @ L28, false for 'update' @ L36
+false for 'create' @ L28, false for 'create' @ L34, false for 'update' @ L28, evaluation error at L36:24 for 'update' @ L36, false for 'update' @ L28, false for 'update' @ L36
+false for 'update' @ L28, evaluation error at L45:24 for 'update' @ L45, false for 'update' @ L28, false for 'update' @ L45
+false for 'update' @ L28, evaluation error at L45:24 for 'update' @ L45, false for 'update' @ L28, false for 'update' @ L45
+false for 'create' @ L28, false for 'create' @ L44, false for 'update' @ L28, evaluation error at L45:24 for 'update' @ L45, false for 'update' @ L28, false for 'update' @ L45
+false for 'create' @ L28, false for 'create' @ L44, false for 'update' @ L28, evaluation error at L45:24 for 'update' @ L45, false for 'create' @ L28, false for 'create' @ L44
+false for 'create' @ L28, evaluation error at L52:26 for 'create' @ L52, false for 'update' @ L28, false for 'create' @ L28, Property id is undefined on object. for 'create' @ L52
+firebase JS SDK 12.13.0
+PASS  R1 create with parentRevId null + safety.checked []
+PASS  R1 create WITHOUT parentRevId key is rejected
+PASS  R1 create WITHOUT safety map is rejected (rule reads a missing field)
+PASS  R1 update with matching parent accepted
+PASS  R1 update with null parent rejected
+PASS  R1 update reusing the same revId rejected
+PASS  R1 other user cannot read
+PASS  R1 generic owner rule does not reopen folioPages (merge write of a stray field)
+PASS  R2 safety.checked with 12000 keys accepted
+PASS  R2 safety.checked with 12001 keys rejected
+PASS  R3 first send of r2 accepted
+PASS  R3 resend of the identical r2 write rejected
+PASS  R3 server revId equals the rejected write's own revId (not its parent)
+PASS  R3 §5.2 row 2 would classify this as a conflict (server revId != rejected parent)
+PASS  R4 three rejection events for one conflict
+PASS  R4 server at r9
+PASS  R5 get({source:server}) while offline
+PASS  R6 >1 MiB document with matching parent: error code
+PASS  R6 server unchanged at r1
+PASS  R7 create trace
+PASS  R7 update title allowed
+PASS  R7 update safety.checked allowed
+PASS  R7 update beneath rejected
+PASS  R7 update title AND beneath together rejected
+PASS  R7 full set() of the same trace with one kept field changed rejected
+PASS  R7 gap 5 rejected on create
+PASS  R7 entry create
+PASS  R7 entry update rejected (no update rule, generic rule carved out)
+PASS  R7 entry delete
+PASS  R7 entry under a trace via generic path does not reopen writes (set with merge)
+PASS  R8 after a remote delete, a create with parentRevId null succeeds (recreation is a client discipline, not a rule)
+✔  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
