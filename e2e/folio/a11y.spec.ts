@@ -58,6 +58,32 @@ for (const theme of ['light', 'dark'] as const) {
   }
 }
 
+// A wash with nothing on it is a line-shaped blur, which reads as text hidden
+// from the writer (a writer's report, 2026-10-16): an empty passage is bare
+// paper until the first word. axe can't see this: there is no text to measure.
+for (const theme of ['light', 'dark'] as const) {
+  test(`${theme} paper: an empty beneath has no wash until the first word`, async ({ page }) => {
+    await setup(page, `?theme=${theme}`, doc(
+      p('It was nice to see everyone.', 'p1', 'f1'),
+      { type: 'underside', attrs: { foldId: 'f1', gap: 0 }, content: [{ type: 'beneath', content: [p('', 'p2')] }] },
+      p('The soup was cold.', 'p3', 'f2'),
+      { type: 'underside', attrs: { foldId: 'f2', gap: 0 }, content: [{ type: 'beneath', content: [p('Closed words.', 'p4')] }] },
+    ))
+    await page.locator('button.folio-crease').nth(0).click()
+    await page.locator('button.folio-crease').nth(1).click()
+    const beneath = page.locator('.folio-underside--open [data-folio-beneath]')
+    await expect(beneath).toHaveCount(2)
+    const wash = (i: number) => beneath.nth(i).evaluate((el) => getComputedStyle(el, '::before').opacity)
+    await expect.poll(() => wash(0)).toBe('0')
+    await expect.poll(() => wash(1)).toBe('1')
+    await beneath.nth(0).locator('p').click()
+    await page.waitForTimeout(200)
+    await page.keyboard.type('Now.')
+    await expect(beneath.nth(0)).toContainText('Now.')
+    await expect.poll(() => wash(0)).toBe('1')
+  })
+}
+
 test('focus is visible on the crease, the underside controls and the top bar', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard focus is a desktop path')
   await setup(page, '?theme=light', COMPOSED)

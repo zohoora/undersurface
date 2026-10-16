@@ -646,3 +646,4 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
 - **Accessibility:** axe is clean on all screens on desktop and Pixel.
 - **Found and fixed:** on a phone in Shore or Quiet, the new bottom-sheet menu opened under the help card, which blocked its lower items. In those states the menu and settings stay at the top.
 
+**2026-10-16 · An empty passage is bare paper.** The owner, in dark mode, with a screenshot of two open, empty undersides: "I can't read the text." Nothing was hidden: an empty passage still drew its wash, and a one-line blur in dark grey reads as a redacted line. The art pass had rendered this state (an empty lift) in dark, but that screenshot was never opened on its own, and axe can't see it, since there is no text to measure. Now an empty beneath or between has no wash (`.folio-passage-empty`), and the wash fades in with the first word. A browser test on all five browsers checks both papers.
