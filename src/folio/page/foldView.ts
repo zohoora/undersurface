@@ -169,6 +169,13 @@ export function foldViewPlugin(options: FoldViewOptions): Plugin<FoldViewState> 
             const id = node.attrs.foldId as string | null
             if (id && open.has(id)) {
               decos.push(Decoration.node(offset, offset + node.nodeSize, {}, { folioOpen: true }))
+              // An empty passage is bare paper: its wash, a line-shaped blur
+              // with nothing on it, reads as text hidden from the writer.
+              node.forEach((passage, at) => {
+                if (passage.textContent !== '') return
+                const from = offset + 1 + at
+                decos.push(Decoration.node(from, from + passage.nodeSize, { class: 'folio-passage-empty' }))
+              })
               // An empty between shows a faint "between" (§3.6).
               const first = node.firstChild
               if (first?.type.name === BETWEEN && first.textContent === '' && first.childCount === 1) {

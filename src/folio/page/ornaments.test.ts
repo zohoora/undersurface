@@ -70,3 +70,31 @@ describe('the between hint', () => {
     expect(t.editor.view.dom.querySelector('.folio-between-empty')).toBeNull()
   })
 })
+
+describe('an empty passage is bare paper', () => {
+  const empties = (ed: TestEditor['editor']) =>
+    [...ed.view.dom.querySelectorAll('.folio-passage-empty')].map((el) => el.hasAttribute('data-folio-between') ? 'between' : 'beneath')
+
+  it('marks an open, empty beneath and between, and only while open', () => {
+    t = makeEditor(doc(
+      p('It was nice to see everyone.', { pid: 'p1', fold: 'f1' }),
+      u('f1', [p('', { pid: 'p3' })], { between: [p('', { pid: 'p2' })] }),
+    ))
+    expect(empties(t.editor)).toEqual([])
+    setOpen(t.editor, ['f1'])
+    expect(empties(t.editor)).toEqual(['between', 'beneath'])
+  })
+
+  it('loses the mark at the first character', () => {
+    t = makeEditor(doc(
+      p('It was nice to see everyone.', { pid: 'p1', fold: 'f1' }),
+      u('f1', [p('', { pid: 'p3' })]),
+    ))
+    setOpen(t.editor, ['f1'])
+    expect(empties(t.editor)).toEqual(['beneath'])
+    let at = -1
+    t.editor.state.doc.descendants((node, pos) => { if (node.attrs.pid === 'p3') at = pos })
+    t.editor.view.dispatch(t.editor.state.tr.insertText('I', at + 1))
+    expect(empties(t.editor)).toEqual([])
+  })
+})

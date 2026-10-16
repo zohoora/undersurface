@@ -421,6 +421,10 @@
   pointer-events: none;
 }
 .folio-underside--open [data-folio-between]::before { --folio-under-a: var(--folio-between-a); }
+/* An empty passage is bare paper (foldView's .folio-passage-empty): a wash
+   with nothing on it is a line-shaped blur, which reads as hidden text. The
+   wash comes in with the first word. */
+.folio-underside--open .folio-passage-empty::before { opacity: 0; }
 
 /* The distance is empty paper, split above and below the between (§3.6). */
 .folio-underside--open [data-folio-between] {
@@ -562,12 +566,16 @@
   .folio-root[data-arrived]:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-underside--open::before {
     animation: folio-film 750ms ease-out;
   }
-  .folio-root[data-arrived]:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-underside--open [data-folio-beneath]::before {
+  .folio-root[data-arrived]:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-underside--open [data-folio-beneath]:not(.folio-passage-empty)::before {
     animation: folio-film-wash 750ms ease-out;
   }
   .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) [data-folio-between],
   .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) [data-folio-beneath] {
     transition: margin 320ms var(--ease-paper);
+  }
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-underside--open [data-folio-between]::before,
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-underside--open [data-folio-beneath]::before {
+    transition: opacity 320ms var(--ease-out);
   }
 }
 .folio-root[data-arrived][data-reduce-motion="true"]:not([data-shore="true"]):not([data-quiet="true"]) .folio-underside--open {
@@ -1181,6 +1189,8 @@
   box-shadow: none;
   background: rgb(var(--folio-under-rgb) / var(--folio-under-a));
 }
+.folio-root[data-shore="true"] .folio-underside--open .folio-passage-empty,
+.folio-root[data-quiet="true"] .folio-underside--open .folio-passage-empty { background: none; }
 .folio-root[data-shore="true"] *, .folio-root[data-quiet="true"] *,
 .folio-root[data-shore="true"] *::before, .folio-root[data-quiet="true"] *::before,
 .folio-root[data-shore="true"] *::after, .folio-root[data-quiet="true"] *::after {
