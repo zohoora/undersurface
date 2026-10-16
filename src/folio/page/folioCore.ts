@@ -11,6 +11,7 @@ import { hiddenWritingPlugin, historyGuardPlugin, inputGuardPlugin } from './pro
 import type { ProtectOptions } from './protect'
 import { ENGLISH_STRINGS } from './strings'
 import { folioKeyHandlers } from './keys'
+import { placeholderPlugin } from './placeholder'
 import { InkWeight } from '../../extensions/inkWeight'
 import { ParagraphSettle } from '../../extensions/paragraphSettle'
 import { FolioDocument, notesPlugin } from '../ask/notes'
@@ -29,6 +30,8 @@ export interface FolioCoreOptions {
   now?: () => number
   /** The page's accessible name (the editable region is a multi-line textbox). */
   label?: string
+  /** The blank page's hint, shown while the page is one empty paragraph (absent: none). */
+  placeholder?: string
   /** The admin switches that shape Apart (build plan §3.1). */
   switches?: () => { between: boolean; distance: boolean }
   onStepInside?: (foldId: string) => void
@@ -71,6 +74,7 @@ export function folioExtensions(options: FolioCoreOptions = {}): AnyExtension[] 
         integrityPlugin(),
         hiddenWritingPlugin(protect),
         notesPlugin(options.notes ?? (() => null)),
+        placeholderPlugin(options.placeholder),
       ]
     },
   })

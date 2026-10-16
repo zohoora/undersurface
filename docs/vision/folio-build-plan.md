@@ -604,3 +604,9 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
 - **Found, left as is:** during shore on a phone, the crisis card sits over the bottom bar, so Lift and Ask can't be tapped until the card is dismissed. Help comes first. The L1 path still sends nothing, which desktop verifies.
 - **Not covered by emulation** (still §8 A–B on real devices): real iOS editing and selection, Android keyboards and autocorrect, IMEs, text replacement.
 
+
+**2026-10-16 · The blank page and dark mode, looked at by eye.** Trying Folio, the owner typed into a blank page and saw nothing happen, then asked whether dark mode had been tested. The automated dark checks (axe on an open fold, shore, Reading view, an Ask note and Step inside) had passed, but nobody had looked. Screenshots of the live site in dark mode (desktop, iPhone, Pixel) found:
+- **The blank-page hint never showed.** "Write anything. Select a line to lift it." (§3.12) was translated and styled but never added to the editor. It is now a decoration on the page's one empty paragraph (`page/placeholder.ts`), shown only once the page can be written in, and not in Shore or Quiet. No text enters the document, and an underside is never decorated.
+- **Native controls were drawn light on the dark paper.** Nothing in the app set `color-scheme`, so the settings checkboxes were bright white squares. `.folio-root` now says `light`, and both ways into dark (the system's and the app's theme) say `dark` (`theme.test.ts`).
+- **The first-visit line was below the fold.** Under a 60vh page it started at the bottom edge on a laptop, with Got it out of sight, and below the screen on a phone. It now sits above the page.
+- Everything else looked as designed in dark mode: paper, crease, underside, menus, Kept, a trace, Pages.

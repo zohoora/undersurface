@@ -13,6 +13,8 @@
   --folio-notice: #FFFDF8;
   --folio-shore-paper: #F4EFE6;
   --folio-graphite: #46433F;
+  /* Native controls (checkboxes, text fields, scrollbars) follow the paper. */
+  color-scheme: light;
   position: fixed;
   inset: 0;
   overflow-y: auto;
@@ -34,6 +36,7 @@
     --folio-notice: #1D1915;
     --folio-shore-paper: #1A1612;
     --folio-graphite: #C9C3B9;
+    color-scheme: dark;
   }
 }
 
@@ -48,6 +51,7 @@
   --folio-focus: #D2A060;
   --folio-notice: #1D1915;
   --folio-shore-paper: #1A1612;
+  color-scheme: dark;
 }
 
 .folio-root[data-shore="true"],
@@ -143,13 +147,18 @@
 .folio-page .ProseMirror p { margin: 0 0 0.75em; }
 .folio-page .ProseMirror em { font-style: italic; }
 
-.folio-page .ProseMirror p.is-editor-empty:first-child::before {
+/* The blank page's hint (placeholder.ts): only once the page can be written
+   in, and never in Shore or Quiet, where the page asks nothing. */
+.folio-page .ProseMirror[contenteditable="true"] p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
   height: 0;
   pointer-events: none;
   color: var(--folio-control);
 }
+
+.folio-root[data-shore="true"] .folio-page .ProseMirror p.is-editor-empty:first-child::before,
+.folio-root[data-quiet="true"] .folio-page .ProseMirror p.is-editor-empty:first-child::before { content: none; }
 
 .folio-fold {
   text-decoration: underline;
