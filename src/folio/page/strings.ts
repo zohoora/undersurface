@@ -18,6 +18,8 @@ export interface FolioStrings {
   closer: (gap: Gap) => string
   closerBlocked: string
   alreadyLifted: string
+  /** "Writing beneath '‹line›', closed" — the discovery path's announcement. */
+  foldFound: (line: string, open: boolean) => string
 }
 
 const DISTANCES: Record<Gap, string> = { 0: 'touching', 1: 'close', 2: 'apart', 3: 'far', 4: 'very far' }
@@ -39,4 +41,5 @@ export const ENGLISH_STRINGS: FolioStrings = {
   closer: (gap) => `Closer: ${DISTANCES[gap]}, ${gap + 1} of 5`,
   closerBlocked: "There's writing between them.",
   alreadyLifted: 'This line already has something beneath it.',
+  foldFound: (line, open) => `Writing beneath '${truncate(line)}', ${open ? 'open' : 'closed'}`,
 }

@@ -10,6 +10,7 @@ import { integrityPlugin } from './integrity'
 import { hiddenWritingPlugin, historyGuardPlugin, inputGuardPlugin } from './protect'
 import type { ProtectOptions } from './protect'
 import { ENGLISH_STRINGS } from './strings'
+import { folioKeyHandlers } from './keys'
 import type { FolioStrings } from './strings'
 
 // The Folio editor core: schema, the four C1 layers, integrity and the
@@ -24,6 +25,10 @@ export interface FolioCoreOptions {
   now?: () => number
   /** The page's accessible name (the editable region is a multi-line textbox). */
   label?: string
+  /** The admin switches that shape Apart (build plan §3.1). */
+  switches?: () => { between: boolean; distance: boolean }
+  onStepInside?: (foldId: string) => void
+  locale?: () => string | undefined
   /** Builds the open underside's controls (Close/Unlift, Closer, Farther, Keep). */
   controls?: (args: { view: EditorView; getPos: () => number | undefined; node: PMNode }) => HTMLElement | null
 }
@@ -41,6 +46,16 @@ export function folioExtensions(options: FolioCoreOptions = {}): AnyExtension[] 
   const Core = Extension.create({
     name: 'folioCore',
     priority: 1000, // input guards run before the default keymaps
+    addKeyboardShortcuts() {
+      const handlers = folioKeyHandlers({
+        strings,
+        onAnnounce: options.onAnnounce,
+        switches: options.switches ?? (() => ({ between: true, distance: true })),
+        onStepInside: options.onStepInside,
+        locale: options.locale,
+      })
+      return Object.fromEntries(Object.entries(handlers).map(([key, run]) => [key, () => run(this.editor.view)]))
+    },
     addProseMirrorPlugins() {
       return [
         new Plugin({ key: new PluginKey('folioA11y'), props: { attributes: { role: 'textbox', 'aria-multiline': 'true', 'aria-label': options.label ?? 'Page' } } }),

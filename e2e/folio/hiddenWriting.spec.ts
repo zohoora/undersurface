@@ -193,3 +193,28 @@ test.describe('IME composition (Chromium, through CDP)', () => {
     expect(await call<string[]>(page, 'topLevel')).toEqual(['p:Before.', 'p:It was nice to see everyone.한글', 'u:f1', 'p:After.'])
   })
 })
+
+test.describe('the key table reaches the page in every engine (S5)', () => {
+  test('lift, close, distance and the discovery keys', async ({ page, isMobile, browserName }) => {
+    // On Android Chrome, ProseMirror lets the browser handle Enter and reads
+    // the DOM change instead of running keymaps, so Enter-based chords aren't
+    // a path there. Touch controls are (S2); recorded in folio-spikes.md.
+    test.skip(isMobile && browserName === 'chromium', 'Android: Lift is a touch control, not an Enter chord')
+    await setup(page, doc(p('One line here.', 'a'), p('Lifted already.', 'b', 'f2'), u('f2', [p('Beneath.', 'c')])))
+    // ProseMirror's Mod follows the page's platform (an emulated Android uses Control).
+    const mod = await page.evaluate(() => (/Mac|iP(hone|[oa]d)/.test(navigator.platform) ? 'Meta' : 'Control'))
+    await call(page, 'setCaret', 4)
+    await page.keyboard.press(`${mod}+Shift+Enter`)
+    const types = await call<string[]>(page, 'topLevel')
+    expect(types[1]).toMatch(/^u:/)
+    await page.keyboard.type('Written beneath.')
+    await page.keyboard.press(`${mod}+Alt+BracketRight`)
+    expect(await call<string[]>(page, 'announcements')).toContain('Farther: close, 2 of 5')
+    await page.keyboard.press(`${mod}+Alt+BracketLeft`)
+    expect(await call<string[]>(page, 'announcements')).toContain('Closer: touching, 1 of 5')
+    await page.keyboard.press('Escape')
+    expect(await call<string[]>(page, 'openIds')).toEqual([])
+    await page.keyboard.press(`${mod}+Alt+Period`)
+    expect((await call<string[]>(page, 'announcements')).at(-1)).toBe("Writing beneath 'Lifted already.', closed")
+  })
+})
