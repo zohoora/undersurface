@@ -623,3 +623,15 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
   - rules emulator 84 (`keptBy`/`titleBy`)
   - `folio-involvement-check.cjs` 21/21 against a local build with the production API, axe-clean at every level and on the slider in light and dark.
 
+**2026-10-16 · The companion's voice, tuned by simulation.** On the owner's own line ("…I wonder if my headahce is from stress.") the unasked question was "What does 'life' gather around the small misspelling in this sentence?". The cause was the voice inherited from Ask: "respond to the words themselves… never about the writer's body, mind or life." With the writer's actual subject forbidden, the model asked about the text, typo included. A simulation harness (`src/folio/companion/__sim/`) judged realistic lines across three prompt versions; details are in the involvement doc §2a.
+- **Old voice** (50 outputs): 11 commented on the writing, 36 were ornate, 21 weird, natural 3.3/5.
+- **Shipped voice** (72 outputs): 0, 0, 0, natural 4.8/5.
+- **Unasked outputs now:**
+  - they follow the writer's subject in plain words and read past typos
+  - level 5 writes its question into the between
+  - a blank page opens on today alone
+  - the unasked note is one plain question
+- **Ask is unchanged.**
+- **The eval** gains the owner's line, two typo cases and a `commentsOnWriting` check. Three runs: 25/25, 23/25 (two judge calls), 25/25.
+- **Also:** local preview builds now report to Sentry as `local`. An error from the involvement build's local test (an early version crashed every Folio reload, fixed before deploy) had shown up as a production issue.
+

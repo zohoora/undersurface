@@ -32,9 +32,13 @@ if (typeof Node !== 'undefined') {
   }
 }
 
+// A production build served from this machine (vite preview, local checks)
+// reports as "local", so its errors never read as the live site's.
+const servedLocally = !Capacitor.isNativePlatform() && ['localhost', '127.0.0.1'].includes(window.location.hostname)
+
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
-  environment: import.meta.env.MODE,
+  environment: servedLocally ? 'local' : import.meta.env.MODE,
   enabled: import.meta.env.PROD,
   tracesSampleRate: 0.1,
   replaysSessionSampleRate: 0,

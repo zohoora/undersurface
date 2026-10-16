@@ -13,13 +13,13 @@ import { BETWEEN_MAX, OPENING_MAX, QUESTION_MAX, STARTER_MAX, TITLE_MAX_WORDS } 
 
 export type Message = { role: 'system' | 'user'; content: string }
 
-const BETWEEN_RULE = `one line of your own (at most ${BETWEEN_MAX} characters, one sentence or a fragment) for the space between the line and what's beneath: an image, a turn, a detail the words hold. Never a question, never a quotation of the writer, never a claim about the writer.`
-const STARTER_RULE = `the first 2 to 8 words of a sentence the writer will finish beneath the line (at most ${STARTER_MAX} characters), about the world in the line's words: a place, an object, a moment. No final punctuation. No feeling, wanting or state words ("I feel", "I want", "I am", "I don't"), nothing the writer would have to agree with.`
+/** A question that helps the writer go further into what they wrote (prompt simulations, 2026-10-16). */
+const QUESTION_RULE = `one short, open question (best under 80 characters, at most ${QUESTION_MAX}) that helps them go further into what the line is about: what happened, what it was like, who or what was there, what came before or after. Ask about the thing itself, never about the writing. Easy to start answering.`
+const STARTER_RULE = `the first 3 to 7 plain words of a sentence the writer will finish beneath the line (at most ${STARTER_MAX} characters), answering your question's way in: a time, a place, an object, what happened first ("That morning I", "When I got to the car"). No final punctuation. No feeling, wanting or state words ("I feel", "I want", "I am", "I don't"), nothing the writer would have to agree with. Empty if nothing natural fits.`
+const OPENING_RULE = `one plain, concrete question about today (at most ${OPENING_MAX} characters, one sentence), easy to start answering. Never a statement about the writer, never a greeting, never the date or the day restated, no weather or season, no riddles.`
 
 export const UNASKED_BLOCK = `UNASKED: You were not asked. The writer is writing; you take part quietly.
-- Be briefer than when asked. Never explain your choice.
-- Never address the writer's feelings, mood, body, mind, life or "parts". Never say who they are or what they feel. A question is about the words and the world in them.
-- Never promise to remember or to come back.
+- Be brief. Never explain your choice.
 - Write in the language named below.
 - Reply with exactly one JSON object and nothing else: no markdown, no code fence, no comment.
 - If nothing fits, reply {"none": true}. Silence is a good answer.`
@@ -49,19 +49,19 @@ export interface ChooseLineInput {
   /** The words around it, for context only. */
   context: string
   languageName: string | null
-  /** Level 5: also choose a distance and write the between. */
+  /** Level 5: also choose a distance; the question is then written into the between. */
   dances: boolean
 }
 
 export function chooseLineMessages(i: ChooseLineInput): Message[] {
   const dance = i.dances
     ? `
-Also choose how far the line stands from what will be written beneath it: "distance" 0 (touching) to 4 (far). A small distance for words that are still warm, a larger one for words that need room. If the distance is 1 or more, write "between": ${BETWEEN_RULE} At distance 0, "between" is null.`
+Also choose how far the line stands from what will be written beneath it: "distance" 0 (touching) to 4 (far). A small distance for something still close, a larger one for something that needs room. At 1 or more, your question is written into the space between the line and what's beneath, in your own ink.`
     : ''
   const shape = i.dances
-    ? `{"sentence": "<exact sentence>", "question": "<question>", "distance": 0-4, "between": "<line or empty>"}`
+    ? `{"sentence": "<exact sentence>", "question": "<question>", "distance": 0-4}`
     : `{"sentence": "<exact sentence>", "question": "<question>"}`
-  const extra = `TASK: The writer has paused after this paragraph. Choose the one sentence in it that has the most beneath it: one that opens rather than concludes, where something is held back or a detail carries weight. Copy it exactly, character for character, as "sentence" (at most ${MAX_LIFT_CHARS} characters). Then write "question": one open question (at most ${QUESTION_MAX} characters) about the words of that sentence and the world in them, that the writer might answer beneath it.${dance}
+  const extra = `TASK: The writer has paused after this paragraph. Choose the one sentence in it with the most still to say beneath it: one that opens rather than concludes, where something is left out or a detail matters. Copy it exactly, character for character, as "sentence" (at most ${MAX_LIFT_CHARS} characters). Then write "question": ${QUESTION_RULE}${dance}
 Reply: ${shape}, or {"none": true} if no sentence calls for it.`
   return [
     { role: 'system', content: system(extra, i.languageName) },
@@ -79,14 +79,15 @@ export function parseChooseLine(raw: string, paragraph: string, dances: boolean)
   if (!sentence || !question || !paragraph.includes(sentence)) return null
   if (!dances) return { sentence, question, distance: 0, between: '' }
   const distance = typeof o.distance === 'number' && Number.isInteger(o.distance) && o.distance >= 0 && o.distance <= 4 ? o.distance : 0
-  const between = distance >= 1 ? validBetween(o.between, paragraph) : ''
+  // At a distance, the question is the companion's line in the between.
+  const between = distance >= 1 ? validBetween(question, paragraph) : ''
   return { sentence, question, distance, between }
 }
 
-/** A between line: one line, not a question, not the writer's own words echoed back. */
+/** What the companion writes into a between: one line, never the writer's own words echoed back. */
 export function validBetween(v: unknown, writerWords: string): string {
   const b = str(v, BETWEEN_MAX)
-  if (!b || /[?？¿]\s*$/u.test(b)) return ''
+  if (!b) return ''
   return writerWords.toLocaleLowerCase().includes(b.toLocaleLowerCase()) ? '' : b
 }
 
@@ -94,7 +95,7 @@ export function validBetween(v: unknown, writerWords: string): string {
 export function validStarter(v: unknown): string {
   const s = (str(v, STARTER_MAX) ?? '').replace(/[.!?。！？…,;:]+$/u, '').trim()
   const words = s.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) ?? []
-  if (words.length < 2 || words.length > 8) return ''
+  if (words.length < 2 || words.length > 9) return ''
   if (/\b(I|I'm|I’m|I am|I feel|I want|I don't|I don’t|I can't|I can’t|my feelings?)\b/i.test(s)) return ''
   return s
 }
@@ -103,9 +104,9 @@ export function validStarter(v: unknown): string {
 
 export function questionMessages(i: { line: string; passage: 'beneath' | 'between'; languageName: string | null }): Message[] {
   const where = i.passage === 'between'
-    ? 'The writer opened a distance under this line; the between is empty.'
-    : 'The writer lifted this line to write beneath it; the beneath is empty.'
-  const extra = `TASK: ${where} Write one open question (at most ${QUESTION_MAX} characters) about the line's words and the world in them, that the writer might answer there.
+    ? 'The writer opened some distance under this line; the space between is empty.'
+    : 'The writer lifted this line to write more beneath it; the space beneath is empty.'
+  const extra = `TASK: ${where} Write ${QUESTION_RULE}
 Reply: {"question": "<question>"} or {"none": true}.`
   return [
     { role: 'system', content: system(extra, i.languageName) },
@@ -125,21 +126,16 @@ export interface OpeningInput {
   /** e.g. "Tuesday evening, 15 October". */
   when: string
   languageName: string | null
-  /** Level 5: the end of the writer's last page and a few kept lines. */
-  lastPage?: string
-  kept?: string[]
 }
 
 export function openingMessages(i: OpeningInput): Message[] {
-  const extra = `TASK: The writer has opened a blank page. Write one opening line (at most ${OPENING_MAX} characters, one sentence) that invites writing: a concrete question or an unfinished image. Never a statement about the writer, never a greeting, never the date or the day restated, no weather or season unless the writer's own words mention it.${i.lastPage || i.kept?.length ? ' You may draw on the writer\'s own earlier words below, by their images, never by what they "mean".' : ''}
+  // A blank page opens on today alone: carrying an earlier page forward
+  // ("how's the headache?") assumes it's still so (prompt simulations).
+  const extra = `TASK: The writer has opened a blank page. Write ${OPENING_RULE}
 Reply: {"line": "<line>"} or {"none": true}.`
-  const parts = [`It is ${i.when} where the writer is.`]
-  if (i.lastPage) parts.push(`The end of their last page:\n${wrapUserContent(i.lastPage, 'last_page')}`)
-  if (i.kept?.length) parts.push(`Lines they kept:\n${wrapUserContent(i.kept.join('\n'), 'kept')}`)
-  const noWords = !i.lastPage && !i.kept?.length
   return [
-    { role: 'system', content: system(extra, i.languageName, { noWords }) },
-    { role: 'user', content: parts.join('\n\n') },
+    { role: 'system', content: system(extra, i.languageName, { noWords: true }) },
+    { role: 'user', content: `It is ${i.when} where the writer is.` },
   ]
 }
 
@@ -147,6 +143,24 @@ export function parseOpening(raw: string): string | null {
   const o = parseObject(raw)
   if (!o || o.none === true) return null
   return str(o.line, OPENING_MAX)
+}
+
+// ------------------------------------------------------------ D. an unasked note
+
+/**
+ * Levels 4–5: a short note beside something just kept. Not Ask's voice (a
+ * note about the words, by invitation): unasked, a note about the words reads
+ * as commentary on the writing, and statements drift into interpreting
+ * (prompt simulations, 2026-10-16), so it is one plain question about what
+ * they wrote about. Plain text.
+ */
+export function noteMessages(i: { composition: string; languageName: string | null }): Message[] {
+  const extra = `TASK: The writer just kept this piece of their writing; you leave a short note beside it. The note is one plain question a friend might ask after reading it (one sentence, at most 140 characters): about something concrete in what they wrote about (a detail, a person, a moment, what happened next), easy to start answering. About the thing itself, never about the writing. No statements, no interpreting, no feelings they didn't name, no praise, no advice, no reassurance.
+Reply with the note only: plain text, no quotation marks, no JSON.`
+  return [
+    { role: 'system', content: system(extra, i.languageName).replace('- Reply with exactly one JSON object and nothing else: no markdown, no code fence, no comment.\n- If nothing fits, reply {"none": true}. Silence is a good answer.', '- Reply with plain text only.') },
+    { role: 'user', content: `What they kept:\n${wrapUserContent(i.composition.slice(0, 1000), 'composition')}` },
+  ]
 }
 
 // ------------------------------------------------------------ E. a name
@@ -189,12 +203,11 @@ export interface ArrivalInput {
 
 export function arrivalMessages(i: ArrivalInput): Message[] {
   const extra = `TASK: The writer is arriving at Folio. Open today's page for them. Either:
-1. Lift one sentence from the end of their last page into today: copy it exactly as "sentence" (at most ${MAX_LIFT_CHARS} characters), choose "distance" 0 (touching) to 4 (far), write "between" (one short line in your voice for the space between, at most ${BETWEEN_MAX} characters, or empty when the distance is 0), "question" (an open question about the sentence's words, at most ${QUESTION_MAX} characters), and "starter" (the unfinished first half of a sentence the writer will continue beneath the line, at most ${STARTER_MAX} characters, ending without punctuation, never about their feelings).
-   The between: ${BETWEEN_RULE} The starter: ${STARTER_RULE}
-   Reply: {"kind": "lift", "sentence": "...", "distance": 0-4, "between": "..." or null, "question": "...", "starter": "..."}
-2. Or open a blank page with one opening line (at most ${OPENING_MAX} characters), a concrete question or an unfinished image.
+1. Lift one sentence from the end of their last page into today: copy it exactly as "sentence" (at most ${MAX_LIFT_CHARS} characters); choose "distance" 1 (close) to 4 (far); write "question": ${QUESTION_RULE} It is written into the space between the line and what's beneath, in your own ink. Then "starter": ${STARTER_RULE}
+   Reply: {"kind": "lift", "sentence": "...", "distance": 1-4, "question": "...", "starter": "..."}
+2. Or open a blank page with ${OPENING_RULE}
    Reply: {"kind": "blank", "line": "..."}
-Prefer 1 when a sentence on the last page still has something beneath it. Reply {"kind": "none"} only if neither fits.`
+Prefer 1 when a sentence on the last page still has more to say. Never assume what the last page describes is still so. Reply {"kind": "none"} only if neither fits.`
   const parts = [`It is ${i.when} where the writer is.`]
   if (i.lastPage) parts.push(`The end of their last page (lift only from this):\n${wrapUserContent(i.lastPage, 'last_page')}`)
   if (i.kept.length) parts.push(`Lines they kept (context only):\n${wrapUserContent(i.kept.join('\n'), 'kept')}`)
@@ -218,9 +231,10 @@ export function parseArrival(raw: string, lastPage: string): Arrival | null {
   if (o.kind !== 'lift') return null
   const sentence = str(o.sentence, MAX_LIFT_CHARS)
   if (!sentence || !lastPage.includes(sentence)) return null
-  const distance = typeof o.distance === 'number' && Number.isInteger(o.distance) && o.distance >= 0 && o.distance <= 4 ? o.distance : 0
-  const between = distance >= 1 ? validBetween(o.between, lastPage) : ''
+  const distance = typeof o.distance === 'number' && Number.isInteger(o.distance) && o.distance >= 0 && o.distance <= 4 ? o.distance : 1
   const question = str(o.question, QUESTION_MAX) ?? ''
+  // At a distance, the question is the companion's line in the between.
+  const between = distance >= 1 ? validBetween(question, lastPage) : ''
   const starter = validStarter(o.starter)
   return { kind: 'lift', sentence, distance, between, question, starter }
 }

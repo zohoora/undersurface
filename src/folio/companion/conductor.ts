@@ -270,7 +270,7 @@ export class CompanionConductor {
           return
         }
       }
-      const line = await this.ask('opening', openingMessages({ when: this.host.when(), languageName: this.host.languageName(), lastPage: ctx?.lastPage?.text, kept: ctx?.kept }), parseOpening)
+      const line = await this.ask('opening', openingMessages({ when: this.host.when(), languageName: this.host.languageName() }), parseOpening)
       const v = this.host.view()
       if (line && v && isBlank(v.state.doc) && this.host.open()) this.host.arrive({ kind: 'blank', line }, ctx ?? { when: this.host.when(), lastPage: null, kept: [] })
       return
@@ -374,7 +374,8 @@ export class CompanionConductor {
     this.budget.lastLiftAt = t
     this.budget.dismissedMarks = 0
     this.writerActedSinceStructural = false
-    this.ghost(r.beneathPid, o.question)
+    // At level 5 with a distance the question is already written in the between.
+    if (!(dances && o.gap > 0 && o.between)) this.ghost(r.beneathPid, o.question)
     return true
   }
 

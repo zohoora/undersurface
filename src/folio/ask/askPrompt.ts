@@ -9,7 +9,7 @@ import { UNTRUSTED_CONTENT_PREAMBLE, wrapUserContent } from '../../ai/promptSafe
 // kernel's 'page' channel; SAFETY_RULES are included verbatim; the grounded
 // register is used under grounding or Recent.
 
-export type AskPassage = 'page' | 'line' | 'between' | 'beneath' | 'composition'
+export type AskPassage = 'page' | 'line' | 'between' | 'beneath'
 export const ASK_MAX_CHARS = 1000
 
 const PASSAGES: Record<AskPassage, string> = {
@@ -17,7 +17,6 @@ const PASSAGES: Record<AskPassage, string> = {
   line: 'a lifted line (a line the writer lifted to write beneath it)',
   between: 'the writing between a lifted line and what is written beneath it',
   beneath: 'the writing beneath a lifted line',
-  composition: 'a composition: a lifted line, the space between, and what is written beneath it',
 }
 
 export interface AskPromptInput {
@@ -27,8 +26,6 @@ export interface AskPromptInput {
   languageName: string | null
   /** Grounding is active, or Recent applies: the grounded register. */
   grounded: boolean
-  /** Involvement level 4+: the note comes unasked, beside something just kept. */
-  unasked?: boolean
 }
 
 export function buildAskMessages(input: AskPromptInput): { role: 'system' | 'user'; content: string }[] {
@@ -37,7 +34,6 @@ export function buildAskMessages(input: AskPromptInput): { role: 'system' | 'use
     : 'Write the note in the language of the selected words.'
   const system = [
     buildCompanionKernelPrompt('page', { memoryAperture: 'fresh', grounding: input.grounded }),
-    input.unasked ? 'UNASKED: This time the writer did not ask. The note comes on its own, beside a composition they have just kept. Be briefer still: one sentence is often enough.' : '',
     input.grounded ? `GROUNDED REGISTER: ${GROUNDING_DIRECTIVE} Keep the note especially brief and steady. Do not interpret or ask about what the words mean. It is enough to stay with them, and, if it fits, to say that talking with someone is possible.` : '',
     language,
     SAFETY_RULES,
