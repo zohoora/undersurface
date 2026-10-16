@@ -51,12 +51,16 @@ export function useStepInside({ editor, shore, enabled, reduceMotion, strings }:
     })
   }, [editor, enabled, shore, strings, scroller])
 
-  const leave = useCallback((mode: LeaveMode) => {
-    const was = insideRef.current
-    insideRef.current = null
-    setInside(null)
-    if (!reduceMotion) setAfterglow((n) => n + 1)
-    if (!editor || !was) return
+  // Restoring waits until the dialog is gone: while it's open the page is
+  // inert, and its focus trap hands focus back on unmount, which can move the
+  // browser's caret. This effect runs after the dialog's unmount cleanups.
+  const pending = useRef<{ mode: LeaveMode | 'focus'; was: InsideState | null } | null>(null)
+  useEffect(() => {
+    if (inside !== null || !pending.current || !editor || editor.isDestroyed) return
+    const { mode, was } = pending.current
+    pending.current = null
+    editor.view.focus()
+    if (!was || mode === 'focus') return
     const { doc } = editor.state
     if (mode === 'write') {
       let end: number | null = null
@@ -64,7 +68,6 @@ export function useStepInside({ editor, shore, enabled, reduceMotion, strings }:
         if (node.type.name === UNDERSIDE && node.attrs.foldId === was.foldId) end = offset + node.nodeSize - 3
       })
       if (end !== null) editor.view.dispatch(editor.state.tr.setSelection(TextSelection.near(doc.resolve(end), -1)).setMeta('addToHistory', false).scrollIntoView())
-      focusAfterClose(editor)
       return
     }
     try {
@@ -72,29 +75,25 @@ export function useStepInside({ editor, shore, enabled, reduceMotion, strings }:
       editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(doc, Math.min(was.from, size), Math.min(was.to, size))).setMeta('addToHistory', false))
     } catch { /* the selection no longer fits */ }
     const root = scroller()
-    focusAfterClose(editor, () => { if (root) root.scrollTop = was.scroll })
-  }, [editor, reduceMotion, scroller])
+    if (root) root.scrollTop = was.scroll
+  }, [inside, editor, scroller])
+
+  const leave = useCallback((mode: LeaveMode) => {
+    pending.current = { mode, was: insideRef.current }
+    insideRef.current = null
+    setInside(null)
+    if (!reduceMotion) setAfterglow((n) => n + 1)
+  }, [reduceMotion])
 
   // Shore or Quiet: the space closes at once and the page shows (§5.5, H1 row).
   useEffect(() => shore.subscribe(() => {
     if (shore.getSnapshot().presentation === 'normal' || !insideRef.current) return
+    pending.current = { mode: 'focus', was: null }
     insideRef.current = null
     setInside(null)
-    if (editor) focusAfterClose(editor)
-  }), [shore, editor])
+  }), [shore])
 
   const clearAfterglow = useCallback(() => setAfterglow(0), [])
   return { inside, open, leave, afterglow, clearAfterglow }
 }
 
-/**
- * Focus the editor once the dialog is gone: while it's open the page is inert
- * and can't take focus, so this waits for React to remove it.
- */
-function focusAfterClose(editor: Editor, then?: () => void): void {
-  setTimeout(() => {
-    if (editor.isDestroyed) return
-    editor.view.focus()
-    then?.()
-  }, 0)
-}
