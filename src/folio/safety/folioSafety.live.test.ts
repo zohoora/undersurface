@@ -6,8 +6,8 @@
  *
  * Runs the REAL Folio sampler (reading-order units, windows with the line
  * anchor, L1 on units and adjacent pairs) against the REAL classifier prompt,
- * schema, model and settings the deployed function uses. It calls OpenAI
- * directly, like test:crisis.
+ * schema, model and settings the deployed function uses, with its three-vote
+ * consensus. It calls OpenAI directly, like test:crisis.
  *
  * Gate: every must-flag fixture flags (L1, or L2 risk 2 on some sample).
  * Reported, not gated: the false-activation rate on ordinary, literary and
@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { CRISIS_CLASSIFIER_PROMPT, CRISIS_CLASSIFIER_SCHEMA } from '../../ai/crisisClassifierPrompt'
+import { CRISIS_CLASSIFIER_PROMPT, CRISIS_CLASSIFIER_SCHEMA, classifyByConsensus, parseCrisisVote } from '../../ai/crisisClassifierPrompt'
 import { CRISIS_EVAL_CASES } from '../../engine/crisisClassifier.eval'
 import { detectCrisisKeywords } from '../../engine/sessionOrchestrator'
 import { belowFloor, l1Inputs, samplesFor } from './samples'
@@ -103,23 +103,36 @@ const FIXTURES: Fixture[] = [
   { name: 'dark humor', kind: 'dark', language: 'en', units: [page('a', 'If I have to sit through one more budget meeting I will simply walk into the sea. (I will not. I will make tea.)')] },
 ]
 
+// Three votes, as the deployed function asks (`classifyByConsensus`).
 async function classify(sample: string, language: string): Promise<0 | 1 | 2> {
   const userContent = language === 'en' ? sample : `Language: ${language}\n\nText:\n${sample}`
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [{ role: 'system', content: CRISIS_CLASSIFIER_PROMPT }, { role: 'user', content: userContent }],
-      max_completion_tokens: 500,
-      reasoning_effort: 'minimal',
-      response_format: { type: 'json_schema', json_schema: { name: 'crisis_risk', strict: true, schema: CRISIS_CLASSIFIER_SCHEMA } },
-    }),
+  let lastError: unknown = null
+  const vote = await classifyByConsensus(async (signal) => {
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        signal,
+        headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: MODEL,
+          messages: [{ role: 'system', content: CRISIS_CLASSIFIER_PROMPT }, { role: 'user', content: userContent }],
+          max_completion_tokens: 500,
+          reasoning_effort: 'minimal',
+          response_format: { type: 'json_schema', json_schema: { name: 'crisis_risk', strict: true, schema: CRISIS_CLASSIFIER_SCHEMA } },
+        }),
+      })
+      if (!response.ok) throw new Error(`OpenAI ${response.status}: ${await response.text().catch(() => '')}`)
+      const data = await response.json()
+      const parsed = parseCrisisVote(data?.choices?.[0]?.message?.content)
+      if (!parsed) throw new Error('malformed classifier answer')
+      return parsed
+    } catch (error) {
+      if (!signal.aborted) lastError = error
+      return null
+    }
   })
-  if (!response.ok) throw new Error(`OpenAI ${response.status}: ${await response.text().catch(() => '')}`)
-  const data = await response.json()
-  const parsed = JSON.parse(data?.choices?.[0]?.message?.content ?? '{"risk":0}') as { risk: 0 | 1 | 2 }
-  return parsed.risk
+  if (!vote) throw lastError ?? new Error('no classifier vote')
+  return vote.risk
 }
 
 interface Outcome { l1: boolean; l2: boolean; calls: number }

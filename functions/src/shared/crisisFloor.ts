@@ -15,7 +15,8 @@
 //      doubted ("not sure I won't…", "if I don't…").
 //   3. Clearly historical attempts ("Five years ago I tried to end my life")
 //      defer: past framing plus a temporal-distance marker in the same
-//      sentence, and no recency/re-engagement marker anywhere in the text.
+//      sentence, no time word ("today", "tonight") in that sentence, and no
+//      re-engagement ("again", "this time") anywhere in the text.
 // Any other match of a method pattern still trips L1.
 
 interface MethodPattern {
@@ -90,10 +91,18 @@ const PAST_FRAMING_TAIL = new RegExp(
 // excluded because "I'm in college and…" is present tense.
 const DISTANCE_MARKERS = /\b(?:(?:\d+|a|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|many|several|a\s+few|a\s+couple(?:\s+of)?|some)\s+years?\s+ago|years\s+ago|decades?\s+ago|long\s+ago|used\s+to|back\s+(?:in|when|then)|when\s+i\s+was\s+(?:a\s+)?(?:kid|child|teen(?:ager)?|young(?:er)?|little|\d+|in\s+(?:high\s+school|middle\s+school|college|university))|as\s+a\s+(?:kid|child|teen(?:ager)?)|in\s+my\s+(?:teens|twenties|thirties|\d0s)|growing\s+up)\b/i
 
-// Anything that pulls a historical statement back into the present keeps L1.
-const RECENCY_MARKERS = /\b(?:again|tonight|today|yesterday|this\s+(?:morning|afternoon|evening|week|time)|last\s+(?:night|week)|right\s+now|just\s+now)\b/i
+// Re-engagement anywhere in the text pulls a historical statement back into
+// the present ("…and now I want to do it again", "This time I'll get it right").
+const REENGAGEMENT_MARKERS = /\b(?:again|this\s+time)\b/i
+
+// A time word keeps L1 only in the attempt's own sentence. "Ten years ago I
+// tried to end my life. Today I ran my first half marathon." is a recovery
+// story and defers to L2 (owner decision, folio-build-plan §8.G, 2026-10-16).
+const RECENCY_MARKERS = /\b(?:tonight|today|yesterday|this\s+(?:morning|afternoon|evening|week)|last\s+(?:night|week)|right\s+now|just\s+now)\b/i
 
 const CLAUSE_BREAK = /[.!?;\n]/
+// A sentence for the time-word check: a semicolon doesn't end it.
+const SENTENCE_BREAK = /[.!?\n]/
 
 /** Normalize compatibility forms and defeat zero-width whitespace evasions. */
 export function normalizeForCrisisDetection(text: string): string {
@@ -103,16 +112,16 @@ export function normalizeForCrisisDetection(text: string): string {
   return text.normalize('NFKC').replace(evasiveWhitespace, ' ')
 }
 
-function lastBreakBefore(text: string, index: number): number {
+function lastBreakBefore(text: string, index: number, breaks: RegExp = CLAUSE_BREAK): number {
   for (let i = index - 1; i >= 0; i--) {
-    if (CLAUSE_BREAK.test(text[i])) return i
+    if (breaks.test(text[i])) return i
   }
   return -1
 }
 
-function nextBreakFrom(text: string, index: number): number {
+function nextBreakFrom(text: string, index: number, breaks: RegExp = CLAUSE_BREAK): number {
   for (let i = index; i < text.length; i++) {
-    if (CLAUSE_BREAK.test(text[i])) return i
+    if (breaks.test(text[i])) return i
   }
   return text.length
 }
@@ -135,7 +144,13 @@ function isDistantPast(
 ): boolean {
   if (!inherentlyPast && !PAST_FRAMING_TAIL.test(clauseBefore)) return false
   const sentence = text.slice(sentenceStart, nextBreakFrom(text, matchEnd))
-  return DISTANCE_MARKERS.test(sentence) && !RECENCY_MARKERS.test(text)
+  if (!DISTANCE_MARKERS.test(sentence)) return false
+  if (REENGAGEMENT_MARKERS.test(text)) return false
+  const fullSentence = text.slice(
+    lastBreakBefore(text, sentenceStart, SENTENCE_BREAK) + 1,
+    nextBreakFrom(text, matchEnd, SENTENCE_BREAK),
+  )
+  return !RECENCY_MARKERS.test(fullSentence)
 }
 
 function isUnguardedMethodMatch(

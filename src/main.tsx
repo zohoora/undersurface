@@ -12,6 +12,7 @@ import { auth } from './firebase'
 import { installGroundingPersistence } from './store/groundingPersistence'
 import { reloadOnce } from './utils/lazyWithRetry'
 import { removeConnectionBanner, showConnectionBanner } from './utils/connectionBanner'
+import { applyWebViewport } from './utils/viewport'
 
 // Prevent "removeChild" / "insertBefore" crashes caused by browser extensions
 // and Chrome Translate mutating the DOM outside React's control.
@@ -122,6 +123,10 @@ window.addEventListener('unhandledrejection', (event) => {
 window.addEventListener('vite:preloadError', (event) => {
   if (reloadOnce('vite-preload')) event.preventDefault()
 })
+
+// Pinch zoom on the web (WCAG 1.4.4): index.html carries the native app's
+// locked viewport, relaxed here before anything renders (src/utils/viewport.ts).
+if (!Capacitor.isNativePlatform()) applyWebViewport()
 
 // Every grounding activation (any layer, any surface) stamps a
 // server-readable lastGroundingAt so SMS can see a recent crisis.

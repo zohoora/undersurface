@@ -6,7 +6,7 @@ import { OPENAI_CHAT_MODEL } from './shared/models.js'
 import { openAiKey } from './shared/secrets.js'
 import { verifyAuthWithRole } from './shared/auth.js'
 import { checkAndReserve, reconcile, type QuotaConfig } from './shared/quota.js'
-import { CRISIS_RESPONSE_FORMAT } from './shared/crisisClassifier.js'
+import { CRISIS_RESPONSE_FORMAT, classifyByConsensus, parseCrisisVote, type CrisisVote } from './shared/crisisClassifier.js'
 
 // Smaller/faster model for the crisis classifier (task: 'crisis_check'). Sized
 // for a near-binary judgment with minimal latency — the safety path runs in
@@ -266,6 +266,64 @@ export function ingestStreamLine(line: string, counters: StreamCounters): void {
   if (typeof rt === 'number') counters.reasoningTokens = rt
 }
 
+// The crisis check asks three times at once and answers with the majority
+// (`classifyByConsensus`, folio-build-plan §8.G). The client still reads one
+// completion: the decided vote as its message content. The deadline sits
+// under the browser's 5 s abort, so the votes in hand are always returned
+// before the client gives up.
+export const CRISIS_DEADLINE_MS = 4_000
+
+export interface CrisisCheckOutcome {
+  vote: CrisisVote | null
+  votes: number
+  failures: number
+  /** The first non-OK upstream status, for the all-failed response. */
+  upstreamStatus: number | null
+}
+
+export async function runCrisisCheck(
+  messages: unknown,
+  apiKey: string,
+  signal: AbortSignal,
+  deadlineMs = CRISIS_DEADLINE_MS,
+): Promise<CrisisCheckOutcome> {
+  let votes = 0
+  let failures = 0
+  let upstreamStatus: number | null = null
+  const body = JSON.stringify({
+    model: OPENAI_CRISIS_MODEL,
+    messages,
+    max_completion_tokens: CRISIS_MAX_TOKENS,
+    stream: false,
+    reasoning_effort: CRISIS_REASONING,
+    response_format: CRISIS_RESPONSE_FORMAT,
+  })
+  const vote = await classifyByConsensus(async (callSignal) => {
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        signal: callSignal,
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body,
+      })
+      if (!response.ok) {
+        upstreamStatus ??= response.status
+        failures += 1
+        return null
+      }
+      const data = await response.json() as { choices?: Array<{ message?: { content?: unknown } }> }
+      const parsed = parseCrisisVote(data?.choices?.[0]?.message?.content)
+      if (parsed) votes += 1
+      else failures += 1
+      return parsed
+    } catch {
+      if (!callSignal.aborted) failures += 1
+      return null
+    }
+  }, { signal, deadlineMs })
+  return { vote, votes, failures, upstreamStatus }
+}
+
 export const chat = onRequest(
   {
     secrets: [openAiKey],
@@ -304,8 +362,8 @@ export const chat = onRequest(
     // accept the default (1.0), and OpenAI rejects custom values for this family.
     //
     // `task` is an optional routing parameter. 'crisis_check' switches to the
-    // smaller classifier model with structured-output enforcement and forces
-    // non-streaming. 'autocorrect' also runs on the small model, non-streamed,
+    // smaller classifier model with structured-output enforcement, forces
+    // non-streaming and asks three times (runCrisisCheck). 'autocorrect' also runs on the small model, non-streamed,
     // with minimal reasoning and a small token cap. Anything else falls
     // through to the standard chat path.
     const { messages, max_tokens, stream, reasoning_effort, task } = req.body || {}
@@ -406,6 +464,27 @@ export const chat = onRequest(
       })
     }
 
+    if (isCrisisCheck) {
+      const outcome = await runCrisisCheck(sanitizedMessages, openAiKey.value(), upstreamAbort.signal)
+      const summary = `votes=${outcome.votes} failures=${outcome.failures} totalMs=${Date.now() - reqStart}`
+      if (clientGone) {
+        console.warn(`[chat] client-gone ${tag} ${summary}`)
+        return
+      }
+      if (!outcome.vote) {
+        console.error(`[chat] error ${tag} ${summary} upstream=${outcome.upstreamStatus ?? 'none'}`)
+        res.status(outcome.upstreamStatus ?? 502).json({ error: 'AI service temporarily unavailable' })
+        return
+      }
+      console.log(`[chat] done ${tag} ${summary}`)
+      res.json({
+        object: 'chat.completion',
+        model: OPENAI_CRISIS_MODEL,
+        choices: [{ index: 0, message: { role: 'assistant', content: JSON.stringify(outcome.vote) }, finish_reason: 'stop' }],
+      })
+      return
+    }
+
     const openAiResponse = await fetch(
       'https://api.openai.com/v1/chat/completions',
       {
@@ -430,7 +509,6 @@ export const chat = onRequest(
           ...(isSmallModelTask
             ? { reasoning_effort: CRISIS_REASONING }
             : (resolvedReasoning ? { reasoning_effort: resolvedReasoning } : {})),
-          ...(isCrisisCheck ? { response_format: CRISIS_RESPONSE_FORMAT } : {}),
           ...(isSignalCheck ? { response_format: SIGNAL_RESPONSE_FORMAT } : {}),
         }),
       },

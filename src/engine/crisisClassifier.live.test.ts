@@ -5,8 +5,9 @@
  *   RUN_CRISIS_EVAL=1 OPENAI_API_KEY=sk-... npm run test:crisis
  *
  * This bypasses the Firebase function and calls OpenAI directly with the same
- * prompt + schema + model the deployed function uses, so the eval reflects what
- * end users will actually see. Pre-deploy gate semantics:
+ * prompt + schema + model the deployed function uses, and decides by the same
+ * three-vote consensus (`classifyByConsensus`), so the eval reflects what end
+ * users will actually see. Pre-deploy gate semantics:
  *   - Any negative case returning risk >= 1 → fail (over-calling regression).
  *   - Any positive_explicit returning risk < 2 → fail (missed clear crisis).
  *   - Any positive_ambiguous returning risk === 0 → fail (missed coded crisis).
@@ -19,6 +20,8 @@ import { describe, it, expect } from 'vitest'
 import {
   CRISIS_CLASSIFIER_PROMPT,
   CRISIS_CLASSIFIER_SCHEMA,
+  classifyByConsensus,
+  parseCrisisVote,
 } from '../ai/crisisClassifierPrompt'
 import {
   CRISIS_EVAL_CASES,
@@ -58,36 +61,47 @@ async function callFullStack(c: CrisisEvalCase): Promise<CallResult> {
     ? c.text
     : `Language: ${c.language}\n\nText:\n${c.text}`
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: 'system', content: CRISIS_CLASSIFIER_PROMPT },
-        { role: 'user', content: userContent },
-      ],
-      // Mirror the deployed function's settings — gpt-5 reasoning models
-      // budget hidden reasoning + visible output against the same cap, so
-      // 80 tokens is empirically too tight even with reasoning_effort=minimal.
-      max_completion_tokens: 500,
-      reasoning_effort: 'minimal',
-      response_format: RESPONSE_FORMAT,
-    }),
+  // Three votes, as the deployed function asks. A failed call is dropped
+  // from the vote; only a case where every call failed is an error.
+  let lastError: unknown = null
+  const vote = await classifyByConsensus(async (signal) => {
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        signal,
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          messages: [
+            { role: 'system', content: CRISIS_CLASSIFIER_PROMPT },
+            { role: 'user', content: userContent },
+          ],
+          // Mirror the deployed function's settings — gpt-5 reasoning models
+          // budget hidden reasoning + visible output against the same cap, so
+          // 80 tokens is empirically too tight even with reasoning_effort=minimal.
+          max_completion_tokens: 500,
+          reasoning_effort: 'minimal',
+          response_format: RESPONSE_FORMAT,
+        }),
+      })
+      if (!response.ok) {
+        const body = await response.text().catch(() => '')
+        throw new Error(`OpenAI ${response.status}: ${body}`)
+      }
+      const data = await response.json()
+      const parsed = parseCrisisVote(data?.choices?.[0]?.message?.content)
+      if (!parsed) throw new Error('malformed classifier answer')
+      return parsed
+    } catch (error) {
+      if (!signal.aborted) lastError = error
+      return null
+    }
   })
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => '')
-    throw new Error(`OpenAI ${response.status}: ${body}`)
-  }
-
-  const data = await response.json()
-  const content: string = data?.choices?.[0]?.message?.content ?? '{"risk":0}'
-  const parsed = JSON.parse(content) as { risk: 0 | 1 | 2; reason?: string }
-  return { risk: parsed.risk, reason: parsed.reason ?? '' }
+  if (!vote) throw lastError ?? new Error('no classifier vote')
+  return { risk: vote.risk, reason: vote.reason ?? '' }
 }
 
 function isFailure(c: CrisisEvalCase, result: CallResult): boolean {

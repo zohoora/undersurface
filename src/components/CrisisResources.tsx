@@ -58,7 +58,7 @@ function CrisisResourcesCard({ onDismiss }: { onDismiss?: () => void }) {
           right: 12,
           background: 'none',
           border: 'none',
-          color: 'var(--text-ghost)',
+          color: 'var(--text-secondary)',
           cursor: 'pointer',
           fontSize: 16,
           lineHeight: 1,
@@ -108,7 +108,7 @@ function CrisisResourcesCard({ onDismiss }: { onDismiss?: () => void }) {
 
         <div style={{
           fontSize: isEnglish ? 12 : 13,
-          color: isEnglish ? 'var(--text-ghost)' : 'var(--text-secondary)',
+          color: 'var(--text-secondary)',
           lineHeight: 1.5,
           paddingTop: isEnglish ? 4 : 0,
           borderTop: isEnglish ? '1px solid var(--border-light)' : 'none',
@@ -133,7 +133,7 @@ function CrisisResourcesCard({ onDismiss }: { onDismiss?: () => void }) {
           padding: '8px 16px',
           fontSize: 12,
           fontFamily: "'Inter', sans-serif",
-          color: 'var(--text-ghost)',
+          color: 'var(--text-secondary)',
           background: 'none',
           border: '1px solid var(--border-light)',
           borderRadius: 6,

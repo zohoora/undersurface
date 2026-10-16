@@ -1,5 +1,7 @@
-// The app's viewport meta blocks pinch zoom (index.html). Folio allows it
-// while it's open (WCAG 1.4.4, resize text) and restores the meta on leaving.
+// The native app's viewport meta blocks pinch zoom (index.html), and the web
+// keeps `maximum-scale=1` on iPhone and iPad (src/utils/viewport.ts). Folio
+// allows zoom fully while it's open (WCAG 1.4.4, resize text) and restores the
+// meta on leaving.
 // Folio's editor text is 19 px, so iOS never zooms on focus.
 
 /** The viewport content without `maximum-scale` and `user-scalable`. */

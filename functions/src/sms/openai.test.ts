@@ -39,6 +39,20 @@ describe('SMS OpenAI adapter', () => {
     await expect(classifySmsCrisis('text', 'key', network as typeof fetch)).resolves.toEqual({ risk: 0, failOpen: 'unavailable' })
   })
 
+  it('asks three times and answers with the majority (folio-build-plan §8.G)', async () => {
+    const replies = ['{"risk":2,"reason":"plan"}', '{"risk":0,"reason":"calm"}', '{"risk":2,"reason":"plan again"}']
+    const fetchMock = vi.fn(async () => response({ choices: [{ message: { content: replies.shift() } }] }))
+    const result = await classifySmsCrisis('text', 'key', fetchMock as unknown as typeof fetch)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(result).toEqual({ risk: 2, reason: 'plan' })
+  })
+
+  it('keeps a vote when the other calls fail', async () => {
+    const replies = [response({}, false, 503), response({ choices: [{ message: { content: '{"risk":1,"reason":"coded"}' } }] }), response({ choices: [] })]
+    const fetchMock = vi.fn(async () => replies.shift()!)
+    await expect(classifySmsCrisis('text', 'key', fetchMock as unknown as typeof fetch)).resolves.toEqual({ risk: 1, reason: 'coded' })
+  })
+
   it('reports a genuine 0 without a fail-open marker', async () => {
     const fetchMock = vi.fn().mockResolvedValue(response({
       choices: [{ message: { content: '{"risk":0,"reason":"ordinary"}' } }],

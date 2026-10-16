@@ -2,6 +2,8 @@ import { OPENAI_CHAT_MODEL } from '../shared/models.js'
 import {
   CRISIS_CLASSIFIER_PROMPT,
   CRISIS_RESPONSE_FORMAT,
+  classifyByConsensus,
+  parseCrisisVote,
 } from '../shared/crisisClassifier.js'
 import { sanitizeSmsFieldNote, sanitizeSmsReply } from './field.js'
 import type { SmsImageInput } from './media.js'
@@ -59,50 +61,54 @@ export interface SmsTurnResult {
   responseMode: CompanionResponseMode
 }
 
+// Three calls at once, decided by majority (`classifyByConsensus`), within
+// the 8 s the single call used to have. When no call returns a vote, the
+// fail-open category is the first failure's.
+export const SMS_CRISIS_DEADLINE_MS = 8_000
+
 export async function classifySmsCrisis(
   text: string,
   apiKey: string,
   fetchImpl: FetchLike = fetch,
 ): Promise<CrisisResult> {
-  try {
-    const response = await fetchImpl('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      signal: AbortSignal.timeout(8_000),
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: OPENAI_CRISIS_MODEL,
-        messages: [
-          { role: 'system', content: CRISIS_CLASSIFIER_PROMPT },
-          { role: 'user', content: text.slice(-1600) },
-        ],
-        max_completion_tokens: 500,
-        reasoning_effort: 'minimal',
-        response_format: CRISIS_RESPONSE_FORMAT,
-      }),
-    })
-    if (!response.ok) return { risk: 0, failOpen: 'http_error' }
-    const data = await response.json() as {
-      choices?: Array<{ message?: { content?: string } }>
-    }
-    const content = data.choices?.[0]?.message?.content
-    if (typeof content !== 'string') return { risk: 0, failOpen: 'empty' }
-    let parsed: { risk?: unknown; reason?: unknown }
+  const causes: NonNullable<CrisisResult['failOpen']>[] = []
+  const body = JSON.stringify({
+    model: OPENAI_CRISIS_MODEL,
+    messages: [
+      { role: 'system', content: CRISIS_CLASSIFIER_PROMPT },
+      { role: 'user', content: text.slice(-1600) },
+    ],
+    max_completion_tokens: 500,
+    reasoning_effort: 'minimal',
+    response_format: CRISIS_RESPONSE_FORMAT,
+  })
+  const vote = await classifyByConsensus(async (signal) => {
     try {
-      parsed = JSON.parse(content) as typeof parsed
+      const response = await fetchImpl('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        signal,
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body,
+      })
+      if (!response.ok) { causes.push('http_error'); return null }
+      const data = await response.json() as {
+        choices?: Array<{ message?: { content?: string } }>
+      }
+      const content = data.choices?.[0]?.message?.content
+      if (typeof content !== 'string') { causes.push('empty'); return null }
+      const parsed = parseCrisisVote(content)
+      if (!parsed) causes.push('malformed')
+      return parsed
     } catch {
-      return { risk: 0, failOpen: 'malformed' }
+      causes.push('unavailable')
+      return null
     }
-    if (parsed.risk !== 0 && parsed.risk !== 1 && parsed.risk !== 2) return { risk: 0, failOpen: 'malformed' }
-    return {
-      risk: parsed.risk,
-      reason: typeof parsed.reason === 'string' ? parsed.reason : undefined,
-    }
-  } catch {
-    return { risk: 0, failOpen: 'unavailable' }
-  }
+  }, { deadlineMs: SMS_CRISIS_DEADLINE_MS })
+  if (!vote) return { risk: 0, failOpen: causes[0] ?? 'unavailable' }
+  return vote.reason === undefined ? { risk: vote.risk } : { risk: vote.risk, reason: vote.reason }
 }
 
 export async function generateSmsTurn(opts: {
