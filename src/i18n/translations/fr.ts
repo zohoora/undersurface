@@ -1,4 +1,5 @@
 import { personalScienceEnglish, sessionCopy } from './sessionCopy'
+import { folio_fr } from './folio/fr'
 import { roomFallback } from '../roomFallback'
 
 const frBase = {
@@ -171,9 +172,9 @@ const frBase = {
   'policy.disclaimerTitle': 'Avertissement thérapeutique',
   'policy.disclaimerNav': 'Avertissement',
   'policy.whatWeStore': 'Ce que nous stockons',
-  'policy.whatWeStoreBody': 'Vos séances et leurs transcriptions, vos écrits dans Journal, les notes et souvenirs que conserve votre compagnon, les voix intérieures (parties) et leurs souvenirs, votre profil, vos intentions, vos valeurs, vos lettres, ainsi que les textes ou images que vous envoyez par SMS. Si vous activez les fonctions biométriques, nous stockons aussi vos mesures de fréquence cardiaque et de variabilité cardiaque (HRV). Tout cela est stocké dans Google Firebase (Firestore et Cloud Storage), lié à votre compte. C’est ce qui permet à votre compagnon de se souvenir des fils utiles au fil du temps.',
+  'policy.whatWeStoreBody': 'Vos séances et leurs transcriptions, vos écrits dans Journal, les notes et souvenirs que conserve votre compagnon, les voix intérieures (parties) et leurs souvenirs, votre profil, vos intentions, vos valeurs, vos lettres, ainsi que les textes ou images que vous envoyez par SMS. Si vous activez les fonctions biométriques, nous stockons aussi vos mesures de fréquence cardiaque et de variabilité cardiaque (HRV). Tout cela est stocké dans Google Firebase (Firestore et Cloud Storage), lié à votre compte. C’est ce qui permet à votre compagnon de se souvenir des fils utiles au fil du temps. Si tu utilises Folio, tes pages, ce que tu en gardes et tes réglages Folio y sont aussi enregistrés.',
   'policy.howAiWorks': 'Comment l\'IA fonctionne ici',
-  'policy.howAiWorksBody': 'Lorsque vous écrivez ou parlez pendant une séance, le texte concerné est envoyé à OpenAI, sans votre nom ni votre adresse e-mail, afin de générer les réponses de votre compagnon, celles des voix intérieures, les notes de séance et les vérifications de sécurité. Le contexte récent des séances précédentes peut être inclus pour que votre compagnon puisse se souvenir. OpenAI traite ce contenu pour produire des réponses dans le cadre de ses conditions d’utilisation de l’API ; par défaut, il n’utilise pas le contenu transmis via l’API pour entraîner ses modèles et peut le conserver pendant une durée limitée afin de surveiller les abus.',
+  'policy.howAiWorksBody': 'Lorsque vous écrivez ou parlez pendant une séance, le texte concerné est envoyé à OpenAI, sans votre nom ni votre adresse e-mail, afin de générer les réponses de votre compagnon, celles des voix intérieures, les notes de séance et les vérifications de sécurité. Le contexte récent des séances précédentes peut être inclus pour que votre compagnon puisse se souvenir. OpenAI traite ce contenu pour produire des réponses dans le cadre de ses conditions d’utilisation de l’API ; par défaut, il n’utilise pas le contenu transmis via l’API pour entraîner ses modèles et peut le conserver pendant une durée limitée afin de surveiller les abus. Dans Folio, ce que tu écris est vérifié pour ta sécurité par courts passages, y compris par OpenAI ; le compagnon ne lit pas tes pages Folio, sauf si tu choisis d’apporter des mots dans une séance. Si une vérification dans Folio laisse penser que tu traverses une crise, le compagnon répond avec plus de douceur dans tes séances et par SMS pendant 72 heures, et les messages de suivi sont suspendus.',
   'policy.voice': 'Voix',
   'policy.voiceBody': 'Lorsque vous utilisez « Dire à voix haute » ou la Salle avec la voix, l’audio de votre microphone est transmis directement de votre navigateur au service vocal en temps réel d’OpenAI, qui répond à voix haute. Les transcriptions des deux côtés sont enregistrées dans votre séance. La Présence silencieuse dans la Salle n’utilise pas de microphone et n’envoie aucun audio.',
   'policy.sms': 'SMS et images',
@@ -185,7 +186,7 @@ const frBase = {
   'policy.providers': 'Fournisseurs de services',
   'policy.providersBody': 'Google Firebase (comptes, base de données, stockage de fichiers, hébergement). OpenAI (réponses du compagnon, voix, vérifications de sécurité). Twilio (SMS, uniquement si vous associez un téléphone). Sentry (rapports d’erreur avec des détails techniques sur l’application et votre navigateur). Google Analytics et Google Ads (statistiques d’utilisation liées à un identifiant de compte, et mesure des inscriptions issues des publicités).',
   'policy.devicePreferences': 'Préférences de l\'appareil',
-  'policy.devicePreferencesBody': 'Les paramètres comme votre thème, votre langue et vos préférences de correction automatique sont stockés localement sur votre appareil. Ce que vous écrivez dans Journal sans l’avoir encore ajouté à une séance est aussi conservé sur votre appareil sous forme de brouillon, afin de ne pas être perdu si la page est rechargée ; les brouillons sont supprimés dès qu’ils sont ajoutés à la séance ou lorsque vous vous déconnectez. Rien de tout cela ne quitte votre navigateur.',
+  'policy.devicePreferencesBody': 'Les paramètres comme votre thème, votre langue et vos préférences de correction automatique sont stockés localement sur votre appareil. Ce que vous écrivez dans Journal sans l’avoir encore ajouté à une séance est aussi conservé sur votre appareil sous forme de brouillon, afin de ne pas être perdu si la page est rechargée ; les brouillons sont supprimés dès qu’ils sont ajoutés à la séance ou lorsque vous vous déconnectez. Rien de tout cela ne quitte votre navigateur. Folio garde aussi des pages sur ton appareil jusqu’à ce que ton compte les ait (elles y sont alors enregistrées) et se souvient des plis que tu as laissés ouverts ; les deux sont supprimés quand tu te déconnectes.',
   'policy.dataRetention': 'Conservation des données',
   'policy.dataRetentionBody': 'Vos données sont conservées tant que votre compte existe. Vous pouvez exporter vos données ou supprimer votre compte à tout moment depuis les Paramètres. La suppression de votre compte efface vos données de notre base de données et de notre stockage de fichiers, et demande à Twilio de supprimer vos enregistrements SMS. Les fournisseurs de services peuvent conserver des enregistrements limités pendant une courte durée selon leurs propres politiques.',
   'policy.yourChoices': 'Vos choix',
@@ -456,6 +457,7 @@ const fr = {
   ...roomFallback,
   ...frBase,
   ...sessionCopy.fr,
+  ...folio_fr,
 } as const
 
 export default fr

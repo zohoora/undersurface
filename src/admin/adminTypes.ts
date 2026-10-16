@@ -63,6 +63,18 @@ export interface GlobalConfig {
     roomEnabled?: boolean
     /** SMS field channel. Enabled unless explicitly `false`. */
     smsEnabled?: boolean
+    // Folio (docs/vision/folio-build-plan.md §3.1). folioEnabled opens it to
+    // everyone (`=== true`); admins and the `folio` claim can always open it.
+    // Every sub-switch is on unless explicitly `false`, and turning one off
+    // hides its controls without hiding or changing anything already written.
+    folioEnabled?: boolean
+    folioBetween?: boolean
+    folioDistance?: boolean
+    folioLiftToday?: boolean
+    folioAsk?: boolean
+    folioStepInside?: boolean
+    folioStepInsideSound?: boolean
+    folioReturn?: boolean
   }
   announcement: {
     message: string

@@ -43,6 +43,8 @@ export const ADMIN_CONFIG_DEFAULTS: GlobalConfig = {
     relaxEnabled: false,
     driftEnabled: false,
     smsEnabled: true,
+    // Folio's sub-switches are deliberately absent: unset means on.
+    folioEnabled: false,
   },
   atmosphere: {
     timeShiftIntensity: 0.3,

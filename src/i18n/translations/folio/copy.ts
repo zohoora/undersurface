@@ -1,0 +1,102 @@
+// Folio's copy (docs/vision/2026-10-15-folio-v4.md §3.12; build plan
+// decision 7: every language now). One typed table per locale, so a missing
+// key is a type error rather than an English fallback. The copy test in
+// src/folio/copy.test.ts holds every English string to the honesty rules.
+
+export const folioEnglish = {
+  // Shell
+  'folio.door': 'Folio',
+  'folio.pages': 'Pages',
+  'folio.sessions': 'Sessions',
+  'folio.menu': 'More',
+  'folio.readingView': 'Reading view',
+  'folio.writingView': 'Back to writing',
+  'folio.newPage': 'New page',
+  'folio.deletePage': 'Delete page',
+  'folio.deletePage.confirm': 'Delete this page? This can\'t be undone.',
+  'folio.delete': 'Delete',
+  'folio.cancel': 'Cancel',
+  'folio.findHelp': 'Find help',
+  'folio.settings': 'Folio settings',
+  'folio.settings.reduceMotion': 'Reduce motion in Folio',
+  'folio.settings.close': 'Close settings',
+  'folio.opening': 'Opening…',
+  'folio.placeholder': 'Write anything. Select a line to lift it.',
+  'folio.pageLabel': 'Page',
+  'folio.firstVisit': 'Folio saves your pages to your account. The companion doesn\'t read them. What you write here is checked for safety, including by an AI service, in short pieces, usually as you go.',
+  'folio.firstVisit.dismiss': 'Got it',
+  'folio.privacyPolicy': 'Privacy Policy',
+  'folio.pages.title': 'Pages',
+  'folio.pages.empty': 'No pages yet.',
+  'folio.pages.emptyPage': 'An empty page',
+  'folio.pages.onDevice': 'Saved on this device only',
+
+  // The fold
+  'folio.lift': 'Lift',
+  'folio.unlift': 'Unlift',
+  'folio.open': 'Open',
+  'folio.close': 'Close',
+  'folio.closer': 'Closer',
+  'folio.farther': 'Farther',
+  'folio.beneath': 'Beneath',
+  'folio.between': 'between',
+  'folio.openBeneath': 'Open writing beneath',
+  'folio.closeBeneath': 'Close writing beneath',
+  'folio.undersideLabel': 'Beneath \'{line}\', set {distance}, {n} of 5',
+  'folio.distance.0': 'touching',
+  'folio.distance.1': 'close',
+  'folio.distance.2': 'apart',
+  'folio.distance.3': 'far',
+  'folio.distance.4': 'very far',
+  'folio.foldFound.open': 'Writing beneath \'{line}\', open',
+  'folio.foldFound.closed': 'Writing beneath \'{line}\', closed',
+  'folio.lifted': 'Lifted. Writing beneath.',
+  'folio.unlifted': 'Unlifted.',
+  'folio.farther.announce': 'Farther: {distance}, {n} of 5',
+  'folio.closer.announce': 'Closer: {distance}, {n} of 5',
+  'folio.closerBlocked': 'There\'s writing between them.',
+  'folio.alreadyLifted': 'This line already has something beneath it.',
+  'folio.tooLong': 'A lifted line can be up to 400 characters.',
+  'folio.protected': 'Writing beneath a line was kept.',
+  'folio.protectedOpened': 'Writing beneath a line was kept and opened.',
+  'folio.undoOpened': 'Opened writing beneath a line. Undo again to change it.',
+  'folio.removeToo': 'Remove it too',
+  'folio.undo': 'Undo',
+  'folio.loose.title': 'Beneath a line you removed',
+  'folio.loose.keep': 'Keep it here',
+  'folio.loose.toPage': 'Turn into page text',
+  'folio.loose.remove': 'Remove',
+  'folio.pageLong': 'This page is getting long. A new page might be easier.',
+  'folio.pageFull': 'This page is full. Start a new page to keep writing.',
+
+  // Saving
+  'folio.saved': 'Saved',
+  'folio.savedLocal': 'Saved on this device',
+  'folio.notSaved': 'Not saved yet. Keep this tab open.',
+  'folio.copyPage': 'Copy page',
+  'folio.copied': 'Copied.',
+  'folio.saveFailed': 'Couldn\'t save to your account. Your words are on this device.',
+  'folio.conflict': 'This page changed on another device. Nothing was lost: you\'re now writing in this device\'s version, as a separate page.',
+  'folio.thisDevice': '{preview} (this device, {date})',
+  'folio.remoteDeleted': 'This page was deleted on another device. Your recent words are still here.',
+  'folio.remoteDeleted.keep': 'Keep as a new page',
+  'folio.remoteDeleted.discard': 'Discard',
+  'folio.otherTab': 'This page is open in another tab.',
+  'folio.editHere': 'Edit here',
+  'folio.otherTabNoAnswer': 'The other tab didn\'t respond. Close it to write here.',
+
+  // Shore
+  'folio.shore.line': 'If things feel like too much right now, you can talk with the companion or reach someone.',
+  'folio.shore.talk': 'Talk now',
+  'folio.shore.bringThis': 'Talk now, bringing this',
+  'folio.shore.help': 'Find help',
+  'folio.shore.okay': 'I\'m okay',
+  'folio.shore.bringPreview': 'These words will be placed in the Talk box, unsent.',
+  'folio.shore.go': 'Go',
+  'folio.shore.notThis': 'Not this',
+} as const
+
+export type FolioKey = keyof typeof folioEnglish
+export type FolioStringsTable = Record<FolioKey, string>
+
+export type FolioLocale = 'en' | 'de' | 'es' | 'fr' | 'hi' | 'id' | 'it' | 'ja' | 'ko' | 'nl' | 'pl' | 'pt' | 'ru' | 'th' | 'tr' | 'vi' | 'zh'

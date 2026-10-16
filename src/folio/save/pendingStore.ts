@@ -89,6 +89,25 @@ export function listPending(uid: string, pageId: string): PendingEntry[] {
   return out.sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
+/** One entry per page (the newest), across every page this user has pending here. */
+export function listPendingForUser(uid: string): PendingEntry[] {
+  const s = storage()
+  if (!s) return []
+  const prefix = `${PREFIX}${uid}.`
+  const byPage = new Map<string, PendingEntry>()
+  try {
+    for (let i = 0; i < s.length; i++) {
+      const key = s.key(i)
+      if (!key || !key.startsWith(prefix)) continue
+      const e = parse(s.getItem(key))
+      if (e && (!byPage.has(e.pageId) || (byPage.get(e.pageId) as PendingEntry).updatedAt < e.updatedAt)) byPage.set(e.pageId, e)
+    }
+  } catch {
+    return [...byPage.values()]
+  }
+  return [...byPage.values()].sort((a, b) => b.updatedAt - a.updatedAt)
+}
+
 export function removePending(uid: string, pageId: string, editorId: string): void {
   const s = storage()
   if (!s) return

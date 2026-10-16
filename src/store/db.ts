@@ -1,3 +1,4 @@
+import type { FolioPage, FolioPreferences } from '../types/folio'
 import {
   collection,
   doc,
@@ -192,6 +193,8 @@ export const db = {
   researchEvents: createCollectionProxy<ResearchEvent>('researchEvents'),
   personalProtocols: createCollectionProxy<PersonalProtocol>('personalProtocols'),
   livingHypotheses: createCollectionProxy<LivingHypothesis>('livingHypotheses'),
+  folioPages: createCollectionProxy<FolioPage>('folioPages'),
+  folioPreferences: createCollectionProxy<FolioPreferences>('folioPreferences'),
   smsMessages: createCollectionProxy<SmsMessage>('smsMessages'),
 }
 

@@ -19,6 +19,10 @@ const english: Record<string, string> = en
 // reason, so a real gap can never hide behind the allowlist.
 const ALLOWED_IDENTICAL: Record<string, { locales: 'all' | readonly string[]; reason: string }> = {
   'session.bottomBar.realTalk': { locales: 'all', reason: 'Real Talk is a product mode name, kept in English in every locale' },
+  'folio.door': { locales: 'all', reason: 'Folio is a product mode name, kept in every locale' },
+  'folio.pages': { locales: ['fr'], reason: '"Pages" is also the French word' },
+  'folio.pages.title': { locales: ['fr'], reason: '"Pages" is also the French word' },
+  'folio.pageLabel': { locales: ['fr'], reason: '"Page" is also the French word' },
   'crisis.findHelpline': { locales: 'all', reason: 'a domain name (findahelpline.com)' },
   'emotion.neutral': { locales: ['de', 'es'], reason: '"neutral" is also the German and Spanish word' },
   'sessions.title': { locales: ['fr'], reason: '"Sessions" is also the French word' },

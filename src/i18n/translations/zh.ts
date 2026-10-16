@@ -1,4 +1,5 @@
 import { personalScienceEnglish, sessionCopy } from './sessionCopy'
+import { folio_zh } from './folio/zh'
 import { roomFallback } from '../roomFallback'
 
 const zhBase = {
@@ -171,9 +172,9 @@ const zhBase = {
   'policy.disclaimerTitle': '治疗免责声明',
   'policy.disclaimerNav': '免责声明',
   'policy.whatWeStore': '我们存储什么',
-  'policy.whatWeStoreBody': '我们存储的内容包括：你的会话及文字记录、日记中的书写、陪伴者保留的笔记和记忆、内在声音（部分）及其记忆、你的个人档案、意向、价值观、信件，以及你通过 SMS 发送的任何文字或图片。如果你开启了生物识别功能，我们还会存储心率和 HRV 读数。所有这些都存储在 Google Firebase（Firestore 和 Cloud Storage）中，与你的账户关联。正是这些内容让陪伴者能够随着时间记住有用的线索。',
+  'policy.whatWeStoreBody': '我们存储的内容包括：你的会话及文字记录、日记中的书写、陪伴者保留的笔记和记忆、内在声音（部分）及其记忆、你的个人档案、意向、价值观、信件，以及你通过 SMS 发送的任何文字或图片。如果你开启了生物识别功能，我们还会存储心率和 HRV 读数。所有这些都存储在 Google Firebase（Firestore 和 Cloud Storage）中，与你的账户关联。正是这些内容让陪伴者能够随着时间记住有用的线索。 如果你使用 Folio，你的页面、你从中保留的内容以及你的 Folio 设置也会存储在那里。',
   'policy.howAiWorks': 'AI 在这里如何运作',
-  'policy.howAiWorksBody': '当你在会话中书写或说话时，相关文本会在不包含你的姓名或电子邮件地址的情况下发送给 OpenAI，用于生成陪伴者的回应、内在声音的回应、会话笔记和安全检查。为了让陪伴者记得，可能会包含之前会话中的近期背景。OpenAI 依据其 API 条款处理这些内容以生成回应；默认情况下，它不会使用 API 内容训练其模型，并可能会在有限时间内保留这些内容以监测滥用行为。',
+  'policy.howAiWorksBody': '当你在会话中书写或说话时，相关文本会在不包含你的姓名或电子邮件地址的情况下发送给 OpenAI，用于生成陪伴者的回应、内在声音的回应、会话笔记和安全检查。为了让陪伴者记得，可能会包含之前会话中的近期背景。OpenAI 依据其 API 条款处理这些内容以生成回应；默认情况下，它不会使用 API 内容训练其模型，并可能会在有限时间内保留这些内容以监测滥用行为。 在 Folio 中，你写下的内容会按小段进行安全检查，其中也包括 OpenAI；除非你自己选择把文字带进会话，陪伴者不会阅读你的 Folio 页面。如果 Folio 的检查显示你可能处于危机之中，陪伴者会在 72 小时内在你的会话和短信中更温和地回应，问候短信也会暂停。',
   'policy.voice': '语音',
   'policy.voiceBody': '当你在“说出来”或“房间”中使用语音时，你的麦克风音频会从浏览器直接传输到 OpenAI 的实时语音服务，并由其以语音回复。双方的文字记录会保存到你的会话中。“房间”中的“安静陪伴”不使用麦克风，也不发送任何音频。',
   'policy.sms': '短信与图片',
@@ -185,7 +186,7 @@ const zhBase = {
   'policy.providers': '服务提供商',
   'policy.providersBody': 'Google Firebase（账户、数据库、文件存储、托管）。OpenAI（陪伴者回应、语音、安全检查）。Twilio（短信，仅在你连接手机时使用）。Sentry（包含应用和浏览器技术细节的错误报告）。Google Analytics 和 Google Ads（与账户标识符关联的使用统计，以及衡量来自广告的注册）。',
   'policy.devicePreferences': '设备偏好设置',
-  'policy.devicePreferencesBody': '主题、语言和自动纠错偏好等设置存储在你设备的本地。尚未添加到会话中的“日记”文字也会作为草稿保存在你的设备上，这样重新加载后也不会丢失；草稿添加到会话后或你退出登录时会被删除。这些内容都不会离开你的浏览器。',
+  'policy.devicePreferencesBody': '主题、语言和自动纠错偏好等设置存储在你设备的本地。尚未添加到会话中的“日记”文字也会作为草稿保存在你的设备上，这样重新加载后也不会丢失；草稿添加到会话后或你退出登录时会被删除。这些内容都不会离开你的浏览器。 Folio 还会把页面保留在你的设备上，直到它们存入你的账户（之后就保存在那里），并记住你让哪些折叠保持打开；退出登录时两者都会被删除。',
   'policy.dataRetention': '数据保留',
   'policy.dataRetentionBody': '你的数据在账户存在期间一直保留。你可以随时在设置中导出数据或删除账户。删除账户会从我们的数据库和文件存储中移除你的数据，并请求 Twilio 删除你的短信记录。服务提供商可能会依据其自身政策在短期内保留有限的记录。',
   'policy.yourChoices': '你的选择',
@@ -456,6 +457,7 @@ const zh = {
   ...roomFallback,
   ...zhBase,
   ...sessionCopy.zh,
+  ...folio_zh,
 } as const
 
 export default zh

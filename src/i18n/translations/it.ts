@@ -1,4 +1,5 @@
 import { personalScienceEnglish, sessionCopy } from './sessionCopy'
+import { folio_it } from './folio/it'
 import { roomFallback } from '../roomFallback'
 
 const itBase = {
@@ -171,9 +172,9 @@ const itBase = {
   'policy.disclaimerTitle': 'Avvertenza terapeutica',
   'policy.disclaimerNav': 'Avvertenza',
   'policy.whatWeStore': 'Cosa conserviamo',
-  'policy.whatWeStoreBody': 'Le tue sessioni e le relative trascrizioni, ciò che scrivi nel Diario, le note e i ricordi che il tuo compagno conserva, le voci interiori (parti) e i loro ricordi, il tuo profilo, le intenzioni, i valori, le lettere e qualsiasi testo o immagine che invii via SMS. Se attivi le funzioni biometriche, conserviamo anche le misure di frequenza cardiaca e HRV. Tutto questo è conservato in Google Firebase (Firestore e Cloud Storage), collegato al tuo account. È ciò che permette al tuo compagno di ricordare i fili utili nel tempo.',
+  'policy.whatWeStoreBody': 'Le tue sessioni e le relative trascrizioni, ciò che scrivi nel Diario, le note e i ricordi che il tuo compagno conserva, le voci interiori (parti) e i loro ricordi, il tuo profilo, le intenzioni, i valori, le lettere e qualsiasi testo o immagine che invii via SMS. Se attivi le funzioni biometriche, conserviamo anche le misure di frequenza cardiaca e HRV. Tutto questo è conservato in Google Firebase (Firestore e Cloud Storage), collegato al tuo account. È ciò che permette al tuo compagno di ricordare i fili utili nel tempo. Se usi Folio, vi vengono salvate anche le tue pagine, ciò che ne tieni e le tue impostazioni di Folio.',
   'policy.howAiWorks': 'Come funziona l\'IA qui',
-  'policy.howAiWorksBody': 'Quando scrivi o parli in una sessione, il testo pertinente viene inviato a OpenAI, senza il tuo nome o indirizzo email, per generare le risposte del tuo compagno, le risposte delle voci interiori, le note della sessione e i controlli di sicurezza. Può essere incluso il contesto recente delle sessioni precedenti, così che il tuo compagno possa ricordare. OpenAI elabora questi contenuti per produrre risposte secondo i propri termini per le API; per impostazione predefinita non usa i contenuti inviati tramite API per addestrare i propri modelli e può conservarli per un periodo limitato per monitorare eventuali abusi.',
+  'policy.howAiWorksBody': 'Quando scrivi o parli in una sessione, il testo pertinente viene inviato a OpenAI, senza il tuo nome o indirizzo email, per generare le risposte del tuo compagno, le risposte delle voci interiori, le note della sessione e i controlli di sicurezza. Può essere incluso il contesto recente delle sessioni precedenti, così che il tuo compagno possa ricordare. OpenAI elabora questi contenuti per produrre risposte secondo i propri termini per le API; per impostazione predefinita non usa i contenuti inviati tramite API per addestrare i propri modelli e può conservarli per un periodo limitato per monitorare eventuali abusi. In Folio, ciò che scrivi viene controllato per la tua sicurezza a brevi tratti, anche da OpenAI; il compagno non legge le tue pagine di Folio, a meno che tu non scelga di portare delle parole in una sessione. Se un controllo in Folio fa pensare che tu possa essere in crisi, per 72 ore il compagno risponde con più delicatezza nelle sessioni e via SMS, e i messaggi di contatto si mettono in pausa.',
   'policy.voice': 'Voce',
   'policy.voiceBody': 'Quando usi «Dire ad alta voce» o la Stanza con la voce, l’audio del tuo microfono viene trasmesso direttamente dal tuo browser al servizio vocale in tempo reale di OpenAI, che risponde a voce. Le trascrizioni di entrambe le parti vengono salvate nella tua sessione. La Compagnia silenziosa nella Stanza non usa il microfono e non invia alcun audio.',
   'policy.sms': 'SMS e immagini',
@@ -185,7 +186,7 @@ const itBase = {
   'policy.providers': 'Fornitori di servizi',
   'policy.providersBody': 'Google Firebase (account, database, archiviazione dei file, hosting). OpenAI (risposte del compagno, voce, controlli di sicurezza). Twilio (SMS, solo se colleghi un telefono). Sentry (segnalazioni di errore con dettagli tecnici sull’app e sul tuo browser). Google Analytics e Google Ads (statistiche d’uso collegate a un identificativo dell’account e misurazione delle iscrizioni provenienti dagli annunci).',
   'policy.devicePreferences': 'Preferenze del dispositivo',
-  'policy.devicePreferencesBody': 'Impostazioni come il tema, la lingua e le preferenze di correzione automatica sono conservate localmente sul tuo dispositivo. Anche ciò che scrivi nel Diario e non hai ancora aggiunto a una sessione viene conservato sul tuo dispositivo come bozza, così non va perso se ricarichi la pagina; le bozze vengono rimosse non appena vengono aggiunte alla sessione o quando esci dall’account. Niente di tutto questo lascia il tuo browser.',
+  'policy.devicePreferencesBody': 'Impostazioni come il tema, la lingua e le preferenze di correzione automatica sono conservate localmente sul tuo dispositivo. Anche ciò che scrivi nel Diario e non hai ancora aggiunto a una sessione viene conservato sul tuo dispositivo come bozza, così non va perso se ricarichi la pagina; le bozze vengono rimosse non appena vengono aggiunte alla sessione o quando esci dall’account. Niente di tutto questo lascia il tuo browser. Folio tiene anche le pagine sul tuo dispositivo finché il tuo account non le ha (poi vengono salvate lì) e ricorda quali pieghe hai lasciato aperte; entrambe le cose vengono rimosse quando esci.',
   'policy.dataRetention': 'Conservazione dei dati',
   'policy.dataRetentionBody': 'I tuoi dati vengono conservati finché il tuo account esiste. Puoi esportare i tuoi dati o eliminare il tuo account in qualsiasi momento dalle Impostazioni. L’eliminazione dell’account rimuove i tuoi dati dal nostro database e dall’archiviazione dei file e chiede a Twilio di eliminare i tuoi registri SMS. I fornitori di servizi possono conservare registri limitati per un breve periodo secondo le proprie politiche.',
   'policy.yourChoices': 'Le tue scelte',
@@ -456,6 +457,7 @@ const it = {
   ...roomFallback,
   ...itBase,
   ...sessionCopy.it,
+  ...folio_it,
 } as const
 
 export default it

@@ -12,7 +12,7 @@ import { CrisisResources } from './components/CrisisResources'
 import { useAuth } from './auth/useAuth'
 import { initializeDB, db } from './store/db'
 import { useSettings } from './store/settings'
-import { initGlobalConfig, teardownGlobalConfig, useGlobalConfig, useNewVersionAvailable } from './store/globalConfig'
+import { initGlobalConfig, teardownGlobalConfig, useGlobalConfig, useNewVersionAvailable, useGlobalConfigStatus, whenGlobalConfigReady, getGlobalConfig } from './store/globalConfig'
 import { useTheme } from './hooks/useTheme'
 import { useTimeAwarePalette } from './hooks/useTimeAwarePalette'
 import { useSeasonalPalette } from './hooks/useSeasonalPalette'
@@ -24,7 +24,8 @@ import { getWeatherEngine } from './store/weatherStore'
 import type { RitualEngine } from './engine/ritualEngine'
 import { trackEvent } from './services/analytics'
 import { t, useTranslation } from './i18n'
-import { getSettings } from './store/settings'
+import { getSettings, updateSettings } from './store/settings'
+import { canOpenFolio, loadFolioClaim, useFolioClaim } from './folio/access'
 import type { InnerWeather as InnerWeatherType } from './types'
 import { lazyWithRetry } from './utils/lazyWithRetry'
 
@@ -38,6 +39,14 @@ import { getAuth } from 'firebase/auth'
 const AdminDashboard = lazyWithRetry(() => import('./admin/AdminDashboard'), 'admin-dashboard')
 const SessionView = lazyWithRetry(() => import('./components/Session/SessionView'), 'session-view')
 const Onboarding = lazyWithRetry(() => import('./components/Onboarding').then(m => ({ default: m.Onboarding })), 'onboarding')
+const FolioApp = lazyWithRetry(() => import('./folio/FolioApp'), 'folio')
+
+// How long a /folio visit waits for the config and the access claim before
+// treating "still loading" as "no access" (an offline device with no cached
+// config would otherwise wait forever).
+const FOLIO_ACCESS_WAIT_MS = 4000
+
+const isFolioPath = (path: string) => path === '/folio' || path.startsWith('/folio/')
 
 function EditorSkeleton() {
   return (
@@ -121,6 +130,49 @@ function App() {
     setRoutePath(path)
   }, [])
 
+  // Today's active session (searched in the 20 most recent, "today" in the
+  // writer's timezone), else a new one. Used by a root visit and by Folio's
+  // "Sessions" door.
+  const resolveSessionsHome = useCallback(async (isFromToday?: (ms: number) => boolean): Promise<string> => {
+    const tz = getSettings().timezone
+    const dateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz })
+    const todayStr = dateFmt.format(new Date())
+    const today = isFromToday ?? ((ms: number) => dateFmt.format(new Date(ms)) === todayStr)
+    const sessions = await db.sessions.orderBy('startedAt').reverse().limit(20).toArray()
+    const todaySession = sessions.find(s => today(s.startedAt) && s.status === 'active')
+    return todaySession ? `/session/${todaySession.id}` : '/session/new'
+  }, [])
+
+  const goToSessions = useCallback((handoff?: string) => {
+    // With a handoff (Folio's "Talk now, bringing this"), always a new session;
+    // the words wait in a one-time slot the Talk composer reads.
+    if (handoff) { navigateTo('/session/new'); return }
+    void resolveSessionsHome().then((path) => navigateTo(path))
+  }, [navigateTo, resolveSessionsHome])
+
+  // Folio access: admins at once; everyone else once the config and the claim
+  // are known, for at most FOLIO_ACCESS_WAIT_MS.
+  const configStatus = useGlobalConfigStatus()
+  const folioClaim = useFolioClaim(user?.uid)
+  const onFolioRoute = isFolioPath(routePath)
+  const [folioWaitExpired, setFolioWaitExpired] = useState(false)
+  useEffect(() => {
+    if (!onFolioRoute || !user) return
+    if (!isAdmin(user.email)) void loadFolioClaim(user, true)
+    const timer = setTimeout(() => setFolioWaitExpired(true), FOLIO_ACCESS_WAIT_MS)
+    return () => clearTimeout(timer)
+  }, [onFolioRoute, user])
+  const folioAllowed = !!user && canOpenFolio(globalConfig?.features, user.email, folioClaim)
+  const folioAccess: 'allowed' | 'loading' | 'denied' = folioAllowed
+    ? 'allowed'
+    : (configStatus === 'loading' || folioClaim === null) && !folioWaitExpired ? 'loading' : 'denied'
+
+  // Where opening the app lands next time on this device.
+  useEffect(() => {
+    if (onFolioRoute && folioAccess === 'allowed') { if (getSettings().lastHome !== 'folio') updateSettings({ lastHome: 'folio' }) }
+    else if (routePath.startsWith('/session') && getSettings().lastHome !== 'session') updateSettings({ lastHome: 'session' })
+  }, [routePath, onFolioRoute, folioAccess])
+
   const ritualEngineRef = useRef<InstanceType<typeof RitualEngine> | null>(null)
   const weatherEngine = getWeatherEngine()
   const [weather, setWeather] = useState<InnerWeatherType | null>(null)
@@ -162,16 +214,21 @@ function App() {
         const isRootVisit = window.location.pathname === '/' || window.location.pathname === '/new'
 
         if (isRootVisit) {
-          // Cap to recent 20 — covers virtually all real "today's active" cases
-          // without paging the entire session history on every cold boot.
-          const sessions = await db.sessions.orderBy('startedAt').reverse().limit(20).toArray()
-          const todaySession = sessions.find(
-            s => isFromToday(s.startedAt) && s.status === 'active',
-          )
+          // Folio is home on this device when it was the last place used and
+          // the writer can open it (docs/vision/2026-10-15-folio-v4.md §3.2).
+          let folioHome = false
+          if (getSettings().lastHome === 'folio') {
+            const admin = isAdmin(user.email)
+            if (!admin) await Promise.race([whenGlobalConfigReady(), new Promise((r) => setTimeout(r, FOLIO_ACCESS_WAIT_MS))])
+            const claimed = admin ? false : await loadFolioClaim(user)
+            folioHome = canOpenFolio(getGlobalConfig()?.features, user.email, { folio: claimed })
+          }
           // replace, not push: `/` renders nothing on its own (all content is
-          // gated on isSessionRoute), so leaving it in history made Back land
-          // on a blank shell.
-          navigateTo(todaySession ? `/session/${todaySession.id}` : '/session/new', { replace: true })
+          // gated on the route), so leaving it in history made Back land on a
+          // blank shell.
+          navigateTo(folioHome ? '/folio' : await resolveSessionsHome(isFromToday), { replace: true })
+        } else {
+          void loadFolioClaim(user)
         }
 
         setIsReady(true)
@@ -242,15 +299,19 @@ function App() {
     if (routePath.startsWith('/admin') && !isAdmin(user?.email)) {
       window.history.replaceState(null, '', '/')
       setRoutePath('/')
+    } else if (isFolioPath(routePath) && folioAccess === 'denied') {
+      window.history.replaceState(null, '', '/')
+      setRoutePath('/')
     } else if (
       routePath !== '/' &&
       !routePath.startsWith('/admin') &&
-      !routePath.startsWith('/session')
+      !routePath.startsWith('/session') &&
+      !isFolioPath(routePath)
     ) {
       window.history.replaceState(null, '', '/')
       setRoutePath('/')
     }
-  }, [routePath, user?.email, loading])
+  }, [routePath, user?.email, loading, folioAccess])
 
   if (loading) {
     return <SplashScreen />
@@ -341,6 +402,33 @@ function App() {
     return <SplashScreen />
   }
 
+  if (onFolioRoute) {
+    if (folioAccess !== 'allowed') return <SplashScreen />
+    // Folio renders instead of the Sessions chrome (no sidebar, atmosphere or
+    // inner weather). It shows its own crisis card, tied to its shore.
+    return (
+      <>
+        <AnnouncementBanner />
+        {newVersionAvailable && (
+          <div
+            style={{ position: 'fixed', bottom: 20, left: 20, zIndex: 9999, padding: '10px 16px', fontSize: 12, fontFamily: "'Inter', sans-serif", background: 'var(--surface-primary)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 8, cursor: 'pointer' }}
+            onClick={() => window.location.reload()}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter') window.location.reload() }}
+          >
+            {tr['app.newVersion']}
+          </div>
+        )}
+        <ChunkErrorBoundary area="folio" variant="page">
+          <Suspense fallback={<SplashScreen />}>
+            <FolioApp user={user} routePath={routePath} navigateTo={navigateTo} goToSessions={goToSessions} />
+          </Suspense>
+        </ChunkErrorBoundary>
+      </>
+    )
+  }
+
   const visualEffectsEnabled = globalConfig?.features?.visualEffectsEnabled !== false
 
   return (
@@ -382,7 +470,7 @@ function App() {
           && settings.bilateralStimulation !== false
         }
       />
-      <EntriesList navigateTo={navigateTo} currentPath={routePath} />
+      <EntriesList navigateTo={navigateTo} currentPath={routePath} onOpenFolio={folioAllowed ? () => navigateTo('/folio') : undefined} />
       <div className="inner-weather-shell">
         <InnerWeather weather={weather} />
       </div>

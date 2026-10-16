@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
+import { takeHandoff } from '../../folio/handoff'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { InkWeight } from '../../extensions/inkWeight'
@@ -749,6 +750,16 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
       },
     },
   })
+
+  // Folio's "Talk now, bringing this": words the writer chose and saw in
+  // Folio are placed in the composer once, unsent (docs/vision/2026-10-15-folio-v4.md §3.9).
+  useEffect(() => {
+    if (!inputEditor || sessionId) return
+    const text = takeHandoff()
+    if (!text) return
+    inputEditor.commands.setContent(text.split(/\n{2,}/).map((p) => ({ type: 'paragraph', content: p ? [{ type: 'text', text: p }] : [] })))
+    inputEditor.commands.focus('end')
+  }, [inputEditor, sessionId])
 
   // Keep handleSendRef in sync
   useEffect(() => { handleSendRef.current = () => handleSend(inputEditor) }, [handleSend, inputEditor])

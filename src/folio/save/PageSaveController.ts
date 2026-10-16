@@ -183,6 +183,23 @@ export class PageSaveController {
     }
   }
 
+  /**
+   * A server-confirmed revision from another device arrived while this
+   * editor has nothing unsaved: take it as the new base, so the next save
+   * builds on it instead of becoming a conflict copy. False when there is
+   * anything local to protect.
+   */
+  adoptRemote(page: FolioPage): boolean {
+    if (this.disposed || this.ended || this.awaiting || this.halted || this.inflight > 0) return false
+    if (this.chain.sentRevIds.length > 0 || this.savedDoc === null || this.content.doc !== this.savedDoc) return false
+    if (inChain(this.chain, page.revId)) return false
+    this.adoptServer(page.revId, page.doc)
+    this.content = { doc: page.doc, checked: page.safety?.checked ?? [], preview: page.preview, foldCount: page.foldCount }
+    this.rev = page.rev
+    this.emit()
+    return true
+  }
+
   get currentStatus(): SaveStatus | null { return this.status }
   get chainState(): Readonly<Chain> { return { ...this.chain, sentRevIds: [...this.chain.sentRevIds] } }
 

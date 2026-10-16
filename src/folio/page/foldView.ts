@@ -227,6 +227,8 @@ export function undersideNodeView(options: {
   strings: () => FolioStrings
   controls?: (args: { view: EditorView; getPos: () => number | undefined; node: PMNode }) => HTMLElement | null
 }) {
+  // The controls are rebuilt only when what they show changes (empty or
+  // written, loose or not), so focus stays on a button pressed repeatedly.
   return (node: PMNode, view: EditorView, getPos: () => number | undefined, decorations: readonly Decoration[]): NodeView => {
     const open = decorations.some((d) => (d.spec as { folioOpen?: boolean }).folioOpen)
     return open ? new OpenUndersideView(node, view, getPos, options) : new ClosedUndersideView(node)
@@ -266,6 +268,9 @@ class OpenUndersideView implements NodeView {
   private controls: HTMLElement | null
   private node: PMNode
   private readonly strings: () => FolioStrings
+  private readonly view: EditorView
+  private readonly getPos: () => number | undefined
+  private readonly makeControls?: (args: { view: EditorView; getPos: () => number | undefined; node: PMNode }) => HTMLElement | null
 
   constructor(
     node: PMNode,
@@ -275,6 +280,9 @@ class OpenUndersideView implements NodeView {
   ) {
     this.node = node
     this.strings = options.strings
+    this.view = view
+    this.getPos = getPos
+    this.makeControls = options.controls
     this.dom = document.createElement('div')
     this.dom.className = 'folio-underside folio-underside--open'
     this.dom.setAttribute('role', 'group')
@@ -305,8 +313,17 @@ class OpenUndersideView implements NodeView {
   update(node: PMNode, decorations: readonly Decoration[]): boolean {
     if (node.type !== this.node.type) return false
     if (!decorations.some((d) => (d.spec as { folioOpen?: boolean }).folioOpen)) return false
+    const before = controlsSignature(this.node)
     this.node = node
     this.render()
+    if (this.makeControls && controlsSignature(node) !== before) {
+      const next = this.makeControls({ view: this.view, getPos: this.getPos, node })
+      if (next) next.setAttribute('contenteditable', 'false')
+      if (this.controls && next) this.dom.replaceChild(next, this.controls)
+      else if (next) this.dom.appendChild(next)
+      else this.controls?.remove()
+      this.controls = next
+    }
     return true
   }
 
@@ -318,6 +335,10 @@ class OpenUndersideView implements NodeView {
   stopEvent(event: Event): boolean {
     return !!this.controls && this.controls.contains(event.target as globalThis.Node)
   }
+}
+
+function controlsSignature(node: PMNode): string {
+  return `${node.textContent.trim() === '' ? 'empty' : 'written'}:${node.attrs.loose ? 'loose' : 'held'}`
 }
 
 export function setSelectionOutside(tr: Transaction, pos: number, dir: -1 | 1, open: ReadonlySet<string>): Transaction {

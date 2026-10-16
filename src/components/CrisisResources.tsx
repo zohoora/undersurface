@@ -3,16 +3,28 @@ import { useTranslation, getLanguageCode } from '../i18n'
 
 interface CrisisResourcesProps {
   visible: boolean
+  /**
+   * Folio only (unused by Sessions): told when the card is dismissed, so a
+   * Folio page can move to Quiet (draft 4 §3.9).
+   */
+  onDismiss?: () => void
+  /** Folio only: a new value re-shows a dismissed card (Find help). */
+  showToken?: number
 }
 
-export function CrisisResources({ visible }: CrisisResourcesProps) {
-  // When visible goes false, inner component unmounts and dismissed resets
+export function CrisisResources({ visible, onDismiss, showToken }: CrisisResourcesProps) {
+  // When visible goes false, inner component unmounts and dismissed resets.
+  // A new showToken remounts it, which also resets dismissed.
   if (!visible) return null
-  return <CrisisResourcesCard />
+  return <CrisisResourcesCard key={showToken ?? 0} onDismiss={onDismiss} />
 }
 
-function CrisisResourcesCard() {
-  const [dismissed, setDismissed] = useState(false)
+function CrisisResourcesCard({ onDismiss }: { onDismiss?: () => void }) {
+  const [dismissed, setDismissedState] = useState(false)
+  const setDismissed = (value: boolean) => {
+    setDismissedState(value)
+    if (value) onDismiss?.()
+  }
   const t = useTranslation()
   const isEnglish = getLanguageCode() === 'en'
 

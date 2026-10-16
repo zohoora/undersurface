@@ -1,4 +1,5 @@
 import { personalScienceEnglish, sessionCopy } from './sessionCopy'
+import { folio_pl } from './folio/pl'
 import { roomFallback } from '../roomFallback'
 
 const plBase = {
@@ -171,9 +172,9 @@ const plBase = {
   'policy.disclaimerTitle': 'Zastrzeżenie terapeutyczne',
   'policy.disclaimerNav': 'Zastrzeżenie',
   'policy.whatWeStore': 'Co przechowujemy',
-  'policy.whatWeStoreBody': 'Twoje sesje i ich zapisy, to, co piszesz w dzienniku, notatki i wspomnienia przechowywane przez twojego towarzysza, wewnętrzne głosy (części) i ich wspomnienia, twój profil, intencje, wartości, listy oraz wszelkie teksty i obrazy wysyłane przez ciebie SMS-em. Jeśli włączysz funkcje biometryczne, przechowujemy też pomiary tętna i HRV. Wszystko to jest przechowywane w Google Firebase (Firestore i Cloud Storage) i powiązane z twoim kontem. Dzięki temu twój towarzysz może z czasem pamiętać pomocne wątki.',
+  'policy.whatWeStoreBody': 'Twoje sesje i ich zapisy, to, co piszesz w dzienniku, notatki i wspomnienia przechowywane przez twojego towarzysza, wewnętrzne głosy (części) i ich wspomnienia, twój profil, intencje, wartości, listy oraz wszelkie teksty i obrazy wysyłane przez ciebie SMS-em. Jeśli włączysz funkcje biometryczne, przechowujemy też pomiary tętna i HRV. Wszystko to jest przechowywane w Google Firebase (Firestore i Cloud Storage) i powiązane z twoim kontem. Dzięki temu twój towarzysz może z czasem pamiętać pomocne wątki. Jeśli korzystasz z Folio, przechowywane są tam również twoje strony, to, co z nich zachowujesz, i ustawienia Folio.',
   'policy.howAiWorks': 'Jak działa AI',
-  'policy.howAiWorksBody': 'Gdy piszesz lub mówisz podczas sesji, odpowiedni tekst, bez twojego imienia i adresu e-mail, jest wysyłany do OpenAI, aby wygenerować odpowiedzi twojego towarzysza, odpowiedzi wewnętrznych głosów, notatki z sesji i kontrole bezpieczeństwa. Może zostać dołączony niedawny kontekst z wcześniejszych sesji, aby twój towarzysz mógł pamiętać. OpenAI przetwarza te treści, aby tworzyć odpowiedzi zgodnie ze swoimi warunkami API; domyślnie nie używa treści z API do trenowania swoich modeli i może je przechowywać przez ograniczony czas w celu wykrywania nadużyć.',
+  'policy.howAiWorksBody': 'Gdy piszesz lub mówisz podczas sesji, odpowiedni tekst, bez twojego imienia i adresu e-mail, jest wysyłany do OpenAI, aby wygenerować odpowiedzi twojego towarzysza, odpowiedzi wewnętrznych głosów, notatki z sesji i kontrole bezpieczeństwa. Może zostać dołączony niedawny kontekst z wcześniejszych sesji, aby twój towarzysz mógł pamiętać. OpenAI przetwarza te treści, aby tworzyć odpowiedzi zgodnie ze swoimi warunkami API; domyślnie nie używa treści z API do trenowania swoich modeli i może je przechowywać przez ograniczony czas w celu wykrywania nadużyć. W Folio to, co piszesz, jest sprawdzane pod kątem bezpieczeństwa w krótkich fragmentach, także przez OpenAI; towarzysz nie czyta twoich stron Folio, chyba że sam zdecydujesz się przenieść słowa do sesji. Jeśli sprawdzenie w Folio wskaże, że możesz przeżywać kryzys, przez 72 godziny towarzysz odpowiada łagodniej w sesjach i w wiadomościach SMS, a wiadomości z zapytaniem, co u ciebie, są wstrzymane.',
   'policy.voice': 'Głos',
   'policy.voiceBody': 'Gdy korzystasz z „Powiedz na głos” lub z Pokoju z głosem, dźwięk z mikrofonu jest przesyłany bezpośrednio z twojej przeglądarki do usługi głosowej OpenAI działającej w czasie rzeczywistym, która odpowiada mową. Zapisy obu stron rozmowy są zachowywane w twojej sesji. Ciche towarzystwo w Pokoju nie używa mikrofonu i nie przesyła żadnego dźwięku.',
   'policy.sms': 'SMS i obrazy',
@@ -185,7 +186,7 @@ const plBase = {
   'policy.providers': 'Dostawcy usług',
   'policy.providersBody': 'Google Firebase (konta, baza danych, przechowywanie plików, hosting). OpenAI (odpowiedzi towarzysza, głos, kontrole bezpieczeństwa). Twilio (SMS, tylko jeśli połączysz telefon). Sentry (raporty o błędach z informacjami technicznymi o aplikacji i twojej przeglądarce). Google Analytics i Google Ads (statystyki użytkowania powiązane z identyfikatorem konta oraz pomiar rejestracji z reklam).',
   'policy.devicePreferences': 'Preferencje urządzenia',
-  'policy.devicePreferencesBody': 'Ustawienia takie jak motyw, język i preferencje autokorekty są przechowywane lokalnie na twoim urządzeniu. To, co piszesz w Dzienniku, a czego jeszcze nie dodano do sesji, również jest przechowywane na urządzeniu jako szkic, więc przetrwa odświeżenie strony; szkice są usuwane, gdy zostaną dodane do sesji lub gdy się wylogujesz. Nic z tego nie opuszcza twojej przeglądarki.',
+  'policy.devicePreferencesBody': 'Ustawienia takie jak motyw, język i preferencje autokorekty są przechowywane lokalnie na twoim urządzeniu. To, co piszesz w Dzienniku, a czego jeszcze nie dodano do sesji, również jest przechowywane na urządzeniu jako szkic, więc przetrwa odświeżenie strony; szkice są usuwane, gdy zostaną dodane do sesji lub gdy się wylogujesz. Nic z tego nie opuszcza twojej przeglądarki. Folio przechowuje też strony na twoim urządzeniu, dopóki twoje konto ich nie ma (wtedy zapisuje je tam), i pamięta, które zagięcia zostawiłeś otwarte; jedno i drugie znika po wylogowaniu.',
   'policy.dataRetention': 'Przechowywanie danych',
   'policy.dataRetentionBody': 'Twoje dane są przechowywane tak długo, jak istnieje twoje konto. W każdej chwili możesz wyeksportować dane lub usunąć konto w Ustawieniach. Usunięcie konta usuwa twoje dane z naszej bazy danych i magazynu plików oraz wysyła do Twilio prośbę o usunięcie twoich zapisów SMS. Dostawcy usług mogą przez krótki czas przechowywać ograniczone zapisy zgodnie z własnymi zasadami.',
   'policy.yourChoices': 'Twoje wybory',
@@ -456,6 +457,7 @@ const pl = {
   ...roomFallback,
   ...plBase,
   ...sessionCopy.pl,
+  ...folio_pl,
 } as const
 
 export default pl

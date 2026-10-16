@@ -28,5 +28,12 @@ describe('privacy policy processor disclosure', () => {
       expect(text).toContain('Twilio')
       expect(strings['policy.providersBody']).toContain('Sentry')
     })
+
+    it(`${lang} discloses Folio: what is stored, the safety checks, the 72-hour reach and the device store`, () => {
+      expect(strings['policy.whatWeStoreBody']).toContain('Folio')
+      expect(strings['policy.howAiWorksBody']).toContain('Folio')
+      expect(strings['policy.howAiWorksBody']).toContain('72')
+      expect(strings['policy.devicePreferencesBody']).toContain('Folio')
+    })
   }
 })

@@ -34,6 +34,10 @@ export interface AppSettings {
   lastRoomVoiceDensity: RoomVoiceDensity
   lastRoomAudio: RoomAudioTrack
   lastRoomAudioVolume: number
+
+  // Where opening the app lands on this device: Sessions or Folio. Written
+  // by App.tsx on route changes; writers who never open Folio see no change.
+  lastHome: 'session' | 'folio'
 }
 
 // The device's zone, not a hardcoded one: the timezone defines "today's
@@ -61,6 +65,7 @@ const DEFAULTS: AppSettings = {
   lastRoomVoiceDensity: 'sparse',
   lastRoomAudio: 'ocean',
   lastRoomAudioVolume: 0.42,
+  lastHome: 'session',
 }
 
 const STORAGE_KEY = 'undersurface:settings'

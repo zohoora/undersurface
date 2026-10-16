@@ -480,6 +480,37 @@ export function buildMarkdownExport(
     ln()
   }
 
+  // ── Folio (docs/vision/2026-10-15-folio-v4.md §6.8): each page in its
+  // linear form, the distance written as a line plus blank lines.
+  const folioPages = (collections.folioPages ?? []).sort((a, b) => (a.createdAt as number) - (b.createdAt as number))
+  if (folioPages.length > 0) {
+    ln(`## ${t('folio.door')}`)
+    ln()
+    const inline = (node: { content?: { text?: string; type?: string; marks?: { type: string }[] }[] }) =>
+      (node.content ?? []).map((c) => (c.type === 'hardBreak' ? '  \n' : c.marks?.some((m) => m.type === 'italic') ? `*${c.text ?? ''}*` : c.text ?? '')).join('')
+    const blankLines = [0, 1, 3, 7, 15]
+    for (const page of folioPages) {
+      ln(`### ${fmtDate(page.createdAt as number)}`)
+      ln()
+      let parsed: { content?: { type: string; attrs?: Record<string, unknown>; content?: { type: string; content?: { type?: string; content?: unknown[] }[] }[] }[] } = {}
+      try { parsed = JSON.parse(page.doc as string) } catch { parsed = {} }
+      for (const node of parsed.content ?? []) {
+        if (node.type === 'paragraph') { ln(inline(node as never)); ln(); continue }
+        if (node.type !== 'underside') continue
+        const gap = Math.max(0, Math.min(4, Number(node.attrs?.gap) || 0))
+        if (gap > 0) { ln(`(${t(`folio.distance.${gap}` as never)})`); for (let i = 0; i < blankLines[gap]; i++) ln('&nbsp;') }
+        for (const passage of node.content ?? []) {
+          const label = passage.type === 'between' ? t('folio.between') : t('folio.beneath')
+          ln(`> **${label}:**`)
+          for (const p of passage.content ?? []) ln(`> ${inline(p as never)}`)
+          ln()
+        }
+      }
+      ln('---')
+      ln()
+    }
+  }
+
   return lines.join('\n')
 }
 
@@ -492,6 +523,7 @@ export async function exportAllData() {
     'sessionIntentions', 'stanceProfile', 'userValues', 'companionPromises',
     'companionPreferences', 'fieldMoments', 'interventionOutcomes', 'smsMessages',
     'researchEvents', 'personalProtocols', 'livingHypotheses',
+    'folioPages', 'folioPreferences',
   ] as const
 
   const results = await Promise.all(

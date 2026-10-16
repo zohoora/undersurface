@@ -1,4 +1,5 @@
 import { personalScienceEnglish, sessionCopy } from './sessionCopy'
+import { folio_nl } from './folio/nl'
 import { roomFallback } from '../roomFallback'
 
 const nlBase = {
@@ -171,9 +172,9 @@ const nlBase = {
   'policy.disclaimerTitle': 'Therapeutische disclaimer',
   'policy.disclaimerNav': 'Disclaimer',
   'policy.whatWeStore': 'Wat we opslaan',
-  'policy.whatWeStoreBody': 'Je sessies en transcripten, wat je in je Dagboek schrijft, de notities en herinneringen die je metgezel bewaart, innerlijke stemmen (delen) en hun herinneringen, je profiel, intenties, waarden en brieven, en alle tekst of afbeeldingen die je per SMS stuurt. Als je biometrische functies inschakelt, slaan we ook hartslag- en HRV-metingen op. Dit alles wordt opgeslagen in Google Firebase (Firestore en Cloud Storage), gekoppeld aan je account. Hierdoor kan je metgezel nuttige draden over langere tijd onthouden.',
+  'policy.whatWeStoreBody': 'Je sessies en transcripten, wat je in je Dagboek schrijft, de notities en herinneringen die je metgezel bewaart, innerlijke stemmen (delen) en hun herinneringen, je profiel, intenties, waarden en brieven, en alle tekst of afbeeldingen die je per SMS stuurt. Als je biometrische functies inschakelt, slaan we ook hartslag- en HRV-metingen op. Dit alles wordt opgeslagen in Google Firebase (Firestore en Cloud Storage), gekoppeld aan je account. Hierdoor kan je metgezel nuttige draden over langere tijd onthouden. Als je Folio gebruikt, worden daar ook je pagina’s, wat je ervan bewaart en je Folio-instellingen opgeslagen.',
   'policy.howAiWorks': 'Hoe AI hier werkt',
-  'policy.howAiWorksBody': 'Wanneer je in een sessie schrijft of spreekt, wordt de relevante tekst zonder je naam of e-mailadres naar OpenAI gestuurd om de antwoorden van je metgezel, de reacties van innerlijke stemmen, sessienotities en veiligheidscontroles te genereren. Recente context uit eerdere sessies kan worden meegestuurd, zodat je metgezel zich dingen kan herinneren. OpenAI verwerkt deze inhoud om antwoorden te maken volgens zijn API-voorwaarden; standaard gebruikt OpenAI API-inhoud niet om zijn modellen te trainen en kan het die beperkte tijd bewaren om op misbruik te controleren.',
+  'policy.howAiWorksBody': 'Wanneer je in een sessie schrijft of spreekt, wordt de relevante tekst zonder je naam of e-mailadres naar OpenAI gestuurd om de antwoorden van je metgezel, de reacties van innerlijke stemmen, sessienotities en veiligheidscontroles te genereren. Recente context uit eerdere sessies kan worden meegestuurd, zodat je metgezel zich dingen kan herinneren. OpenAI verwerkt deze inhoud om antwoorden te maken volgens zijn API-voorwaarden; standaard gebruikt OpenAI API-inhoud niet om zijn modellen te trainen en kan het die beperkte tijd bewaren om op misbruik te controleren. In Folio wordt wat je schrijft in korte stukjes gecontroleerd voor je veiligheid, ook door OpenAI; de metgezel leest je Folio-pagina’s niet, tenzij je zelf woorden meeneemt naar een sessie. Als een controle in Folio erop wijst dat je in een crisis zou kunnen zitten, antwoordt de metgezel 72 uur lang zachter in je sessies en per sms, en worden check-inberichten gepauzeerd.',
   'policy.voice': 'Stem',
   'policy.voiceBody': 'Wanneer je Hardop zeggen of de Kamer met stem gebruikt, wordt het geluid van je microfoon rechtstreeks vanuit je browser naar de realtime spraakdienst van OpenAI gestreamd, die met gesproken antwoorden reageert. Transcripten van beide kanten worden in je sessie opgeslagen. Stil gezelschap in de Kamer gebruikt geen microfoon en verstuurt geen geluid.',
   'policy.sms': 'SMS en afbeeldingen',
@@ -185,7 +186,7 @@ const nlBase = {
   'policy.providers': 'Dienstverleners',
   'policy.providersBody': 'Google Firebase (accounts, database, bestandsopslag, hosting). OpenAI (antwoorden van je metgezel, stem, veiligheidscontroles). Twilio (SMS, alleen als je een telefoon koppelt). Sentry (foutrapporten met technische details over de app en je browser). Google Analytics en Google Ads (gebruiksstatistieken gekoppeld aan een account-ID, en het meten van aanmeldingen via advertenties).',
   'policy.devicePreferences': 'Apparaatvoorkeuren',
-  'policy.devicePreferencesBody': 'Instellingen zoals je thema, taal en autocorrectievoorkeuren worden lokaal op je apparaat opgeslagen. Wat je in je Dagboek schrijft en nog niet aan een sessie hebt toegevoegd, wordt ook als concept op je apparaat bewaard, zodat het blijft staan als je de pagina herlaadt; concepten worden verwijderd zodra ze aan de sessie zijn toegevoegd of wanneer je uitlogt. Niets hiervan verlaat je browser.',
+  'policy.devicePreferencesBody': 'Instellingen zoals je thema, taal en autocorrectievoorkeuren worden lokaal op je apparaat opgeslagen. Wat je in je Dagboek schrijft en nog niet aan een sessie hebt toegevoegd, wordt ook als concept op je apparaat bewaard, zodat het blijft staan als je de pagina herlaadt; concepten worden verwijderd zodra ze aan de sessie zijn toegevoegd of wanneer je uitlogt. Niets hiervan verlaat je browser. Folio houdt pagina’s ook op je apparaat tot je account ze heeft (dan worden ze daar bewaard) en onthoudt welke vouwen je open hebt gelaten; beide worden verwijderd als je uitlogt.',
   'policy.dataRetention': 'Gegevensbewaring',
   'policy.dataRetentionBody': 'Je gegevens worden bewaard zolang je account bestaat. Je kunt je gegevens op elk moment exporteren of je account verwijderen via Instellingen. Als je je account verwijdert, worden je gegevens uit onze database en bestandsopslag verwijderd en vragen we Twilio je SMS-gegevens te verwijderen. Dienstverleners kunnen beperkte gegevens korte tijd bewaren volgens hun eigen beleid.',
   'policy.yourChoices': 'Je keuzes',
@@ -456,6 +457,7 @@ const nl = {
   ...roomFallback,
   ...nlBase,
   ...sessionCopy.nl,
+  ...folio_nl,
 } as const
 
 export default nl

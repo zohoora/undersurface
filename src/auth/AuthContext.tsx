@@ -7,6 +7,8 @@ import { AuthContext } from './authContext'
 import * as Sentry from '@sentry/react'
 import { trackEvent, setAnalyticsUser, clearAnalyticsUser } from '../services/analytics'
 import { signInWithGoogle, signInWithApple as nativeSignInWithApple, signOutEverywhere } from './socialSignInDriver'
+import { clearFolioLocalForUser } from '../folio/save/pendingStore'
+import { resetFolioClaim } from '../folio/access'
 import { clearJournalDraftsForUser } from '../store/journalDrafts'
 
 declare global {
@@ -90,8 +92,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     const uid = auth.currentUser?.uid
     await signOutEverywhere()
-    // Unsent Journal drafts live on this device; they leave with the user.
-    if (uid) clearJournalDraftsForUser(uid)
+    // Unsent Journal drafts, and Folio's pending saves, view state and
+    // activation mirror, live on this device; they leave with the user.
+    if (uid) {
+      clearJournalDraftsForUser(uid)
+      clearFolioLocalForUser(uid)
+    }
+    resetFolioClaim()
   }
 
   return (
