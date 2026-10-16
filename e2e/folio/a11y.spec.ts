@@ -157,7 +157,14 @@ test.describe('the six scripted tasks, keyboard only (§3.10)', () => {
     expect((await call<unknown[]>(page, 'undersides')).length).toBe(1)
 
     // 6. Recover from a delete across a closed fold.
-    await page.keyboard.press(`${mod}+A`)
+    // Extend the selection to the start with the browser's own key, not
+    // Mod+A: an emulated iPhone on Linux reports an iPhone user agent but a
+    // Linux platform, so TipTap's Mac keymap (Ctrl+A: line start) and
+    // ProseMirror's Mod (Ctrl) disagree there. Real devices agree.
+    await call(page, 'focusEnd')
+    const mac = await page.evaluate(() => /Mac/.test(navigator.platform))
+    await page.keyboard.press(mac ? 'Meta+Shift+ArrowUp' : 'Control+Shift+Home')
+    await expect.poll(() => call<string>(page, 'selection')).toMatch(/^(text|all):1-/)
     await page.keyboard.press('Backspace')
     const afterDelete = await call<{ beneath: string }[]>(page, 'undersides')
     expect(afterDelete[0].beneath).toBe('I felt absent the whole time.')

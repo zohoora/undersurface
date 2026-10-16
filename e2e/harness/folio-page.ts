@@ -8,7 +8,7 @@ import '../../src/index.css'
 import '../../src/folio/folio.css'
 import { Editor } from '@tiptap/core'
 import type { JSONContent } from '@tiptap/core'
-import { TextSelection } from '@tiptap/pm/state'
+import { AllSelection, NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { folioExtensions, setOrnaments } from '../../src/folio/page/folioCore'
 import { getFoldView } from '../../src/folio/page/foldView'
 import { undersideControls } from '../../src/folio/page/undersideControls'
@@ -134,6 +134,12 @@ const api = {
     return out
   },
   editorFocused: () => editor.view.hasFocus(),
+  /** 'all', 'text', 'node' or 'caret', and its range. */
+  selection(): string {
+    const sel = editor.state.selection
+    const kind = sel instanceof AllSelection ? 'all' : sel instanceof NodeSelection ? 'node' : sel.empty ? 'caret' : 'text'
+    return `${kind}:${sel.from}-${sel.to}`
+  },
   /** The text of the paragraph holding the caret, and where it sits. */
   caretLine(): string {
     const $c = editor.state.selection.$from
