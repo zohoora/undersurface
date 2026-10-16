@@ -1,4 +1,5 @@
 import { personalScienceEnglish, sessionCopy } from './sessionCopy'
+import { folio_ko } from './folio/ko'
 import { roomFallback } from '../roomFallback'
 
 const koBase = {
@@ -171,9 +172,9 @@ const koBase = {
   'policy.disclaimerTitle': '치료 면책 조항',
   'policy.disclaimerNav': '면책 조항',
   'policy.whatWeStore': '저장되는 정보',
-  'policy.whatWeStoreBody': '세션과 대화 기록, 일기 글, 동반자가 간직하는 메모와 기억, 내면의 목소리(파트)와 그 기억, 프로필, 의도, 가치, 편지, 그리고 SMS로 보낸 모든 텍스트와 이미지를 저장합니다. 생체 기능을 켜면 심박수와 HRV 측정값도 저장합니다. 이 모든 정보는 계정에 연결되어 Google Firebase(Firestore 및 Cloud Storage)에 저장됩니다. 이 덕분에 동반자가 시간이 지나도 유용한 실마리를 기억할 수 있습니다.',
+  'policy.whatWeStoreBody': '세션과 대화 기록, 일기 글, 동반자가 간직하는 메모와 기억, 내면의 목소리(파트)와 그 기억, 프로필, 의도, 가치, 편지, 그리고 SMS로 보낸 모든 텍스트와 이미지를 저장합니다. 생체 기능을 켜면 심박수와 HRV 측정값도 저장합니다. 이 모든 정보는 계정에 연결되어 Google Firebase(Firestore 및 Cloud Storage)에 저장됩니다. 이 덕분에 동반자가 시간이 지나도 유용한 실마리를 기억할 수 있습니다. Folio를 사용하면 페이지, 그중 간직한 것, Folio 설정도 그곳에 저장돼요.',
   'policy.howAiWorks': 'AI 작동 방식',
-  'policy.howAiWorksBody': '세션에서 글을 쓰거나 말하면, 동반자의 응답, 내면의 목소리 응답, 세션 메모, 안전 점검을 생성하기 위해 관련 텍스트가 이름이나 이메일 주소 없이 OpenAI로 전송됩니다. 동반자가 기억할 수 있도록 이전 세션의 최근 맥락이 포함될 수 있습니다. OpenAI는 자사 API 약관에 따라 이 콘텐츠를 처리해 응답을 생성합니다. 기본적으로 API 콘텐츠를 모델 학습에 사용하지 않으며, 남용을 모니터링하기 위해 제한된 기간 동안 보관할 수 있습니다.',
+  'policy.howAiWorksBody': '세션에서 글을 쓰거나 말하면, 동반자의 응답, 내면의 목소리 응답, 세션 메모, 안전 점검을 생성하기 위해 관련 텍스트가 이름이나 이메일 주소 없이 OpenAI로 전송됩니다. 동반자가 기억할 수 있도록 이전 세션의 최근 맥락이 포함될 수 있습니다. OpenAI는 자사 API 약관에 따라 이 콘텐츠를 처리해 응답을 생성합니다. 기본적으로 API 콘텐츠를 모델 학습에 사용하지 않으며, 남용을 모니터링하기 위해 제한된 기간 동안 보관할 수 있습니다. Folio에서 쓴 글은 짧은 단위로 안전 확인을 거치며, OpenAI도 확인에 참여해요. 직접 단어를 세션으로 가져가기로 하지 않는 한 동반자는 Folio 페이지를 읽지 않아요. Folio의 확인에서 위기 상황일 수 있다는 신호가 나오면, 72시간 동안 동반자는 세션과 문자 메시지에서 더 부드럽게 답하고, 안부 메시지는 잠시 멈춰요.',
   'policy.voice': '음성',
   'policy.voiceBody': '소리 내어 말하기나 방을 음성으로 사용하면, 마이크 오디오가 브라우저에서 OpenAI의 실시간 음성 서비스로 직접 전송되고, 이 서비스가 음성으로 답합니다. 양쪽의 대화 기록은 세션에 저장됩니다. 방의 조용한 동행은 마이크를 사용하지 않으며 오디오를 전송하지 않습니다.',
   'policy.sms': 'SMS와 이미지',
@@ -185,7 +186,7 @@ const koBase = {
   'policy.providers': '서비스 제공업체',
   'policy.providersBody': 'Google Firebase(계정, 데이터베이스, 파일 저장소, 호스팅). OpenAI(동반자 응답, 음성, 안전 점검). Twilio(SMS, 전화를 연결한 경우에만). Sentry(앱과 브라우저에 관한 기술 정보가 담긴 오류 보고). Google Analytics 및 Google Ads(계정 식별자와 연결된 사용 통계, 광고를 통한 가입 측정).',
   'policy.devicePreferences': '기기 설정',
-  'policy.devicePreferencesBody': '테마, 언어, 자동 수정 설정 등은 기기에 로컬로 저장됩니다. 아직 세션에 추가하지 않은 일기 글도 새로고침해도 사라지지 않도록 기기에 임시 저장본으로 보관됩니다. 임시 저장본은 세션에 추가되거나 로그아웃하면 삭제됩니다. 이 정보는 브라우저 밖으로 나가지 않습니다.',
+  'policy.devicePreferencesBody': '테마, 언어, 자동 수정 설정 등은 기기에 로컬로 저장됩니다. 아직 세션에 추가하지 않은 일기 글도 새로고침해도 사라지지 않도록 기기에 임시 저장본으로 보관됩니다. 임시 저장본은 세션에 추가되거나 로그아웃하면 삭제됩니다. 이 정보는 브라우저 밖으로 나가지 않습니다. Folio는 페이지가 계정에 저장될 때까지 기기에 보관하고(그 후 계정에 저장돼요), 열어 둔 접힘을 기억해요. 둘 다 로그아웃하면 지워져요.',
   'policy.dataRetention': '데이터 보존',
   'policy.dataRetentionBody': '데이터는 계정이 존재하는 동안 저장됩니다. 설정에서 언제든지 데이터를 내보내거나 계정을 삭제할 수 있습니다. 계정을 삭제하면 데이터베이스와 파일 저장소에서 데이터가 삭제되며, Twilio에 SMS 기록 삭제를 요청합니다. 서비스 제공업체는 자체 정책에 따라 제한된 기록을 짧은 기간 동안 보관할 수 있습니다.',
   'policy.yourChoices': '선택권',
@@ -456,6 +457,7 @@ const ko = {
   ...roomFallback,
   ...koBase,
   ...sessionCopy.ko,
+  ...folio_ko,
 } as const
 
 export default ko

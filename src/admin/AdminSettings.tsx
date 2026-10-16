@@ -626,6 +626,42 @@ export function AdminSettings() {
         </div>
       </CollapsibleSection>
 
+      {/* Folio (docs/vision/folio-build-plan.md §3.1) */}
+      <CollapsibleSection
+        title="Folio"
+        isExpanded={!!expanded.folio}
+        onToggle={() => toggle('folio')}
+        style={sectionStyle}
+      >
+        <ToggleRow
+          label="Open Folio to everyone"
+          checked={config.features.folioEnabled === true}
+          onChange={(v) => setFeature('folioEnabled', v)}
+        />
+        <div style={{ fontSize: 11, color: '#A09A94', marginTop: 8, marginBottom: 12, lineHeight: 1.5 }}>
+          Off: only admins (and accounts with the Folio test claim) can open Folio. The switches below shape it for whoever can.
+        </div>
+        {([
+          ['folioBetween', 'The between (writing in the space a distance opens)'],
+          ['folioDistance', 'Closer and Farther (the five distances)'],
+          ['folioLiftToday', 'Lift into today\'s page (from a kept thing)'],
+          ['folioAsk', 'Ask (a companion note in the margin)'],
+          ['folioStepInside', 'Step inside'],
+          ['folioStepInsideSound', 'Sound in Step inside (web only)'],
+          ['folioReturn', 'Let kept things come back on their own (each writer still opts in)'],
+        ] as const).map(([key, label]) => (
+          <ToggleRow
+            key={key}
+            label={label}
+            checked={config.features[key] !== false}
+            onChange={(v) => setFeature(key, v)}
+          />
+        ))}
+        <div style={{ fontSize: 11, color: '#A09A94', marginTop: 12, lineHeight: 1.5 }}>
+          Switching one off hides its controls. It never hides, changes or deletes anything already written with it.
+        </div>
+      </CollapsibleSection>
+
       {/* Voice Mode (Conversation / Therapist only) */}
       <CollapsibleSection
         title="Voice Mode"

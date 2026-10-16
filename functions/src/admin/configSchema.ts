@@ -26,6 +26,9 @@ const FEATURE_KEYS = new Set([
   'roomEnabled',
   // SMS field channel kill switch. Enabled unless explicitly false.
   'smsEnabled',
+  // Folio: the mode (off unless true) and its sub-switches (on unless false).
+  'folioEnabled', 'folioBetween', 'folioDistance', 'folioLiftToday',
+  'folioAsk', 'folioStepInside', 'folioStepInsideSound', 'folioReturn',
 ])
 
 // Feature keys that no longer control anything. An update that still carries

@@ -1,4 +1,5 @@
 import { personalScienceEnglish, sessionCopy } from './sessionCopy'
+import { folio_vi } from './folio/vi'
 import { roomFallback } from '../roomFallback'
 
 const viBase = {
@@ -171,9 +172,9 @@ const viBase = {
   'policy.disclaimerTitle': 'Tuyên bố miễn trừ trị liệu',
   'policy.disclaimerNav': 'Tuyên bố miễn trừ',
   'policy.whatWeStore': 'Những gì chúng tôi lưu trữ',
-  'policy.whatWeStoreBody': 'Các phiên và bản ghi của bạn, bài viết nhật ký, những ghi chú và ký ức mà người đồng hành lưu giữ, các tiếng nói nội tâm (phần) và ký ức của chúng, hồ sơ, ý định, giá trị, thư của bạn, cùng mọi văn bản hoặc hình ảnh bạn gửi qua SMS. Nếu bạn bật các tính năng sinh trắc học, chúng tôi cũng lưu số đo nhịp tim và HRV. Tất cả được lưu trong Google Firebase (Firestore và Cloud Storage), liên kết với tài khoản của bạn. Đây là điều giúp người đồng hành ghi nhớ những sợi chỉ hữu ích theo thời gian.',
+  'policy.whatWeStoreBody': 'Các phiên và bản ghi của bạn, bài viết nhật ký, những ghi chú và ký ức mà người đồng hành lưu giữ, các tiếng nói nội tâm (phần) và ký ức của chúng, hồ sơ, ý định, giá trị, thư của bạn, cùng mọi văn bản hoặc hình ảnh bạn gửi qua SMS. Nếu bạn bật các tính năng sinh trắc học, chúng tôi cũng lưu số đo nhịp tim và HRV. Tất cả được lưu trong Google Firebase (Firestore và Cloud Storage), liên kết với tài khoản của bạn. Đây là điều giúp người đồng hành ghi nhớ những sợi chỉ hữu ích theo thời gian. Nếu bạn dùng Folio, các trang của bạn, những gì bạn giữ lại từ chúng và cài đặt Folio của bạn cũng được lưu ở đó.',
   'policy.howAiWorks': 'AI hoạt động như thế nào',
-  'policy.howAiWorksBody': 'Khi bạn viết hoặc nói trong một phiên, phần văn bản liên quan được gửi đến OpenAI, không kèm tên hoặc địa chỉ email của bạn, để tạo phản hồi của người đồng hành, phản hồi của tiếng nói nội tâm, ghi chú phiên và kiểm tra an toàn. Ngữ cảnh gần đây từ các phiên trước có thể được đưa vào để người đồng hành ghi nhớ. OpenAI xử lý nội dung này để tạo phản hồi theo điều khoản API của mình; theo mặc định, OpenAI không dùng nội dung API để huấn luyện mô hình và có thể lưu giữ nội dung trong một thời gian giới hạn để giám sát hành vi lạm dụng.',
+  'policy.howAiWorksBody': 'Khi bạn viết hoặc nói trong một phiên, phần văn bản liên quan được gửi đến OpenAI, không kèm tên hoặc địa chỉ email của bạn, để tạo phản hồi của người đồng hành, phản hồi của tiếng nói nội tâm, ghi chú phiên và kiểm tra an toàn. Ngữ cảnh gần đây từ các phiên trước có thể được đưa vào để người đồng hành ghi nhớ. OpenAI xử lý nội dung này để tạo phản hồi theo điều khoản API của mình; theo mặc định, OpenAI không dùng nội dung API để huấn luyện mô hình và có thể lưu giữ nội dung trong một thời gian giới hạn để giám sát hành vi lạm dụng. Trong Folio, những gì bạn viết được kiểm tra để giữ an toàn theo từng đoạn ngắn, kể cả bởi OpenAI; người đồng hành không đọc các trang Folio của bạn, trừ khi bạn chọn mang lời viết vào một phiên. Nếu một lần kiểm tra trong Folio cho thấy bạn có thể đang khủng hoảng, trong 72 giờ người đồng hành sẽ trả lời nhẹ nhàng hơn trong các phiên và qua tin nhắn, và các tin nhắn hỏi thăm sẽ tạm dừng.',
   'policy.voice': 'Giọng nói',
   'policy.voiceBody': 'Khi bạn dùng Nói thành tiếng hoặc Phòng với giọng nói, âm thanh từ micrô của bạn được truyền trực tiếp từ trình duyệt đến dịch vụ giọng nói thời gian thực của OpenAI, dịch vụ này trả lời bằng giọng nói. Bản ghi của cả hai bên được lưu vào phiên của bạn. Đồng hành lặng lẽ trong Phòng không dùng micrô và không gửi âm thanh nào.',
   'policy.sms': 'SMS và hình ảnh',
@@ -185,7 +186,7 @@ const viBase = {
   'policy.providers': 'Nhà cung cấp dịch vụ',
   'policy.providersBody': 'Google Firebase (tài khoản, cơ sở dữ liệu, lưu trữ tệp, lưu trữ web). OpenAI (phản hồi của người đồng hành, giọng nói, kiểm tra an toàn). Twilio (SMS, chỉ khi bạn liên kết điện thoại). Sentry (báo cáo lỗi kèm chi tiết kỹ thuật về ứng dụng và trình duyệt của bạn). Google Analytics và Google Ads (thống kê sử dụng gắn với một mã định danh tài khoản và đo lường lượt đăng ký từ quảng cáo).',
   'policy.devicePreferences': 'Tùy chọn thiết bị',
-  'policy.devicePreferencesBody': 'Các cài đặt như chủ đề, ngôn ngữ và tùy chọn tự động sửa lỗi được lưu trữ cục bộ trên thiết bị của bạn. Những gì bạn viết trong Nhật ký nhưng chưa thêm vào phiên cũng được giữ trên thiết bị dưới dạng bản nháp, để không bị mất khi tải lại trang; bản nháp sẽ bị xóa khi đã được thêm vào phiên hoặc khi bạn đăng xuất. Không dữ liệu nào trong số này rời khỏi trình duyệt của bạn.',
+  'policy.devicePreferencesBody': 'Các cài đặt như chủ đề, ngôn ngữ và tùy chọn tự động sửa lỗi được lưu trữ cục bộ trên thiết bị của bạn. Những gì bạn viết trong Nhật ký nhưng chưa thêm vào phiên cũng được giữ trên thiết bị dưới dạng bản nháp, để không bị mất khi tải lại trang; bản nháp sẽ bị xóa khi đã được thêm vào phiên hoặc khi bạn đăng xuất. Không dữ liệu nào trong số này rời khỏi trình duyệt của bạn. Folio cũng giữ các trang trên thiết bị của bạn cho đến khi tài khoản của bạn có chúng (khi đó chúng được lưu ở đó) và nhớ những nếp gấp bạn để mở; cả hai đều bị xóa khi bạn đăng xuất.',
   'policy.dataRetention': 'Lưu giữ dữ liệu',
   'policy.dataRetentionBody': 'Dữ liệu của bạn được lưu trữ chừng nào tài khoản của bạn còn tồn tại. Bạn có thể xuất dữ liệu hoặc xóa tài khoản bất cứ lúc nào từ Cài đặt. Khi bạn xóa tài khoản, dữ liệu của bạn sẽ bị xóa khỏi cơ sở dữ liệu và kho lưu trữ tệp của chúng tôi, đồng thời chúng tôi yêu cầu Twilio xóa hồ sơ SMS của bạn. Các nhà cung cấp dịch vụ có thể giữ một số hồ sơ hạn chế trong thời gian ngắn theo chính sách riêng của họ.',
   'policy.yourChoices': 'Quyền lựa chọn của bạn',
@@ -456,6 +457,7 @@ const vi = {
   ...roomFallback,
   ...viBase,
   ...sessionCopy.vi,
+  ...folio_vi,
 } as const
 
 export default vi

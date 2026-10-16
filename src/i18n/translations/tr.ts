@@ -1,4 +1,5 @@
 import { personalScienceEnglish, sessionCopy } from './sessionCopy'
+import { folio_tr } from './folio/tr'
 import { roomFallback } from '../roomFallback'
 
 const trBase = {
@@ -171,9 +172,9 @@ const trBase = {
   'policy.disclaimerTitle': 'Terapi Sorumluluk Reddi',
   'policy.disclaimerNav': 'Sorumluluk Reddi',
   'policy.whatWeStore': 'Neleri saklıyoruz',
-  'policy.whatWeStoreBody': 'Oturumlarınız ve dökümleri, günlük yazılarınız, yol arkadaşınızın tuttuğu notlar ve anılar, iç sesleriniz (parçalar) ve anıları, profiliniz, niyetleriniz, değerleriniz, mektuplarınız ve SMS ile gönderdiğiniz tüm metin ve görseller. Biyometrik özellikleri açarsanız kalp atış hızı ve HRV ölçümlerini de saklarız. Bunların tümü hesabınıza bağlı olarak Google Firebase’de (Firestore ve Cloud Storage) saklanır. Yol arkadaşınızın yararlı izleri zaman içinde hatırlayabilmesini sağlayan budur.',
+  'policy.whatWeStoreBody': 'Oturumlarınız ve dökümleri, günlük yazılarınız, yol arkadaşınızın tuttuğu notlar ve anılar, iç sesleriniz (parçalar) ve anıları, profiliniz, niyetleriniz, değerleriniz, mektuplarınız ve SMS ile gönderdiğiniz tüm metin ve görseller. Biyometrik özellikleri açarsanız kalp atış hızı ve HRV ölçümlerini de saklarız. Bunların tümü hesabınıza bağlı olarak Google Firebase’de (Firestore ve Cloud Storage) saklanır. Yol arkadaşınızın yararlı izleri zaman içinde hatırlayabilmesini sağlayan budur. Folio’yu kullanırsan sayfaların, onlardan sakladıkların ve Folio ayarların da orada saklanır.',
   'policy.howAiWorks': 'Yapay zeka burada nasıl çalışır',
-  'policy.howAiWorksBody': 'Bir oturumda yazdığınızda veya konuştuğunuzda, ilgili metin adınız veya e-posta adresiniz olmadan OpenAI’ye gönderilir ve yol arkadaşınızın yanıtları, iç ses yanıtları, oturum notları ve güvenlik kontrolleri bu şekilde üretilir. Yol arkadaşınızın hatırlayabilmesi için önceki oturumlardan yakın tarihli bağlam da eklenebilir. OpenAI bu içeriği API koşulları kapsamında yanıt üretmek için işler; API içeriğini varsayılan olarak modellerini eğitmek için kullanmaz ve kötüye kullanımı izlemek amacıyla sınırlı bir süre saklayabilir.',
+  'policy.howAiWorksBody': 'Bir oturumda yazdığınızda veya konuştuğunuzda, ilgili metin adınız veya e-posta adresiniz olmadan OpenAI’ye gönderilir ve yol arkadaşınızın yanıtları, iç ses yanıtları, oturum notları ve güvenlik kontrolleri bu şekilde üretilir. Yol arkadaşınızın hatırlayabilmesi için önceki oturumlardan yakın tarihli bağlam da eklenebilir. OpenAI bu içeriği API koşulları kapsamında yanıt üretmek için işler; API içeriğini varsayılan olarak modellerini eğitmek için kullanmaz ve kötüye kullanımı izlemek amacıyla sınırlı bir süre saklayabilir. Folio’da yazdıkların güvenlik için kısa parçalar hâlinde kontrol edilir, buna OpenAI da dahildir; sen sözleri bir oturuma taşımayı seçmedikçe yol arkadaşı Folio sayfalarını okumaz. Folio’daki bir kontrol kriz içinde olabileceğine işaret ederse, yol arkadaşı 72 saat boyunca oturumlarında ve kısa mesajlarda daha yumuşak yanıt verir ve hâl hatır mesajları durur.',
   'policy.voice': 'Ses',
   'policy.voiceBody': 'Yüksek sesle söyle alanını veya Oda’yı sesli kullandığınızda, mikrofon sesiniz doğrudan tarayıcınızdan OpenAI’nin gerçek zamanlı ses hizmetine aktarılır ve bu hizmet konuşarak yanıt verir. İki tarafın dökümleri oturumunuza kaydedilir. Oda’daki Sessiz eşlik mikrofon kullanmaz ve ses göndermez.',
   'policy.sms': 'SMS ve görseller',
@@ -185,7 +186,7 @@ const trBase = {
   'policy.providers': 'Hizmet sağlayıcılar',
   'policy.providersBody': 'Google Firebase (hesaplar, veritabanı, dosya depolama, barındırma). OpenAI (yol arkadaşı yanıtları, ses, güvenlik kontrolleri). Twilio (SMS, yalnızca bir telefon bağlarsanız). Sentry (uygulama ve tarayıcınız hakkında teknik ayrıntılar içeren hata raporları). Google Analytics ve Google Ads (bir hesap tanımlayıcısına bağlı kullanım istatistikleri ve reklamlardan gelen kayıtların ölçümü).',
   'policy.devicePreferences': 'Cihaz tercihleri',
-  'policy.devicePreferencesBody': 'Tema, dil ve otomatik düzeltme tercihleri gibi ayarlar cihazınızda yerel olarak saklanır. Henüz bir oturuma eklemediğiniz Günlük yazıları da sayfa yenilendiğinde kaybolmaması için cihazınızda taslak olarak tutulur; taslaklar oturuma eklendiğinde veya çıkış yaptığınızda silinir. Bunların hiçbiri tarayıcınızdan çıkmaz.',
+  'policy.devicePreferencesBody': 'Tema, dil ve otomatik düzeltme tercihleri gibi ayarlar cihazınızda yerel olarak saklanır. Henüz bir oturuma eklemediğiniz Günlük yazıları da sayfa yenilendiğinde kaybolmaması için cihazınızda taslak olarak tutulur; taslaklar oturuma eklendiğinde veya çıkış yaptığınızda silinir. Bunların hiçbiri tarayıcınızdan çıkmaz. Folio ayrıca sayfaları hesabına ulaşana kadar cihazında tutar (sonra orada kaydedilir) ve açık bıraktığın kıvrımları hatırlar; ikisi de oturumu kapattığında silinir.',
   'policy.dataRetention': 'Veri saklama',
   'policy.dataRetentionBody': 'Verileriniz hesabınız var olduğu sürece saklanır. Verilerinizi istediğiniz zaman Ayarlar’dan dışa aktarabilir veya hesabınızı silebilirsiniz. Hesabınızı silmek, verilerinizi veritabanımızdan ve dosya depolama alanımızdan kaldırır ve Twilio’dan SMS kayıtlarınızı silmesini ister. Hizmet sağlayıcılar, kendi politikaları kapsamında sınırlı kayıtları kısa bir süre saklayabilir.',
   'policy.yourChoices': 'Seçeneklerin',
@@ -456,6 +457,7 @@ const tr = {
   ...roomFallback,
   ...trBase,
   ...sessionCopy.tr,
+  ...folio_tr,
 } as const
 
 export default tr

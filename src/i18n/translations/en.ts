@@ -1,4 +1,5 @@
 import { sessionCopy } from './sessionCopy'
+import { folioEnglish } from './folio/copy'
 import { roomFallback } from '../roomFallback'
 
 const enBase = {
@@ -205,9 +206,9 @@ const enBase = {
   'policy.disclaimerTitle': 'Therapeutic Disclaimer',
   'policy.disclaimerNav': 'Disclaimer',
   'policy.whatWeStore': 'What we store',
-  'policy.whatWeStoreBody': 'Your sessions and transcripts, journal writing, the notes and memories your companion keeps, inner voices (parts) and their memories, your profile, intentions, values, letters, and any text or images you send by SMS. If you turn on biometric features, we also store heart-rate and HRV readings. All of this is stored in Google Firebase (Firestore and Cloud Storage), tied to your account. It is what lets your companion remember useful threads over time.',
+  'policy.whatWeStoreBody': 'Your sessions and transcripts, journal writing, the notes and memories your companion keeps, inner voices (parts) and their memories, your profile, intentions, values, letters, and any text or images you send by SMS. If you turn on biometric features, we also store heart-rate and HRV readings. All of this is stored in Google Firebase (Firestore and Cloud Storage), tied to your account. It is what lets your companion remember useful threads over time. If you use Folio, your pages, what you keep from them, and your Folio settings are stored there too.',
   'policy.howAiWorks': 'How AI works here',
-  'policy.howAiWorksBody': 'When you write or speak in a session, the relevant text is sent to OpenAI, without your name or email address, to generate your companion’s responses, inner-voice responses, session notes, and safety checks. Recent context from earlier sessions may be included so your companion can remember. OpenAI processes this content to produce responses under its API terms; it does not use API content to train its models by default and may keep it for a limited time to monitor for abuse.',
+  'policy.howAiWorksBody': 'When you write or speak in a session, the relevant text is sent to OpenAI, without your name or email address, to generate your companion’s responses, inner-voice responses, session notes, and safety checks. Recent context from earlier sessions may be included so your companion can remember. OpenAI processes this content to produce responses under its API terms; it does not use API content to train its models by default and may keep it for a limited time to monitor for abuse. In Folio, what you write is checked for safety in short pieces, also by OpenAI; the companion does not read your Folio pages unless you choose to bring words into a session. If a Folio check suggests you may be in crisis, the companion answers more gently in your sessions and by text message for 72 hours, and check-in texts pause.',
   'policy.voice': 'Voice',
   'policy.voiceBody': 'When you use Speak or Room with voice, your microphone audio streams directly from your browser to OpenAI’s realtime voice service, which replies in speech. Transcripts of both sides are saved to your session. Quiet company in Room uses no microphone and sends no audio.',
   'policy.sms': 'SMS and images',
@@ -219,7 +220,7 @@ const enBase = {
   'policy.providers': 'Service providers',
   'policy.providersBody': 'Google Firebase (accounts, database, file storage, hosting). OpenAI (companion responses, voice, safety checks). Twilio (SMS, only if you link a phone). Sentry (error reports with technical details about the app and your browser). Google Analytics and Google Ads (usage statistics linked to an account identifier, and measuring sign-ups from ads).',
   'policy.devicePreferences': 'Device preferences',
-  'policy.devicePreferencesBody': 'Settings like your theme, language, and autocorrect preferences are stored locally on your device. Journal writing you haven’t added to a session yet is also kept on your device as a draft, so it survives a reload; drafts are removed once they’re added to the session or when you sign out. None of this leaves your browser.',
+  'policy.devicePreferencesBody': 'Settings like your theme, language, and autocorrect preferences are stored locally on your device. Journal writing you haven’t added to a session yet is also kept on your device as a draft, so it survives a reload; drafts are removed once they’re added to the session or when you sign out. None of this leaves your browser. Folio also keeps pages on your device until your account has them (they are then saved there) and remembers which folds you left open; both are removed when you sign out.',
   'policy.dataRetention': 'Data retention',
   'policy.dataRetentionBody': 'Your data is stored for as long as your account exists. You can export your data or delete your account at any time from Settings. Deleting your account removes your data from our database and file storage and asks Twilio to delete your SMS records. Service providers may keep limited records for a short time under their own policies.',
   'policy.yourChoices': 'Your choices',
@@ -298,7 +299,7 @@ const enBase = {
   'values.settings.title': 'What matters to you',
 } as const
 
-const en = { ...roomFallback, ...enBase, ...sessionCopy.en } as const
+const en = { ...roomFallback, ...enBase, ...sessionCopy.en, ...folioEnglish } as const
 
 export type TranslationKey = keyof typeof en
 export type TranslationStrings = typeof en

@@ -5,6 +5,12 @@ import { invalidateSettingsCache } from './settings'
 import type { GlobalConfig } from '../admin/adminTypes'
 
 let cache: GlobalConfig | null = null
+// Whether the first snapshot (cache or server) has arrived. `getGlobalConfig()`
+// is null both before it arrives and when the document doesn't exist, so code
+// that must tell "not loaded yet" from "no config" (Folio's access check)
+// waits on this.
+let loaded = false
+let readyWaiters: (() => void)[] = []
 const listeners = new Set<() => void>()
 let unsubscribe: (() => void) | null = null
 let initialBuildVersion: string | null = null
@@ -31,12 +37,33 @@ export function initGlobalConfig() {
         for (const fn of versionListeners) fn()
       }
       invalidateSettingsCache()
+      markLoaded()
       notify()
     },
     (error) => {
       console.error('Global config listener error:', error)
+      markLoaded()
+      notify()
     },
   )
+}
+
+function markLoaded() {
+  if (loaded) return
+  loaded = true
+  const waiters = readyWaiters
+  readyWaiters = []
+  for (const fn of waiters) fn()
+}
+
+/** Resolves once the first config snapshot (or a listener error) has arrived. */
+export function whenGlobalConfigReady(): Promise<void> {
+  if (loaded) return Promise.resolve()
+  return new Promise((resolve) => { readyWaiters.push(resolve) })
+}
+
+export function useGlobalConfigStatus(): 'loading' | 'ready' {
+  return useSyncExternalStore(subscribe, () => (loaded ? 'ready' : 'loading'))
 }
 
 export function teardownGlobalConfig(): void {
@@ -44,6 +71,7 @@ export function teardownGlobalConfig(): void {
     unsubscribe()
     unsubscribe = null
   }
+  loaded = false
   cache = null
   hasNewVersion = false
   initialBuildVersion = null

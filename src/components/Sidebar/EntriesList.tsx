@@ -12,6 +12,8 @@ const BodyMapTab = lazyWithRetry(() => import('../BodyMap/BodyMapTab').then(m =>
 interface Props {
   navigateTo: (path: string) => void
   currentPath: string
+  /** Folio's door, shown only to writers who can open it. */
+  onOpenFolio?: () => void
 }
 
 interface SidebarItem {
@@ -37,7 +39,7 @@ function useIsMobile() {
   return isMobile
 }
 
-export function EntriesList({ navigateTo, currentPath }: Props) {
+export function EntriesList({ navigateTo, currentPath, onOpenFolio }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'entries' | 'body'>('entries')
@@ -158,6 +160,13 @@ export function EntriesList({ navigateTo, currentPath }: Props) {
           <span className="rail-icon" aria-hidden="true">＋</span>
           <span className="rail-copy">{t['sidebar.newSession']}</span>
         </button>
+
+        {onOpenFolio && (
+          <button className="rail-new-session" onClick={() => { onOpenFolio(); if (isMobile) setIsOpen(false) }}>
+            <span className="rail-icon" aria-hidden="true">⌟</span>
+            <span className="rail-copy">{t['folio.door']}</span>
+          </button>
+        )}
 
         <div className="sidebar-expanded-content">
           {showBodyMap ? (

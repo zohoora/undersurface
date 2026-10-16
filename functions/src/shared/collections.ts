@@ -39,4 +39,7 @@ export const USER_SUBCOLLECTIONS = [
   'livingHypotheses',
   'smsMessages',
   'smsSettings',
+  'folioPages',
+  'folioTraces',
+  'folioPreferences',
 ] as const

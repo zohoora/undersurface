@@ -1,4 +1,5 @@
 import { personalScienceEnglish, sessionCopy } from './sessionCopy'
+import { folio_id } from './folio/id'
 import { roomFallback } from '../roomFallback'
 
 const idBase = {
@@ -171,9 +172,9 @@ const idBase = {
   'policy.disclaimerTitle': 'Sanggahan Terapi',
   'policy.disclaimerNav': 'Sanggahan',
   'policy.whatWeStore': 'Apa yang kami simpan',
-  'policy.whatWeStoreBody': 'Sesi dan transkripmu, tulisanmu di Jurnal, catatan dan ingatan yang disimpan pendampingmu, suara batin (bagian) beserta ingatannya, profil, niat, nilai, surat, serta teks atau gambar apa pun yang kamu kirim lewat SMS. Jika kamu menyalakan fitur biometrik, kami juga menyimpan pembacaan denyut jantung dan HRV. Semua ini disimpan di Google Firebase (Firestore dan Cloud Storage), terhubung dengan akunmu. Inilah yang memungkinkan pendampingmu mengingat benang-benang yang berguna dari waktu ke waktu.',
+  'policy.whatWeStoreBody': 'Sesi dan transkripmu, tulisanmu di Jurnal, catatan dan ingatan yang disimpan pendampingmu, suara batin (bagian) beserta ingatannya, profil, niat, nilai, surat, serta teks atau gambar apa pun yang kamu kirim lewat SMS. Jika kamu menyalakan fitur biometrik, kami juga menyimpan pembacaan denyut jantung dan HRV. Semua ini disimpan di Google Firebase (Firestore dan Cloud Storage), terhubung dengan akunmu. Inilah yang memungkinkan pendampingmu mengingat benang-benang yang berguna dari waktu ke waktu. Jika kamu memakai Folio, halaman-halamanmu, yang kamu simpan darinya, dan pengaturan Folio-mu juga disimpan di sana.',
   'policy.howAiWorks': 'Cara kerja AI di sini',
-  'policy.howAiWorksBody': 'Saat kamu menulis atau berbicara dalam sesi, teks yang relevan dikirim ke OpenAI, tanpa nama atau alamat emailmu, untuk menghasilkan respons pendampingmu, respons suara batin, catatan sesi, dan pemeriksaan keamanan. Konteks terbaru dari sesi sebelumnya dapat disertakan agar pendampingmu bisa mengingat. OpenAI memproses konten ini untuk menghasilkan respons berdasarkan ketentuan API-nya; secara default, OpenAI tidak menggunakan konten API untuk melatih modelnya dan dapat menyimpannya untuk waktu terbatas guna memantau penyalahgunaan.',
+  'policy.howAiWorksBody': 'Saat kamu menulis atau berbicara dalam sesi, teks yang relevan dikirim ke OpenAI, tanpa nama atau alamat emailmu, untuk menghasilkan respons pendampingmu, respons suara batin, catatan sesi, dan pemeriksaan keamanan. Konteks terbaru dari sesi sebelumnya dapat disertakan agar pendampingmu bisa mengingat. OpenAI memproses konten ini untuk menghasilkan respons berdasarkan ketentuan API-nya; secara default, OpenAI tidak menggunakan konten API untuk melatih modelnya dan dapat menyimpannya untuk waktu terbatas guna memantau penyalahgunaan. Di Folio, yang kamu tulis diperiksa demi keamanan dalam potongan pendek, termasuk oleh OpenAI; pendamping tidak membaca halaman Folio-mu kecuali kamu memilih membawa kata-kata ke dalam sesi. Jika pemeriksaan di Folio menunjukkan kamu mungkin sedang dalam krisis, pendamping menjawab dengan lebih lembut di sesi dan lewat SMS selama 72 jam, dan pesan sapaan dijeda.',
   'policy.voice': 'Suara',
   'policy.voiceBody': 'Saat kamu memakai “Ucapkan dengan suara” atau Ruang dengan suara, audio mikrofonmu dialirkan langsung dari browsermu ke layanan suara realtime OpenAI, yang membalas dengan ucapan. Transkrip dari kedua sisi disimpan ke sesimu. Ditemani dalam hening di Ruang tidak memakai mikrofon dan tidak mengirim audio.',
   'policy.sms': 'SMS dan gambar',
@@ -185,7 +186,7 @@ const idBase = {
   'policy.providers': 'Penyedia layanan',
   'policy.providersBody': 'Google Firebase (akun, database, penyimpanan file, hosting). OpenAI (respons pendamping, suara, pemeriksaan keamanan). Twilio (SMS, hanya jika kamu menghubungkan telepon). Sentry (laporan error dengan detail teknis tentang aplikasi dan browsermu). Google Analytics dan Google Ads (statistik penggunaan yang terhubung dengan pengenal akun, dan pengukuran pendaftaran dari iklan).',
   'policy.devicePreferences': 'Preferensi perangkat',
-  'policy.devicePreferencesBody': 'Pengaturan seperti tema, bahasa, dan preferensi koreksi otomatis disimpan secara lokal di perangkatmu. Tulisan di Jurnal yang belum kamu tambahkan ke sesi juga disimpan di perangkatmu sebagai draf, sehingga tetap ada setelah halaman dimuat ulang; draf dihapus setelah ditambahkan ke sesi atau saat kamu keluar. Semua ini tidak pernah keluar dari browsermu.',
+  'policy.devicePreferencesBody': 'Pengaturan seperti tema, bahasa, dan preferensi koreksi otomatis disimpan secara lokal di perangkatmu. Tulisan di Jurnal yang belum kamu tambahkan ke sesi juga disimpan di perangkatmu sebagai draf, sehingga tetap ada setelah halaman dimuat ulang; draf dihapus setelah ditambahkan ke sesi atau saat kamu keluar. Semua ini tidak pernah keluar dari browsermu. Folio juga menyimpan halaman di perangkatmu sampai akunmu menerimanya (lalu disimpan di sana) dan mengingat lipatan mana yang kamu biarkan terbuka; keduanya dihapus saat kamu keluar.',
   'policy.dataRetention': 'Penyimpanan data',
   'policy.dataRetentionBody': 'Datamu disimpan selama akunmu ada. Kamu bisa mengekspor datamu atau menghapus akunmu kapan saja dari Pengaturan. Menghapus akun akan menghapus datamu dari database dan penyimpanan file kami, serta meminta Twilio menghapus catatan SMS-mu. Penyedia layanan dapat menyimpan catatan terbatas untuk waktu singkat berdasarkan kebijakan mereka sendiri.',
   'policy.yourChoices': 'Pilihanmu',
@@ -456,6 +457,7 @@ const id = {
   ...roomFallback,
   ...idBase,
   ...sessionCopy.id,
+  ...folio_id,
 } as const
 
 export default id
