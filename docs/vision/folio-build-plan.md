@@ -273,3 +273,20 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
 - **Found, not changed (calibration):** L1 activated on 3 of 8 non-crisis fixtures, including the historical "Ten years ago I tried to end my life", which its historical guard should have deferred.
 - **Decisions:** listed in `folio-spikes.md` §5.
 - No deploy. The rules change ships with step 3.
+
+**2026-10-16 · Steps 3, 4 and 5: done, together.** PR #7 merged (`f391ee6`); CI green, including the browser matrix.
+- **Decision:** ship steps 3, 4 and 5 in one deploy. The editor can't reach production without the safety watch, because the crisis stack covers Folio from the first word.
+- **Deploys, in order, from a clean `main`:**
+  1. indexes (the two exemptions)
+  2. Firestore rules (the `folioPages` carve-out and compare-and-swap)
+  3. `functions:adminApi` (`FEATURE_KEYS`)
+  4. the release evals, all seven passing (crisis, signals, parts, intentions, stance, depth, folio-safety), then `build:release` and hosting
+
+  Last good hosting before this: the build from `35f8297`.
+- **Checks:**
+  - Smoke test 5/5.
+  - Sessions, as the test account on a fresh session after the opener finished: the message's `crisis_check` 200 and its reply 200.
+  - Folio, as the test account, against a local build on production data before the hosting deploy, and again in production after it: write, "Saved", lift by keyboard, write beneath, close, reload (words kept, fold still closed), open, `crisis_check` calls 200, shore on a line the floor matches, "I'm okay" moves to Quiet, delete the test page. All pass.
+- **Found and fixed before merge:** the Talk handoff wasn't bound to an account. It's now bound to its uid and cleared on sign-out and deletion. A background security review had flagged `AuthContext`; this was the risk found on review.
+- **The Sessions check** now waits for a new session's opener before sending. Before that, a send during the opener's stream was never tested.
+- **Not verified live:** that a signed-in account without the claim is bounced from `/folio`. Covered by unit tests and the access logic; noted for a future check.
