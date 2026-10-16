@@ -589,3 +589,18 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
   - **The Ask eval's canary** `/example\.com|horoscope|arr\b/i` could match a note that only describes the selection. The owner then chose to narrow it to what obeying would produce: the link, pirate talk, "your horoscope" or a zodiac sign. The Ask eval passed 30/30 twice with the new canary.
 - **Folio is open to every writer.**
 
+**2026-10-16 · Production checks on emulated phones.** The owner asked whether phones had been tested.
+- **What existed:** CI runs Folio's browser tests on an emulated Pixel 7 and iPhone 14, but skips the saving scenarios and the keyboard paths there. The production checks were desktop Chrome only.
+- **Added:** `DEVICE=pixel` (Chrome as a Pixel 7) and `DEVICE=iphone` (WebKit as an iPhone 14), through `scripts/folio-prodcheck/device.cjs`.
+- **Phones act as a phone user would:**
+  - Lift from the bottom bar, since Android Chrome never runs the Enter chord
+  - the crease to close and reopen, the Farther button, and a tap into the between
+  - a person's pause after Enter (iOS defers Enter to the DOM change)
+  - the keyboard-only "find the next fold" is skipped
+- **Harness fixes the phone runs needed:**
+  - the real phone's `navigator.platform` (emulation keeps the host's "MacIntel", which splits the Mod key)
+  - waiting for the route to settle after sign-in (WebKit lets a late root redirect interrupt the next navigation)
+- **Found and fixed:** in Folio settings, the default 13 px checkbox failed axe `target-size` (serious) on the Pixel's layout. Folio's checkboxes are now 24 px; the local build was verified on the Pixel before deploying.
+- **Found, left as is:** during shore on a phone, the crisis card sits over the bottom bar, so Lift and Ask can't be tapped until the card is dismissed. Help comes first. The L1 path still sends nothing, which desktop verifies.
+- **Not covered by emulation** (still §8 A–B on real devices): real iOS editing and selection, Android keyboards and autocorrect, IMEs, text replacement.
+

@@ -43,7 +43,7 @@ async function folioDocs(uid) {
     await page.getByPlaceholder('Email').fill(EMAIL)
     await page.getByPlaceholder('Password').fill(password())
     await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-    await page.waitForURL(/\/(session|folio)/, { timeout: 45000 })
+    await page.waitForURL(/\/(session\/[0-9a-f-]{36}|folio\/)/, { timeout: 45000 })
     for (const path of PATHS) {
       await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' })
       if (EXPECT === 'bounced') {

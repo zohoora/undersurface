@@ -3,7 +3,7 @@
 // never printed), completes onboarding if shown, opens a Session, sends one
 // Talk message and waits for a successful streamed /api/chat reply.
 // Prints only statuses, never credentials or message content beyond the probe.
-const { chromium } = require('playwright')
+const device = require('./device.cjs')
 const { execFileSync } = require('child_process')
 
 const EMAIL = 'folio-test@undersurface.me'
@@ -14,8 +14,8 @@ function password() {
 }
 
 ;(async () => {
-  const browser = await chromium.launch()
-  const context = await browser.newContext({ serviceWorkers: 'block' })
+  const browser = await device.launch()
+  const context = await device.newContext(browser, { serviceWorkers: 'block' })
   const page = await context.newPage()
   const chatCalls = []
   page.on('request', (req) => {

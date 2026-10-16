@@ -370,6 +370,11 @@
   .folio-reading__underside { border-left: 0; }
 }
 
+/* Checkboxes (Folio settings, a trace's own Return switch) are 24 px, so each
+   is a target of its own on a phone (WCAG 2.5.8; axe target-size found the
+   default 13 px box too close to its neighbours on a Pixel's layout). */
+.folio-root input[type="checkbox"] { width: 24px; height: 24px; margin: 0; flex: none; }
+
 /* ---------------------------------------------------------------- help */
 
 /* The crisis resources card is Sessions' component, styled by Sessions'

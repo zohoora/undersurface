@@ -35,7 +35,7 @@ npm run test:crisis      # Live crisis-classifier eval (RUN_CRISIS_EVAL=1, hits 
 npm run test:folio-safety # Live eval: Folio's safety sampler against the real classifier
 npm run test:folio       # Live eval: Folio's Ask notes (30 cases, gpt-5.5 judge)
 npx playwright test      # Browser suite (Folio editor, saving vs the Firestore emulator, a11y, Step inside); Java 21
-npm run prodcheck:folio  # Production checks as the Folio test account (password from the macOS Keychain); owner-credentialed extras are listed in scripts/folio-prodcheck/run-all.mjs
+npm run prodcheck:folio  # Production checks as the Folio test account (password from the macOS Keychain); DEVICE=pixel|iphone runs them as a phone (touch paths); owner-credentialed extras are listed in scripts/folio-prodcheck/run-all.mjs
 npm run test:release-evals # All live prompt evals + auditable artifact
 npm run smoke-test       # Post-deploy smoke test against live site
 npm run cap:ios          # Build + sync + open iOS (Capacitor; cap:android likewise)

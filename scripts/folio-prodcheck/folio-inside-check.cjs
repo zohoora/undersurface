@@ -2,7 +2,7 @@
 // enter from an open fold, axe on both papers, stand closer, choose Forest and
 // see the track load from the bucket with CORS (the Web Audio path), leave to
 // the page and back to write, then delete the page. Statuses only.
-const { chromium } = require('playwright')
+const device = require('./device.cjs')
 const { default: AxeBuilder } = require('@axe-core/playwright')
 const { execFileSync } = require('child_process')
 
@@ -12,8 +12,8 @@ const password = () => execFileSync('security', ['find-generic-password', '-s', 
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice']
 
 ;(async () => {
-  const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] })
-  const context = await browser.newContext({ serviceWorkers: 'block', colorScheme: 'light' })
+  const browser = await device.launch({ args: ['--autoplay-policy=no-user-gesture-required'] })
+  const context = await device.newContext(browser, { serviceWorkers: 'block', colorScheme: 'light' })
   const page = await context.newPage()
   page.on('dialog', (d) => d.accept())
   const out = { steps: {}, axe: {}, audio: [] }
@@ -24,7 +24,7 @@ const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-prac
   page.on('request', async (r) => { if (r.url().includes('seed-audio')) { const h = await r.allHeaders().catch(() => ({})); out.audio.push(`${r.url().split('/').pop()}:req:${h.origin ? 'cors' : 'no-cors'}`) } })
   page.on('response', async (r) => { if (r.url().includes('seed-audio')) { const h = await r.allHeaders().catch(() => ({})); out.audio.push(`${r.url().split('/').pop()}:${r.status()}:acao=${h['access-control-allow-origin'] ? 'yes' : 'no'}`) } })
   page.on('requestfailed', (r) => { if (r.url().includes('seed-audio')) out.audio.push(`${r.url().split('/').pop()}:failed:${r.failure()?.errorText}`) })
-  const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
+  const { mod } = device.keys()
   const editor = page.locator('.folio-page .ProseMirror[contenteditable="true"]')
   const axe = async (name) => {
     await page.waitForTimeout(600)
@@ -36,16 +36,17 @@ const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-prac
     await page.getByPlaceholder('Email').fill(EMAIL)
     await page.getByPlaceholder('Password').fill(password())
     await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-    await page.waitForURL(/\/(session|folio)/, { timeout: 45000 })
+    await page.waitForURL(/\/(session\/[0-9a-f-]{36}|folio\/)/, { timeout: 45000 })
+    await device.settle(page)
     await page.goto(`${BASE}/folio/new`, { waitUntil: 'domcontentloaded' })
     await page.waitForURL(/\/folio\/p\//, { timeout: 30000 })
     await editor.waitFor({ timeout: 30000 })
     await editor.focus()
     await page.keyboard.type('We drove back late.')
-    await page.keyboard.press('Enter')
+    await device.enter(page)
     await page.keyboard.type('The heater only worked on one side.')
     await page.waitForTimeout(250)
-    await page.keyboard.press(`${mod}+Shift+Enter`)
+    await device.lift(page, 'The heater only worked on one side.')
     await page.keyboard.type('I felt cold the whole way.')
     await page.locator('.folio-status').filter({ hasText: /^Saved$/ }).waitFor({ timeout: 20000 })
 
