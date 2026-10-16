@@ -59,14 +59,14 @@ service cloud.firestore {
     }
 
     // Folio's kept things (draft 4 §5.3, C3). The app never rewrites a kept
-    // field: an update may change only the title, the come-back fields and
-    // the checked set. Entries are added and deleted, never edited.
+    // field: an update may change only the title (and who named it), the
+    // come-back fields and the checked set. `keptBy` is set at create only. Entries are added and deleted, never edited.
     function validTrace(traceId) {
       let d = request.resource.data;
       return d.keys().hasOnly(['id', 'keptAt', 'source', 'previousTraceId', 'correctedFromId', 'surface', 'gap',
                                'composition', 'author', 'title', 'comeBackAt', 'comeBackTz', 'comeBackSetAt',
                                'lastComeBackShownAt', 'groundedNearKeep', 'safety', 'schemaVersion',
-                               'returnEligible', 'lastReturnShownAt'])
+                               'returnEligible', 'lastReturnShownAt', 'keptBy', 'titleBy'])
         && d.id == traceId
         && d.author == 'writer'
         && d.keptAt is int
@@ -77,7 +77,10 @@ service cloud.firestore {
         && d.groundedNearKeep is bool
         && d.safety is map && d.safety.checked is list && d.safety.checked.size() <= 1000
         && (!('title' in d) || (d.title is string && d.title.size() <= 200))
-        && (!('returnEligible' in d) || d.returnEligible is bool);
+        && (!('returnEligible' in d) || d.returnEligible is bool)
+        // Companion involvement: who kept it and who named it (the words are the writer's).
+        && (!('keptBy' in d) || d.keptBy == 'companion')
+        && (!('titleBy' in d) || d.titleBy == null || d.titleBy == 'companion');
     }
 
     match /users/{userId}/folioTraces/{traceId} {
@@ -85,7 +88,7 @@ service cloud.firestore {
       allow create: if isOwner(userId) && validTrace(traceId);
       allow update: if isOwner(userId) && validTrace(traceId)
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['title', 'comeBackAt', 'comeBackTz', 'comeBackSetAt', 'lastComeBackShownAt', 'safety',
+             .hasOnly(['title', 'titleBy', 'comeBackAt', 'comeBackTz', 'comeBackSetAt', 'lastComeBackShownAt', 'safety',
                        'returnEligible', 'lastReturnShownAt']);
       allow delete: if isOwner(userId);
 

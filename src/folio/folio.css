@@ -224,6 +224,79 @@
   font-style: italic;
 }
 
+/* Folio settings: one control per line. */
+.folio-settings { flex-direction: column; align-items: stretch; gap: 4px; }
+.folio-settings .folio-button { align-self: flex-start; }
+
+.folio-involvement { display: flex; flex-direction: column; gap: 6px; padding: 8px 0 4px; border-top: 1px solid var(--folio-rule); margin-top: 4px; }
+.folio-involvement__label { font-weight: 500; }
+.folio-involvement input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--folio-crease); }
+.folio-involvement__scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--folio-control); }
+.folio-involvement__scale span[data-on="true"] { color: var(--folio-ink); font-weight: 500; }
+.folio-involvement__line { margin: 0; max-width: 48ch; color: var(--folio-control); line-height: 1.45; }
+
+/* ------------------------------------------------ the companion (involvement)
+
+   A ghost: the companion's question in an empty paragraph (presence.ts),
+   never in the document; gone at the first character. On a blank page it
+   takes the hint's place. A mark: a dot before a sentence the companion
+   points at, and a faint underline. The companion's own words (level 5):
+   graphite, so whose words they are is always visible. */
+.folio-page .ProseMirror[contenteditable="true"] p.folio-ghost::before,
+.folio-page .ProseMirror[contenteditable="true"] p.is-editor-empty.folio-ghost:first-child::before {
+  content: attr(data-ghost);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--folio-graphite);
+  font-style: italic;
+  opacity: 0.72;
+}
+
+.folio-marked {
+  text-decoration: underline dotted var(--folio-graphite);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+}
+
+.folio-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  margin: 0 4px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  vertical-align: middle;
+  cursor: pointer;
+}
+.folio-mark::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--folio-graphite);
+  opacity: 0.8;
+}
+@media (pointer: coarse) {
+  .folio-mark { min-width: 44px; min-height: 44px; margin: -10px 0 -10px -10px; }
+}
+
+.folio-companion-text {
+  color: var(--folio-graphite);
+  font-style: italic;
+}
+
+.folio-root[data-shore="true"] .folio-mark,
+.folio-root[data-quiet="true"] .folio-mark,
+.folio-root[data-shore="true"] .folio-page .ProseMirror p.folio-ghost::before,
+.folio-root[data-quiet="true"] .folio-page .ProseMirror p.folio-ghost::before { display: none; }
+.folio-root[data-shore="true"] .folio-marked,
+.folio-root[data-quiet="true"] .folio-marked { text-decoration: none; }
+
 /* The writer's ink and the settling of paragraphs, from the Journal. Never
    in shore, Quiet or with reduced motion (the extensions are disabled). */
 /* Lighter than Sessions' 0.55: a Folio page is reread, and settled text

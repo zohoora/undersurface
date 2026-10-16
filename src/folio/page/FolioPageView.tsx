@@ -8,7 +8,7 @@ import { detectCrisisKeywords } from '../../engine/sessionOrchestrator'
 import { folioExtensions, setOrnaments } from './folioCore'
 import { foldViewKey, getFoldView, TR_LOAD } from './foldView'
 import type { FoldViewMeta } from './foldView'
-import { lift } from './commands'
+import { findUnderside, lift } from './commands'
 import { undersideControls } from './undersideControls'
 import { LiftControl } from './LiftControl'
 import { UNDERSIDE, newId } from './schema'
@@ -48,6 +48,15 @@ import type { AskPassage } from '../ask/askPrompt'
 import { streamChatCompletion } from '../../ai/openrouter'
 import { isGroundingActive } from '../../store/groundingState'
 import { getLLMLanguageName } from '../../i18n'
+import { noWriterWords, useCompanion } from '../companion/useCompanion'
+import type { CompanionKey, CompanionNotice } from '../companion/useCompanion'
+import { TR_COMPANION, safetyText, writerText } from '../companion/companionText'
+import { sentenceRange } from '../companion/presence'
+import { composition as foldComposition } from '../companion/conductor'
+import type { KeepResult } from '../companion/conductor'
+import { TextSelection } from '@tiptap/pm/state'
+import { NOTICE_MS } from '../companion/levels'
+import type { InvolvementLevel } from '../companion/levels'
 import { FOLD } from './schema'
 
 // One Folio page (draft 4 §3.4–§3.6, §5.1–§5.5): the editor core, saving
@@ -83,11 +92,20 @@ interface Props {
     undo: (traceId: string) => void
     setComeBack: (traceId: string, choice: ComeBackChoice) => boolean
     tz: string
+    /** The writer's kept things (involvement reads titles and "kept again"). */
+    traces: FolioTrace[]
+    /** Name a trace; `by` 'companion' marks the name as the companion's. */
+    name: (traceId: string, title: string, by: 'companion' | null) => void
   }
+  /** Companion involvement, 1–5 (docs/vision/2026-10-16-folio-involvement.md). */
+  involvement?: InvolvementLevel
+  /** The Recent overlay (72 h since a grounding activation). */
+  isRecent?: () => boolean
 }
 
 type Notice =
-  | { kind: 'kept'; traceId: string; choosing: boolean }
+  | { kind: 'kept'; traceId: string; choosing: boolean; suggest?: { title: string | null; choice: ComeBackChoice } }
+  | CompanionNotice
   | { kind: 'comingBack'; at: number }
   | { kind: 'protected'; ids: string[] }
   | { kind: 'conflict' }
@@ -96,9 +114,26 @@ type Notice =
   | { kind: 'copied' }
   | { kind: 'full' }
 
+/** The page's first words as the lists show them: the writer's, never a line only the companion wrote. */
 function previewOf(editor: Editor): string {
-  const first = editor.state.doc.firstChild
-  return (first?.textContent ?? '').slice(0, 120)
+  let out = ''
+  editor.state.doc.forEach((node) => {
+    if (out || node.type.name !== 'paragraph') return
+    const text = safetyText(node)
+    if (text.trim()) out = text
+  })
+  return out.slice(0, 120)
+}
+
+/** True when the page holds anything the writer wrote (a page the companion began isn't saved until then). */
+function hasWriterWords(editor: Editor): boolean {
+  let found = false
+  editor.state.doc.descendants((node) => {
+    if (found) return false
+    if (node.isTextblock) { if (writerText(node).trim()) found = true; return false }
+    return true
+  })
+  return found
 }
 
 function foldCountOf(editor: Editor): number {
@@ -111,7 +146,7 @@ function textMap(units: SafetyUnit[]): Map<string, string> {
   return new Map(units.map((u) => [u.pid, `${u.line ?? ''}\u0000${u.text}`]))
 }
 
-export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, ornaments, onNavigate, onAnnounce, kept, presentation = 'normal', stepInside, ask }: Props) {
+export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, ornaments, onNavigate, onAnnounce, kept, presentation = 'normal', stepInside, ask, involvement = 1, isRecent }: Props) {
   const tr = useTranslation()
   const strings = useMemo(() => folioStringsFrom(tr), [tr])
   const stringsRef = useRef(strings)
@@ -134,6 +169,17 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
   const caretUnitRef = useRef<string | null>(null)
   const [looseAcknowledged] = useState(() => new Set<string>())
   const bytesRef = useRef(0)
+  /**
+   * Which folds are open is remembered only once the page's own content is in
+   * the editor: before that (the first paint, a read-only snapshot) the open
+   * set is empty, and writing it would forget the folds left open last time.
+   */
+  const viewStateReady = useRef(false)
+  /** The highest L2 risk seen per unit this visit (the companion writes only beside 0). */
+  const riskRef = useRef(new Map<string, number>())
+  /** Pressing a companion mark's dot (involvement level 2+); set once the editor exists. */
+  const liftMarkedRef = useRef<(pid: string, sentence: string) => void>(() => {})
+  const dismissMarkRef = useRef<() => void>(() => {})
   const adapter = useMemo(() => pageAdapter(uid), [uid])
 
   const announce = useCallback((m: string) => { if (m) onAnnounce(m) }, [onAnnounce])
@@ -189,6 +235,11 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
       controls,
       onStepInside: (foldId) => stepInsideRef.current(foldId),
       notes: () => notes,
+      presence: {
+        onLiftMarked: (pid, sentence) => liftMarkedRef.current(pid, sentence),
+        onDismissMark: () => dismissMarkRef.current(),
+        labels: () => ({ mark: tr['folio.companion.markLabel'], ghost: tr['folio.ask.label'] }),
+      },
     }),
     editable: false,
     content: JSON.parse(EMPTY_DOC) as JSONContent,
@@ -289,6 +340,7 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
       const { start, others, adopted } = await prepareEditable(deps, page, EMPTY_DOC, Date.now())
       if (disposed) return
       checkedRef.current = new Set(start.content.checked)
+      viewStateReady.current = true
       editor.view.dispatch(loadDoc(editor.state.tr, editor.schema, start.content.doc)
         .setMeta(TR_LOAD, true).setMeta('addToHistory', false)
         .setMeta(foldViewKey, { type: 'load', open: readViewState(uid, pageId)?.open ?? [] } satisfies FoldViewMeta))
@@ -314,6 +366,7 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
         units: () => readingOrderUnits(editor.state.doc),
         checked: checkedRef.current,
         onCheckedChange: () => { pushContent(); schedulePrune() },
+        onClassified: (pid, risk) => { riskRef.current.set(pid, Math.max(risk, riskRef.current.get(pid) ?? 0)) },
         isLockHolder: () => lock.isHolder(),
         language: () => getLanguageCode(),
         pageUpdatedAt: page?.updatedAt ?? Date.now(),
@@ -379,7 +432,7 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
       lock.release()
       releaseLiveness()
       try {
-        writeViewState(uid, pageId, { open: [...getFoldView(editor.state).open], scroll: window.scrollY, caret: editor.state.selection.head })
+        if (viewStateReady.current) writeViewState(uid, pageId, { open: [...getFoldView(editor.state).open], scroll: window.scrollY, caret: editor.state.selection.head })
       } catch { /* editor gone */ }
     }
   }, [editor, uid, pageId, editorId, adapter]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -405,8 +458,12 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
       }
       for (const pid of unitsRef.current.keys()) if (!now.has(pid)) watch?.forget(pid)
       unitsRef.current = now
-      pushContent()
-      setNotice((n) => (n?.kind === 'kept' && !n.choosing ? null : n))
+      // A page the companion began (level 5's arrival) is saved once the writer writes in it.
+      if (!transaction.getMeta(TR_COMPANION) || hasWriterWords(editor)) pushContent()
+      // The writer's next edit ends a passing notice; the companion's own edits don't.
+      if (!(transaction.getMeta(TR_COMPANION) as boolean | undefined)) {
+        setNotice((n) => ((n?.kind === 'kept' && !n.choosing) || n?.kind === 'companion' ? null : n))
+      }
     }
     const onSelection = () => {
       const $c = editor.state.selection.$from
@@ -420,6 +477,7 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
       caretUnitRef.current = pid
     }
     const onFoldMeta = () => {
+      if (!viewStateReady.current) return
       writeViewState(uid, pageId, { open: [...getFoldView(editor.state).open], scroll: window.scrollY, caret: editor.state.selection.head })
     }
     editor.on('update', onUpdate as never)
@@ -447,24 +505,46 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
     announce(strings.lifted)
   }, [editor, announce, strings, tr])
 
+  // A mark's dot (involvement level 2+): select its sentence and lift it, as the writer would.
+  useEffect(() => {
+    liftMarkedRef.current = (pid, sentence) => {
+      if (!editor) return
+      const range = sentenceRange(editor.state.doc, pid, sentence)
+      if (!range) return
+      editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, range.from, range.to)))
+      doLift()
+    }
+  }, [editor, doLift])
+
   // Keep (draft 4 §3.7): a dated snapshot; the page doesn't change. The
   // composition settles to the bottom edge (a 120 ms fade with reduced motion);
   // nothing waits on it.
   const [settling, setSettling] = useState<{ key: string; text: string; left: number; top: number; width: number; drop: number } | null>(null)
-  const doKeep = useCallback(async (foldId: string) => {
+  /** Keep a fold (the writer's Keep, or the companion's at level 4+). */
+  const keepFold = useCallback(async (foldId: string, by: 'companion' | null): Promise<{ trace: FolioTrace } | null> => {
     const k = keptRef.current
-    if (!editor || !k) return
+    if (!editor || !k) return null
     const snapshot = snapshotFold(editor.state.doc, foldId)
-    if (!snapshot || snapshot.empty) return
+    if (!snapshot || snapshot.empty) return null
     const id = newId()
     const checked = await keptCheckedKeys(id, snapshot, readingOrderUnits(editor.state.doc), checkedRef.current)
-    const trace = k.keep({ id, pageId, foldId, revId: controllerRef.current?.chainState.baseRevId ?? null, snapshot, checked })
-    setNotice({ kind: 'kept', traceId: trace.id, choosing: false })
-    announce(tr['folio.kept'])
+    const trace = k.keep({ id, pageId, foldId, revId: controllerRef.current?.chainState.baseRevId ?? null, snapshot, checked, ...(by ? { keptBy: by } : {}) })
     const el = editor.view.dom.querySelector(`[data-fold-id="${CSS.escape(foldId)}"]`)
     const r = el?.getBoundingClientRect()
     if (r) setSettling({ key: id, text: snapshot.surface, left: r.left, top: r.top, width: r.width, drop: Math.max(0, window.innerHeight - r.top - 56) })
-  }, [editor, pageId, announce, tr])
+    return { trace }
+  }, [editor, pageId])
+  const companionKeptRef = useRef<(k: KeepResult) => void>(() => {})
+  const doKeep = useCallback(async (foldId: string) => {
+    if (!editor) return
+    const before = foldComposition(editor.state.doc, foldId)
+    const reKeep = (keptRef.current?.traces ?? []).some((t) => t.source.foldId === foldId)
+    const kept = await keepFold(foldId, null)
+    if (!kept) return
+    setNotice({ kind: 'kept', traceId: kept.trace.id, choosing: false })
+    announce(tr['folio.kept'])
+    if (before) companionKeptRef.current({ traceId: kept.trace.id, composition: before.text, beneathChars: before.beneathChars, reKeep })
+  }, [editor, keepFold, announce, tr])
   useEffect(() => { keepRef.current = (foldId) => { void doKeep(foldId) } }, [doKeep])
 
   // "Kept." lasts 10 seconds, or until the next action (an edit ends it too).
@@ -510,6 +590,12 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
     if ($f.parent !== sel.$to.parent || $f.parent.type.name !== 'paragraph') return
     const selection = editor.state.doc.textBetween(sel.from, sel.to, '\n').slice(0, ASK_MAX_CHARS)
     if (!selection.trim()) return
+    // Ask is about the writer's words: a selection of only the companion's own words isn't sent.
+    const slice = editor.state.doc.slice(sel.from, sel.to)
+    let writerWords = ''
+    slice.content.descendants((n) => { if (n.isTextblock) { writerWords += writerText(n); return false } return true })
+    if (slice.content.firstChild?.isText) writerWords = writerText(editor.state.schema.nodes.paragraph.create(null, slice.content))
+    if (!writerWords.trim()) return
     const pid = String($f.parent.attrs.pid ?? '')
     let onLine = false
     editor.state.doc.nodesBetween(sel.from, sel.to, (n) => { if (n.marks.some((m) => m.type.name === FOLD)) onLine = true })
@@ -547,6 +633,88 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
     }
   }, [editor, asking, setPending, announce, tr, shore])
   useEffect(() => () => askAbort.current?.abort(), [])
+
+  // ------------------------------------------------------------ companion involvement
+
+  const presentationNow = useRef(presentation)
+  useEffect(() => { presentationNow.current = presentation }, [presentation])
+  const statusNow = useRef(status)
+  useEffect(() => { statusNow.current = status }, [status])
+  const noticeNow = useRef(notice)
+  useEffect(() => { noticeNow.current = notice }, [notice])
+  const companion = useCompanion({
+    editor, uid, pageId,
+    level: involvement,
+    holder,
+    // Crisis owns the page (involvement §4.3): nothing unasked under Shore,
+    // Quiet, Recent, the card, grounding, or a save chain in trouble.
+    gate: () => presentationNow.current === 'normal'
+      && !(isRecent?.() ?? false)
+      && !shore.getSnapshot().card
+      && !isGroundingActive()
+      && statusNow.current !== 'couldNotSave'
+      && !['conflict', 'remoteDeleted', 'otherTab', 'protected'].includes(noticeNow.current?.kind ?? ''),
+    checkedRef,
+    riskOf: (pid) => riskRef.current.get(pid) ?? null,
+    reduceMotion: () => reduceMotion || (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true),
+    switches: () => ({ between: switchesRef.current.between, distance: switchesRef.current.distance }),
+    call: (messages, signal) => new Promise<string>((resolve, reject) => {
+      void streamChatCompletion(messages, { onToken: () => {}, onComplete: resolve, onError: reject }, 1200, 'low', signal).catch(reject)
+    }),
+    l1: detectCrisisKeywords,
+    languageName: () => (getLanguageCode() === 'en' ? null : getLLMLanguageName()),
+    traces: () => keptRef.current?.traces ?? [],
+    keepFold: (foldId, by) => keepFold(foldId, by),
+    name: (traceId, title) => keptRef.current?.name(traceId, title, 'companion'),
+    setComeBack: (traceId, choice) => {
+      const k = keptRef.current
+      if (!k || !k.setComeBack(traceId, choice)) return null
+      return comeBackFields(choice, Date.now(), k.tz)?.comeBackAt ?? null
+    },
+    undoKeep: (traceId) => keptRef.current?.undo(traceId),
+    note: async (pid, comp) => {
+      if (!editor || asking) return false
+      const lang = getLanguageCode()
+      const outcome = await askForNote({
+        selection: comp.slice(0, ASK_MAX_CHARS),
+        language: lang,
+        l1: detectCrisisKeywords,
+        check: checkCrisisRisk,
+        generate: (grounded, signal) => new Promise<string>((resolve, reject) => {
+          const messages = buildAskMessages({ selection: comp.slice(0, ASK_MAX_CHARS), passage: 'composition', languageName: lang === 'en' ? null : getLLMLanguageName(), grounded, unasked: true })
+          void streamChatCompletion(messages, { onToken: () => {}, onComplete: resolve, onError: reject }, 1200, 'low', signal).catch(reject)
+        }),
+        isGrounding: isGroundingActive,
+        isRecent: () => isRecent?.() ?? false,
+        activate: () => { activateGrounding('auto'); shore.activation(`note:${pid}`, comp) },
+      })
+      // A grounded note never comes unasked: the companion steps back instead.
+      if (outcome.kind !== 'note' || outcome.grounded) return false
+      setPending({ pid, status: 'note', text: outcome.text, grounded: false })
+      announce(`${tr['folio.ask.label']}: ${outcome.text}`)
+      return true
+    },
+    // Opened by the companion (level 5): never with sound.
+    stepInside: (foldId) => { setInsideByCompanion(true); stepInsideRef.current(foldId) },
+    prefill: (traceId, title, choice) => setNotice((n) => (n?.kind === 'kept' && n.traceId === traceId ? { ...n, suggest: { title, choice } } : n)),
+    notify: (n) => setNotice(n),
+    announce,
+    t: (key: CompanionKey, vars?: Record<string, string>) => Object.entries(vars ?? {}).reduce<string>((s, [k, v]) => s.replace(`{${k}}`, v), tr[key]),
+    shortDate: (ms) => shortDate(ms, getLanguageCode(), keptRef.current?.tz ?? 'UTC'),
+  })
+  useEffect(() => {
+    companionKeptRef.current = (k) => companion.writerKept(k)
+    dismissMarkRef.current = () => companion.markDismissed()
+  }, [companion])
+  // A companion notice offers Undo for 30 seconds, or until the writer's next edit.
+  const [insideByCompanion, setInsideByCompanion] = useState(false)
+  useEffect(() => { if (!inside) setInsideByCompanion(false) }, [inside])
+  const companionNoticeAt = notice?.kind === 'companion' ? notice : null
+  useEffect(() => {
+    if (!companionNoticeAt) return
+    const t = setTimeout(() => setNotice((n) => (n === companionNoticeAt ? null : n)), NOTICE_MS)
+    return () => clearTimeout(t)
+  }, [companionNoticeAt])
 
   // The notes' actions read the latest state when pressed.
   const presentationRef2 = useRef(presentation)
@@ -620,7 +788,7 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
         <LiftControl
           editor={editor}
           label={tr['folio.lift']}
-          onLift={doLift}
+          onLift={() => doLift()}
           disabled={bytes >= PAGE_FULL_BYTES}
           ask={ask ? { label: tr['folio.ask'], onAsk: () => void doAsk(), busy: asking } : undefined}
         />
@@ -639,7 +807,7 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
           composition={inside.composition}
           line={inside.line}
           undersideLabel={inside.label}
-          soundAvailable={!!stepInside?.sound}
+          soundAvailable={!!stepInside?.sound && !insideByCompanion}
           reduceMotion={reduceMotion || presentation !== 'normal'}
           onLeave={leaveInside}
         />
@@ -661,8 +829,36 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
           {notice.kind === 'kept' && !notice.choosing && (
             <>
               <span>{tr['folio.kept']}</span>
+              {/* Level 3: the companion offers a name and a day; the writer decides. */}
+              {notice.suggest?.title && (
+                <button type="button" className="folio-button" onClick={() => {
+                  kept?.name(notice.traceId, notice.suggest?.title ?? '', 'companion')
+                  setNotice({ ...notice, suggest: notice.suggest ? { ...notice.suggest, title: null } : undefined })
+                }}>{tr['folio.companion.nameIt'].replace('{title}', notice.suggest.title)}</button>
+              )}
+              {notice.suggest && typeof notice.suggest.choice === 'string' && (
+                <button type="button" className="folio-button" onClick={() => chooseComeBack(notice.traceId, notice.suggest?.choice ?? 'week')}>
+                  {tr['folio.comeBack']}: {tr[`folio.comeBack.${notice.suggest.choice}`]}
+                </button>
+              )}
               <button type="button" className="folio-button" onClick={() => { kept?.undo(notice.traceId); setNotice(null) }}>{tr['folio.undo']}</button>
               <button type="button" className="folio-button" onClick={() => setNotice({ ...notice, choosing: true })}>{tr['folio.comeBack']}…</button>
+              <button type="button" className="folio-button" aria-label={tr['folio.cancel']} onClick={() => setNotice(null)}>×</button>
+            </>
+          )}
+          {notice.kind === 'companion' && (
+            <>
+              <span>{notice.text}</span>
+              {notice.act === 'kept' && notice.comeBackAt && kept && <span>· {tr['folio.comeBack.on'].replace('{date}', shortDate(notice.comeBackAt, getLanguageCode(), kept.tz))}</span>}
+              {(notice.act === 'kept' || (notice.act === 'lifted' && isEmptyFold(editor, notice.foldId))) && (
+                <button type="button" className="folio-button" onClick={() => { companion.undo(notice); setNotice(null) }}>{tr['folio.undo']}</button>
+              )}
+              {notice.act === 'closed' && (
+                <button type="button" className="folio-button" onClick={() => { companion.undo(notice); setNotice(null) }}>{tr['folio.open']}</button>
+              )}
+              {(notice.act === 'arrived' || notice.act === 'began') && (
+                <button type="button" className="folio-button" onClick={() => { companion.startBlank(); setNotice(null) }}>{tr['folio.companion.startBlank']}</button>
+              )}
               <button type="button" className="folio-button" aria-label={tr['folio.cancel']} onClick={() => setNotice(null)}>×</button>
             </>
           )}
@@ -710,6 +906,13 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
       )}
     </div>
   )
+}
+
+/** A companion lift can be undone only while the writer has written nothing in it (their words would go too). */
+function isEmptyFold(editor: Editor | null, foldId: string): boolean {
+  if (!editor) return false
+  const u = findUnderside(editor.state.doc, foldId)
+  return !!u && noWriterWords(u.node)
 }
 
 /** "This" for Talk now, bringing this (§3.9): the trigger's unit or pair, with its lifted line. */

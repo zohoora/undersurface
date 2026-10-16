@@ -1,5 +1,6 @@
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { BENEATH, BETWEEN, FOLD, UNDERSIDE } from '../page/schema'
+import { safetyText, safetyTextOf } from '../companion/companionText'
 
 // C4's units and samples (draft 4 §5.4). A unit is a paragraph with at least
 // one visible character, on the page or in a between or a beneath, read in
@@ -56,21 +57,29 @@ export interface SafetyUnit {
   foldId?: string
 }
 
+/**
+ * A paragraph as the checks read it (involvement §2, rule 6): the companion's
+ * own unchanged words alone are never checked (they must never be what raises
+ * a risk); as soon as the writer wrote anything in the paragraph, all of it is,
+ * so a half-sentence the companion began and the writer finished is read whole.
+ * Identical to the paragraph's text when the companion wrote nothing in it.
+ */
 function paragraphText(p: PMNode): string {
-  return p.textBetween(0, p.content.size, '\n', (leaf) => (leaf.type.name === 'hardBreak' ? '\n' : ''))
+  return safetyText(p)
 }
 
 function liftedLines(doc: PMNode): Map<string, string> {
   const lines = new Map<string, string>()
   doc.forEach((node) => {
     if (node.type.name !== 'paragraph') return
-    const parts = new Map<string, string>()
+    // Each fold's line, read like a paragraph: the companion's words alone are no line.
+    const parts = new Map<string, { type: string; text: string; marks: { type: string; attrs: Record<string, unknown> }[] }[]>()
     node.forEach((child) => {
       const mark = child.marks.find((m) => m.type.name === FOLD)
       const id = mark?.attrs.foldId as string | undefined
-      if (id && child.text) parts.set(id, (parts.get(id) ?? '') + child.text)
+      if (id && child.text) parts.set(id, [...(parts.get(id) ?? []), { type: 'text', text: child.text, marks: child.marks.map((m) => ({ type: m.type.name, attrs: m.attrs as Record<string, unknown> })) }])
     })
-    for (const [id, text] of parts) if (!lines.has(id)) lines.set(id, text)
+    for (const [id, inline] of parts) if (!lines.has(id)) lines.set(id, safetyTextOf(inline))
   })
   return lines
 }

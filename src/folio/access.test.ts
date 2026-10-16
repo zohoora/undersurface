@@ -11,7 +11,7 @@ describe('Folio access and switches', () => {
   })
 
   it('every sub-switch is on unless explicitly false', () => {
-    expect(folioSwitches(null)).toEqual({ between: true, distance: true, liftToday: true, ask: true, stepInside: true, stepInsideSound: true, returnOn: true })
+    expect(folioSwitches(null)).toEqual({ between: true, distance: true, liftToday: true, ask: true, stepInside: true, stepInsideSound: true, returnOn: true, involvement: true })
     expect(folioSwitches({ folioDistance: false, folioAsk: false } as never)).toMatchObject({ distance: false, ask: false, between: true })
   })
 })

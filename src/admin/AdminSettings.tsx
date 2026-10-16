@@ -649,6 +649,7 @@ export function AdminSettings() {
           ['folioStepInside', 'Step inside'],
           ['folioStepInsideSound', 'Sound in Step inside (web only)'],
           ['folioReturn', 'Let kept things come back on their own (each writer still opts in)'],
+          ['folioInvolvement', 'Companion involvement (the writer\'s slider, levels 2–5; off: everyone at level 1)'],
         ] as const).map(([key, label]) => (
           <ToggleRow
             key={key}

@@ -487,8 +487,14 @@ export function buildMarkdownExport(
   if (folioPages.length > 0) {
     ln(`## ${t('folio.door')}`)
     ln()
+    // The companion's own words (involvement level 5) are labelled as its own.
+    const piece = (c: { text?: string; type?: string; marks?: { type: string }[] }) => {
+      if (c.type === 'hardBreak') return '  \n'
+      const text = c.marks?.some((m) => m.type === 'italic') ? `*${c.text ?? ''}*` : c.text ?? ''
+      return c.marks?.some((m) => m.type === 'companionText') ? `[${t('folio.ask.label')}: ${text}]` : text
+    }
     const inline = (node: { content?: { text?: string; type?: string; marks?: { type: string }[] }[] }) =>
-      (node.content ?? []).map((c) => (c.type === 'hardBreak' ? '  \n' : c.marks?.some((m) => m.type === 'italic') ? `*${c.text ?? ''}*` : c.text ?? '')).join('')
+      (node.content ?? []).map(piece).join('')
     const blankLines = [0, 1, 3, 7, 15]
     for (const page of folioPages) {
       ln(`### ${fmtDate(page.createdAt as number)}`)
@@ -529,10 +535,14 @@ export function buildMarkdownExport(
     ln(`## ${t('folio.kept.title')}`)
     ln()
     const inline = (content: { text?: string; type?: string; marks?: { type: string }[] }[] | undefined) =>
-      (content ?? []).map((c) => (c.type === 'hardBreak' ? '  \n' : c.marks?.some((m) => m.type === 'italic') ? `*${c.text ?? ''}*` : c.text ?? '')).join('')
+      (content ?? []).map((c) => {
+        if (c.type === 'hardBreak') return '  \n'
+        const text = c.marks?.some((m) => m.type === 'italic') ? `*${c.text ?? ''}*` : c.text ?? ''
+        return c.marks?.some((m) => m.type === 'companionText') ? `[${t('folio.ask.label')}: ${text}]` : text
+      }).join('')
     for (const trace of folioTraces) {
       const title = typeof trace.title === 'string' && trace.title.trim() ? trace.title : String(trace.surface ?? '')
-      ln(`### ${title} · ${fmtDate(trace.keptAt as number)}`)
+      ln(`### ${title} · ${fmtDate(trace.keptAt as number)}${trace.keptBy === 'companion' ? ` · ${t('folio.companion.keptBy')}` : ''}`)
       ln()
       let c: { line?: { text?: string; type?: string; marks?: { type: string }[] }[]; gap?: number; between?: { content?: [] }[] | null; beneath?: { content?: [] }[] } = {}
       try { c = JSON.parse(trace.composition as string) } catch { c = {} }

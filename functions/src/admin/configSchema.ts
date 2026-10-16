@@ -29,6 +29,7 @@ const FEATURE_KEYS = new Set([
   // Folio: the mode (off unless true) and its sub-switches (on unless false).
   'folioEnabled', 'folioBetween', 'folioDistance', 'folioLiftToday',
   'folioAsk', 'folioStepInside', 'folioStepInsideSound', 'folioReturn',
+  'folioInvolvement',
 ])
 
 // Feature keys that no longer control anything. An update that still carries

@@ -10,16 +10,20 @@ import type { Gap } from './page/schema'
 // empty space, no motion. For reading, printing and screen readers; the
 // editor itself is the authoring path.
 
-function inlineText(node: JSONContent): React.ReactNode[] {
+/** `companion` labels the companion's own words (involvement level 5) for screen readers; they're graphite on screen. */
+function inlineText(node: JSONContent, companion: string): React.ReactNode[] {
   return (node.content ?? []).map((child, i) => {
     if (child.type === 'hardBreak') return <br key={i} />
     const text = child.text ?? ''
-    return child.marks?.some((m) => m.type === 'italic') ? <em key={i}>{text}</em> : <span key={i}>{text}</span>
+    const theirs = child.marks?.some((m) => m.type === 'companionText')
+    const body = theirs ? <><span className="folio-visually-hidden">{companion}: </span>{text}</> : text
+    const cls = theirs ? 'folio-companion-text' : undefined
+    return child.marks?.some((m) => m.type === 'italic') ? <em key={i} className={cls}>{body}</em> : <span key={i} className={cls}>{body}</span>
   })
 }
 
-function paragraphs(node: JSONContent | undefined, keyPrefix: string): React.ReactNode[] {
-  return (node?.content ?? []).map((p, i) => <p key={`${keyPrefix}-${i}`}>{inlineText(p)}</p>)
+function paragraphs(node: JSONContent | undefined, keyPrefix: string, companion: string): React.ReactNode[] {
+  return (node?.content ?? []).map((p, i) => <p key={`${keyPrefix}-${i}`}>{inlineText(p, companion)}</p>)
 }
 
 export function ReadingView({ uid, pageId }: { uid: string; pageId: string }) {
@@ -42,7 +46,7 @@ export function ReadingView({ uid, pageId }: { uid: string; pageId: string }) {
   return (
     <article className="folio-reading">
       {(doc.content ?? []).map((node, i) => {
-        if (node.type === 'paragraph') return <p key={i}>{inlineText(node)}</p>
+        if (node.type === 'paragraph') return <p key={i}>{inlineText(node, tr['folio.ask.label'])}</p>
         if (node.type !== 'underside') return null
         const gap = (Number(node.attrs?.gap) || 0) as Gap
         const between = node.content?.find((c) => c.type === 'between')
@@ -57,12 +61,12 @@ export function ReadingView({ uid, pageId }: { uid: string; pageId: string }) {
             {between && (
               <>
                 <div className="folio-reading__label">{tr['folio.between']}</div>
-                {paragraphs(between, `b${i}`)}
+                {paragraphs(between, `b${i}`, tr['folio.ask.label'])}
                 {space(half)}
               </>
             )}
             <div className="folio-reading__label">{tr['folio.beneath']}</div>
-            {paragraphs(beneath, `n${i}`)}
+            {paragraphs(beneath, `n${i}`, tr['folio.ask.label'])}
           </section>
         )
       })}

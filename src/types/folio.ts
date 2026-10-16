@@ -55,7 +55,11 @@ export interface FolioTrace {
    */
   composition: string
   author: 'writer'
+  /** Involvement level 4+: the companion kept it (the words are still the writer's). */
+  keptBy?: 'companion'
   title?: string
+  /** The companion named it; renaming makes the name the writer's. */
+  titleBy?: 'companion' | null
   /** 07:00 writer-local on the chosen date, as epoch ms; null when cleared. */
   comeBackAt?: number | null
   comeBackTz?: string | null
@@ -89,4 +93,8 @@ export interface FolioPreferences {
   reduceMotion?: boolean
   /** H3: let kept things come back on their own. Off by default. */
   returnEnabled?: boolean
+  /** Companion involvement, 1–5 (absent: 1 for writers who were here before it, else 3). */
+  involvement?: 1 | 2 | 3 | 4 | 5
+  /** The one-time line saying the companion can now take part was dismissed. */
+  involvementIntroSeenAt?: number
 }

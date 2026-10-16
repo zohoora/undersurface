@@ -43,6 +43,8 @@ export interface SafetyWatchDeps {
   /** The page's checked set; the host saves it with ordinary saves. */
   checked: Set<string>
   onCheckedChange?: () => void
+  /** Each classified window's risk, by unit (companion involvement writes only beside risk 0). */
+  onClassified?: (pid: string, risk: number) => void
   isLockHolder: () => boolean
   language: () => string
   /** The page's `updatedAt` when it was opened. */
@@ -54,7 +56,7 @@ export interface SafetyWatchDeps {
 }
 
 export class FolioSafetyWatch {
-  private readonly d: Required<Omit<SafetyWatchDeps, 'onCheckedChange' | 'onDiagnostic'>> & Pick<SafetyWatchDeps, 'onCheckedChange' | 'onDiagnostic'>
+  private readonly d: Required<Omit<SafetyWatchDeps, 'onCheckedChange' | 'onDiagnostic' | 'onClassified'>> & Pick<SafetyWatchDeps, 'onCheckedChange' | 'onDiagnostic' | 'onClassified'>
   private readonly slots = new Map<string, Slot>()
   private readonly dirty = new Set<string>()
   private inflight: { pid: string; key: string; window: number } | null = null
@@ -209,6 +211,7 @@ export class FolioSafetyWatch {
     if (result.status === 'classified') {
       slot.done.add(window)
       slot.attempts = 0
+      this.d.onClassified?.(pid, result.risk)
       if (result.risk === 2 && !slot.risk2) {
         slot.risk2 = true
         if (slot.late) this.d.lateRisk(pid)

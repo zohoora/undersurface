@@ -23,6 +23,7 @@
     "test:stance": "RUN_STANCE_EVAL=1 vitest run src/engine/stanceObservation.live.test.ts",
     "test:folio-safety": "RUN_FOLIO_SAFETY_EVAL=1 vitest run src/folio/safety/folioSafety.live.test.ts",
     "test:folio": "RUN_FOLIO_ASK_EVAL=1 vitest run src/folio/ask/folioAsk.live.test.ts",
+    "test:folio-companion": "RUN_FOLIO_COMPANION_EVAL=1 vitest run src/folio/companion/folioCompanion.live.test.ts",
     "test:depth": "RUN_DEPTH_EVAL=1 vitest run src/engine/companionDepth.live.test.ts",
     "test:release-evals": "node scripts/run-release-evals.mjs",
     "prodcheck:folio": "node scripts/folio-prodcheck/run-all.mjs",

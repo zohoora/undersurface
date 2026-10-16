@@ -28,6 +28,13 @@ export async function mostRecentPage(uid: string): Promise<FolioPage | null> {
   return snap.empty ? null : (snap.docs[0].data() as FolioPage)
 }
 
+/** The page edited most recently other than `exceptId` (level 5's arrival reads its end). */
+export async function lastOtherPage(uid: string, exceptId: string): Promise<FolioPage | null> {
+  const snap = await getDocs(query(pagesCollection(uid), orderBy('updatedAt', 'desc'), limit(3)))
+  const page = snap.docs.map((d) => d.data() as FolioPage).find((p) => p.id !== exceptId)
+  return page ?? null
+}
+
 export async function pageExists(uid: string, pageId: string): Promise<boolean> {
   const snap = await getDoc(doc(firestore, 'users', uid, 'folioPages', pageId))
   return snap.exists()

@@ -97,6 +97,18 @@ describe('traces', () => {
     await assertFails(updateDoc(ref, { returnEligible: 'yes' }))
   })
 
+  it('involvement: the companion may keep and name; the words stay the writer\'s', async () => {
+    await assertSucceeds(setDoc(traceRef(ALICE, ALICE, 't2'), { ...trace('t2'), keptBy: 'companion', title: 'the mirror', titleBy: 'companion' }))
+    await assertFails(setDoc(traceRef(ALICE, ALICE, 't3'), { ...trace('t3'), keptBy: 'writer' }))
+    await assertFails(setDoc(traceRef(ALICE, ALICE, 't3'), { ...trace('t3'), titleBy: 'someone' }))
+    await assertFails(setDoc(traceRef(ALICE, ALICE, 't3'), { ...trace('t3'), keptBy: 'companion', author: 'companion' }))
+    const ref = traceRef(ALICE, ALICE, 't2')
+    // Renaming makes the name the writer's; who kept it never changes.
+    await assertSucceeds(updateDoc(ref, { title: 'nobody', titleBy: null }))
+    await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'users', ALICE, 'folioTraces', 't4'), trace('t4')) })
+    await assertFails(updateDoc(traceRef(ALICE, ALICE, 't4'), { keptBy: 'companion' }))
+  })
+
   it('another writer can do nothing', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'users', ALICE, 'folioTraces', 't1'), trace('t1')) })
     await assertFails(getDoc(traceRef(BOB, ALICE, 't1')))
