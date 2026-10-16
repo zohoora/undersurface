@@ -150,3 +150,30 @@ describe('the come-back slip', () => {
     expect(screen.queryByRole('button', { name: 'folio.liftToday{date}' })).toBeNull()
   })
 })
+
+describe('opening a trace that was just created', () => {
+  const props = (kept: Kept, t: FolioTrace | null, onNavigate = vi.fn()) => ({ uid: 'u', trace: t, kept, switches: { between: true, distance: true, liftToday: true, ask: true, stepInside: true, stepInsideSound: true, returnOn: true }, onNavigate, onAnnounce: vi.fn(), onLiftToday: vi.fn() })
+
+  it('waits for the listener instead of bouncing to the floor', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onNavigate = vi.fn()
+    const t = trace('new1')
+    const { rerender } = render(<TraceView {...props(keptWith([]), null, onNavigate)} />)
+    await act(async () => { vi.advanceTimersByTime(1_000) })
+    expect(onNavigate).not.toHaveBeenCalled()
+    rerender(<TraceView {...props(keptWith([t]), t, onNavigate)} />)
+    expect(screen.getByRole('heading', { name: 'Line new1.' })).toBeTruthy()
+    // Deleted later (here or on another device): back to the floor at once.
+    rerender(<TraceView {...props(keptWith([]), null, onNavigate)} />)
+    expect(onNavigate).toHaveBeenCalledWith('/folio/kept', { replace: true })
+  })
+
+  it('a trace that never arrives goes back to the floor after the grace', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onNavigate = vi.fn()
+    render(<TraceView {...props(keptWith([]), null, onNavigate)} />)
+    await act(async () => { vi.advanceTimersByTime(4_001) })
+    expect(onNavigate).toHaveBeenCalledWith('/folio/kept', { replace: true })
+  })
+})
+

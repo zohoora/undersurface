@@ -22,6 +22,7 @@ import type { Kept } from './useKept'
 // Delete.
 
 export const UNDO_MS = 10_000
+export const ARRIVAL_GRACE_MS = 4_000
 
 interface Props {
   uid: string
@@ -74,8 +75,17 @@ export function TraceView({ uid, trace, kept, switches, onNavigate, onAnnounce, 
 
   const date = useCallback((ms: number) => shortDate(ms, lang, kept.tz), [lang, kept.tz])
 
-  // A trace that no longer exists (deleted here or elsewhere): back to the floor.
-  const missing = kept.loaded && !trace
+  // A trace that no longer exists (deleted here or elsewhere): back to the
+  // floor. A trace just created (Keep, a corrected copy) can be opened before
+  // the listener reports it, so a trace never seen here gets a short grace.
+  const [seen, setSeen] = useState(false)
+  const [graceOver, setGraceOver] = useState(false)
+  if (trace && !seen) setSeen(true)
+  useEffect(() => {
+    const t = setTimeout(() => setGraceOver(true), ARRIVAL_GRACE_MS)
+    return () => clearTimeout(t)
+  }, [])
+  const missing = kept.loaded && !trace && (seen || graceOver)
   useEffect(() => { if (missing) onNavigate('/folio/kept', { replace: true }) }, [missing, onNavigate])
 
   if (!trace) {
