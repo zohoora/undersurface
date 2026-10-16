@@ -21,6 +21,8 @@ export interface ControlLabels {
   looseKeep: string
   looseToPage: string
   looseRemove: string
+  /** Phase 2; absent hides Keep. */
+  keep?: string
 }
 
 export interface ControlDeps {
@@ -32,6 +34,8 @@ export interface ControlDeps {
   unlifted?: () => string
   /** Hidden for the rest of this visit after "Keep it here". */
   looseAcknowledged: Set<string>
+  /** Keep (draft 4 §3.7): snapshot this fold. Shown only when something is written. */
+  onKeep?: (foldId: string) => void
 }
 
 function button(label: string, onClick: () => void): HTMLButtonElement {
@@ -127,6 +131,11 @@ export function undersideControls(deps: ControlDeps) {
       }
       wrap.appendChild(button(labels.closer, step(-1)))
       wrap.appendChild(button(labels.farther, step(1)))
+    }
+    if (!empty && deps.onKeep && labels.keep) {
+      const keep = button(labels.keep, () => deps.onKeep?.(foldId))
+      keep.dataset.folioKeep = ''
+      wrap.appendChild(keep)
     }
     return wrap
   }

@@ -22,6 +22,8 @@ export interface FolioStrings {
   betweenHint: string
   /** "Writing beneath '‹line›', closed" — the discovery path's announcement. */
   foldFound: (line: string, open: boolean) => string
+  /** "from 14 Oct": a fold lifted from a kept thing (draft 4 §3.8). */
+  fromDate: (keptAt: number) => string
 }
 
 const DISTANCES: Record<Gap, string> = { 0: 'touching', 1: 'close', 2: 'apart', 3: 'far', 4: 'very far' }
@@ -45,4 +47,5 @@ export const ENGLISH_STRINGS: FolioStrings = {
   alreadyLifted: 'This line already has something beneath it.',
   betweenHint: 'between',
   foldFound: (line, open) => `Writing beneath '${truncate(line)}', ${open ? 'open' : 'closed'}`,
+  fromDate: (keptAt) => `from ${new Date(keptAt).toLocaleDateString('en', { day: 'numeric', month: 'short' })}`,
 }

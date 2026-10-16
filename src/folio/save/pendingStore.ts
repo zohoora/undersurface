@@ -120,8 +120,11 @@ export function removePending(uid: string, pageId: string, editorId: string): vo
 
 /** Sign-out and account deletion: every Folio key for this user on this device. */
 export function clearFolioLocalForUser(uid: string): void {
-  // The Talk handoff lives in sessionStorage for one navigation; it goes too.
-  try { sessionStorage.removeItem('us.folioHandoff') } catch { /* nothing to do */ }
+  // The one-navigation slots in sessionStorage go too: the Talk handoff, a
+  // pending Lift into today's page, and Go to the page's fold.
+  try {
+    for (const key of ['us.folioHandoff', 'us.folioLiftToday', 'us.folioOpenFold']) sessionStorage.removeItem(key)
+  } catch { /* nothing to do */ }
   const s = storage()
   if (!s) return
   const prefixes = [`${PREFIX}${uid}.`, `us.folioView.${uid}.`, `us.folioActivation.${uid}`, `us.folioSound.${uid}`]

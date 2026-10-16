@@ -1,6 +1,9 @@
 import type { TranslationStrings } from '../i18n/translations/en'
 import type { Gap } from './page/schema'
 import type { FolioStrings } from './page/strings'
+import { getLanguageCode } from '../i18n'
+import { getSettings } from '../store/settings'
+import { shortDate } from './kept/dates'
 
 // The editor core's copy, from the active language's `folio.*` keys.
 
@@ -26,5 +29,6 @@ export function folioStringsFrom(t: TranslationStrings): FolioStrings {
     alreadyLifted: t['folio.alreadyLifted'],
     betweenHint: t['folio.between'],
     foldFound: (line, open) => (open ? t['folio.foldFound.open'] : t['folio.foldFound.closed']).replace('{line}', truncate(line)),
+    fromDate: (keptAt) => t['folio.fromDate'].replace('{date}', shortDate(keptAt, getLanguageCode(), getSettings().timezone)),
   }
 }

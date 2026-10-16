@@ -382,3 +382,108 @@
   animation-duration: 120ms;
   animation-delay: 0s;
 }
+
+/* ---------------------------------------------------------------- kept (Phase 2) */
+
+.folio-button--strong { color: var(--folio-ink); font-weight: 500; }
+.folio-button:disabled { opacity: 1; color: var(--folio-control); cursor: default; text-decoration: line-through; text-decoration-color: transparent; }
+
+.folio-input {
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--folio-rule);
+  border-radius: 6px;
+  background: var(--folio-paper);
+  color: var(--folio-ink);
+  font: 16px/1.4 'Inter', system-ui, sans-serif;
+}
+.folio-input:focus-visible { outline: 2px solid var(--folio-focus); outline-offset: 1px; }
+
+/* The floor: sediment, newest at the top. Thickness records returns only. */
+.folio-floor { max-width: 680px; margin: 0 auto; padding: 32px 24px 120px; font-family: 'Inter', system-ui, sans-serif; }
+.folio-floor h1 { font: 400 22px/1.3 'Spectral', Georgia, serif; margin: 0 0 8px; }
+.folio-floor h2 { font: 500 13px/1.4 'Inter', system-ui, sans-serif; color: var(--folio-control); margin: 0 0 8px; }
+.folio-floor__promise { font-size: 13px; color: var(--folio-control); margin: 0 0 24px; }
+.folio-floor ul { list-style: none; margin: 0; padding: 0; }
+.folio-floor__waiting { margin-bottom: 24px; padding: 12px 0; border-top: 1px solid var(--folio-rule); border-bottom: 1px solid var(--folio-rule); }
+.folio-floor__waiting li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.folio-floor__trace { border-bottom: 1px solid var(--folio-crease); }
+.folio-floor__earlier { margin-left: 24px; border-bottom: 1px solid var(--folio-rule); }
+.folio-floor__open { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-height: 56px; padding: 10px 4px; border: 0; background: none; color: var(--folio-ink); text-align: left; cursor: pointer; }
+.folio-floor__name { font: 16px/1.4 'Spectral', Georgia, serif; }
+.folio-floor__earlier .folio-floor__name { font-size: 14px; }
+.folio-floor__meta { font: 12px/1.4 'Inter', system-ui, sans-serif; color: var(--folio-control); }
+
+/* A trace: the composition, with entries beside it on wide screens. */
+.folio-trace { max-width: 960px; margin: 0 auto; padding: 32px 24px 160px; }
+.folio-trace__header h1 { font: 400 24px/1.3 'Spectral', Georgia, serif; margin: 0 0 4px; }
+.folio-trace__meta { font: 12px/1.6 'Inter', system-ui, sans-serif; color: var(--folio-control); }
+.folio-trace__body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; margin-top: 24px; }
+@media (min-width: 900px) {
+  .folio-trace__body { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+  .folio-trace__entries { border-left: 1px solid var(--folio-rule); padding-left: 20px; }
+}
+.folio-trace__actions, .folio-trace__comeback, .folio-trace__name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 16px; position: relative; }
+.folio-trace__lineage { margin-top: 24px; font-family: 'Inter', system-ui, sans-serif; }
+.folio-trace__lineage h2 { font: 500 12px/1.4 'Inter', system-ui, sans-serif; color: var(--folio-control); margin: 0; }
+.folio-trace__lineage ul { list-style: none; margin: 0; padding: 0; }
+.folio-menu--inline { position: absolute; top: 48px; left: 0; right: auto; z-index: 20; }
+
+.folio-composition { font: 19px/1.65 'Spectral', Georgia, serif; color: var(--folio-ink); }
+.folio-composition p { margin: 0 0 0.6em; }
+.folio-composition__line { text-decoration: underline; text-decoration-color: var(--folio-crease); text-underline-offset: 4px; }
+.folio-composition__under { margin: 0 0 0 1.5em; padding: 0.4em 0.8em; background: var(--folio-underside); border-left: 2px solid var(--folio-crease); }
+.folio-composition__between { margin: calc(var(--folio-gap-lines, 0) * 0.5lh) 0; }
+
+.folio-entry { margin: 0 0 16px; font-family: 'Spectral', Georgia, serif; }
+.folio-entry__date { display: block; font: 12px/1.4 'Inter', system-ui, sans-serif; color: var(--folio-control); margin-bottom: 4px; }
+.folio-entry__text { margin: 0 0 4px; font-size: 17px; line-height: 1.6; white-space: pre-wrap; }
+.folio-entry--new label { display: block; }
+.folio-entry__input { width: 100%; box-sizing: border-box; font: 17px/1.5 'Spectral', Georgia, serif; resize: vertical; }
+
+.folio-comeback { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.folio-comeback__pick { display: flex; align-items: center; gap: 4px; }
+
+/* The come-back slip: one at a time, at the top. */
+.folio-slip { max-width: 680px; margin: 16px auto 0; padding: 12px 16px; border: 1px solid var(--folio-rule); border-left: 2px solid var(--folio-crease); border-radius: 6px; background: var(--folio-notice); font-family: 'Inter', system-ui, sans-serif; }
+.folio-slip__asked { font-size: 12px; color: var(--folio-control); }
+.folio-slip__name { font: 17px/1.5 'Spectral', Georgia, serif; color: var(--folio-ink); margin: 4px 0; }
+.folio-slip__actions { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* "from 14 Oct": a fold lifted from a kept thing. */
+.folio-underside__from { font: 12px/1.4 'Inter', system-ui, sans-serif; color: var(--folio-control); margin: 0 0 4px; user-select: none; }
+
+/* Dialogs */
+.folio-dialog__backdrop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(20, 17, 14, 0.32); }
+.folio-dialog { max-width: 440px; width: 100%; padding: 20px; border-radius: 10px; background: var(--folio-notice); color: var(--folio-ink); font: 14px/1.5 'Inter', system-ui, sans-serif; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18); }
+.folio-dialog p { margin: 0 0 12px; }
+.folio-dialog__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+
+/* Keep: the composition folds into a slip and settles to the bottom edge, like
+   ink diffusing in water (a motion, never a water theme). 900 ms; a 120 ms
+   fade with reduced motion. Nothing waits on it. */
+.folio-keep-slip {
+  position: fixed;
+  z-index: 30;
+  pointer-events: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border-top: 1px solid var(--folio-crease);
+  background: var(--folio-notice);
+  color: var(--folio-ink);
+  font: 15px/1.4 'Spectral', Georgia, serif;
+  transform-origin: 50% 100%;
+  animation: folio-keep-settle 900ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes folio-keep-settle {
+  0% { opacity: 0.95; transform: translateY(0) scaleY(1); filter: blur(0); }
+  55% { opacity: 0.7; transform: translateY(var(--folio-settle-y, 200px)) scaleY(0.35); }
+  100% { opacity: 0; transform: translateY(var(--folio-settle-y, 200px)) scaleY(0.08); filter: blur(1.5px); }
+}
+@keyframes folio-keep-fade { from { opacity: 0.95; } to { opacity: 0; } }
+.folio-root[data-reduce-motion="true"] .folio-keep-slip { animation: folio-keep-fade 120ms linear forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .folio-keep-slip { animation: folio-keep-fade 120ms linear forwards !important; }
+}
+
+.folio-correction__page { padding: 16px 0; }

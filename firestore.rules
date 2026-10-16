@@ -58,6 +58,48 @@ service cloud.firestore {
       allow delete: if isOwner(userId);
     }
 
+    // Folio's kept things (draft 4 §5.3, C3). The app never rewrites a kept
+    // field: an update may change only the title, the come-back fields and
+    // the checked set. Entries are added and deleted, never edited.
+    function validTrace(traceId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['id', 'keptAt', 'source', 'previousTraceId', 'correctedFromId', 'surface', 'gap',
+                               'composition', 'author', 'title', 'comeBackAt', 'comeBackTz', 'comeBackSetAt',
+                               'lastComeBackShownAt', 'groundedNearKeep', 'safety', 'schemaVersion'])
+        && d.id == traceId
+        && d.author == 'writer'
+        && d.keptAt is int
+        && d.source is map && d.source.pageId is string && d.source.foldId is string
+        && d.surface is string && d.surface.size() <= 2000
+        && d.composition is string && d.composition.size() <= 950000
+        && d.gap is int && d.gap >= 0 && d.gap <= 4
+        && d.groundedNearKeep is bool
+        && d.safety is map && d.safety.checked is list && d.safety.checked.size() <= 1000
+        && (!('title' in d) || (d.title is string && d.title.size() <= 200));
+    }
+
+    match /users/{userId}/folioTraces/{traceId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && validTrace(traceId);
+      allow update: if isOwner(userId) && validTrace(traceId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['title', 'comeBackAt', 'comeBackTz', 'comeBackSetAt', 'lastComeBackShownAt', 'safety']);
+      allow delete: if isOwner(userId);
+
+      match /entries/{entryId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && request.resource.data.keys().hasOnly(['id', 'addedAt', 'text', 'author'])
+          && request.resource.data.id == entryId
+          && request.resource.data.author == 'writer'
+          && request.resource.data.addedAt is int
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 20000;
+        allow delete: if isOwner(userId);
+      }
+    }
+
     match /appConfig/{docId} {
       allow read: if request.auth != null;
       allow write: if false;

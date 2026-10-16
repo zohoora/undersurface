@@ -33,6 +33,51 @@ export interface FolioPage {
   notes?: FolioNote[]
 }
 
+/**
+ * users/{uid}/folioTraces/{traceId}: a kept composition (draft 4 §3.7, C3).
+ * The app never rewrites a kept field; the rules reject updates to them.
+ */
+export interface FolioTrace {
+  id: string
+  keptAt: number
+  source: { pageId: string; foldId: string; revId: string | null }
+  /** Keeping the same fold again links to the trace it kept before. */
+  previousTraceId?: string
+  /** A corrected copy names the trace it corrects (build plan §3.5). */
+  correctedFromId?: string
+  /** The lifted line, exact, as plain text. */
+  surface: string
+  gap: 0 | 1 | 2 | 3 | 4
+  /**
+   * The composition as ProseMirror JSON (`Composition` in kept/keep.ts),
+   * stringified like the page, so italic, hard breaks and paragraphs survive
+   * exactly. Plain text is derived from it.
+   */
+  composition: string
+  author: 'writer'
+  title?: string
+  /** 07:00 writer-local on the chosen date, as epoch ms; null when cleared. */
+  comeBackAt?: number | null
+  comeBackTz?: string | null
+  /** When the writer asked; the slip quotes it back. */
+  comeBackSetAt?: number | null
+  /** The last time the slip was set aside with "Not now". */
+  lastComeBackShownAt?: number | null
+  /** lastGroundingAt within 72 h of keptAt (used only by H3). */
+  groundedNearKeep: boolean
+  /** C4's checked set for the between, the beneath and each entry. */
+  safety: { checked: string[] }
+  schemaVersion: 2
+}
+
+/** users/{uid}/folioTraces/{traceId}/entries/{entryId}: added beside a trace, never edited. */
+export interface FolioTraceEntry {
+  id: string
+  addedAt: number
+  text: string
+  author: 'writer'
+}
+
 /** users/{uid}/folioPreferences/current */
 export interface FolioPreferences {
   id: 'current'

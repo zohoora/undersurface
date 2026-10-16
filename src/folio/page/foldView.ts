@@ -275,6 +275,7 @@ class OpenUndersideView implements NodeView {
   dom: HTMLElement
   contentDOM: HTMLElement
   private controls: HTMLElement | null
+  private fromLabel: HTMLElement | null = null
   private node: PMNode
   private readonly strings: () => FolioStrings
   private readonly view: EditorView
@@ -317,6 +318,20 @@ class OpenUndersideView implements NodeView {
     const s = this.strings()
     const line = String(this.node.attrs.surfaceSnapshot ?? '')
     this.dom.setAttribute('aria-label', s.undersideLabel(line, gap))
+    // Lifted from a kept thing: "from 14 Oct" (draft 4 §3.8).
+    const keptAt = this.node.attrs.fromKeptAt as number | null
+    if (keptAt) {
+      if (!this.fromLabel) {
+        this.fromLabel = document.createElement('div')
+        this.fromLabel.className = 'folio-underside__from'
+        this.fromLabel.setAttribute('contenteditable', 'false')
+        this.dom.insertBefore(this.fromLabel, this.contentDOM)
+      }
+      this.fromLabel.textContent = s.fromDate(keptAt)
+    } else if (this.fromLabel) {
+      this.fromLabel.remove()
+      this.fromLabel = null
+    }
   }
 
   update(node: PMNode, decorations: readonly Decoration[]): boolean {
