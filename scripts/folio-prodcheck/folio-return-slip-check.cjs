@@ -48,7 +48,7 @@ const DAY = 24 * 60 * 60 * 1000
     await page.getByPlaceholder('Email').fill(EMAIL)
     await page.getByPlaceholder('Password').fill(password())
     await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-    await page.waitForURL(/\/(session|folio)/, { timeout: 45000 })
+    await page.waitForURL(/\/(session\/[0-9a-f-]{36}|folio\/)/, { timeout: 45000 })
 
     // 2. Keep a fold, outside Recent.
     await page.goto(`${BASE}/folio/new`, { waitUntil: 'domcontentloaded' })

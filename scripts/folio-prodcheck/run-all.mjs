@@ -3,7 +3,9 @@
 // the macOS Keychain (service `undersurface-folio-test`) by each script and is
 // never printed. Each script cleans up its own pages and kept things.
 //
-//   node scripts/folio-prodcheck/run-all.mjs            # production
+//   node scripts/folio-prodcheck/run-all.mjs            # production, desktop Chrome
+//   DEVICE=pixel node scripts/folio-prodcheck/run-all.mjs   # as a Pixel 7 (Chrome)
+//   DEVICE=iphone node scripts/folio-prodcheck/run-all.mjs  # as an iPhone 14 (WebKit)
 //   BASE_URL=http://localhost:4174 node scripts/folio-prodcheck/run-all.mjs
 //
 // A local build reaches production's /api through Vite's proxy (vite preview
@@ -42,6 +44,7 @@ for (const [name, file] of checks) {
   if (!ok) console.error(`--- ${file} ---\n${(r.stdout || '').slice(-3000)}${(r.stderr || '').slice(-1000)}`)
 }
 const left = spawnSync(process.execPath, [join(here, 'account-inspect.cjs')], { encoding: 'utf8', env: process.env })
+console.log(`Device: ${process.env.DEVICE || 'desktop'}\n`)
 console.log('| Check | Result | Time |\n|---|---|---|\n' + rows.join('\n'))
 console.log(`\nTest account afterwards:\n${left.stdout}`)
 process.exit(failed === 0 ? 0 : 1)

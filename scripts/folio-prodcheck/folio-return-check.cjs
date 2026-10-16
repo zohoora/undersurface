@@ -3,7 +3,7 @@
 // both hidden while the setting is off; then everything turned back off and
 // deleted. The slip itself needs a trace kept 14+ days ago (keptAt is
 // immutable), so it is covered by unit tests, not here.
-const { chromium } = require('playwright')
+const device = require('./device.cjs')
 const { execFileSync } = require('child_process')
 
 const EMAIL = 'folio-test@undersurface.me'
@@ -11,12 +11,12 @@ const BASE = process.env.BASE_URL || 'https://undersurface.me'
 const password = () => execFileSync('security', ['find-generic-password', '-s', 'undersurface-folio-test', '-a', EMAIL, '-w'], { encoding: 'utf8' }).trim()
 
 ;(async () => {
-  const browser = await chromium.launch()
-  const page = await (await browser.newContext({ serviceWorkers: 'block' })).newPage()
+  const browser = await device.launch()
+  const page = await (await device.newContext(browser, { serviceWorkers: 'block' })).newPage()
   page.on('dialog', (d) => d.accept())
   const out = { steps: {} }
   const ok = (k, v) => { out.steps[k] = !!v; return !!v }
-  const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
+  const { mod } = device.keys()
   const editor = page.locator('.folio-page .ProseMirror[contenteditable="true"]')
   const auth = () => page.evaluate(() => new Promise((resolve) => {
     const req = indexedDB.open('firebaseLocalStorageDb')
@@ -46,13 +46,14 @@ const password = () => execFileSync('security', ['find-generic-password', '-s', 
     await page.getByPlaceholder('Email').fill(EMAIL)
     await page.getByPlaceholder('Password').fill(password())
     await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-    await page.waitForURL(/\/(session|folio)/, { timeout: 45000 })
+    await page.waitForURL(/\/(session\/[0-9a-f-]{36}|folio\/)/, { timeout: 45000 })
+    await device.settle(page)
     await page.goto(`${BASE}/folio/new`, { waitUntil: 'domcontentloaded' })
     await page.waitForURL(/\/folio\/p\//, { timeout: 30000 })
     await editor.waitFor({ timeout: 30000 })
     await editor.focus()
     await page.keyboard.type('The heater only worked on one side.')
-    await page.keyboard.press(`${mod}+Shift+Enter`)
+    await device.lift(page, 'The heater only worked on one side.')
     await page.keyboard.type('I felt cold the whole way.')
     await page.locator('.folio-status').filter({ hasText: /^Saved$/ }).waitFor({ timeout: 20000 })
     await page.locator('button[data-folio-keep]').click()

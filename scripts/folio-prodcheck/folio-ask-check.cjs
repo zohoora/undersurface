@@ -1,6 +1,6 @@
 // Production check for Ask (build plan step 9, H2) as the test account. Prints
 // statuses only, never note text or request bodies.
-const { chromium } = require('playwright')
+const device = require('./device.cjs')
 const { default: AxeBuilder } = require('@axe-core/playwright')
 const { execFileSync } = require('child_process')
 
@@ -12,8 +12,8 @@ const OTHER = 'We drove back late.'
 const ASKED = 'The heater only worked on one side.'
 
 ;(async () => {
-  const browser = await chromium.launch()
-  const context = await browser.newContext({ serviceWorkers: 'block', colorScheme: 'light', permissions: ['clipboard-read', 'clipboard-write'] })
+  const browser = await device.launch()
+  const context = await device.newContext(browser, { serviceWorkers: 'block', colorScheme: 'light', permissions: ['clipboard-read', 'clipboard-write'] })
   const page = await context.newPage()
   page.on('dialog', (d) => d.accept())
   const out = { steps: {}, axe: {}, chats: [] }
@@ -26,7 +26,7 @@ const ASKED = 'The heater only worked on one side.'
     out.chats.push(body.task || 'companion')
     if (!body.task) companionBodies.push(JSON.stringify(body.messages || []))
   })
-  const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
+  const { mod } = device.keys()
   const editor = page.locator('.folio-page .ProseMirror[contenteditable="true"]')
   const status = page.locator('.folio-status')
   const selectBack = async (n) => { for (let i = 0; i < n; i++) await page.keyboard.press('Shift+ArrowLeft') }
@@ -40,7 +40,8 @@ const ASKED = 'The heater only worked on one side.'
     await page.getByPlaceholder('Email').fill(EMAIL)
     await page.getByPlaceholder('Password').fill(password())
     await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-    await page.waitForURL(/\/(session|folio)/, { timeout: 45000 })
+    await page.waitForURL(/\/(session\/[0-9a-f-]{36}|folio\/)/, { timeout: 45000 })
+    await device.settle(page)
     await page.goto(`${BASE}/folio/new`, { waitUntil: 'domcontentloaded' })
     await page.waitForURL(/\/folio\/p\//, { timeout: 30000 })
     await editor.waitFor({ timeout: 30000 })
@@ -90,14 +91,16 @@ const ASKED = 'The heater only worked on one side.'
     const before = companionBodies.length
     await editor.focus()
     await page.keyboard.press('End')
-    await page.keyboard.press('Enter')
+    await device.enter(page)
     const risky = 'Tonight I will kill myself.'
     await page.keyboard.type(risky)
     await page.locator('.folio-shore-line').waitFor({ timeout: 15000 }).catch(() => {})
     await selectBack(risky.length)
     await page.waitForTimeout(200)
     const askButton = page.getByRole('button', { name: 'Ask', exact: true })
-    if (await askButton.count()) await askButton.click()
+    // On a phone the crisis card sits over the bottom bar, so Ask can't be
+    // tapped until the card is dismissed; recorded, not required (help first).
+    if (await askButton.count()) out.askReachableInShore = await askButton.click({ timeout: 5000 }).then(() => true, () => false)
     await page.waitForTimeout(3000)
     ok('l1SendsNothing', companionBodies.length === before)
     ok('shore', (await page.locator('.folio-root[data-shore="true"]').count()) === 1)
@@ -111,7 +114,7 @@ const ASKED = 'The heater only worked on one side.'
     await d.getByRole('button', { name: 'Delete' }).last().click()
     ok('deletedPage', await page.waitForURL(/\/folio\/pages/, { timeout: 15000 }).then(() => true, () => false))
   } catch (err) {
-    out.error = String(err && err.message || err).split('\n')[0].slice(0, 220)
+    out.error = String(err && err.message || err).split('\n').slice(0, 16).join(' | ').slice(0, 1600)
   } finally {
     console.log(JSON.stringify(out, null, 1))
     await browser.close()

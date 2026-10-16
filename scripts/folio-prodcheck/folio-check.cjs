@@ -3,7 +3,7 @@
 // closed fold survived, checks a safety call ran, checks shore and "I'm okay"
 // on a line the safety floor matches, then deletes the test page.
 // Prints statuses only; the password comes from the Keychain at run time.
-const { chromium } = require('playwright')
+const device = require('./device.cjs')
 const { execFileSync } = require('child_process')
 
 const EMAIL = 'folio-test@undersurface.me'
@@ -11,8 +11,8 @@ const BASE = process.env.BASE_URL || 'https://undersurface.me'
 const password = () => execFileSync('security', ['find-generic-password', '-s', 'undersurface-folio-test', '-a', EMAIL, '-w'], { encoding: 'utf8' }).trim()
 
 ;(async () => {
-  const browser = await chromium.launch()
-  const context = await browser.newContext({ serviceWorkers: 'block' })
+  const browser = await device.launch()
+  const context = await device.newContext(browser, { serviceWorkers: 'block' })
   const page = await context.newPage()
   const calls = []
   page.on('request', (req) => {
@@ -26,7 +26,7 @@ const password = () => execFileSync('security', ['find-generic-password', '-s', 
   page.on('pageerror', (e) => errors.push(String(e.message).slice(0, 160)))
 
   const out = { signIn: false, folio: false, saved: false, lifted: false, closedHidden: false, persisted: false, closedAfterReload: false, safetyCall: false, shore: false, okayQuiet: false, deleted: false }
-  const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
+  const { mod } = device.keys()
   const editor = page.locator('.folio-page .ProseMirror[contenteditable="true"]')
   const status = page.locator('.folio-status')
   try {
@@ -34,7 +34,8 @@ const password = () => execFileSync('security', ['find-generic-password', '-s', 
     await page.getByPlaceholder('Email').fill(EMAIL)
     await page.getByPlaceholder('Password').fill(password())
     await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-    await page.waitForURL(/\/(session|folio)/, { timeout: 45000 })
+    await page.waitForURL(/\/(session\/[0-9a-f-]{36}|folio\/)/, { timeout: 45000 })
+    await device.settle(page)
     out.signIn = true
 
     await page.goto(`${BASE}/folio/new`, { waitUntil: 'domcontentloaded' })
@@ -50,7 +51,7 @@ const password = () => execFileSync('security', ['find-generic-password', '-s', 
     // Lift the second sentence with the keyboard, write beneath it.
     await page.keyboard.press('End')
     for (let i = 0; i < 'The heater only worked on one side.'.length; i++) await page.keyboard.press('Shift+ArrowLeft')
-    await page.keyboard.press(`${mod}+Shift+Enter`)
+    await device.lift(page)
     await page.keyboard.type('I felt cold the whole way.')
     out.lifted = (await page.locator('.folio-underside--open').count()) === 1
     await page.keyboard.press('Escape')
@@ -71,7 +72,7 @@ const password = () => execFileSync('security', ['find-generic-password', '-s', 
     // Shore: a line the deterministic floor matches. Then "I'm okay".
     await editor.click()
     await page.keyboard.press(`${mod}+End`)
-    await page.keyboard.press('Enter')
+    await device.enter(page)
     await page.keyboard.type('Tonight I will kill myself.')
     await page.locator('.folio-shore-line').waitFor({ timeout: 15000 })
     out.shore = (await page.locator('.folio-root[data-shore="true"]').count()) === 1

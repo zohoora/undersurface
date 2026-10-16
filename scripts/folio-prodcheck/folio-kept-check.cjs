@@ -4,7 +4,7 @@
 // the REST API with the account's own token, which the rules allow); Not now;
 // Lift into today's page; Go to the page; the delete-page dialog with kept
 // things; axe on each new screen. Prints statuses only; cleans up after itself.
-const { chromium } = require('playwright')
+const device = require('./device.cjs')
 const { default: AxeBuilder } = require('@axe-core/playwright')
 const { execFileSync } = require('child_process')
 
@@ -17,15 +17,15 @@ const MARK = 'We drove back late.'
 const LINE = 'The heater only worked on one side.'
 
 ;(async () => {
-  const browser = await chromium.launch()
-  const context = await browser.newContext({ serviceWorkers: 'block', colorScheme: 'light' })
+  const browser = await device.launch()
+  const context = await device.newContext(browser, { serviceWorkers: 'block', colorScheme: 'light' })
   const page = await context.newPage()
   page.on('dialog', (d) => d.accept())
   const errors = []
   page.on('pageerror', (e) => errors.push(String(e.message).slice(0, 160)))
   const out = { steps: {}, axe: {} }
   const ok = (k, v) => { out.steps[k] = !!v; return !!v }
-  const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
+  const { mod } = device.keys()
   const editor = page.locator('.folio-page .ProseMirror[contenteditable="true"]').first()
   const status = page.locator('.folio-status')
   const notice = page.locator('.folio-notice')
@@ -68,7 +68,8 @@ const LINE = 'The heater only worked on one side.'
     await page.getByPlaceholder('Email').fill(EMAIL)
     await page.getByPlaceholder('Password').fill(password())
     await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-    await page.waitForURL(/\/(session|folio)/, { timeout: 45000 })
+    await page.waitForURL(/\/(session\/[0-9a-f-]{36}|folio\/)/, { timeout: 45000 })
+    await device.settle(page)
     ok('signIn', true)
 
     // A page with a lifted line and writing beneath it.
@@ -78,10 +79,10 @@ const LINE = 'The heater only worked on one side.'
     const pageUrl = page.url()
     await editor.focus()
     await page.keyboard.type(MARK)
-    await page.keyboard.press('Enter')
+    await device.enter(page)
     await page.keyboard.type(LINE)
     await settle()
-    await page.keyboard.press(`${mod}+Shift+Enter`)
+    await device.lift(page, LINE)
     await page.keyboard.type('I felt cold the whole way.')
     await status.filter({ hasText: /^Saved$/ }).waitFor({ timeout: 20000 })
 

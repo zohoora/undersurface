@@ -3,7 +3,7 @@
 // between; light and dark paper; shore) and the keyboard-only path (lift,
 // distance, between, close, find by the discovery keys, reopen). Prints
 // statuses and violation ids only; the password comes from the Keychain.
-const { chromium } = require('playwright')
+const device = require('./device.cjs')
 const { default: AxeBuilder } = require('@axe-core/playwright')
 const { execFileSync } = require('child_process')
 
@@ -13,14 +13,14 @@ const password = () => execFileSync('security', ['find-generic-password', '-s', 
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice']
 
 ;(async () => {
-  const browser = await chromium.launch()
-  const context = await browser.newContext({ serviceWorkers: 'block', colorScheme: 'light' })
+  const browser = await device.launch()
+  const context = await device.newContext(browser, { serviceWorkers: 'block', colorScheme: 'light' })
   const page = await context.newPage()
   page.on('dialog', (d) => d.accept())
   const out = { signIn: false, axe: {}, keyboard: {}, deleted: false }
-  const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
+  const { mod } = device.keys()
   // The end of the document: Cmd+Down on a Mac, Ctrl+End elsewhere.
-  const docEnd = process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End'
+  const { docEnd } = device.keys()
   const editor = page.locator('.folio-page .ProseMirror[contenteditable="true"]')
   const status = page.locator('.folio-status')
   const live = page.locator('.folio-root > .folio-visually-hidden[role="status"]')
@@ -38,7 +38,8 @@ const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-prac
     await page.getByPlaceholder('Email').fill(EMAIL)
     await page.getByPlaceholder('Password').fill(password())
     await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-    await page.waitForURL(/\/(session|folio)/, { timeout: 45000 })
+    await page.waitForURL(/\/(session\/[0-9a-f-]{36}|folio\/)/, { timeout: 45000 })
+    await device.settle(page)
     out.signIn = true
 
     await page.goto(`${BASE}/folio/pages`, { waitUntil: 'domcontentloaded' })
@@ -53,29 +54,44 @@ const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-prac
     // Keyboard only from here: write, lift, distance, between.
     await editor.focus()
     await page.keyboard.type('We drove back late.')
-    await page.keyboard.press('Enter')
+    await device.enter(page)
     await page.keyboard.type('The heater only worked on one side.')
-    await page.keyboard.press(`${mod}+Shift+Enter`)
+    await device.lift(page, 'The heater only worked on one side.')
     out.keyboard.lifted = (await said()) === 'Lifted. Writing beneath.'
     await page.keyboard.type('I felt cold the whole way.')
-    await page.keyboard.press(`${mod}+Alt+BracketRight`)
-    await page.keyboard.press(`${mod}+Alt+BracketRight`)
+    // Distance: the keys on a desktop; on a phone, the Farther button.
+    if (device.isPhone()) {
+      const farther = page.getByRole('button', { name: 'Farther', exact: true }).first()
+      await farther.tap(); await farther.tap()
+    } else {
+      await page.keyboard.press(`${mod}+Alt+BracketRight`)
+      await page.keyboard.press(`${mod}+Alt+BracketRight`)
+    }
     out.keyboard.farther = (await said()) === 'Farther: apart, 3 of 5'
-    await page.keyboard.press('ArrowUp')
+    // Between: arrow up from the beneath; on a phone, tap it.
+    if (device.isPhone()) await page.locator('[data-folio-between]').tap()
+    else await page.keyboard.press('ArrowUp')
     await page.waitForTimeout(150)
     await page.keyboard.type('The radio.')
     out.keyboard.between = (await page.locator('[data-folio-between]').innerText()).includes('The radio.')
     await status.filter({ hasText: /^Saved$/ }).waitFor({ timeout: 20000 })
     await axe('foldOpenLight')
 
-    await page.keyboard.press('Escape')
+    // Close: Escape on a desktop; on a phone, the crease.
+    if (device.isPhone()) await device.toggleFold(page)
+    else await page.keyboard.press('Escape')
     out.keyboard.closed = !(await page.locator('.folio-page').innerText()).includes('I felt cold')
-    await page.keyboard.press(docEnd)
-    await page.waitForTimeout(150) // a person's pause; the editor reads the caret on selectionchange
-    await page.keyboard.press(`${mod}+Alt+Comma`)
-    out.keyboard.foundSaid = await said()
-    out.keyboard.found = out.keyboard.foundSaid === "Writing beneath 'The heater only worked on one side.', closed"
-    await page.keyboard.press(`${mod}+Shift+Enter`)
+    // Finding a fold by key is a hardware-keyboard path; phones skip it (as CI does).
+    if (device.isPhone()) {
+      out.keyboard.found = 'n/a on touch'
+    } else {
+      await page.keyboard.press(docEnd)
+      await page.waitForTimeout(150) // a person's pause; the editor reads the caret on selectionchange
+      await page.keyboard.press(`${mod}+Alt+Comma`)
+      out.keyboard.foundSaid = await said()
+      out.keyboard.found = out.keyboard.foundSaid === "Writing beneath 'The heater only worked on one side.', closed"
+    }
+    await device.toggleFold(page)
     out.keyboard.reopened = (await page.locator('.folio-page').innerText()).includes('I felt cold the whole way.')
     await axe('foldOpenSettledLight')
 
@@ -87,7 +103,7 @@ const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-prac
     // Shore (dark, then light): a line the deterministic floor matches.
     await editor.focus()
     await page.keyboard.press(docEnd)
-    await page.keyboard.press('Enter')
+    await device.enter(page)
     await page.keyboard.type('Tonight I will kill myself.')
     await page.locator('.folio-shore-line').waitFor({ timeout: 15000 })
     await axe('shoreDark')
