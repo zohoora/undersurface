@@ -157,3 +157,109 @@ The "reason" field: one short sentence naming the specific signal (e.g., "explic
 
 Output exactly:
 {"risk": 0|1|2, "reason": "<one short sentence>"}`
+
+// ------------------------------------------------------------- consensus
+// gpt-5-nano at minimal reasoning flips boundary cases 5–15% of the time
+// with any prompt (measured 2026-10-16). So every channel asks three times at
+// once and takes the majority (owner decision, folio-build-plan §8.G):
+//   · two votes agree → that answer at once, and the last call is cancelled;
+//   · three different votes → the middle one (1);
+//   · a call failed and the other two disagree → the higher one, so a
+//     half-failed classifier never quietly drops a risk;
+//   · one vote → that vote; none → null (each caller's own fail-open).
+// The prompt and the model's judgment are unchanged: this removes noise, it
+// doesn't recalibrate.
+
+export const CRISIS_VOTES = 3
+
+export interface CrisisVote {
+  risk: 0 | 1 | 2
+  reason?: string
+}
+
+/** One completion's content as a vote, or null when it isn't a valid one. */
+export function parseCrisisVote(content: unknown): CrisisVote | null {
+  if (typeof content !== 'string') return null
+  let parsed: { risk?: unknown; reason?: unknown }
+  try {
+    parsed = JSON.parse(content) as typeof parsed
+  } catch {
+    return null
+  }
+  const risk = parsed?.risk
+  if (risk !== 0 && risk !== 1 && risk !== 2) return null
+  return typeof parsed.reason === 'string' ? { risk, reason: parsed.reason } : { risk }
+}
+
+/** The answer two or more votes agree on, or null. */
+export function crisisMajority(votes: readonly CrisisVote[]): CrisisVote | null {
+  for (const vote of votes) {
+    if (votes.filter((v) => v.risk === vote.risk).length >= 2) return vote
+  }
+  return null
+}
+
+/** The decision once every call has settled (votes from the calls that returned). */
+export function settleCrisisVotes(votes: readonly CrisisVote[]): CrisisVote | null {
+  if (votes.length === 0) return null
+  const majority = crisisMajority(votes)
+  if (majority) return majority
+  const ordered = [...votes].sort((a, b) => a.risk - b.risk)
+  // Three different votes: the middle. Two that disagree: the higher.
+  return ordered.length >= 3 ? ordered[1] : ordered[ordered.length - 1]
+}
+
+export interface CrisisConsensusOptions {
+  /** Aborts every call (the caller went away). */
+  signal?: AbortSignal
+  /** Settle with the votes in hand by then; the calls still running are cancelled. */
+  deadlineMs?: number
+}
+
+/**
+ * Ask `CRISIS_VOTES` times at once and decide by majority. `ask` resolves a
+ * vote, or null for a failed call (the caller keeps its own failure causes);
+ * a rejection counts as a failure. Each call gets a signal that aborts once
+ * the decision is made.
+ */
+export function classifyByConsensus(
+  ask: (signal: AbortSignal) => Promise<CrisisVote | null>,
+  options: CrisisConsensusOptions = {},
+): Promise<CrisisVote | null> {
+  return new Promise((resolve) => {
+    const controller = new AbortController()
+    const votes: CrisisVote[] = []
+    let settled = 0
+    let done = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const onAbort = () => finish(settleCrisisVotes(votes))
+    const finish = (vote: CrisisVote | null) => {
+      if (done) return
+      done = true
+      if (timer !== undefined) clearTimeout(timer)
+      options.signal?.removeEventListener('abort', onAbort)
+      controller.abort()
+      resolve(vote)
+    }
+    if (options.signal?.aborted) { finish(null); return }
+    options.signal?.addEventListener('abort', onAbort, { once: true })
+    if (options.deadlineMs !== undefined) timer = setTimeout(onAbort, options.deadlineMs)
+    const record = (vote: CrisisVote | null) => {
+      if (done) return
+      settled += 1
+      if (vote) votes.push(vote)
+      const majority = crisisMajority(votes)
+      if (majority) finish(majority)
+      else if (settled === CRISIS_VOTES) finish(settleCrisisVotes(votes))
+    }
+    for (let i = 0; i < CRISIS_VOTES; i++) {
+      let call: Promise<CrisisVote | null>
+      try {
+        call = ask(controller.signal)
+      } catch {
+        call = Promise.resolve(null)
+      }
+      call.then(record, () => record(null))
+    }
+  })
+}

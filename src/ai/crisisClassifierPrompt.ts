@@ -6,4 +6,7 @@
 export {
   CRISIS_CLASSIFIER_PROMPT,
   CRISIS_CLASSIFIER_SCHEMA,
+  classifyByConsensus,
+  parseCrisisVote,
 } from '../../functions/src/shared/crisisClassifier'
+export type { CrisisVote } from '../../functions/src/shared/crisisClassifier'

@@ -20,4 +20,12 @@ describe('CrisisResources', () => {
     rerender(<CrisisResources visible showToken={2} onDismiss={onDismiss} />)
     expect(document.querySelector('.crisis-resources')).not.toBeNull()
   })
+
+  it('uses no ghost text: every line reaches 4.5:1 (folio-build-plan §8.G)', () => {
+    render(<CrisisResources visible />)
+    const card = document.querySelector('.crisis-resources') as HTMLElement
+    const colors = [card, ...Array.from(card.querySelectorAll<HTMLElement>('*'))].map((el) => el.style.color).filter(Boolean)
+    expect(colors.length).toBeGreaterThan(0)
+    expect(colors.filter((c) => c.includes('--text-ghost'))).toEqual([])
+  })
 })

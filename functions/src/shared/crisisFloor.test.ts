@@ -47,11 +47,20 @@ const CASES: ReadonlyArray<readonly [text: string, expected: boolean, note: stri
   ['I tried to kill myself last night', true, 'recent attempt'],
   ['I tried to kill myself', true, 'no distance marker'],
   ["I'm in college and I tried to kill myself", true, 'present-tense "in college" is not distance'],
+  ['Years ago I tried to end my life and tonight I keep thinking about it', true, 'time word in the same sentence'],
+  ['Ten years ago I tried to end my life; tonight I keep thinking about it', true, 'a semicolon does not end the sentence'],
+  ['Ten years ago I tried to end my life. I might try again.', true, '"again" anywhere re-engages'],
+  ['Ten years ago I tried to end my life. This time I will get it right.', true, '"this time" anywhere re-engages'],
 
   // ── TECH_ISSUES_2026-10-14 #5: must defer to L2 ──
   ['I forgot to take the pills this morning', false, 'routine medication'],
   ['I would never kill myself, I just hate this job', false, 'negated + hyperbole'],
   ['Five years ago I tried to end my life. I am doing much better now.', false, 'recovery narrative'],
+
+  // ── Owner decision, folio-build-plan §8.G: time words count only in the attempt's sentence ──
+  ['Ten years ago I tried to end my life. Today I ran my first half marathon.', false, 'recovery story with "today" in the next sentence'],
+  ['When I was 16 I tried to kill myself. Yesterday I told my sister for the first time.', false, 'disclosure story'],
+  ['Ten years ago I tried to end my life. Tonight I keep thinking about it.', false, 'time word in another sentence defers to L2 (accepted trade-off)'],
 
   // ── More precision cases that defer to L2 ──
   ['Remember to take the pills with food', false, 'routine medication'],

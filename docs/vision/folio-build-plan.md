@@ -278,14 +278,14 @@ Also listen for: the crease announced as a button; announcements of lifting, dis
 - the margin notes' graphite
 - each feature switch in admin Settings › Folio
 
-**G. Decisions found during the build, for you:**
-- **Crisis classifier noise.** `gpt-5-nano` at minimal reasoning flips boundary cases 5–15% of the time with any prompt, so the release eval goes red now and then without a cause. Majority-of-3 or `reasoning_effort: 'low'` would reduce it (cost and latency, your call). §9, 2026-10-16.
-- **L1's historical guard.** It still matches "Ten years ago I tried to end my life" (step 2).
-- **The Journal's character floor** (`partOrchestrator.ts:202`) also skips L1 for short CJK text. You chose to leave the Journal gap (decision 12); this is a separate L1 point.
-- **Sessions (not Folio):**
-  - The app's viewport meta blocks pinch zoom (WCAG 1.4.4).
-  - The Sessions crisis card's ghost-text lines are about 2.8:1 on the light surface.
-- **When you open Folio to everyone:** turn on `folioEnabled` in admin Settings › Folio. The sub-switches are already on. Return still needs each writer to opt in.
+**G. Decisions found during the build, decided by the owner on 2026-10-16** (one question at a time):
+- **Crisis classifier noise → ask three times, take the majority.** Every channel (the `crisis_check` route for Talk, Journal, voice and Folio; SMS; both crisis evals) asks `gpt-5-nano` three times at once (`classifyByConsensus`). Two agreeing votes decide at once and the third call is cancelled; three different votes → the middle (1); one call failed and the other two disagree → **the higher** (a half-failed classifier never quietly drops a risk); one vote → that vote; none → each caller's fail-open. The prompt and the model's judgment are unchanged. Gate: crisis 101/101 three runs in a row with no new false positives, and folio-safety.
+- **L1's historical guard → same sentence, keep "again".** A time word ("today", "tonight", "yesterday", "this week", "right now"…) keeps L1 only in the attempt's own sentence (a semicolon doesn't end it); "again" and "this time" anywhere still keep L1. "Ten years ago I tried to end my life. Today I ran my first half marathon." now defers to L2. Accepted trade-off: "…Tonight I keep thinking about it." in a later sentence also goes to L2 rather than L1.
+- **The Journal's character floor → leave it** (with decision 12).
+- **Sessions' pinch zoom → allow it, keep iOS's focus guard.** The web drops `maximum-scale` and `user-scalable` at boot, except that iPhone and iPad keep `maximum-scale=1` (Safari pinches anyway; it stops focus zoom on small fields). Native builds keep the lock until the app ships.
+- **The Sessions crisis card → card only.** Its × button, the English international-helpline line and the dismiss button move from `--text-ghost` (2.5–2.8:1) to `--text-secondary` (5.7:1 light, 5.3:1 dark).
+- **Verification the build couldn't do, approved:** the bounce of a no-access writer, by removing the test account's `folio` claim and restoring it; the Return slip, by writing one backdated trace for the test account with the Admin SDK and clearing the `lastGroundingAt` the checks themselves set (no real crisis behind it).
+- **Opening Folio to everyone → Claude sets `folioEnabled: true`** after these fixes ship and are checked, and confirms with the claim removed that any writer can open Folio. The sub-switches are already on; Return still needs each writer to opt in.
 
 ---
 
