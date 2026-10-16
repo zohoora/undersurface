@@ -128,4 +128,16 @@ export const folio_id: FolioStringsTable = {
   'folio.deletePage.traces': 'Disimpan dari halaman ini: {n}. Yang disimpan adalah salinan, jadi tetap ada kecuali kamu juga menghapusnya.',
   'folio.deletePage.justPage': 'Hapus halamannya saja',
   'folio.deletePage.withTraces': 'Hapus halaman dan yang disimpan darinya',
+
+  // Step inside
+  'folio.stepInside': 'Melangkah ke dalam',
+  'folio.inside': '{line}, dari dalam',
+  'folio.standCloser': 'Mendekat',
+  'folio.standBack': 'Mundur',
+  'folio.backToPage': 'Kembali ke halaman',
+  'folio.backAndWrite': 'Kembali dan menulis',
+  'folio.sound': 'Bunyi',
+  'folio.sound.silence': 'Hening',
+  'folio.sound.forest': 'Hutan',
+  'folio.sound.drone': 'Dengung',
 }

@@ -128,4 +128,16 @@ export const folio_pt: FolioStringsTable = {
   'folio.deletePage.traces': 'Itens guardados desta página: {n}. São cópias, então ficam, a menos que você os exclua também.',
   'folio.deletePage.justPage': 'Excluir só a página',
   'folio.deletePage.withTraces': 'Excluir a página e o que foi guardado dela',
+
+  // Step inside
+  'folio.stepInside': 'Dar um passo para dentro',
+  'folio.inside': '{line}, por dentro',
+  'folio.standCloser': 'Chegar mais perto',
+  'folio.standBack': 'Dar um passo atrás',
+  'folio.backToPage': 'Voltar para a página',
+  'folio.backAndWrite': 'Voltar e escrever',
+  'folio.sound': 'Som',
+  'folio.sound.silence': 'Silêncio',
+  'folio.sound.forest': 'Floresta',
+  'folio.sound.drone': 'Tom grave',
 }

@@ -128,4 +128,16 @@ export const folio_hi: FolioStringsTable = {
   'folio.deletePage.traces': 'इस पन्ने से रखा गया: {n}। रखी गई चीज़ें प्रतियाँ हैं, इसलिए वे बनी रहती हैं, जब तक आप उन्हें भी न हटाएँ।',
   'folio.deletePage.justPage': 'सिर्फ़ पन्ना हटाएँ',
   'folio.deletePage.withTraces': 'पन्ना और उससे रखा गया सब हटाएँ',
+
+  // Step inside
+  'folio.stepInside': 'भीतर कदम रखें',
+  'folio.inside': '{line}, भीतर से',
+  'folio.standCloser': 'थोड़ा पास आएँ',
+  'folio.standBack': 'थोड़ा पीछे हटें',
+  'folio.backToPage': 'पन्ने पर लौटें',
+  'folio.backAndWrite': 'लौटें और लिखें',
+  'folio.sound': 'ध्वनि',
+  'folio.sound.silence': 'मौन',
+  'folio.sound.forest': 'जंगल',
+  'folio.sound.drone': 'गुंजन',
 }

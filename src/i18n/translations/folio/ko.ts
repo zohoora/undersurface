@@ -128,4 +128,16 @@ export const folio_ko: FolioStringsTable = {
   'folio.deletePage.traces': '이 페이지에서 남긴 글: {n}. 남긴 글은 사본이라서, 함께 삭제하지 않으면 그대로 남아요.',
   'folio.deletePage.justPage': '페이지만 삭제',
   'folio.deletePage.withTraces': '페이지와 거기서 남긴 글 삭제',
+
+  // Step inside
+  'folio.stepInside': '안으로 들어가기',
+  'folio.inside': '‘{line}’ 안에서',
+  'folio.standCloser': '가까이 다가가기',
+  'folio.standBack': '뒤로 물러서기',
+  'folio.backToPage': '페이지로 돌아가기',
+  'folio.backAndWrite': '돌아가서 쓰기',
+  'folio.sound': '소리',
+  'folio.sound.silence': '고요',
+  'folio.sound.forest': '숲',
+  'folio.sound.drone': '낮은 울림',
 }

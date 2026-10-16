@@ -128,4 +128,16 @@ export const folio_nl: FolioStringsTable = {
   'folio.deletePage.traces': 'Bewaard van deze pagina: {n}. Bewaarde dingen zijn kopieën, dus ze blijven, tenzij je ze ook verwijdert.',
   'folio.deletePage.justPage': 'Alleen de pagina verwijderen',
   'folio.deletePage.withTraces': 'De pagina verwijderen en wat ervan bewaard is',
+
+  // Step inside
+  'folio.stepInside': 'Naar binnen stappen',
+  'folio.inside': '{line}, van binnenuit',
+  'folio.standCloser': 'Dichterbij gaan staan',
+  'folio.standBack': 'Verder weg gaan staan',
+  'folio.backToPage': 'Terug naar de pagina',
+  'folio.backAndWrite': 'Terug en verder schrijven',
+  'folio.sound': 'Geluid',
+  'folio.sound.silence': 'Stilte',
+  'folio.sound.forest': 'Bos',
+  'folio.sound.drone': 'Bromtoon',
 }

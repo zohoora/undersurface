@@ -26,6 +26,7 @@ import { parseComposition } from './kept/keep'
 import { todaysPageId, writeLiftIntent } from './kept/liftToday'
 import { deleteTrace } from './kept/traceStore'
 import { DeletePageDialog } from './DeletePageDialog'
+import { Capacitor } from '@capacitor/core'
 import type { FolioTrace } from '../types/folio'
 
 // Folio's shell (draft 4 §3.2–§3.4, §3.9): routes, the top bar, the first
@@ -119,6 +120,10 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
     navigateTo(`/folio/p/${target}`)
   }, [user.uid, kept.tz, navigateTo])
 
+  // Step inside (H1) under its switch; its sound under its own, on the web only.
+  const insideOn = switches.stepInside
+  const insideSound = switches.stepInsideSound && !Capacitor.isNativePlatform()
+  const stepInside = useMemo(() => (insideOn ? { sound: insideSound } : undefined), [insideOn, insideSound])
   const pageKept = useMemo(() => ({ keep: kept.keep, undo: kept.undoKeep, setComeBack: kept.setComeBack, tz: kept.tz }), [kept.keep, kept.undoKeep, kept.setComeBack, kept.tz])
   const traceId = route?.kind === 'trace' ? route.traceId : null
   // The slip shows only on Normal paper (never in Shore or Quiet; Recent holds it in useKept).
@@ -210,6 +215,8 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
               reduceMotion={reduceMotion}
               ornaments={ornaments}
               kept={pageKept}
+              presentation={presentation}
+              stepInside={stepInside}
               onNavigate={navigateTo}
               onAnnounce={announce}
             />

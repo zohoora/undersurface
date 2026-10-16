@@ -135,6 +135,18 @@ export const folioEnglish = {
   'folio.deletePage.traces': 'Kept from this page: {n}. Kept things are copies, so they stay unless you delete them too.',
   'folio.deletePage.justPage': 'Delete just the page',
   'folio.deletePage.withTraces': 'Delete the page and what was kept from it',
+
+  // Step inside (H1: build plan §4)
+  'folio.stepInside': 'Step inside',
+  'folio.inside': '{line}, inside',
+  'folio.standCloser': 'Stand closer',
+  'folio.standBack': 'Stand back',
+  'folio.backToPage': 'Back to the page',
+  'folio.backAndWrite': 'Back and write',
+  'folio.sound': 'Sound',
+  'folio.sound.silence': 'Silence',
+  'folio.sound.forest': 'Forest',
+  'folio.sound.drone': 'Drone',
 } as const
 
 export type FolioKey = keyof typeof folioEnglish

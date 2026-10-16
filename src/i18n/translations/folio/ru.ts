@@ -128,4 +128,16 @@ export const folio_ru: FolioStringsTable = {
   'folio.deletePage.traces': 'Сохранено с этой страницы: {n}. Сохранённое — это копии, поэтому они останутся, если только вы не удалите и их.',
   'folio.deletePage.justPage': 'Удалить только страницу',
   'folio.deletePage.withTraces': 'Удалить страницу и сохранённое с неё',
+
+  // Step inside
+  'folio.stepInside': 'Шагнуть внутрь',
+  'folio.inside': '{line}, изнутри',
+  'folio.standCloser': 'Подойти ближе',
+  'folio.standBack': 'Отойти подальше',
+  'folio.backToPage': 'Вернуться к странице',
+  'folio.backAndWrite': 'Вернуться и писать',
+  'folio.sound': 'Звук',
+  'folio.sound.silence': 'Тишина',
+  'folio.sound.forest': 'Лес',
+  'folio.sound.drone': 'Гул',
 }

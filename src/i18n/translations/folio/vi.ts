@@ -128,4 +128,16 @@ export const folio_vi: FolioStringsTable = {
   'folio.deletePage.traces': 'Đã giữ lại từ trang này: {n}. Những gì đã giữ lại là bản sao, nên vẫn còn trừ khi bạn cũng xóa chúng.',
   'folio.deletePage.justPage': 'Chỉ xóa trang',
   'folio.deletePage.withTraces': 'Xóa trang và những gì đã giữ lại từ trang đó',
+
+  // Step inside
+  'folio.stepInside': 'Bước vào trong',
+  'folio.inside': 'Bên trong “{line}”',
+  'folio.standCloser': 'Đứng gần hơn',
+  'folio.standBack': 'Đứng lùi lại',
+  'folio.backToPage': 'Quay lại trang',
+  'folio.backAndWrite': 'Quay lại viết tiếp',
+  'folio.sound': 'Âm thanh',
+  'folio.sound.silence': 'Im lặng',
+  'folio.sound.forest': 'Rừng',
+  'folio.sound.drone': 'Tiếng ngân',
 }

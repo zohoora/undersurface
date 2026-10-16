@@ -23,6 +23,8 @@ export interface ControlLabels {
   looseRemove: string
   /** Phase 2; absent hides Keep. */
   keep?: string
+  /** H1; absent hides Step inside. */
+  stepInside?: string
 }
 
 export interface ControlDeps {
@@ -36,6 +38,8 @@ export interface ControlDeps {
   looseAcknowledged: Set<string>
   /** Keep (draft 4 §3.7): snapshot this fold. Shown only when something is written. */
   onKeep?: (foldId: string) => void
+  /** Step inside (H1). Shown only when something is written; hidden in Shore and Quiet by CSS. */
+  onStepInside?: (foldId: string) => void
 }
 
 function button(label: string, onClick: () => void): HTMLButtonElement {
@@ -136,6 +140,11 @@ export function undersideControls(deps: ControlDeps) {
       const keep = button(labels.keep, () => deps.onKeep?.(foldId))
       keep.dataset.folioKeep = ''
       wrap.appendChild(keep)
+    }
+    if (!empty && deps.onStepInside && labels.stepInside) {
+      const inside = button(labels.stepInside, () => deps.onStepInside?.(foldId))
+      inside.dataset.folioStepInside = ''
+      wrap.appendChild(inside)
     }
     return wrap
   }
