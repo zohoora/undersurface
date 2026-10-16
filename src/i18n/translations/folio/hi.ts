@@ -153,4 +153,10 @@ export const folio_hi: FolioStringsTable = {
   'folio.ask.kept': 'नोट रख लिया।',
   'folio.ask.full': 'इस पन्ने पर 50 नोट रखे जा सकते हैं। नया नोट रखने के लिए कोई एक हटाएँ।',
   'folio.notes.title': 'साथी के नोट',
+
+  // Return
+  'folio.return.setting': 'रखी गई चीज़ों को अपने आप लौटने दें',
+  'folio.return.trace': 'अपने आप लौट सकता है',
+  'folio.return.slip': 'आपने जो रखा, उसमें से · {date}',
+  'folio.return.off': 'इसे अपने आप न लौटने दें',
 }

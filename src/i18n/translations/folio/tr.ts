@@ -153,4 +153,10 @@ export const folio_tr: FolioStringsTable = {
   'folio.ask.kept': 'Not tutuldu.',
   'folio.ask.full': 'Bu sayfaya 50 not sığar. Yenisini tutmak için birini sil.',
   'folio.notes.title': 'Yol arkadaşının notları',
+
+  // Return
+  'folio.return.setting': 'Tutulanların kendiliğinden geri gelmesine izin ver',
+  'folio.return.trace': 'Kendiliğinden geri gelebilir',
+  'folio.return.slip': 'Tuttuklarından · {date}',
+  'folio.return.off': 'Bu kendiliğinden geri gelmesin',
 }

@@ -153,4 +153,10 @@ export const folio_vi: FolioStringsTable = {
   'folio.ask.kept': 'Đã giữ lại ghi chú.',
   'folio.ask.full': 'Trang này chứa được 50 ghi chú. Hãy xóa một ghi chú để giữ lại ghi chú khác.',
   'folio.notes.title': 'Ghi chú của người đồng hành',
+
+  // Return
+  'folio.return.setting': 'Để những gì đã giữ lại tự quay lại',
+  'folio.return.trace': 'Có thể tự quay lại',
+  'folio.return.slip': 'Từ những gì bạn đã giữ lại · {date}',
+  'folio.return.off': 'Đừng để điều này tự quay lại',
 }

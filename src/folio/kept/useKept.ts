@@ -16,6 +16,7 @@ import type { ComeBackChoice } from './comeBack'
 import { createTrace, deleteTrace, saveTraceChecked, subscribeTraces, updateTrace } from './traceStore'
 import type { TracePatch } from './traceStore'
 import { TraceSafety } from './traceSafety'
+import { nextReturn } from './returnTide'
 
 // Kept things for the whole Folio shell (draft 4 §3.7, §3.8, §5.4, §5.5): the
 // traces, their safety queue, Keep, and when a come-back slip may show.
@@ -42,6 +43,8 @@ export interface Kept {
   slip: FolioTrace | null
   /** Due traces held by Recent: the floor's "Waiting" group. */
   waiting: FolioTrace[]
+  /** H3: the trace Return would bring now (the shell applies the other conditions). */
+  returnCandidate: FolioTrace | null
   keep: (req: KeepRequest) => FolioTrace
   /** A corrected copy (build plan §3.5): a new trace; the original stays. */
   keepCorrection: (original: FolioTrace, snapshot: FoldSnapshot) => Promise<FolioTrace>
@@ -74,6 +77,7 @@ export function useKept(uid: string, shore: ShorePresentation): Kept {
   const recent = isRecent(lastGrounding, Math.max(now, lastGrounding ?? 0))
   const slip = useMemo(() => (recent ? null : nextSlip(traces, now, tz)), [recent, traces, now, tz])
   const waiting = useMemo(() => (recent ? dueTraces(traces, now) : []), [recent, traces, now])
+  const returnCandidate = useMemo(() => (recent ? null : nextReturn(traces, now, tz)), [recent, traces, now, tz])
 
   const safety = useMemo(() => new TraceSafety({
     l1: detectCrisisKeywords,
@@ -139,5 +143,5 @@ export function useKept(uid: string, shore: ShorePresentation): Kept {
   const clearComeBack = useCallback((traceId: string) => { void updateTrace(uid, traceId, CLEARED).catch(() => {}) }, [uid])
   const notNow = useCallback((traceId: string) => { void updateTrace(uid, traceId, { lastComeBackShownAt: Date.now() }).catch(() => {}) }, [uid])
 
-  return { traces, loaded, tz, recent, slip, waiting, keep, keepCorrection, undoKeep, setComeBack, clearComeBack, notNow, update, safety }
+  return { traces, loaded, tz, recent, slip, waiting, returnCandidate, keep, keepCorrection, undoKeep, setComeBack, clearComeBack, notNow, update, safety }
 }

@@ -65,6 +65,10 @@ export interface FolioTrace {
   lastComeBackShownAt?: number | null
   /** lastGroundingAt within 72 h of keptAt (used only by H3). */
   groundedNearKeep: boolean
+  /** H3: the writer let this one come back on its own. Off unless true. */
+  returnEligible?: boolean
+  /** H3: when Return last showed it (it rests 60 days after). */
+  lastReturnShownAt?: number | null
   /** C4's checked set for the between, the beneath and each entry. */
   safety: { checked: string[] }
   schemaVersion: 2

@@ -398,7 +398,7 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
   - `folio-inside-check`: entering, axe on both papers, stand closer, Forest over CORS through Web Audio (an Origin request, a 206 with the allow-origin header), the choice remembered, Back and write, delete.
   - `folio-check`, `folio-kept-check` (19/19) and `folio-a11y-check` (12 scans): all pass.
 
-**2026-10-16 · Step 9: built, gates green.** H2 Ask.
+**2026-10-16 · Step 9: done.** PR #14 (`aeb9d41`): H2 Ask.
 - **Built.**
   - The kernel's `'page'` channel: no actions, no promises, no preamble, the fresh memory aperture, and margin rules in its channel block.
   - `buildAskMessages`: the selection only, at most 1,000 characters and wrapped as untrusted; its passage; and the writer's language.
@@ -420,3 +420,44 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
   - Dismiss stored nothing.
   - An L1 selection grounded and sent nothing.
 - **For the owner's checklist:** in Japanese and Russian, Folio's earlier lines and the main app use different words for "companion" (コンパニオン/伴走者, спутник/собеседник).
+- **Deploys:**
+  1. the release evals, all eight passing (including `folio-ask`)
+  2. `functions:smsApi` and `functions:smsInboundProcessor` (the kernel's type)
+  3. `build:release` and hosting at `aeb9d41`
+- **Production checks:** all pass.
+  - Smoke test: 5/5.
+  - Sessions: pass.
+  - `folio-ask-check`: 12/12, axe clean.
+  - `folio-check`: pass.
+  - `folio-kept-check`: 19/19.
+  - `folio-inside-check`: 9/9.
+  - `folio-a11y-check`: 12 scans, 0 violations.
+  - The test account is empty afterwards.
+
+**2026-10-16 · Step 10: built, gates green.** H3 automatic Return.
+- **Built.**
+  - `returnTide.ts`, the eligibility rules:
+    - both opt-ins
+    - kept at least 14 days ago
+    - 60 days' rest after a showing
+    - no pending come-back
+    - never `groundedNearKeep`
+    - anniversaries first (writer-local), then the oldest
+  - The gate, at most once per visit: never under Recent, Shore or Quiet, and always after an asked come-back. A visit ends as in §5.5, after 30 minutes hidden or a reload.
+  - The Return slip ("From what you kept · ‹date›"): Open, Not now, and Don't bring this back on its own. Its first showing is stamped (`lastReturnShownAt`).
+  - The setting in Folio settings, under `folioReturn`, and each trace's own switch, shown only while the setting is on.
+  - Rules: `returnEligible` (a bool) and `lastReturnShownAt` are added to the trace's updatable fields.
+  - 4 strings in 17 languages.
+- **Gates.**
+
+  | Gate | Result |
+  |---|---|
+  | `tsc -b --force` | pass |
+  | lint | pass |
+  | `npm run test` | 1,995 passed |
+  | `test:indexes` | 83 passed, including the new fields |
+  | Playwright | 126 passed |
+  | `npm run build` | pass |
+
+- **Can't be checked live yet.** The Return slip needs a trace kept at least 14 days ago, and `keptAt` can't be changed (C3). The test account is also held in Recent, because the checks start shore. Its rules are covered by unit and component tests. The setting and the per-trace switch are checked in production.
+

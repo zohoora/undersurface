@@ -160,6 +160,12 @@ export const folioEnglish = {
   'folio.ask.kept': 'Note kept.',
   'folio.ask.full': 'This page holds 50 notes. Delete one to keep another.',
   'folio.notes.title': 'Companion notes',
+
+  // Return (H3: build plan §4)
+  'folio.return.setting': 'Let kept things come back on their own',
+  'folio.return.trace': 'May come back on its own',
+  'folio.return.slip': 'From what you kept · {date}',
+  'folio.return.off': 'Don\'t bring this back on its own',
 } as const
 
 export type FolioKey = keyof typeof folioEnglish

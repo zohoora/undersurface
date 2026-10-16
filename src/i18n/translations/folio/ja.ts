@@ -153,4 +153,10 @@ export const folio_ja: FolioStringsTable = {
   'folio.ask.kept': 'メモを残しました。',
   'folio.ask.full': 'このページに残せるメモは50件までです。別のメモを残すには、どれかを削除してください。',
   'folio.notes.title': '伴走者のメモ',
+
+  // Return
+  'folio.return.setting': '残したものが自然に戻ってくるようにする',
+  'folio.return.trace': '自然に戻ってきてもよい',
+  'folio.return.slip': '残したものから · {date}',
+  'folio.return.off': '自然には戻ってこないようにする',
 }

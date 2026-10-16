@@ -153,4 +153,10 @@ export const folio_th: FolioStringsTable = {
   'folio.ask.kept': 'เก็บบันทึกไว้แล้ว',
   'folio.ask.full': 'หน้านี้เก็บบันทึกได้ 50 รายการ ลบสักรายการเพื่อเก็บรายการใหม่',
   'folio.notes.title': 'บันทึกจากเพื่อนร่วมทาง',
+
+  // Return
+  'folio.return.setting': 'ให้สิ่งที่เก็บไว้กลับมาเองได้',
+  'folio.return.trace': 'กลับมาเองได้',
+  'folio.return.slip': 'จากสิ่งที่คุณเก็บไว้ · {date}',
+  'folio.return.off': 'ไม่ให้สิ่งนี้กลับมาเอง',
 }

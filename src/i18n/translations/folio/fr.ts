@@ -153,4 +153,10 @@ export const folio_fr: FolioStringsTable = {
   'folio.ask.kept': 'Note gardée.',
   'folio.ask.full': 'Cette page peut contenir 50 notes. Supprimes-en une pour en garder une autre.',
   'folio.notes.title': 'Notes du compagnon',
+
+  // Return
+  'folio.return.setting': 'Laisser les éléments gardés revenir d’eux-mêmes',
+  'folio.return.trace': 'Peut revenir de lui-même',
+  'folio.return.slip': 'De ce que tu as gardé · {date}',
+  'folio.return.off': 'Ne pas le laisser revenir de lui-même',
 }

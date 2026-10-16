@@ -65,7 +65,8 @@ service cloud.firestore {
       let d = request.resource.data;
       return d.keys().hasOnly(['id', 'keptAt', 'source', 'previousTraceId', 'correctedFromId', 'surface', 'gap',
                                'composition', 'author', 'title', 'comeBackAt', 'comeBackTz', 'comeBackSetAt',
-                               'lastComeBackShownAt', 'groundedNearKeep', 'safety', 'schemaVersion'])
+                               'lastComeBackShownAt', 'groundedNearKeep', 'safety', 'schemaVersion',
+                               'returnEligible', 'lastReturnShownAt'])
         && d.id == traceId
         && d.author == 'writer'
         && d.keptAt is int
@@ -75,7 +76,8 @@ service cloud.firestore {
         && d.gap is int && d.gap >= 0 && d.gap <= 4
         && d.groundedNearKeep is bool
         && d.safety is map && d.safety.checked is list && d.safety.checked.size() <= 1000
-        && (!('title' in d) || (d.title is string && d.title.size() <= 200));
+        && (!('title' in d) || (d.title is string && d.title.size() <= 200))
+        && (!('returnEligible' in d) || d.returnEligible is bool);
     }
 
     match /users/{userId}/folioTraces/{traceId} {
@@ -83,7 +85,8 @@ service cloud.firestore {
       allow create: if isOwner(userId) && validTrace(traceId);
       allow update: if isOwner(userId) && validTrace(traceId)
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['title', 'comeBackAt', 'comeBackTz', 'comeBackSetAt', 'lastComeBackShownAt', 'safety']);
+             .hasOnly(['title', 'comeBackAt', 'comeBackTz', 'comeBackSetAt', 'lastComeBackShownAt', 'safety',
+                       'returnEligible', 'lastReturnShownAt']);
       allow delete: if isOwner(userId);
 
       match /entries/{entryId} {

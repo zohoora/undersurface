@@ -32,9 +32,11 @@ interface Props {
   onNavigate: (path: string, opts?: { replace?: boolean }) => void
   onAnnounce: (message: string) => void
   onLiftToday: (trace: FolioTrace) => void
+  /** H3: the writer let kept things come back on their own (Folio settings). */
+  returnSetting?: boolean
 }
 
-export function TraceView({ uid, trace, kept, switches, onNavigate, onAnnounce, onLiftToday }: Props) {
+export function TraceView({ uid, trace, kept, switches, onNavigate, onAnnounce, onLiftToday, returnSetting }: Props) {
   const tr = useTranslation()
   const lang = getLanguageCode()
   const [entries, setEntries] = useState<FolioTraceEntry[]>([])
@@ -209,6 +211,13 @@ export function TraceView({ uid, trace, kept, switches, onNavigate, onAnnounce, 
       )}
 
       {pageGone && <p className="folio-line" role="status">{tr['folio.pageGone']}</p>}
+
+      {returnSetting && !correcting && (
+        <label className="folio-trace__return">
+          <input type="checkbox" checked={trace.returnEligible === true} onChange={(e) => { void kept.update(trace.id, { returnEligible: e.target.checked }).catch(() => {}) }} />
+          {tr['folio.return.trace']}
+        </label>
+      )}
 
       {comingBack && (
         <div className="folio-trace__comeback">

@@ -153,4 +153,10 @@ export const folio_ko: FolioStringsTable = {
   'folio.ask.kept': '메모를 남겼어요.',
   'folio.ask.full': '이 페이지에는 메모를 50개까지 남길 수 있어요. 다른 메모를 남기려면 하나를 삭제하세요.',
   'folio.notes.title': '동반자의 메모',
+
+  // Return
+  'folio.return.setting': '남긴 글이 저절로 돌아오게 하기',
+  'folio.return.trace': '저절로 돌아와도 돼요',
+  'folio.return.slip': '남긴 글에서 · {date}',
+  'folio.return.off': '저절로 돌아오지 않게 하기',
 }
