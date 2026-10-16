@@ -250,4 +250,11 @@ The run writes this out in full in step 11, with exact steps. The owner runs it 
 
 The run appends one entry per step: the date, the PRs, the gates' results, the deploys, the production check, and any decision it made with its reason.
 
-*(empty: the build hasn't started)*
+**2026-10-15 · Step 0: done.** PR #4 merged the plan docs to `main` (`a6e0cef`) and fixed CLAUDE.md's "(private)". CI green. No deploy.
+
+**2026-10-15 · Step 1: in progress.** PR #5: the classifier routes' own limiter (20/min, `code: 'rate_limited'`) and the additive `checkCrisisRisk`.
+- Gates (local): `tsc -b --force`, lint, `npm run test` (1,659 passed), functions type check and tests (361 passed), `npm run build`, all green. The limiter tests fail 3 of 4 against the old shared limiter.
+- **Decision:** deploy functions only. The client change has no new caller yet (`classifyCrisisRisk` behaves identically), so it ships with step 3's hosting deploy, and the release evals run then.
+- **Test account:** `folio-test@undersurface.me` created through the Auth REST API; the claim `{"folio":true}` set and confirmed with `accounts:lookup`; the password is only in the Keychain (`undersurface-folio-test`).
+- **Production check script:** signs in as the test account (password read from the Keychain at run time), completes onboarding, opens a Session, sends one Talk message and waits for a streamed reply. Baseline before any deploy: sign-in, onboarding, Session, Talk reply 200, `crisis_check` 200.
+- **Last good commit for rollback:** functions as deployed from `35f8297`.

@@ -192,6 +192,92 @@ describe('classifyCrisisRisk', () => {
   })
 })
 
+describe('checkCrisisRisk', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.restoreAllMocks()
+  })
+
+  const loadCheck = async () => (await loadOpenrouter()).checkCrisisRisk
+
+  it('reports a classified result with its risk and reason', async () => {
+    mockFetch({ choices: [{ message: { content: '{"risk": 2, "reason": "plan"}' } }] })
+    const check = await loadCheck()
+
+    expect(await check('text')).toEqual({ status: 'classified', risk: 2, reason: 'plan' })
+  })
+
+  it('reports a real negative as classified, never as unavailable', async () => {
+    mockFetch({ choices: [{ message: { content: '{"risk": 0, "reason": "none"}' } }] })
+    const check = await loadCheck()
+
+    expect(await check('a normal Tuesday')).toEqual({ status: 'classified', risk: 0, reason: 'none' })
+  })
+
+  it('reports an HTTP failure as unavailable', async () => {
+    mockFetch('Server error', false, 500)
+    const check = await loadCheck()
+
+    expect(await check('text')).toEqual({ status: 'unavailable', cause: 'http' })
+  })
+
+  it('reports the classifier limit as rate_limited', async () => {
+    mockFetch({ error: 'Too many requests. Please wait a moment.', code: 'rate_limited' }, false, 429)
+    const check = await loadCheck()
+
+    expect(await check('text')).toEqual({ status: 'unavailable', cause: 'rate_limited' })
+  })
+
+  it('reports a 429 without the code as an HTTP failure', async () => {
+    mockFetch({ error: 'quota' }, false, 429)
+    const check = await loadCheck()
+
+    expect(await check('text')).toEqual({ status: 'unavailable', cause: 'http' })
+  })
+
+  it('reports a network error as unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))))
+    const check = await loadCheck()
+
+    expect(await check('text')).toEqual({ status: 'unavailable', cause: 'network' })
+  })
+
+  it('reports a timeout as unavailable', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.stubGlobal('fetch', vi.fn((_url: string, init: RequestInit) => new Promise((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+      })))
+      const check = await loadCheck()
+
+      const pending = check('text')
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(await pending).toEqual({ status: 'unavailable', cause: 'timeout' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each([
+    ['non-JSON content', { choices: [{ message: { content: 'not json at all' } }] }],
+    ['an out-of-range risk', { choices: [{ message: { content: '{"risk": 5}' } }] }],
+    ['missing content', { choices: [{ message: {} }] }],
+    ['a null verdict', { choices: [{ message: { content: 'null' } }] }],
+  ])('reports %s as malformed', async (_label, body) => {
+    mockFetch(body)
+    const check = await loadCheck()
+
+    expect(await check('text')).toEqual({ status: 'unavailable', cause: 'malformed' })
+  })
+
+  it('keeps classifyCrisisRisk failing open to risk 0 for every unavailable cause', async () => {
+    mockFetch({ error: 'x', code: 'rate_limited' }, false, 429)
+    const { classifyCrisisRisk } = await loadOpenrouter()
+
+    expect(await classifyCrisisRisk('text')).toEqual({ risk: 0 })
+  })
+})
+
 describe('classifySessionSignals', () => {
   beforeEach(() => {
     vi.resetModules()
