@@ -336,11 +336,12 @@
   border-radius: 4px;
   background: transparent;
   color: var(--folio-crease);
-  /* The text glyph is the fallback without this stylesheet; the dog-ear below replaces it. */
-  font: 0/0 'Inter', system-ui, sans-serif;
+  font: 18px/1 'Inter', system-ui, sans-serif;
   vertical-align: baseline;
   cursor: pointer;
 }
+/* The text glyph is the fallback without this stylesheet; the dog-ear replaces it. */
+.folio-crease__glyph { display: none; }
 .folio-crease::before {
   content: '';
   display: block;
