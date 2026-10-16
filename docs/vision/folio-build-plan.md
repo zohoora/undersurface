@@ -252,9 +252,24 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
 
 **2026-10-15 · Step 0: done.** PR #4 merged the plan docs to `main` (`a6e0cef`) and fixed CLAUDE.md's "(private)". CI green. No deploy.
 
-**2026-10-15 · Step 1: in progress.** PR #5: the classifier routes' own limiter (20/min, `code: 'rate_limited'`) and the additive `checkCrisisRisk`.
+**2026-10-15 · Step 1: started.** PR #5: the classifier routes' own limiter (20/min, `code: 'rate_limited'`) and the additive `checkCrisisRisk`.
 - Gates (local): `tsc -b --force`, lint, `npm run test` (1,659 passed), functions type check and tests (361 passed), `npm run build`, all green. The limiter tests fail 3 of 4 against the old shared limiter.
 - **Decision:** deploy functions only. The client change has no new caller yet (`classifyCrisisRisk` behaves identically), so it ships with step 3's hosting deploy, and the release evals run then.
 - **Test account:** `folio-test@undersurface.me` created through the Auth REST API; the claim `{"folio":true}` set and confirmed with `accounts:lookup`; the password is only in the Keychain (`undersurface-folio-test`).
 - **Production check script:** signs in as the test account (password read from the Keychain at run time), completes onboarding, opens a Session, sends one Talk message and waits for a streamed reply. Baseline before any deploy: sign-in, onboarding, Session, Talk reply 200, `crisis_check` 200.
 - **Last good commit for rollback:** functions as deployed from `35f8297`.
+
+**2026-10-15 · Step 1: done.** PR #5 merged (`c67d3ee`); CI green. Deployed `functions:chat` only, from a clean worktree of `main`.
+- Smoke test 5/5. Sessions check as the test account: sign-in, Session, Talk reply 200, `crisis_check` 200.
+- The new limit in production: with invalid bodies (no model calls), the 20th classifier request in a minute returned 429 `{"code":"rate_limited"}` (one had been used by the Sessions check), while an ordinary request still passed the limiter.
+- The client's `checkCrisisRisk` ships with the next hosting deploy (step 3).
+
+**2026-10-16 · Step 2: done (pending CI on PR #6).** Phase 0 as real code; the evidence is in [`folio-spikes.md`](folio-spikes.md).
+- S1: the editor core (`src/folio/page/`): 30 jsdom tests plus 4 key tests, mutation-checked; 17 browser scenarios on five projects.
+- S4: rules with compare-and-swap, `PageSaveController`, tab locks with Edit here, the move-to-editable procedure: 15 unit tests, 10 emulator tests, 4 browser outcomes. In real browsers, the SDK re-sent landed writes in 13 of 18 network-cut runs, each classified as landed (Fable's B1 and B2, confirmed).
+- S5: the key table (`Mod+Shift+Enter`, `Esc`, `Mod+Alt+[ ]`, `Mod+Alt+. ,`, `Mod+Alt+Enter`).
+- S6: units, samples, keys, `FolioSafetyWatch`, `test:folio-safety` (added to the release evals). Live: recall 40/40 in two runs.
+- **Found and fixed:** a character-count L2 floor skipped short Japanese and Chinese crisis statements; it now counts words. The Journal has the same gap (`partOrchestrator.ts:202`, which also skips L1): reported to the owner, not changed (§2).
+- **Found, not changed (calibration):** L1 activated on 3 of 8 non-crisis fixtures, including the historical "Ten years ago I tried to end my life", which its historical guard should have deferred.
+- **Decisions:** listed in `folio-spikes.md` §5.
+- No deploy. The rules change ships with step 3.

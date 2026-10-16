@@ -65,3 +65,7 @@ scripts/benchmark-results.json
 public/audio/
 .local-audio-backup/
 .artifacts/
+
+# Playwright
+test-results/
+playwright-report/

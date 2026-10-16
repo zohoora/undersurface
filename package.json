@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
     "preview": "vite preview",
     "test:indexes": "firebase emulators:exec --only firestore,storage 'npx vitest run --config vitest.config.integration.ts'",
     "test:crisis": "RUN_CRISIS_EVAL=1 vitest run src/engine/crisisClassifier.live.test.ts",
@@ -20,6 +21,7 @@
     "test:parts": "RUN_PARTS_EVAL=1 vitest run src/engine/partObservations.live.test.ts",
     "test:intentions": "RUN_INTENTIONS_EVAL=1 vitest run src/engine/intentionExtraction.live.test.ts",
     "test:stance": "RUN_STANCE_EVAL=1 vitest run src/engine/stanceObservation.live.test.ts",
+    "test:folio-safety": "RUN_FOLIO_SAFETY_EVAL=1 vitest run src/folio/safety/folioSafety.live.test.ts",
     "test:depth": "RUN_DEPTH_EVAL=1 vitest run src/engine/companionDepth.live.test.ts",
     "test:release-evals": "node scripts/run-release-evals.mjs",
     "smoke-test": "bash scripts/smoke-test.sh",
@@ -52,10 +54,12 @@
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.11.0",
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.3.3",
     "@eslint/js": "^9.39.1",
     "@firebase/rules-unit-testing": "^5.0.0",
+    "@playwright/test": "1.57.0",
     "@tailwindcss/vite": "^4.3.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

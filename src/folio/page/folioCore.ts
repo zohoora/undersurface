@@ -1,0 +1,101 @@
+import { Extension } from '@tiptap/core'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
+import type { AnyExtension } from '@tiptap/core'
+import StarterKit from '@tiptap/starter-kit'
+import type { Node as PMNode } from '@tiptap/pm/model'
+import type { EditorView } from '@tiptap/pm/view'
+import { Beneath, Between, Fold, ParagraphId, Underside } from './schema'
+import { foldViewPlugin, undersideNodeView } from './foldView'
+import { integrityPlugin } from './integrity'
+import { hiddenWritingPlugin, historyGuardPlugin, inputGuardPlugin } from './protect'
+import type { ProtectOptions } from './protect'
+import { ENGLISH_STRINGS } from './strings'
+import { folioKeyHandlers } from './keys'
+import type { FolioStrings } from './strings'
+
+// The Folio editor core: schema, the four C1 layers, integrity and the
+// underside node view. Hosts (FolioPage, tests, the Playwright harness) build
+// an editor with `folioExtensions(options)`.
+
+export interface FolioCoreOptions {
+  strings?: () => FolioStrings
+  onAnnounce?: (message: string) => void
+  onProtected?: (foldIds: string[]) => void
+  onDiagnostic?: ProtectOptions['onDiagnostic']
+  now?: () => number
+  /** The page's accessible name (the editable region is a multi-line textbox). */
+  label?: string
+  /** The admin switches that shape Apart (build plan §3.1). */
+  switches?: () => { between: boolean; distance: boolean }
+  onStepInside?: (foldId: string) => void
+  locale?: () => string | undefined
+  /** Builds the open underside's controls (Close/Unlift, Closer, Farther, Keep). */
+  controls?: (args: { view: EditorView; getPos: () => number | undefined; node: PMNode }) => HTMLElement | null
+}
+
+export function folioExtensions(options: FolioCoreOptions = {}): AnyExtension[] {
+  const strings = options.strings ?? (() => ENGLISH_STRINGS)
+  const protect: ProtectOptions = {
+    strings,
+    onAnnounce: options.onAnnounce,
+    onProtected: options.onProtected,
+    onDiagnostic: options.onDiagnostic,
+    now: options.now,
+  }
+
+  const Core = Extension.create({
+    name: 'folioCore',
+    priority: 1000, // input guards run before the default keymaps
+    addKeyboardShortcuts() {
+      const handlers = folioKeyHandlers({
+        strings,
+        onAnnounce: options.onAnnounce,
+        switches: options.switches ?? (() => ({ between: true, distance: true })),
+        onStepInside: options.onStepInside,
+        locale: options.locale,
+      })
+      return Object.fromEntries(Object.entries(handlers).map(([key, run]) => [key, () => run(this.editor.view)]))
+    },
+    addProseMirrorPlugins() {
+      return [
+        new Plugin({ key: new PluginKey('folioA11y'), props: { attributes: { role: 'textbox', 'aria-multiline': 'true', 'aria-label': options.label ?? 'Page' } } }),
+        inputGuardPlugin(protect),
+        historyGuardPlugin(protect),
+        foldViewPlugin({ strings, onAnnounce: options.onAnnounce }),
+        integrityPlugin(),
+        hiddenWritingPlugin(protect),
+      ]
+    },
+  })
+
+  const UndersideWithView = Underside.extend({
+    addNodeView() {
+      const factory = undersideNodeView({ strings, controls: options.controls })
+      return ({ node, view, getPos, decorations }) => factory(node, view, getPos as () => number | undefined, decorations)
+    },
+  })
+
+  return [
+    StarterKit.configure({
+      heading: false,
+      codeBlock: false,
+      code: false,
+      blockquote: false,
+      bulletList: false,
+      orderedList: false,
+      listItem: false,
+      listKeymap: false,
+      horizontalRule: false,
+      bold: false,
+      strike: false,
+      underline: false,
+      link: false,
+    }),
+    ParagraphId,
+    Fold,
+    UndersideWithView,
+    Between,
+    Beneath,
+    Core,
+  ]
+}
