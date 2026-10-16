@@ -125,7 +125,7 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
             <div style={{ marginTop: 10 }}>
               <div style={{ fontSize: 12, color: 'var(--folio-control)' }}>{tr['folio.shore.bringPreview']}</div>
               <blockquote style={{ margin: '8px 0', whiteSpace: 'pre-wrap', fontFamily: "'Spectral', Georgia, serif" }}>{shoreState.bring.text}</blockquote>
-              <button type="button" className="folio-button" onClick={() => { const text = shoreState.bring?.text ?? ''; writeHandoff(text); shore.clearBring(); goToSessions(text) }}>{tr['folio.shore.go']}</button>
+              <button type="button" className="folio-button" onClick={() => { const text = shoreState.bring?.text ?? ''; writeHandoff(user.uid, text); shore.clearBring(); goToSessions(text) }}>{tr['folio.shore.go']}</button>
               <button type="button" className="folio-button" onClick={() => setBringPreview(false)}>{tr['folio.shore.notThis']}</button>
             </div>
           )}
