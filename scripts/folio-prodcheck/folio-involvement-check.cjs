@@ -63,7 +63,12 @@ const password = () => execFileSync('security', ['find-generic-password', '-s', 
     await page.waitForURL(/\/folio\/p\//, { timeout: 30000 })
     await editor.waitFor({ timeout: 30000 })
   }
-  const caretText = () => page.evaluate(() => window.getSelection()?.anchorNode?.parentElement?.closest('p')?.textContent ?? '')
+  // The caret's paragraph (WebKit may anchor the selection on the paragraph element itself).
+  const caretText = () => page.evaluate(() => {
+    const n = window.getSelection()?.anchorNode
+    const el = n ? (n.nodeType === 1 ? n : n.parentElement) : null
+    return el?.closest('p')?.textContent ?? ''
+  })
   const axe = async (name) => {
     await page.waitForTimeout(500)
     const r = await new AxeBuilder({ page }).withTags(TAGS).analyze()
@@ -108,6 +113,8 @@ const password = () => execFileSync('security', ['find-generic-password', '-s', 
     ok('l4MarkAxe', await axe('mark'))
     const lifted = notice.filter({ hasText: 'The companion lifted a line.' })
     ok('l4Lifted', await lifted.waitFor({ timeout: 90000 }).then(() => true, () => false))
+    out.seen.caretAfterLift = await caretText()
+    out.seen.activeIsEditor = await page.evaluate(() => !!document.activeElement?.closest('.ProseMirror'))
     ok('l4CaretStayed', (await caretText()).includes('The road was empty.'))
     ok('l4OneFold', (await page.locator('.folio-underside--open').count()) === 1)
     await lifted.getByRole('button', { name: 'Undo' }).click()
@@ -123,7 +130,9 @@ const password = () => execFileSync('security', ['find-generic-password', '-s', 
     out.seen.arrival = await arrived.innerText().catch(() => null)
     out.seen.companionText = await page.locator('.folio-page .folio-companion-text').allInnerTexts().catch(() => [])
     ok('l5CompanionText', out.seen.companionText.length >= 1)
-    // The caret waits where the companion left it: the writer continues.
+    // The caret waits where the companion left it: the writer continues. (On a
+    // phone the companion doesn't raise the keyboard; the writer's tap does.)
+    if (device.isPhone()) await editor.focus()
     await page.keyboard.type(' the seat was cold.')
     out.seen.statusAfterTyping = await status.innerText().catch(() => null)
     await status.filter({ hasText: /^Saved$/ }).waitFor({ timeout: 30000 }).catch(() => {})
