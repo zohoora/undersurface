@@ -124,7 +124,13 @@ function clearShifts(): void {
   }
 }
 
-export function useTimeAwarePalette(): void {
+/**
+ * `theme` is the resolved theme (useTheme's return). It is a dependency, not
+ * read from the document on a timer: when the system turns dark at sunset
+ * (macOS Auto appearance) the shift must follow at once, or the light
+ * background stays under the dark theme's light text.
+ */
+export function useTimeAwarePalette(theme: 'light' | 'dark'): void {
   const config = useGlobalConfig()
   const enabled = config?.features?.timeAwareAtmosphere === true
 
@@ -136,11 +142,7 @@ export function useTimeAwarePalette(): void {
 
     const intensity = config?.atmosphere?.timeShiftIntensity ?? 0.3
 
-    const update = () => {
-      const currentDark = document.documentElement.getAttribute('data-theme') === 'dark'
-      const period = getTimePeriod()
-      applyShifts(period, intensity, currentDark)
-    }
+    const update = () => applyShifts(getTimePeriod(), intensity, theme === 'dark')
 
     update()
     const interval = setInterval(update, 15 * 60 * 1000)
@@ -149,5 +151,5 @@ export function useTimeAwarePalette(): void {
       clearInterval(interval)
       clearShifts()
     }
-  }, [enabled, config?.atmosphere?.timeShiftIntensity])
+  }, [enabled, config?.atmosphere?.timeShiftIntensity, theme])
 }
