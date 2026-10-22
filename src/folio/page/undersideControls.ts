@@ -2,15 +2,20 @@ import type { Node as PMNode } from '@tiptap/pm/model'
 import type { EditorView } from '@tiptap/pm/view'
 import { TextSelection } from '@tiptap/pm/state'
 import { Fragment } from '@tiptap/pm/model'
-import { BENEATH, BETWEEN, FOLD } from './schema'
+import { BENEATH, BETWEEN, FOLD, MAX_GAP } from './schema'
 import { TR_VISIBLE_EDIT, toggleFold } from './foldView'
 import { apart, isEmptyUnderside, unlift } from './commands'
 import type { Gap } from './schema'
 
-// The open underside's controls (draft 4 §3.5, §3.6): Close or Unlift, Closer,
-// Farther; for a loose underside, Keep it here, Turn into page text, Remove.
-// Plain DOM inside the node view (non-editable), so they never enter the
-// document and keyboard focus reaches them in reading order.
+// The open underside's controls (draft 4 §3.5, §3.6; plain labels ordered by
+// use, 2026-10-22, with Fable): an empty fold offers only Cancel (Unlift),
+// quietly, so the page never opens by offering to undo itself; a written one
+// Fold away (Close) in ink, Keep a copy, Read it alone (Step inside), and at the far end Move
+// apart and Move closer, both always there (disabled at the ends, so the row
+// never jumps). Each says what it does in its tooltip. For a loose underside:
+// Keep it here, Turn into page text, Remove. Plain DOM inside the node view
+// (non-editable), so they never enter the document and keyboard focus reaches
+// them in reading order.
 
 export interface ControlLabels {
   close: string
@@ -25,6 +30,8 @@ export interface ControlLabels {
   keep?: string
   /** H1; absent hides Step inside. */
   stepInside?: string
+  /** What each does, as tooltips (absent: none). */
+  tips?: { close: string; farther: string; closer: string; keep: string; stepInside: string }
 }
 
 export interface ControlDeps {
@@ -42,11 +49,12 @@ export interface ControlDeps {
   onStepInside?: (foldId: string) => void
 }
 
-function button(label: string, onClick: () => void): HTMLButtonElement {
+function button(label: string, onClick: () => void, tip?: string): HTMLButtonElement {
   const b = document.createElement('button')
   b.type = 'button'
   b.className = 'folio-button'
   b.textContent = label
+  if (tip) b.title = tip
   b.addEventListener('mousedown', (e) => e.preventDefault())
   b.addEventListener('click', (e) => { e.preventDefault(); onClick() })
   return b
@@ -102,7 +110,8 @@ export function undersideControls(deps: ControlDeps) {
     }
 
     const empty = isEmptyUnderside(node)
-    wrap.appendChild(button(empty ? labels.unlift : labels.close, () => {
+    const tips = labels.tips
+    const first = button(empty ? labels.unlift : labels.close, () => {
       const c = current(view, getPos)
       if (!c) return
       if (isEmptyUnderside(c.node)) {
@@ -121,8 +130,30 @@ export function undersideControls(deps: ControlDeps) {
       })
       if (target !== null) view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, target)).setMeta('addToHistory', false))
       view.focus()
-    }))
+    }, empty ? undefined : tips?.close)
+    if (empty) {
+      // Nothing written yet: only the way back, quiet and out of the way.
+      first.dataset.folioUnlift = ''
+      wrap.dataset.empty = 'true'
+      wrap.appendChild(first)
+      return wrap
+    }
+    first.dataset.folioPrimary = 'close'
+    wrap.appendChild(first)
 
+    if (deps.onKeep && labels.keep) {
+      const keep = button(labels.keep, () => deps.onKeep?.(foldId), tips?.keep)
+      keep.dataset.folioKeep = ''
+      wrap.appendChild(keep)
+    }
+    if (deps.onStepInside && labels.stepInside) {
+      const inside = button(labels.stepInside, () => deps.onStepInside?.(foldId), tips?.stepInside)
+      inside.dataset.folioStepInside = ''
+      wrap.appendChild(inside)
+    }
+
+    let farther: HTMLButtonElement | null = null
+    let closer: HTMLButtonElement | null = null
     if (deps.switches().distance) {
       const step = (dir: -1 | 1) => () => {
         const r = apart(view.state, foldId, dir, deps.switches())
@@ -133,19 +164,24 @@ export function undersideControls(deps: ControlDeps) {
         view.dispatch(r.tr)
         if (deps.announceGap) deps.onAnnounce?.(deps.announceGap(dir, r.gap as Gap))
       }
-      wrap.appendChild(button(labels.closer, step(-1)))
-      wrap.appendChild(button(labels.farther, step(1)))
+      farther = button(labels.farther, step(1), tips?.farther)
+      farther.dataset.folioApart = 'farther'
+      closer = button(labels.closer, step(-1), tips?.closer)
+      closer.dataset.folioApart = 'closer'
+      wrap.appendChild(farther)
+      wrap.appendChild(closer)
     }
-    if (!empty && deps.onKeep && labels.keep) {
-      const keep = button(labels.keep, () => deps.onKeep?.(foldId))
-      keep.dataset.folioKeep = ''
-      wrap.appendChild(keep)
+
+    // At the ends of the five stops a button is disabled, not removed: the
+    // row never jumps, and focus stays where it was (aria-disabled keeps it
+    // focusable; pressing it does nothing).
+    const sync = (n: PMNode) => {
+      const gap = Number(n.attrs.gap ?? 0) as Gap
+      closer?.setAttribute('aria-disabled', gap <= 0 ? 'true' : 'false')
+      farther?.setAttribute('aria-disabled', gap >= MAX_GAP ? 'true' : 'false')
     }
-    if (!empty && deps.onStepInside && labels.stepInside) {
-      const inside = button(labels.stepInside, () => deps.onStepInside?.(foldId))
-      inside.dataset.folioStepInside = ''
-      wrap.appendChild(inside)
-    }
+    sync(node)
+    ;(wrap as HTMLElement & { folioSync?: (n: PMNode) => void }).folioSync = sync
     return wrap
   }
 }

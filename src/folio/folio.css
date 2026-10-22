@@ -25,6 +25,7 @@
   --folio-under-rgb: 208 220 228;
   --folio-under-a: 0.46;
   --folio-between-a: 0.28;
+  --folio-closed-a: 0.16;
   --folio-underside: rgb(var(--folio-under-rgb) / var(--folio-under-a));
   --folio-selection: rgba(168, 118, 58, 0.24);
   /* Every shadow is warm. */
@@ -41,9 +42,14 @@
   --folio-grain-speckle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='3' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='1.8' intercept='-0.45'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23s)'/%3E%3C/svg%3E");
   --folio-grain-formation: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1000' height='1000'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.011' numOctaves='3' seed='9' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
   --folio-grain-blend: multiply;
-  /* The crease: a sheet with its corner folded down (closed) or turned back (open). */
-  --folio-dogear-closed: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1 1h6.5L11 4.5V11H1z' fill='none' stroke='%23000' stroke-width='1.3' stroke-linejoin='round'/%3E%3Cpath d='M7.5 1v3.5H11z' fill='%23000'/%3E%3C/svg%3E");
-  --folio-dogear-open: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1 1h6.5L11 4.5V11H1z' fill='none' stroke='%23000' stroke-width='1.3' stroke-linejoin='round'/%3E%3Cpath d='M7.5 1L4 4.5h3.5z' fill='%23000'/%3E%3C/svg%3E");
+  /* The crease is a page corner, drawn alone (2026-10-22, with Fable: the
+     page the text sits on is the sheet, so only its corner is drawn, never a
+     second tiny page). One triangle, three weights: folded flat with something
+     under it (closed), its flap lifted (open), and faint, not yet folded (the
+     corner that invites writing beneath). */
+  --folio-dogear-closed: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3 11h8V3z' fill='%23000' stroke='%23000' stroke-width='1' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --folio-dogear-open: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3 11h8V3z' fill='none' stroke='%23000' stroke-width='1.4' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --folio-dogear-invite: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3 11h8V3z' fill='%23000' fill-opacity='.28'/%3E%3Cpath d='M3 11L11 3' stroke='%23000' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-paper: cubic-bezier(0.65, 0, 0.35, 1);
   /* Native controls (checkboxes, text fields, scrollbars) follow the paper. */
@@ -79,6 +85,7 @@
     --folio-under-rgb: 58 66 74;
     --folio-under-a: 0.55;
     --folio-between-a: 0.35;
+    --folio-closed-a: 0.24;
     --folio-selection: rgba(210, 160, 96, 0.30);
     --folio-shadow-rgb: 0 0 0;
     --folio-inset-light: rgba(255, 255, 255, 0.06);
@@ -106,6 +113,7 @@
   --folio-under-rgb: 58 66 74;
   --folio-under-a: 0.55;
   --folio-between-a: 0.35;
+  --folio-closed-a: 0.24;
   --folio-selection: rgba(210, 160, 96, 0.30);
   --folio-shadow-rgb: 0 0 0;
   --folio-inset-light: rgba(255, 255, 255, 0.06);
@@ -345,12 +353,12 @@
 .folio-crease::before {
   content: '';
   display: block;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   background: currentColor;
   opacity: 0.9;
-  -webkit-mask: var(--folio-dogear-closed) center / 12px 12px no-repeat;
-  mask: var(--folio-dogear-closed) center / 12px 12px no-repeat;
+  -webkit-mask: var(--folio-dogear-closed) center / 14px 14px no-repeat;
+  mask: var(--folio-dogear-closed) center / 14px 14px no-repeat;
 }
 .folio-crease--open::before { -webkit-mask-image: var(--folio-dogear-open); mask-image: var(--folio-dogear-open); }
 .folio-crease:hover::before { opacity: 1; }
@@ -359,7 +367,174 @@
   .folio-crease { min-width: 44px; min-height: 44px; }
 }
 
+/* What the crease does, beside it on hover and focus: "open", "fold away"
+   (2026-10-22), haloed in paper so it reads over any text after it. */
+.folio-crease { position: relative; }
+.folio-crease[data-hint]::after {
+  content: attr(data-hint);
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  z-index: 3;
+  padding: 0 4px;
+  transform: translate(0, -50%);
+  white-space: nowrap;
+  pointer-events: none;
+  /* A halo of paper around the letters, not a box behind them. */
+  text-shadow: 0 0 3px var(--folio-paper), 0 0 6px var(--folio-paper), 0 0 10px var(--folio-paper);
+  color: var(--folio-control);
+  font: 400 13px/1.2 'Inter', system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+@media (hover: hover) {
+  .folio-crease:hover::after { opacity: 1; }
+}
+.folio-crease:focus-visible::after { opacity: 1; }
+
+/* A closed fold's line: the sheet beneath seen faintly through the paper
+   (2026-10-22, with Fable). A cool tint behind the folded words (its alpha is
+   the sheet's own, about a third of an open wash), no text and nothing in the
+   DOM: the material says something is under here. */
+.folio-fold--closed {
+  background: linear-gradient(to bottom, transparent 22%, rgb(var(--folio-under-rgb) / var(--folio-closed-a)) 22%, rgb(var(--folio-under-rgb) / var(--folio-closed-a)) 100%);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* The first fold away, once: "folded here · open" beside the crease, in the
+   crease's own register, for 6 s (guide.ts). Pressing it opens the fold. */
+.folio-foldhint {
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  z-index: 3;
+  min-height: 28px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  cursor: pointer;
+  text-shadow: 0 0 3px var(--folio-paper), 0 0 6px var(--folio-paper), 0 0 10px var(--folio-paper);
+  color: var(--folio-control);
+  font: 400 13px/1.2 'Inter', system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  transition: opacity 240ms var(--ease-out);
+}
+.folio-foldhint-anchor[data-shown] .folio-foldhint { opacity: 1; }
+.folio-foldhint:hover, .folio-foldhint:focus-visible { color: var(--folio-ink); }
+/* Where the column ends, it sits under the line instead. */
+.folio-foldhint[data-below] { left: auto; right: 0; top: 100%; transform: none; }
+@media (pointer: coarse) {
+  .folio-foldhint { min-height: 44px; }
+}
+.folio-root[data-shore="true"] .folio-foldhint-anchor,
+.folio-root[data-quiet="true"] .folio-foldhint-anchor { display: none; }
+
+/* ---------------------------------------------------------------- the corner (first moment)
+
+   When the caret rests at the end of a written line, a folded corner after
+   its last sentence, "write beneath" (guide.ts). The same corner a lifted
+   line ends in, faint and not yet folded: pressing it is the lift. A
+   zero-width anchor, so no character moves when it comes and goes. */
+.folio-corner-anchor {
+  position: relative;
+  display: inline;
+  width: 0;
+}
+.folio-corner {
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 0 6px 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--folio-control);
+  transform: translateY(-50%);
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 240ms var(--ease-out), color 160ms ease;
+}
+.folio-corner-anchor[data-shown] .folio-corner { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .folio-root:not([data-reduce-motion="true"]) .folio-corner-anchor[data-shown] .folio-corner { animation: folio-corner-in 320ms var(--ease-out); }
+}
+@keyframes folio-corner-in { from { opacity: 0; transform: translate(-4px, -50%); } to { opacity: 1; transform: translateY(-50%); } }
+.folio-corner__glyph {
+  display: block;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  background: currentColor;
+  -webkit-mask: var(--folio-dogear-invite) center / 14px 14px no-repeat;
+  mask: var(--folio-dogear-invite) center / 14px 14px no-repeat;
+}
+/* A control, not ghost text: the controls' face (italic Spectral is only for
+   words the writer will type over). */
+.folio-corner__label { font: 400 13px/1 'Inter', system-ui, sans-serif; letter-spacing: 0.02em; }
+.folio-corner:hover, .folio-corner:focus-visible { color: var(--folio-crease); }
+.folio-corner:hover .folio-corner__label, .folio-corner:focus-visible .folio-corner__label { color: var(--folio-ink); }
+/* Learned (two lifts) or no room: the corner alone; its words on hover and focus. */
+.folio-corner[data-learned] .folio-corner__label,
+.folio-corner[data-tight] .folio-corner__label { display: none; }
+@media (hover: hover) {
+  .folio-corner[data-learned]:not([data-tight]):hover .folio-corner__label { display: inline; }
+}
+.folio-corner[data-learned]:not([data-tight]):focus-visible .folio-corner__label { display: inline; }
+/* No room beside it (a phone, a full line): the words just under the corner,
+   ending where it ends, haloed in paper. */
+.folio-corner[data-below] .folio-corner__label {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: -6px;
+  text-shadow: 0 0 3px var(--folio-paper), 0 0 6px var(--folio-paper), 0 0 10px var(--folio-paper);
+}
+@media (pointer: coarse) {
+  .folio-corner { min-height: 44px; min-width: 44px; justify-content: flex-start; }
+}
+/* Hovering the corner: the sentence it would lift, underlined as a lifted line will be. */
+.folio-corner-preview {
+  text-decoration: underline dashed;
+  text-decoration-color: color-mix(in srgb, var(--folio-crease) 80%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.26em;
+}
+.folio-root[data-shore="true"] .folio-corner-anchor,
+.folio-root[data-quiet="true"] .folio-corner-anchor { display: none; }
+
 .folio-underside--closed { position: relative; height: 0; overflow: visible; }
+/* Folding away: the sheet goes under the line (foldView marks the fold just
+   closed): a wash rising into the line and thinning out, 520 ms. */
+@media (prefers-reduced-motion: no-preference) {
+  .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-underside--closed[data-tucking]::after {
+    content: '';
+    position: absolute;
+    left: 2px;
+    right: 10px;
+    top: 0;
+    height: 2.4em;
+    pointer-events: none;
+    background: rgb(var(--folio-under-rgb) / var(--folio-under-a));
+    filter: blur(6px);
+    transform-origin: 50% 0;
+    animation: folio-tuck 520ms var(--ease-paper) forwards;
+  }
+}
+@keyframes folio-tuck {
+  from { opacity: 0.55; transform: translateY(0) scaleY(1); }
+  to { opacity: 0; transform: translateY(-0.6em) scaleY(0.3); }
+}
 /* A selected closed fold is an edge, not a bar. */
 .folio-underside--closed.ProseMirror-selectednode {
   height: 2px;
@@ -440,8 +615,49 @@
   height: 0;
   pointer-events: none;
   color: var(--folio-control);
-  font: italic 300 1em/inherit 'Spectral', Georgia, serif;
+  font-style: italic;
+  font-weight: 300;
 }
+/* The beneath's corner, where the fold's edge meets it: drag it down to move
+   apart, up to move closer (foldView's grip). An amber tick that turns the
+   fold's edge into the corner of a sheet; a pointer aid only. */
+.folio-grip {
+  position: absolute;
+  z-index: 2;
+  left: -12px;
+  top: 0;
+  width: 44px;
+  height: 24px;
+  margin-top: -12px;
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.folio-grip::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 11px;
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--folio-crease);
+  opacity: 0.5;
+  transition: width 160ms var(--ease-out), opacity 160ms ease;
+}
+/* While dragging, the five stops show as hairlines on the fold's edge: the
+   drag has a target. */
+.folio-grip-stops { position: absolute; left: 0; top: 0; z-index: 1; width: 12px; pointer-events: none; }
+.folio-grip-stops span { position: absolute; left: 0; width: 10px; height: 1px; background: var(--folio-crease); opacity: 0.35; }
+.folio-underside--open:hover .folio-grip::before { width: 18px; opacity: 0.9; }
+.folio-grip:hover::before, .folio-grip[data-dragging]::before { width: 28px; opacity: 1; }
+@media (pointer: coarse) {
+  .folio-grip { height: 44px; margin-top: -22px; }
+  .folio-grip::before { top: 21px; width: 18px; }
+}
+.folio-root[data-shore="true"] .folio-grip,
+.folio-root[data-quiet="true"] .folio-grip { display: none; }
 
 /* Folio settings: a slip, one control per line. */
 .folio-notice.folio-settings { flex-direction: column; align-items: stretch; gap: 4px; width: min(92vw, 340px); max-width: min(92vw, 340px); }
@@ -526,6 +742,12 @@
 .folio-root[data-shore="true"] .folio-marked,
 .folio-root[data-quiet="true"] .folio-marked { text-decoration: none; }
 
+/* Signed: "What was it like? — the companion" (2026-10-22). */
+.folio-page .ProseMirror[contenteditable="true"] p.folio-ghost[data-ghost-who]::before,
+.folio-page .ProseMirror[contenteditable="true"] p.is-editor-empty.folio-ghost[data-ghost-who]:first-child::before {
+  content: attr(data-ghost) "\2003—\2009" attr(data-ghost-who);
+}
+
 /* The writer's ink and the settling of paragraphs, from the Journal. Never
    in shore, Quiet or with reduced motion (the extensions are disabled). */
 /* Lighter than Sessions' 0.55: a Folio page is reread, and settled text
@@ -534,19 +756,26 @@
 .folio-page .tiptap p { transition: opacity 600ms ease; }
 .folio-root[data-reduce-motion="true"] .folio-page .tiptap p { transition: none; }
 
-/* "Close · Closer · Farther …… Keep · Step inside" */
+/* "Fold away · Keep a copy · Read it alone …… Move apart · Move closer": the
+   first is the way out, in ink; the distance at the far end. */
 .folio-underside__controls {
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
-  justify-content: flex-end;
+  justify-content: flex-start;
   margin-top: 4px;
   font-family: 'Inter', system-ui, sans-serif;
   user-select: none;
 }
-.folio-underside__controls [data-folio-keep] { margin-left: auto; }
+/* Move apart and Move closer at the far end, apart from the everyday three. */
+.folio-underside__controls [data-folio-apart="farther"] { margin-left: auto; }
+/* An empty fold offers only Cancel (Unlift), quietly, at the far end. */
+.folio-underside__controls[data-empty] { justify-content: flex-end; }
+.folio-underside__controls .folio-button[aria-disabled="true"] { opacity: 0.45; cursor: default; }
+.folio-underside__controls .folio-button[aria-disabled="true"]:hover { color: var(--folio-control); }
 
 .folio-underside__controls .folio-button { font-size: 12px; letter-spacing: 0.02em; min-height: 36px; padding: 0 10px; }
+.folio-underside__controls [data-folio-primary] { color: var(--folio-ink); font-weight: 500; }
 @media (pointer: coarse) {
   .folio-underside__controls .folio-button { min-height: 44px; }
 }
@@ -608,17 +837,18 @@
 
 /* ---------------------------------------------------------------- lifting */
 
-/* Lift and Ask: a small slip beside the selection, amber at its edge. */
+/* Write beneath and Ask the companion: a small slip of the notice's paper by
+   the selection, amber along its top. */
 .folio-lift {
   position: absolute;
   z-index: 20;
   display: flex;
   gap: 2px;
   border: 0;
-  border-left: 2px solid var(--folio-crease);
+  border-top: 2px solid var(--folio-crease);
   border-radius: 3px;
   background: var(--folio-notice);
-  box-shadow: inset 0 1px 0 var(--folio-inset-light), 0 8px 20px -10px rgb(var(--folio-shadow-rgb) / 0.35), 0 0 0 1px var(--folio-rule);
+  box-shadow: 0 0 0 1px var(--folio-rule);
   overflow: hidden;
 }
 .folio-lift__button {
@@ -700,6 +930,9 @@
 /* On wide screens a notice waits at the bottom right, beside the status, off the writing. */
 @media (min-width: 900px) {
   .folio-notice:not(.folio-settings) { left: auto; right: 16px; bottom: 44px; transform: none; }
+  /* A kept notice stays one row: its words wrap, its buttons don't. */
+  .folio-notice[data-kind="kept"] { flex-wrap: nowrap; }
+  .folio-notice[data-kind="kept"] > span:first-child { flex: 1 1 auto; min-width: 0; }
   .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-notice:not(.folio-settings) { animation: folio-rise 220ms var(--ease-out); }
 }
 
@@ -748,6 +981,8 @@
 .folio-list { max-width: 672px; margin: 0 auto; padding: 40px 24px 120px; font-family: 'Inter', system-ui, sans-serif; }
 .folio-list h1,
 .folio-floor h1 { font: 300 30px/1.2 'Spectral', Georgia, serif; letter-spacing: -0.005em; margin: 0 0 20px; }
+.folio-list__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 20px; }
+.folio-list__head h1 { margin: 0; }
 .folio-list ul { list-style: none; margin: 0; padding: 0; }
 .folio-list li { display: flex; align-items: center; gap: 8px; border: 0; }
 .folio-list li + li { border-top: 1px solid var(--folio-rule); }
@@ -939,6 +1174,22 @@
 /* "from 14 Oct": a fold lifted from a kept thing. */
 .folio-underside__from { font: italic 300 15px/1.4 'Spectral', Georgia, serif; color: var(--folio-control); margin: 0 0 4px; user-select: none; }
 
+/* Keyboard shortcuts: a slip, each action with its keys, over the page gone
+   soft (paper, not a dark scrim). */
+.folio-dialog__backdrop.folio-shortcuts-backdrop {
+  background: color-mix(in srgb, var(--folio-paper) 60%, transparent);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+.folio-shortcuts { max-width: 480px; }
+.folio-shortcuts__title { margin: 0 0 12px; font: 300 22px/1.3 'Spectral', Georgia, serif; }
+.folio-shortcuts__list { margin: 0 0 12px; }
+.folio-shortcuts__row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 7px 0; }
+.folio-shortcuts__row + .folio-shortcuts__row { border-top: 1px solid var(--folio-rule); }
+.folio-shortcuts__row dt { color: var(--folio-ink); }
+.folio-shortcuts__row dd { margin: 0; white-space: nowrap; }
+.folio-shortcuts kbd { font: 13px/1 'Inter', system-ui, sans-serif; font-variant-numeric: tabular-nums; color: var(--folio-control); letter-spacing: 0.04em; }
+
 /* Dialogs */
 .folio-dialog__backdrop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(20, 17, 14, 0.32); }
 .folio-dialog { max-width: 440px; width: 100%; padding: 20px; border-radius: 3px; border-top: 2px solid var(--folio-crease); background: var(--folio-notice); color: var(--folio-ink); font: 14px/1.5 'Inter', system-ui, sans-serif; box-shadow: 0 18px 40px -16px rgb(var(--folio-shadow-rgb) / 0.5), 0 0 0 1px var(--folio-rule); }
@@ -952,20 +1203,47 @@
   position: fixed;
   z-index: 30;
   pointer-events: none;
-  padding: 8px 12px;
-  border-radius: 4px;
-  border-top: 1px solid var(--folio-crease);
-  background: var(--folio-notice);
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--folio-ink);
   font: 15px/1.4 'Spectral', Georgia, serif;
   transform-origin: 50% 100%;
-  animation: folio-keep-settle 900ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: folio-keep-settle 750ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 @keyframes folio-keep-settle {
   0% { opacity: 0.95; transform: translateY(0) scaleY(1); filter: blur(0); }
   55% { opacity: 0.7; transform: translateY(var(--folio-settle-y, 200px)) scaleY(0.35); }
   100% { opacity: 0; transform: translateY(var(--folio-settle-y, 200px)) scaleY(0.08); filter: blur(1.5px); }
 }
+/* Into Kept in the top bar (2026-10-22): the words lift off the page and
+   settle where kept things live (ink alone, no card), so the eye learns the
+   way there. */
+.folio-keep-slip[data-to-kept] {
+  transform-origin: 50% 0;
+  animation-name: folio-keep-to-kept;
+}
+@keyframes folio-keep-to-kept {
+  0% { opacity: 0.95; transform: translate(0, 0) scale(1); filter: blur(0); }
+  25% { opacity: 0.95; transform: translate(0, -6px) scale(0.92, 0.6); }
+  100% { opacity: 0; transform: translate(var(--folio-settle-x, 0), var(--folio-settle-y, 0)) scale(0.12, 0.08); filter: blur(1px); }
+}
+/* Kept takes the copy: a moment's amber dot. */
+.folio-topbar .folio-button[data-folio-nav="kept"] { position: relative; }
+.folio-topbar .folio-button[data-folio-nav="kept"][data-received]::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  top: 9px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--folio-crease);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .folio-root:not([data-reduce-motion="true"]) .folio-topbar .folio-button[data-folio-nav="kept"][data-received]::after { animation: folio-received 750ms var(--ease-out) forwards; }
+}
+@keyframes folio-received { 0% { transform: scale(0.2); opacity: 0; } 20% { transform: scale(1.3); opacity: 1; } 50% { transform: scale(1); opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
 @keyframes folio-keep-fade { from { opacity: 0.95; } to { opacity: 0; } }
 .folio-root[data-reduce-motion="true"] .folio-keep-slip { animation: folio-keep-fade 120ms linear forwards; }
 @media (prefers-reduced-motion: reduce) {
@@ -1146,8 +1424,10 @@
     padding: 6px 0 calc(8px + env(safe-area-inset-bottom));
   }
   .folio-root:not([data-shore="true"]):not([data-quiet="true"]) .folio-menu .folio-button { min-height: 48px; }
-  /* Notices span the screen, a margin's width in from each edge. */
+  /* Notices span the screen, a margin's width in from each edge, and stand
+     above the selection's bar when it shows (Write beneath stays reachable). */
   .folio-notice:not(.folio-settings) { left: 12px; right: 12px; bottom: 16px; transform: none; max-width: none; }
+  .folio-root:has(.folio-touchbar) .folio-notice:not(.folio-settings) { bottom: 76px; }
   .folio-root:not([data-shore="true"]):not([data-quiet="true"]):not([data-reduce-motion="true"]) .folio-notice:not(.folio-settings) { animation: folio-rise 220ms var(--ease-out); }
   .folio-root:not([data-shore="true"]):not([data-quiet="true"]) .folio-notice.folio-settings {
     top: auto !important;

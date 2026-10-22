@@ -15,7 +15,7 @@ import { mostRecentPage, subscribePreferences, updatePreferences, deletePage } f
 import { newId } from './page/schema'
 import { writeHandoff } from './handoff'
 import { parseFolioRoute } from './routes'
-import type { FolioPreferences } from '../types/folio'
+import type { FolioLearned, FolioPreferences } from '../types/folio'
 import './folio.css'
 import { allowZoomWhileOpen } from './zoom'
 import { useKept } from './kept/useKept'
@@ -33,6 +33,8 @@ import type { FolioTrace } from '../types/folio'
 import { LEVELS, effectiveLevel } from './companion/levels'
 import { useFolioLight } from './light'
 import type { InvolvementLevel } from './companion/levels'
+import { coarsePointer } from './page/keyLabels'
+import { Shortcuts } from './Shortcuts'
 
 // Folio's shell (draft 4 §3.2–§3.4, §3.9): routes, the top bar, the first
 // visit line, shore and the live region. Mounted by App.tsx instead of the
@@ -62,6 +64,9 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
   const [announcement, setAnnouncement] = useState('')
   const [policyOpen, setPolicyOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  // Keyboard shortcuts are offered where there's likely a keyboard (a fine pointer).
+  const [keyboard] = useState(() => !coarsePointer())
   const route = parseFolioRoute(routePath)
   // Companion involvement (docs/vision/2026-10-16-folio-involvement.md). Until
   // the preferences arrive, level 1: nothing unasked before the writer's choice is known.
@@ -177,6 +182,9 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
     ? kept.traces.find((t) => t.id === visitReturn.id) ?? null
     : null
 
+  // First times, remembered per account (merged field by field).
+  const onLearn = useCallback((patch: FolioLearned) => { void updatePreferences(user.uid, { learned: patch }).catch(() => {}) }, [user.uid])
+
   const keptUpdate = kept.update
   const pageKept = useMemo(() => ({
     keep: kept.keep, undo: kept.undoKeep, setComeBack: kept.setComeBack, tz: kept.tz, traces: kept.traces,
@@ -197,19 +205,22 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
       <header className="folio-topbar">
         <div className="folio-topbar__group">
           <button type="button" className="folio-button" onClick={() => navigateTo('/folio/pages')} aria-pressed={route?.kind === 'pages'}>{tr['folio.pages']}</button>
-          <button type="button" className="folio-button" onClick={() => navigateTo('/folio/kept')} aria-pressed={route?.kind === 'kept' || route?.kind === 'trace'}>{tr['folio.kept.nav']}</button>
+          <button type="button" className="folio-button" data-folio-nav="kept" onClick={() => navigateTo('/folio/kept')} aria-pressed={route?.kind === 'kept' || route?.kind === 'trace'}>{tr['folio.kept.nav']}</button>
         </div>
         <div className="folio-topbar__group">
-          <button type="button" className="folio-button" onClick={() => goToSessions()}>{tr['folio.sessions']}</button>
+          <button type="button" className="folio-button" title={tr['folio.sessions.title']} onClick={() => goToSessions()}>{tr['folio.sessions']}</button>
           <button type="button" className="folio-button" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>•••<span className="folio-visually-hidden">{tr['folio.menu']}</span></button>
         </div>
         {menuOpen && (
           <div className="folio-menu" role="menu">
-            {pageId && <button role="menuitem" type="button" className="folio-button" onClick={() => { setReading((v) => !v); setMenuOpen(false) }}>{reading ? tr['folio.writingView'] : tr['folio.readingView']}</button>}
+            {/* New page first and Find help last on every view, so no item
+                moves under the pointer from one view to the next (2026-10-22). */}
             <button role="menuitem" type="button" className="folio-button" onClick={() => { setMenuOpen(false); setReading(false); navigateTo(`/folio/p/${newId()}`) }}>{tr['folio.newPage']}</button>
-            {pageId && <button role="menuitem" type="button" className="folio-button" data-group-start="" onClick={() => { setMenuOpen(false); setDeleting(true) }}>{tr['folio.deletePage']}</button>}
+            {pageId && <button role="menuitem" type="button" className="folio-button" onClick={() => { setReading((v) => !v); setMenuOpen(false) }}>{reading ? tr['folio.writingView'] : tr['folio.readingView']}</button>}
+            {pageId && <button role="menuitem" type="button" className="folio-button" onClick={() => { setMenuOpen(false); setDeleting(true) }}>{tr['folio.deletePage']}</button>}
+            <button role="menuitem" type="button" className="folio-button" data-group-start="" onClick={() => { setMenuOpen(false); setSettingsOpen(true) }}>{tr['folio.settings']}</button>
+            {keyboard && <button role="menuitem" type="button" className="folio-button" onClick={() => { setMenuOpen(false); setShortcutsOpen(true) }}>{tr['folio.shortcuts']}</button>}
             <button role="menuitem" type="button" className="folio-button" data-group-start="" onClick={() => { setMenuOpen(false); shore.findHelp() }}>{tr['folio.findHelp']}</button>
-            <button role="menuitem" type="button" className="folio-button" onClick={() => { setMenuOpen(false); setSettingsOpen(true) }}>{tr['folio.settings']}</button>
           </div>
         )}
       </header>
@@ -256,7 +267,7 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
           </section>
         )}
 
-        {route?.kind === 'pages' && <PagesList uid={user.uid} onOpen={(id) => navigateTo(`/folio/p/${id}`)} />}
+        {route?.kind === 'pages' && <PagesList uid={user.uid} onOpen={(id) => navigateTo(`/folio/p/${id}`)} onNew={() => navigateTo(`/folio/p/${newId()}`)} />}
         {route?.kind === 'kept' && <KeptView uid={user.uid} kept={kept} onOpen={(id) => navigateTo(`/folio/kept/${id}`)} />}
         {traceId && (
           <TraceView
@@ -279,6 +290,8 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
               <div className="folio-line" role="note">
                 {level === 1 ? tr['folio.firstVisit'] : level === 5 ? tr['folio.firstVisit.dances'] : tr['folio.firstVisit.reads']}{' '}
                 <button type="button" className="folio-button folio-button--inline folio-button--link" onClick={() => setPolicyOpen(true)}>{tr['folio.privacyPolicy']}</button>{' · '}
+                {/* A writer who never chose a level can, from the first line they see. */}
+                {switches.involvement && level > 1 && <><button type="button" className="folio-button folio-button--inline folio-button--link" onClick={() => setSettingsOpen(true)}>{tr['folio.involvement.choose']}</button>{' · '}</>}
                 <button type="button" className="folio-button folio-button--inline" onClick={() => void updatePreferences(user.uid, { firstVisitSeenAt: Date.now() })}>{tr['folio.firstVisit.dismiss']}</button>
               </div>
             )}
@@ -303,6 +316,8 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
               ask={ask}
               involvement={level}
               isRecent={isRecentNow}
+              learned={prefs?.learned}
+              onLearn={onLearn}
               onNavigate={navigateTo}
               onAnnounce={announce}
             />
@@ -350,6 +365,7 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
         </div>
       )}
 
+      {shortcutsOpen && <Shortcuts onClose={() => setShortcutsOpen(false)} />}
       {deleting && pageId && <DeletePageDialog uid={user.uid} pageId={pageId} onDelete={(t) => void onDelete(t)} onCancel={() => setDeleting(false)} />}
       <PolicyModal isOpen={policyOpen} onClose={() => setPolicyOpen(false)} />
       {shoreState.card && (

@@ -97,4 +97,18 @@ export interface FolioPreferences {
   involvement?: 1 | 2 | 3 | 4 | 5
   /** The one-time line saying the companion can now take part was dismissed. */
   involvementIntroSeenAt?: number
+  /**
+   * What the writer has already met, so each first-time line shows once per
+   * account (docs/vision/2026-10-22-folio-first-moment.md §5): `lifts` counts
+   * the writer's own lifts (the corner's words stay until 2); the rest are
+   * when it first happened.
+   */
+  learned?: FolioLearned
+}
+
+export interface FolioLearned {
+  lifts?: number
+  fold?: number
+  keep?: number
+  mark?: number
 }

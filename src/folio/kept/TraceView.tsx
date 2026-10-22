@@ -49,6 +49,9 @@ export function TraceView({ uid, trace, kept, switches, onNavigate, onAnnounce, 
   const [correcting, setCorrecting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [undo, setUndo] = useState<{ entryId: string } | null>(null)
+  // An added entry shows at once, before the store echoes it back, so the
+  // page moves once, not twice under the writer's next click (2026-10-22).
+  const [pending, setPending] = useState<FolioTraceEntry[]>([])
   const [pageGone, setPageGone] = useState(false)
   // Today, for the Add area's date: fixed when the trace opens.
   const [today] = useState(() => Date.now())
@@ -108,8 +111,9 @@ export function TraceView({ uid, trace, kept, switches, onNavigate, onAnnounce, 
     const entry: FolioTraceEntry = { id: newId(), addedAt: Date.now(), text, author: 'writer' }
     setDraft('')
     setUndo({ entryId: entry.id })
+    setPending((p) => [...p, entry])
     onAnnounce(tr['folio.added'])
-    void addEntry(uid, trace.id, entry).catch(() => {})
+    void addEntry(uid, trace.id, entry).catch(() => setPending((p) => p.filter((x) => x.id !== entry.id)))
     kept.safety.checkNew(trace, [...entries, entry], [tracePid(trace.id, `e:${entry.id}`)])
   }
 
@@ -164,15 +168,18 @@ export function TraceView({ uid, trace, kept, switches, onNavigate, onAnnounce, 
         <div className="folio-trace__body">
           <div className="folio-trace__composition">
             {composition
-              ? <CompositionView composition={composition} labels={{ line: tr['folio.lift'], between: tr['folio.between'], beneath: tr['folio.beneath'] }} />
+              ? <CompositionView composition={composition} labels={{ line: tr['folio.line'], between: tr['folio.between'], beneath: tr['folio.beneath'] }} />
               : <p className="folio-line">{trace.surface}</p>}
           </div>
           <div className="folio-trace__entries">
-            {entries.map((e) => (
+            {[...entries, ...pending.filter((p) => !entries.some((e) => e.id === p.id))].map((e) => (
               <article key={e.id} className="folio-entry">
                 <div className="folio-entry__date">{date(e.addedAt)}</div>
                 <p className="folio-entry__text">{e.text}</p>
-                <button type="button" className="folio-button folio-button--inline" aria-label={`${tr['folio.delete']}: ${date(e.addedAt)}`} onClick={() => { void deleteEntry(uid, trace.id, e.id).catch(() => {}) }}>{tr['folio.delete']}</button>
+                {/* The entry just added offers Undo on its own row (no extra line appears). */}
+                {undo?.entryId === e.id
+                  ? <button type="button" className="folio-button folio-button--inline" onClick={() => { void deleteEntry(uid, trace.id, e.id).catch(() => {}); setPending((p) => p.filter((x) => x.id !== e.id)); setUndo(null) }}>{tr['folio.undo']}</button>
+                  : <button type="button" className="folio-button folio-button--inline" aria-label={`${tr['folio.delete']}: ${date(e.addedAt)}`} onClick={() => { void deleteEntry(uid, trace.id, e.id).catch(() => {}); setPending((p) => p.filter((x) => x.id !== e.id)) }}>{tr['folio.delete']}</button>}
               </article>
             ))}
             <form className="folio-entry folio-entry--new" onSubmit={(e) => { e.preventDefault(); add() }}>
@@ -183,12 +190,6 @@ export function TraceView({ uid, trace, kept, switches, onNavigate, onAnnounce, 
               </label>
               <button type="submit" className="folio-button" disabled={draft.trim() === ''}>{tr['folio.add']}</button>
             </form>
-            {undo && (
-              <div className="folio-line" role="status">
-                {tr['folio.added']} ·{' '}
-                <button type="button" className="folio-button folio-button--inline" onClick={() => { void deleteEntry(uid, trace.id, undo.entryId).catch(() => {}); setUndo(null) }}>{tr['folio.undo']}</button>
-              </div>
-            )}
           </div>
         </div>
       )}

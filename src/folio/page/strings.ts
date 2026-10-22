@@ -18,8 +18,11 @@ export interface FolioStrings {
   closer: (gap: Gap) => string
   closerBlocked: string
   alreadyLifted: string
-  /** The faint placeholder in an empty between. */
+  /** The faint placeholder in an empty between ("write between them"). */
   betweenHint: string
+  /** What the crease does, beside it on hover and focus (absent: nothing shown). */
+  creaseOpen?: string
+  creaseClose?: string
   /** "Writing beneath '‹line›', closed" — the discovery path's announcement. */
   foldFound: (line: string, open: boolean) => string
   /** "from 14 Oct": a fold lifted from a kept thing (draft 4 §3.8). */
@@ -34,18 +37,20 @@ function truncate(line: string): string {
 
 export const ENGLISH_STRINGS: FolioStrings = {
   openBeneath: 'Open writing beneath',
-  closeBeneath: 'Close writing beneath',
+  closeBeneath: 'Fold away writing beneath',
   undersideLabel: (line, gap) => `Beneath '${truncate(line)}', set ${DISTANCES[gap]}, ${gap + 1} of 5`,
   distanceName: (gap) => DISTANCES[gap],
   protectedOpened: 'Writing beneath a line was kept and opened.',
   undoOpened: 'Opened writing beneath a line. Undo again to change it.',
-  lifted: 'Lifted. Writing beneath.',
-  unlifted: 'Unlifted.',
-  farther: (gap) => `Farther: ${DISTANCES[gap]}, ${gap + 1} of 5`,
-  closer: (gap) => `Closer: ${DISTANCES[gap]}, ${gap + 1} of 5`,
+  lifted: 'Writing beneath the line.',
+  unlifted: 'Cancelled.',
+  farther: (gap) => `Moved apart: ${DISTANCES[gap]}, ${gap + 1} of 5`,
+  closer: (gap) => `Moved closer: ${DISTANCES[gap]}, ${gap + 1} of 5`,
   closerBlocked: "There's writing between them.",
   alreadyLifted: 'This line already has something beneath it.',
-  betweenHint: 'between',
+  betweenHint: 'write between them',
+  creaseOpen: 'open',
+  creaseClose: 'fold away',
   foldFound: (line, open) => `Writing beneath '${truncate(line)}', ${open ? 'open' : 'closed'}`,
   fromDate: (keptAt) => `from ${new Date(keptAt).toLocaleDateString('en', { day: 'numeric', month: 'short' })}`,
 }

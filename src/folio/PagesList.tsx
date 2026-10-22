@@ -4,10 +4,10 @@ import { subscribePages } from './store'
 import { listPendingForUser } from './save/pendingStore'
 import type { FolioPage } from '../types/folio'
 
-// All pages, newest first (draft 4 §3.4). Pages held only on this device
+// All pages, newest first (draft 4 §3.4), with New page beside the title. Pages held only on this device
 // (a conflict copy or a new page written offline) are listed too.
 
-export function PagesList({ uid, onOpen }: { uid: string; onOpen: (pageId: string) => void }) {
+export function PagesList({ uid, onOpen, onNew }: { uid: string; onOpen: (pageId: string) => void; onNew: () => void }) {
   const tr = useTranslation()
   const [pages, setPages] = useState<FolioPage[] | null>(null)
   useEffect(() => subscribePages(uid, setPages, () => setPages([])), [uid])
@@ -16,7 +16,11 @@ export function PagesList({ uid, onOpen }: { uid: string; onOpen: (pageId: strin
 
   return (
     <section className="folio-list">
-      <h1>{tr['folio.pages.title']}</h1>
+      {/* New page where the pages are (two fresh-eyes testers looked for it here). */}
+      <div className="folio-list__head">
+        <h1>{tr['folio.pages.title']}</h1>
+        <button type="button" className="folio-button folio-button--strong" data-folio-new-page="" onClick={onNew}>{tr['folio.newPage']}</button>
+      </div>
       {pages !== null && pages.length === 0 && local.length === 0 && <p>{tr['folio.pages.empty']}</p>}
       <ul>
         {local.map((e) => (

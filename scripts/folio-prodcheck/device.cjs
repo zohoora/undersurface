@@ -63,7 +63,7 @@ function keys() {
 async function lift(page, line) {
   if (!phone()) { await page.keyboard.press(`${keys().mod}+Shift+Enter`); return }
   if (line) for (let i = 0; i < line.length; i++) await page.keyboard.press('Shift+ArrowLeft')
-  const button = page.locator('.folio-touchbar').getByRole('button', { name: 'Lift', exact: true })
+  const button = page.locator('.folio-touchbar').getByRole('button', { name: 'Write beneath', exact: true })
   await button.waitFor({ timeout: 5000 })
   await button.tap()
 }

@@ -11,6 +11,9 @@ import type { JSONContent } from '@tiptap/core'
 import { AllSelection, NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { folioExtensions, setOrnaments } from '../../src/folio/page/folioCore'
 import { getFoldView } from '../../src/folio/page/foldView'
+import { apart, lift } from '../../src/folio/page/commands'
+import { foldHint, guideKey } from '../../src/folio/page/guide'
+import { dispatchPresence } from '../../src/folio/companion/presence'
 import { undersideControls } from '../../src/folio/page/undersideControls'
 import { UNDERSIDE } from '../../src/folio/page/schema'
 import { folioStringsFrom } from '../../src/folio/folioStrings'
@@ -65,7 +68,11 @@ const controls = undersideControls({
   labels: () => ({
     close: t['folio.close'], unlift: t['folio.unlift'], closer: t['folio.closer'], farther: t['folio.farther'],
     looseTitle: t['folio.loose.title'], looseKeep: t['folio.loose.keep'], looseToPage: t['folio.loose.toPage'], looseRemove: t['folio.loose.remove'],
+    keep: t['folio.keep'], stepInside: t['folio.stepInside'],
+    tips: { close: t['folio.tip.close'], farther: t['folio.tip.farther'], closer: t['folio.tip.closer'], keep: t['folio.tip.keep'], stepInside: t['folio.tip.stepInside'] },
   }),
+  onKeep: () => announce(t['folio.kept']),
+  onStepInside: () => {},
   switches: () => ({ between: true, distance: true }),
   onAnnounce: announce,
   announceGap: (dir, gap) => (dir > 0 ? strings.farther(gap) : strings.closer(gap)),
@@ -82,8 +89,11 @@ function showProtected() {
     <button type="button" class="folio-button" aria-label="${t['folio.cancel']}">×</button></div>`
 }
 
+// The first moment (2026-10-22): the corner, the first-fold line, the grip
+// and the companion's signed presences, wired as FolioPageView wires them.
+const guideOn = params.get('guides') !== 'off'
 function make(content: JSONContent): Editor {
-  const ed = new Editor({
+  const ed: Editor = new Editor({
     element,
     extensions: folioExtensions({
       strings: () => strings,
@@ -93,6 +103,33 @@ function make(content: JSONContent): Editor {
       switches: () => ({ between: true, distance: true }),
       locale: () => 'en',
       controls,
+      presence: { labels: () => ({ mark: t['folio.companion.markLabel'], ghost: t['folio.ask.label'], who: t['folio.companion.who'], markTitle: t['folio.companion.markTitle'] }) },
+      guide: {
+        enabled: () => guideOn && presentation === 'normal',
+        learned: () => false,
+        labels: () => ({ corner: t['folio.corner'], cornerLabel: t['folio.corner.label'], foldHint: t['folio.learn.fold'] }),
+        shortcut: () => null,
+        onLift: (corner) => {
+          const r = lift(ed.state, { range: corner, locale: 'en' })
+          if (!r.ok) return
+          ed.view.dispatch(r.tr)
+          ed.view.focus()
+          announce(strings.lifted)
+        },
+        locale: () => 'en',
+        restMs: { finished: 300, unfinished: 600 },
+      },
+      grip: {
+        enabled: () => true,
+        label: () => t['folio.grip'],
+        step: (view, foldId, dir) => {
+          const r = apart(view.state, foldId, dir, { between: true, distance: true })
+          if (!r.ok) return false
+          view.dispatch(r.tr)
+          return true
+        },
+        done: (_v, _id, gap, from) => { if (gap !== from) announce(gap > from ? strings.farther(gap) : strings.closer(gap)) },
+      },
     }),
     content,
     editorProps: { attributes: { class: 'folio-editor', spellcheck: 'true' } },
@@ -147,6 +184,16 @@ const api = {
     return `${where}:${$c.parent.textContent}`
   },
   announcements: () => [...announcements],
+  /** The companion's ghost in an empty paragraph, and its mark on a sentence. */
+  ghost: (pid: string, text: string) => dispatchPresence(editor.view, { type: 'ghost', pid, text }),
+  mark: (pid: string, sentence: string) => dispatchPresence(editor.view, { type: 'mark', pid, sentence }),
+  foldHint: (foldId: string | null) => foldHint(editor.view, foldId),
+  corner: () => guideKey.getState(editor.state)?.corner ?? null,
+  gap: (foldId: string) => {
+    let g = -1
+    editor.state.doc.forEach((n) => { if (n.type.name === UNDERSIDE && n.attrs.foldId === foldId) g = Number(n.attrs.gap) })
+    return g
+  },
 }
 
 ;(window as unknown as { folio: typeof api }).folio = api

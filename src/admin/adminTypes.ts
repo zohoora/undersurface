@@ -77,6 +77,8 @@ export interface GlobalConfig {
     folioReturn?: boolean
     /** The companion-involvement slider (levels 2–5); off: every writer is at level 1. */
     folioInvolvement?: boolean
+    /** The first-moment guides: the corner, first-time lines (on unless false). */
+    folioGuides?: boolean
   }
   announcement: {
     message: string

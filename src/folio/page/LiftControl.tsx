@@ -2,15 +2,40 @@ import { useEffect, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import { ASK_MAX_CHARS } from '../ask/askPrompt'
 
-// Lift (draft 4 §3.5; S2): a button near the selection on pointer devices,
-// a bar at the bottom on touch screens. It appears only for a selection
-// inside one page paragraph (not inside an underside).
+// Lift ("Write beneath"; draft 4 §3.5; S2): a button near the selection on
+// pointer devices, a bar at the bottom on touch screens, riding above the
+// on-screen keyboard (iOS keeps the layout viewport under it). It appears only
+// for a selection inside one page paragraph (not inside an underside).
 // Ask (H2): beside Lift, for a selection inside one paragraph anywhere — the
 // page, a between or a beneath — of at most 1,000 characters, while no other
 // request is pending.
 
 function coarsePointer(): boolean {
   try { return window.matchMedia('(pointer: coarse)').matches } catch { return false }
+}
+
+/** How far the on-screen keyboard (or anything else) covers the bottom of the layout viewport. */
+function keyboardInset(): number {
+  const vv = typeof window !== 'undefined' ? window.visualViewport : null
+  if (!vv) return 0
+  return Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))
+}
+
+function useKeyboardInset(on: boolean): number {
+  const [inset, setInset] = useState(0)
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!on || !vv) return
+    const update = () => setInset(keyboardInset())
+    update()
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
+  }, [on])
+  return inset
 }
 
 interface Position { left: number; top: number; lift: boolean; ask: boolean }
@@ -26,6 +51,7 @@ export function LiftControl({ editor, label, onLift, disabled, ask }: { editor: 
   const [position, setPosition] = useState<Position | null>(null)
   const [touch] = useState(coarsePointer)
   const askOn = !!ask
+  const inset = useKeyboardInset(touch && position !== null)
 
   useEffect(() => {
     const update = () => {
@@ -73,7 +99,7 @@ export function LiftControl({ editor, label, onLift, disabled, ask }: { editor: 
       )}
     </>
   )
-  if (touch) return <div className="folio-touchbar">{buttons}</div>
+  if (touch) return <div className="folio-touchbar" style={inset > 0 ? { bottom: inset } : undefined}>{buttons}</div>
   return (
     <div
       className="folio-lift"
