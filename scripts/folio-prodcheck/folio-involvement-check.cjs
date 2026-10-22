@@ -111,7 +111,7 @@ const password = () => execFileSync('security', ['find-generic-password', '-s', 
     ok('l4Mark', await mark.waitFor({ timeout: 90000 }).then(() => true, () => false))
     out.seen.marked = await page.locator('.folio-marked').first().innerText().catch(() => null)
     ok('l4MarkAxe', await axe('mark'))
-    const lifted = notice.filter({ hasText: 'The companion lifted a line.' })
+    const lifted = notice.filter({ hasText: 'The companion opened the space beneath a line.' })
     ok('l4Lifted', await lifted.waitFor({ timeout: 90000 }).then(() => true, () => false))
     out.seen.caretAfterLift = await caretText()
     out.seen.activeIsEditor = await page.evaluate(() => !!document.activeElement?.closest('.ProseMirror'))

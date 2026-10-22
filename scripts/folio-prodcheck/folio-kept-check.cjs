@@ -57,6 +57,18 @@ const LINE = 'The heater only worked on one side.'
     })
     return res.status
   }
+  // The first keep ever says only where it went (Undo, no Come back to this:
+  // docs/vision/2026-10-22-folio-first-moment.md §3.5). This check is about
+  // keeping, not first times: it records that the account has kept before.
+  const keptBefore = async () => {
+    const a = await auth()
+    const url = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents/users/${a.uid}/folioPreferences/current?updateMask.fieldPaths=learned.keep&updateMask.fieldPaths=id`
+    const res = await fetch(url, {
+      method: 'PATCH', headers: { Authorization: `Bearer ${a.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { id: { stringValue: 'current' }, learned: { mapValue: { fields: { keep: { integerValue: String(Date.now()) } } } } } }),
+    })
+    return res.status
+  }
   const openMenuItem = async (name) => {
     await page.locator('.folio-trace__actions button[aria-haspopup="menu"]').click()
     await page.getByRole('menuitem', { name }).click()
@@ -71,6 +83,7 @@ const LINE = 'The heater only worked on one side.'
     await page.waitForURL(/\/(session\/[0-9a-f-]{36}|folio\/)/, { timeout: 45000 })
     await device.settle(page)
     ok('signIn', true)
+    out.keptBefore = await keptBefore()
 
     // A page with a lifted line and writing beneath it.
     await page.goto(`${BASE}/folio/new`, { waitUntil: 'domcontentloaded' })
@@ -143,8 +156,9 @@ const LINE = 'The heater only worked on one side.'
     out.patch1 = await patchTrace(originalId, { comeBackAt: Date.now() - 60_000, comeBackSetAt: Date.now() - 86_400_000, lastComeBackShownAt: null })
     await page.goto(`${BASE}/folio/kept`, { waitUntil: 'domcontentloaded' })
     await page.locator('.folio-floor').waitFor({ timeout: 15000 })
-    await page.waitForTimeout(2500)
-    out.recent = (await page.locator('.folio-floor__waiting').count()) === 1
+    // Recent arrives on its own subscription, sometimes after the traces:
+    // wait for the Waiting section rather than reading it at a fixed moment.
+    out.recent = await page.locator('.folio-floor__waiting').waitFor({ timeout: 8000 }).then(() => true, () => false)
     if (out.recent) {
       // Recent (a grounding activation in the last 72 h): no slip; the trace waits, with Open.
       await page.goto(`${BASE}/folio/pages`, { waitUntil: 'domcontentloaded' })
@@ -176,10 +190,10 @@ const LINE = 'The heater only worked on one side.'
       ok('notNowHolds', (await page.locator('.folio-slip').count()) === 0)
     }
 
-    // Lift into today's page, from the trace.
+    // Write beneath it again today (Lift into today's page), from the trace.
     await page.goto(`${BASE}/folio/kept/${originalId}`, { waitUntil: 'domcontentloaded' })
     await page.locator('.folio-composition').waitFor({ timeout: 15000 })
-    await openMenuItem("Lift into today's page")
+    await openMenuItem('Write beneath it again today')
     await page.waitForURL((u) => u.toString() === pageUrl, { timeout: 15000 })
     await page.locator('.folio-underside__from').waitFor({ timeout: 15000 })
     const lines = await page.locator('.folio-page .ProseMirror > p').allInnerTexts()

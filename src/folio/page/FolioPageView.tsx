@@ -107,7 +107,7 @@ interface Props {
   involvement?: InvolvementLevel
   /** The Recent overlay (72 h since a grounding activation). */
   isRecent?: () => boolean
-  /** What the writer has already met (first-time lines show once per account). */
+  /** What the writer has already met (first-time lines show once per account); absent until known. */
   learned?: FolioLearned
   /** Record a first time (merged into the preferences). */
   onLearn?: (patch: FolioLearned) => void
@@ -174,12 +174,16 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
   useEffect(() => { trRef.current = tr }, [tr])
   // The first moment (docs/vision/2026-10-22-folio-first-moment.md): what the
   // writer has met, and whether the guides may show right now.
-  const learnedRef = useRef<FolioLearned>(learned ?? {})
-  useEffect(() => { learnedRef.current = learned ?? {} }, [learned])
+  // Null until the preferences arrive: a first-time line shows only when the
+  // page knows the writer hasn't met it (a slow connection never shows a
+  // returning writer something meant for their first time).
+  const learnedRef = useRef<FolioLearned | null>(learned ?? null)
+  useEffect(() => { learnedRef.current = learned ?? null }, [learned])
   const onLearnRef = useRef(onLearn)
   useEffect(() => { onLearnRef.current = onLearn }, [onLearn])
   const guidesOn = useRef(false)
   const learn = useCallback((patch: FolioLearned) => {
+    if (!learnedRef.current) return
     learnedRef.current = { ...learnedRef.current, ...patch }
     onLearnRef.current?.(patch)
   }, [])
@@ -274,7 +278,7 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
       },
       guide: {
         enabled: () => guidesOn.current,
-        learned: () => (learnedRef.current.lifts ?? 0) >= 2,
+        learned: () => (learnedRef.current?.lifts ?? 0) >= 2,
         labels: () => ({ corner: trRef.current['folio.corner'], cornerLabel: trRef.current['folio.corner.label'], foldHint: trRef.current['folio.learn.fold'] }),
         shortcut: () => (coarsePointer() ? null : keyLabel(FOLIO_KEYS.liftOrToggle)),
         onLift: (corner) => doLiftRef.current(corner),
@@ -604,7 +608,7 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
     const kept = await keepFold(foldId, null)
     if (!kept) return
     // The first keep says where kept things go; after that, "Kept."
-    const first = switchesRef.current.guides && !learnedRef.current.keep
+    const first = switchesRef.current.guides && learnedRef.current !== null && !learnedRef.current.keep
     setNotice({ kind: 'kept', traceId: kept.trace.id, choosing: false, first })
     announce(first ? tr['folio.kept.first'] : tr['folio.kept'])
     if (first) learn({ keep: Date.now() })
@@ -807,9 +811,10 @@ export function FolioPageView({ uid, pageId, switches, shore, reduceMotion, orna
       const nowOpen = getFoldView(editor.state).open
       const nowFolds = new Set(foldIdsOf(editor))
       const nowMark = presence(editor.state).mark
-      const l = learnedRef.current
-      const guides = switchesRef.current.guides && presentationNow.current === 'normal'
-      if (!transaction.getMeta(TR_LOAD) && !transaction.getMeta(TR_COMPANION)) {
+      const l = learnedRef.current ?? {}
+      const known = learnedRef.current !== null
+      const guides = known && switchesRef.current.guides && presentationNow.current === 'normal'
+      if (known && !transaction.getMeta(TR_LOAD) && !transaction.getMeta(TR_COMPANION)) {
         if ((l.lifts ?? 0) < 2 && [...nowFolds].some((id) => !folds.has(id))) learn({ lifts: (l.lifts ?? 0) + 1 })
         const folded = [...open].find((id) => !nowOpen.has(id) && nowFolds.has(id))
         if (folded && !l.fold && guides) {

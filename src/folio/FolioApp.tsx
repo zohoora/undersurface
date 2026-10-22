@@ -316,7 +316,7 @@ export default function FolioApp({ user, routePath, navigateTo, goToSessions }: 
               ask={ask}
               involvement={level}
               isRecent={isRecentNow}
-              learned={prefs?.learned}
+              learned={prefs === undefined ? undefined : (prefs?.learned ?? {})}
               onLearn={onLearn}
               onNavigate={navigateTo}
               onAnnounce={announce}
