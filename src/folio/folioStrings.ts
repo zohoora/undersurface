@@ -27,7 +27,9 @@ export function folioStringsFrom(t: TranslationStrings): FolioStrings {
     closer: (gap) => fill(t['folio.closer.announce'], gap),
     closerBlocked: t['folio.closerBlocked'],
     alreadyLifted: t['folio.alreadyLifted'],
-    betweenHint: t['folio.between'],
+    betweenHint: t['folio.betweenHint'],
+    creaseOpen: t['folio.crease.open'],
+    creaseClose: t['folio.crease.close'],
     foldFound: (line, open) => (open ? t['folio.foldFound.open'] : t['folio.foldFound.closed']).replace('{line}', truncate(line)),
     fromDate: (keptAt) => t['folio.fromDate'].replace('{date}', shortDate(keptAt, getLanguageCode(), getSettings().timezone)),
   }

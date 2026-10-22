@@ -52,7 +52,7 @@ const ASKED = 'The heater only worked on one side.'
     // Ask about one sentence; only it is sent.
     await selectBack(ASKED.length)
     await page.waitForTimeout(200)
-    await page.getByRole('button', { name: 'Ask', exact: true }).click()
+    await page.getByRole('button', { name: 'Ask the companion', exact: true }).click()
     const note = page.locator('.folio-note--note')
     ok('noteShown', await note.waitFor({ timeout: 90000 }).then(() => true, () => false))
     ok('labelled', (await note.getAttribute('aria-label')) === 'Companion' && (await note.locator('.folio-note__label').innerText()) === 'Companion')
@@ -82,7 +82,7 @@ const ASKED = 'The heater only worked on one side.'
     await page.keyboard.press('End')
     await selectBack(ASKED.length)
     await page.waitForTimeout(200)
-    await page.getByRole('button', { name: 'Ask', exact: true }).click()
+    await page.getByRole('button', { name: 'Ask the companion', exact: true }).click()
     await page.locator('.folio-note--note').waitFor({ timeout: 90000 })
     await page.locator('.folio-note--note').getByRole('button', { name: 'Dismiss' }).click()
     ok('dismissed', (await page.locator('.folio-note').count()) === 0)
@@ -97,7 +97,7 @@ const ASKED = 'The heater only worked on one side.'
     await page.locator('.folio-shore-line').waitFor({ timeout: 15000 }).catch(() => {})
     await selectBack(risky.length)
     await page.waitForTimeout(200)
-    const askButton = page.getByRole('button', { name: 'Ask', exact: true })
+    const askButton = page.getByRole('button', { name: 'Ask the companion', exact: true })
     // On a phone the crisis card sits over the bottom bar, so Ask can't be
     // tapped until the card is dismissed; recorded, not required (help first).
     if (await askButton.count()) out.askReachableInShore = await askButton.click({ timeout: 5000 }).then(() => true, () => false)

@@ -649,3 +649,38 @@ The run appends one entry per step: the date, the PRs, the gates' results, the d
 **2026-10-16 · An empty passage is bare paper.** The owner, in dark mode, with a screenshot of two open, empty undersides: "I can't read the text." Nothing was hidden: an empty passage still drew its wash, and a one-line blur in dark grey reads as a redacted line. The art pass had rendered this state (an empty lift) in dark, but that screenshot was never opened on its own, and axe can't see it, since there is no text to measure. Now an empty beneath or between has no wash (`.folio-passage-empty`), and the wash fades in with the first word. A browser test on all five browsers checks both papers.
 
 **2026-10-21 · The background follows the theme at once.** `folio-involvement-check` failed one axe item in the evening only: a lifted line in dark mode, measured against #faf7f2. The cause was in Sessions, not Folio. The time-aware palette writes `--bg-primary` inline on `<html>`, which beats the stylesheet's dark rule, and it re-read the theme only every 15 minutes. So when the system turned dark during the morning, evening or night bands (macOS Auto appearance turns dark at sunset), the light background stayed under the dark theme's light text: in Sessions the sidebar and the Talk bar went nearly unreadable. In Folio the paper covers the page, so nothing showed; but axe can't place Folio's paper behind a run with its own opacity (ink weight's faded spans), so it measured that run against the stuck light background. The palette now takes the resolved theme as a dependency (`useTimeAwarePalette(theme)`); a unit test pins the evening switch, and the involvement check passes 21/21 in the evening band.
+
+**2026-10-22 · The first moment.** The owner: "Overall when using the folio interface it doesn't feel intuitive. I don't think a user will naturally know how to do things and what is going on. And most users don't read instructions." Then: "build it all out — I really want this to feel smooth, easy and intuitive and magical from the first moment. The perfect mesh of form and function." Design and evidence: `docs/vision/2026-10-22-folio-first-moment.md`.
+- **What changed:**
+  - **Plain labels:** Write beneath, Cancel, Fold away, Move apart, Move closer, Keep a copy, Read it alone, Ask the companion, each with a tooltip saying what it does. The placeholder is "Write anything, and what's beneath it."
+  - **The corner:** *write beneath this* after a paragraph's last sentence, when the caret or the pointer rests there or the writer has just pressed Enter.
+  - **First-time lines,** once per account (`folioPreferences.learned`): the first fold away, the first keep, the companion's first mark.
+  - **The fold's controls:** an empty fold offers only Cancel; a written one is ordered by use, and the row never jumps.
+  - **Distance by dragging** the beneath's corner, snapping to the five stops.
+  - **The crease is a drawn page corner,** and a closed fold's line carries a faint tint of the sheet beneath.
+  - **The kept words fly into Kept.**
+  - **The companion's questions are signed.**
+  - **Elsewhere:**
+    - Keyboard shortcuts in the menu.
+    - The phone's selection bar rides above the keyboard.
+    - New page sits on the Pages list.
+    - The menu order is fixed.
+    - The save status no longer flickers.
+  - **The `folioGuides` switch** (on unless false) turns the guidance off.
+- **How it was judged:**
+  - **Blind usability runs.** An agent with no knowledge of Folio used it through screenshots and clicks only: one run on the live version and three on successive builds.
+    - The live version scored 6/10, and so did the first two builds.
+    - In the first build the corner never surfaced, because the tester never paused.
+    - The second build's tester found the corner on its own and reopened a fold from its crease, but found "Sit with it" and "Put it back" opaque.
+    - The third build scored 7/10. Its tester found nearly everything on its own; Sessions and Move apart stayed abstract until clicked.
+  - **Fable's critique** of the first build's renders shaped the second pass: the glyph, the corner's typeface, the controls' order, the quiet empty fold, timings, and ink-only Keep. Fable's suggestion to move the first-visit line below the page was declined: it stays above, so it's seen before writing.
+- **Found and fixed on the way:**
+  - The between's faint hint was never italic (`inherit` isn't valid inside the `font` shorthand).
+  - On a phone, an open notice covered the selection's Write beneath bar.
+  - On iOS the bar sat under the on-screen keyboard.
+  - After Ask, the selection's slip stayed over the arriving note.
+- **Tests:**
+  - unit: 2,133 (guide 15)
+  - Playwright: 177 across Chromium, WebKit, Firefox, Pixel 7 and iPhone 14, including a new first-moment spec with axe on both papers
+  - functions: 402 (`folioGuides` in `FEATURE_KEYS`)
+  - all 16 locales translated (native review stays on the owner's checklist)

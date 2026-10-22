@@ -17,7 +17,7 @@ describe('folio keys', () => {
     caret(t.editor, 4)
     press(t.editor, 'Enter', { ctrlKey: true, shiftKey: true })
     expect(topLevelTypes(t.editor)[1]).toMatch(/^u:/)
-    expect(t.announcements).toContain('Lifted. Writing beneath.')
+    expect(t.announcements).toContain('Writing beneath the line.')
     const id = openIds(t.editor)[0]
     caret(t.editor, 3)
     press(t.editor, 'Enter', { ctrlKey: true, shiftKey: true })
@@ -46,7 +46,7 @@ describe('folio keys', () => {
     press(t.editor, ']', { ctrlKey: true, altKey: true })
     press(t.editor, ']', { ctrlKey: true, altKey: true })
     expect(t.editor.state.doc.child(1).attrs.gap).toBe(2)
-    expect(t.announcements).toContain('Farther: apart, 3 of 5')
+    expect(t.announcements).toContain('Moved apart: apart, 3 of 5')
     press(t.editor, '[', { ctrlKey: true, altKey: true })
     expect(t.editor.state.doc.child(1).attrs.gap).toBe(1)
   })

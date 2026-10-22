@@ -57,17 +57,17 @@ const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-prac
     await device.enter(page)
     await page.keyboard.type('The heater only worked on one side.')
     await device.lift(page, 'The heater only worked on one side.')
-    out.keyboard.lifted = (await said()) === 'Lifted. Writing beneath.'
+    out.keyboard.lifted = (await said()) === 'Writing beneath the line.'
     await page.keyboard.type('I felt cold the whole way.')
     // Distance: the keys on a desktop; on a phone, the Farther button.
     if (device.isPhone()) {
-      const farther = page.getByRole('button', { name: 'Farther', exact: true }).first()
+      const farther = page.getByRole('button', { name: 'Move apart', exact: true }).first()
       await farther.tap(); await farther.tap()
     } else {
       await page.keyboard.press(`${mod}+Alt+BracketRight`)
       await page.keyboard.press(`${mod}+Alt+BracketRight`)
     }
-    out.keyboard.farther = (await said()) === 'Farther: apart, 3 of 5'
+    out.keyboard.farther = (await said()) === 'Moved apart: apart, 3 of 5'
     // Between: arrow up from the beneath; on a phone, tap it.
     if (device.isPhone()) await page.locator('[data-folio-between]').tap()
     else await page.keyboard.press('ArrowUp')

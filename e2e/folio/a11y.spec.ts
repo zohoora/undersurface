@@ -149,14 +149,14 @@ test.describe('the six scripted tasks, keyboard only (§3.10)', () => {
     // ProseMirror reads the browser's selection on selectionchange.
     await expect.poll(() => call(page, 'caretLine')).toBe('page:It was nice to see everyone.')
     await page.keyboard.press(`${mod}+Shift+Enter`)
-    expect(await said()).toBe('Lifted. Writing beneath.')
+    expect(await said()).toBe('Writing beneath the line.')
     await page.keyboard.type('I felt absent the whole time.')
     expect(await call(page, 'undersides')).toEqual([{ foldId: expect.any(String), between: null, beneath: 'I felt absent the whole time.' }])
 
     // 3. Set the distance and write between.
     await page.keyboard.press(`${mod}+Alt+BracketRight`)
     await page.keyboard.press(`${mod}+Alt+BracketRight`)
-    expect(await said()).toBe('Farther: apart, 3 of 5')
+    expect(await said()).toBe('Moved apart: apart, 3 of 5')
     await page.keyboard.press('ArrowUp')
     await expect.poll(() => call(page, 'caretLine')).toBe('between:')
     await page.keyboard.type('The drive home.')
@@ -179,7 +179,7 @@ test.describe('the six scripted tasks, keyboard only (§3.10)', () => {
     await page.keyboard.press(`${mod}+Shift+Enter`)
     expect((await call<unknown[]>(page, 'undersides')).length).toBe(2)
     await page.keyboard.press('Escape')
-    expect(await said()).toBe('Unlifted.')
+    expect(await said()).toBe('Cancelled.')
     expect((await call<unknown[]>(page, 'undersides')).length).toBe(1)
 
     // 6. Recover from a delete across a closed fold.

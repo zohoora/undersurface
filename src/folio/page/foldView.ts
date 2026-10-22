@@ -3,7 +3,7 @@ import type { EditorState, Transaction } from '@tiptap/pm/state'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { EditorView, NodeView, ViewMutationRecord } from '@tiptap/pm/view'
-import { BETWEEN, FOLD, GAP_LINE_HEIGHTS, UNDERSIDE, foldRange, undersides } from './schema'
+import { BETWEEN, FOLD, GAP_LINE_HEIGHTS, MAX_GAP, UNDERSIDE, foldRange, undersides } from './schema'
 import type { Gap } from './schema'
 import type { FolioStrings } from './strings'
 
@@ -131,6 +131,22 @@ export interface FoldViewOptions {
 export function foldViewPlugin(options: FoldViewOptions): Plugin<FoldViewState> {
   return new Plugin<FoldViewState>({
     key: foldViewKey,
+    // A fold just folded away is marked for a moment, so its sheet can be seen
+    // going under the line (folio.css, folio-tuck); folds closed by a load never are.
+    view: () => ({
+      update(view, prev) {
+        const before = getFoldView(prev).open
+        const now = getFoldView(view.state).open
+        if (before === now || before.size === 0) return
+        for (const id of before) {
+          if (now.has(id)) continue
+          const el = view.dom.querySelector(`.folio-underside--closed[data-fold-id="${CSS.escape(id)}"]`) as HTMLElement | null
+          if (!el) continue
+          el.dataset.tucking = 'true'
+          setTimeout(() => { delete el.dataset.tucking }, 700)
+        }
+      },
+    }),
     state: {
       init: () => ({ open: new Set(), fences: new Map() }),
       apply(tr, value, _old, newState) {
@@ -176,7 +192,8 @@ export function foldViewPlugin(options: FoldViewOptions): Plugin<FoldViewState> 
                 const from = offset + 1 + at
                 decos.push(Decoration.node(from, from + passage.nodeSize, { class: 'folio-passage-empty' }))
               })
-              // An empty between shows a faint "between" (§3.6).
+              // An empty between invites writing: "write between them" (§3.6;
+              // the plain verb since 2026-10-22).
               const first = node.firstChild
               if (first?.type.name === BETWEEN && first.textContent === '' && first.childCount === 1) {
                 const pPos = offset + 2
@@ -197,6 +214,9 @@ export function foldViewPlugin(options: FoldViewOptions): Plugin<FoldViewState> 
               const range = foldRange(node, offset, id)
               if (!range) continue
               const isOpenNow = open.has(id)
+              // A closed fold's line: the sheet beneath seen faintly through
+              // the paper (2026-10-22, with Fable): something is under here.
+              if (!isOpenNow) decos.push(Decoration.inline(range.from, range.to, { class: 'folio-fold--closed' }))
               decos.push(Decoration.widget(range.to, (view) => creaseButton(view, id, isOpenNow, strings), {
                 side: 1,
                 key: `crease:${id}:${isOpenNow ? 'o' : 'c'}`,
@@ -220,6 +240,8 @@ function creaseButton(view: EditorView, foldId: string, open: boolean, strings: 
   button.dataset.foldId = foldId
   button.setAttribute('aria-expanded', open ? 'true' : 'false')
   button.setAttribute('aria-label', open ? strings.closeBeneath : strings.openBeneath)
+  // On hover and focus the crease says what it does: "open", "fold away".
+  if (strings.creaseOpen && strings.creaseClose) button.dataset.hint = open ? strings.creaseClose : strings.creaseOpen
   // A plain glyph as the fallback; folio.css hides it and draws a dog-ear
   // instead. The label carries the meaning either way.
   const glyph = document.createElement('span')
@@ -243,11 +265,36 @@ export function openFolds(tr: Transaction, ids: string[], fence?: { key: string 
   return tr.setMeta(foldViewKey, { type: 'open', ids, fence } satisfies FoldViewMeta)
 }
 
+/**
+ * Dragging the beneath's corner (2026-10-22, draft 4 §3.6: "dragging the
+ * beneath's edge… snaps to the stops and is never the only way"). The host
+ * runs Apart one stop at a time and announces where the drag ended.
+ */
+export interface GripOptions {
+  /** The distance switch. */
+  enabled: () => boolean
+  label: () => string
+  /** One stop closer (-1) or farther (+1); false when it can't go further. */
+  step: (view: EditorView, foldId: string, dir: -1 | 1) => boolean
+  /** The drag ended at `gap` (unchanged when equal to `from`). */
+  done?: (view: EditorView, foldId: string, gap: Gap, from: Gap) => void
+}
+
+/** The stop nearest a distance of `lines` line-heights. */
+export function nearestStop(lines: number): Gap {
+  let best: Gap = 0
+  for (let k = 0; k <= MAX_GAP; k++) {
+    if (Math.abs(GAP_LINE_HEIGHTS[k as Gap] - lines) < Math.abs(GAP_LINE_HEIGHTS[best] - lines)) best = k as Gap
+  }
+  return best
+}
+
 /** The underside node view: a contentless placeholder when closed, the full
  *  composition with its controls when open. Switching recreates the view. */
 export function undersideNodeView(options: {
   strings: () => FolioStrings
   controls?: (args: { view: EditorView; getPos: () => number | undefined; node: PMNode }) => HTMLElement | null
+  grip?: GripOptions
 }) {
   // The controls are rebuilt only when what they show changes (empty or
   // written, loose or not), so focus stays on a button pressed repeatedly.
@@ -289,6 +336,8 @@ class OpenUndersideView implements NodeView {
   contentDOM: HTMLElement
   private controls: HTMLElement | null
   private fromLabel: HTMLElement | null = null
+  private grip: HTMLElement | null = null
+  private resize: ResizeObserver | null = null
   private node: PMNode
   private readonly strings: () => FolioStrings
   private readonly view: EditorView
@@ -299,7 +348,7 @@ class OpenUndersideView implements NodeView {
     node: PMNode,
     view: EditorView,
     getPos: () => number | undefined,
-    options: { strings: () => FolioStrings; controls?: (args: { view: EditorView; getPos: () => number | undefined; node: PMNode }) => HTMLElement | null },
+    options: { strings: () => FolioStrings; controls?: (args: { view: EditorView; getPos: () => number | undefined; node: PMNode }) => HTMLElement | null; grip?: GripOptions },
   ) {
     this.node = node
     this.strings = options.strings
@@ -317,7 +366,83 @@ class OpenUndersideView implements NodeView {
       this.controls.setAttribute('contenteditable', 'false')
       this.dom.appendChild(this.controls)
     }
+    if (options.grip?.enabled() && !node.attrs.loose) this.makeGrip(options.grip)
     this.render()
+  }
+
+  /**
+   * The beneath's corner, where the fold's edge meets it: drag it down to move
+   * apart, up to move closer, snapping to the five stops. A pointer aid only
+   * (aria-hidden, not focusable): the buttons and keys do the same.
+   */
+  private makeGrip(grip: GripOptions) {
+    const el = document.createElement('div')
+    el.className = 'folio-grip'
+    el.setAttribute('contenteditable', 'false')
+    el.setAttribute('aria-hidden', 'true')
+    el.dataset.folioGrip = ''
+    el.title = grip.label()
+    el.addEventListener('mousedown', (e) => e.preventDefault())
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return
+      e.preventDefault()
+      const foldId = String(this.node.attrs.foldId ?? '')
+      if (!foldId) return
+      try { el.setPointerCapture(e.pointerId) } catch { /* synthetic events */ }
+      const startY = e.clientY
+      const from = (this.node.attrs.gap ?? 0) as Gap
+      const lh = parseFloat(getComputedStyle(this.contentDOM).lineHeight) || 30
+      let at: Gap = from
+      el.dataset.dragging = 'true'
+      // The five stops as hairlines on the fold's edge, fixed where the drag
+      // began: where it will snap.
+      const stops = document.createElement('div')
+      stops.className = 'folio-grip-stops'
+      stops.setAttribute('aria-hidden', 'true')
+      const top0 = parseFloat(el.style.top || '0')
+      for (let k = 0; k <= MAX_GAP; k++) {
+        const tick = document.createElement('span')
+        tick.style.top = `${top0 + (GAP_LINE_HEIGHTS[k as Gap] - GAP_LINE_HEIGHTS[from]) * lh}px`
+        stops.appendChild(tick)
+      }
+      this.dom.appendChild(stops)
+      const move = (ev: PointerEvent) => {
+        const target = nearestStop(GAP_LINE_HEIGHTS[from] + (ev.clientY - startY) / lh)
+        while (at < target && grip.step(this.view, foldId, 1)) at = (at + 1) as Gap
+        while (at > target && grip.step(this.view, foldId, -1)) at = (at - 1) as Gap
+      }
+      const up = () => {
+        el.removeEventListener('pointermove', move)
+        el.removeEventListener('pointerup', up)
+        el.removeEventListener('pointercancel', up)
+        delete el.dataset.dragging
+        stops.remove()
+        grip.done?.(this.view, foldId, at, from)
+      }
+      el.addEventListener('pointermove', move)
+      el.addEventListener('pointerup', up)
+      el.addEventListener('pointercancel', up)
+    })
+    this.grip = el
+    this.dom.appendChild(el)
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resize = new ResizeObserver(() => this.placeGrip())
+      this.resize.observe(this.contentDOM)
+    }
+    requestAnimationFrame(() => this.placeGrip())
+  }
+
+  /** The grip follows the beneath's top edge (the distance and the between move it). */
+  private placeGrip() {
+    if (!this.grip) return
+    const beneath = this.contentDOM.querySelector(':scope > [data-folio-beneath]') as HTMLElement | null
+    if (!beneath) return
+    this.grip.style.top = `${beneath.offsetTop + this.contentDOM.offsetTop}px`
+  }
+
+  destroy() {
+    this.resize?.disconnect()
+    this.resize = null
   }
 
   private render() {
@@ -360,7 +485,12 @@ class OpenUndersideView implements NodeView {
       else if (next) this.dom.appendChild(next)
       else this.controls?.remove()
       this.controls = next
+    } else {
+      // Within one signature the controls adjust in place (Move closer
+      // appears once apart), so focus stays on a button pressed repeatedly.
+      (this.controls as (HTMLElement & { folioSync?: (n: PMNode) => void }) | null)?.folioSync?.(node)
     }
+    this.placeGrip()
     return true
   }
 
@@ -370,7 +500,8 @@ class OpenUndersideView implements NodeView {
   }
 
   stopEvent(event: Event): boolean {
-    return !!this.controls && this.controls.contains(event.target as globalThis.Node)
+    const target = event.target as globalThis.Node
+    return (!!this.controls && this.controls.contains(target)) || (!!this.grip && this.grip.contains(target))
   }
 }
 

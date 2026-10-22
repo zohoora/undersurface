@@ -35,7 +35,8 @@ export interface PresenceOptions {
   onLiftMarked?: (pid: string, sentence: string) => void
   /** Esc with the caret in the marked paragraph: the writer set the mark aside. */
   onDismissMark?: () => void
-  labels?: () => { mark: string; ghost: string }
+  /** `who` signs a ghost ("— the companion"); `markTitle` is the dot's tooltip. */
+  labels?: () => { mark: string; ghost: string; who?: string; markTitle?: string }
 }
 
 export function paragraphByPid(doc: PMNode, pid: string): { node: PMNode; pos: number } | null {
@@ -136,14 +137,16 @@ export function presencePlugin(options: PresenceOptions = {}): Plugin<PresenceSt
         for (const [pid, text] of s.ghosts) {
           const p = pid === OPENING ? (blankPage(state.doc) ? { node: state.doc.firstChild as PMNode, pos: 0 } : null) : paragraphByPid(state.doc, pid)
           if (!p || p.node.content.size > 0) continue
-          decos.push(Decoration.node(p.pos, p.pos + p.node.nodeSize, { class: 'folio-ghost', 'data-ghost': text, 'aria-description': `${labels.ghost}: ${text}` }))
+          // Signed, so whose question it is never needs working out (2026-10-22).
+          const who = labels.who ? { 'data-ghost-who': labels.who } : {}
+          decos.push(Decoration.node(p.pos, p.pos + p.node.nodeSize, { class: 'folio-ghost', 'data-ghost': text, ...who, 'aria-description': `${labels.ghost}: ${text}` }))
         }
         if (s.mark) {
           const r = sentenceRange(state.doc, s.mark.pid, s.mark.sentence)
           if (r) {
             decos.push(Decoration.inline(r.from, r.to, { class: 'folio-marked' }))
             const { pid, sentence } = s.mark
-            decos.push(Decoration.widget(r.from, () => markButton(labels.mark, () => options.onLiftMarked?.(pid, sentence)), {
+            decos.push(Decoration.widget(r.from, () => markButton(labels.mark, labels.markTitle, () => options.onLiftMarked?.(pid, sentence)), {
               side: -1, key: `mark:${pid}:${sentence.length}`, ignoreSelection: true, stopEvent: () => true,
             }))
           }
@@ -154,12 +157,13 @@ export function presencePlugin(options: PresenceOptions = {}): Plugin<PresenceSt
   })
 }
 
-function markButton(label: string, onPress: () => void): HTMLElement {
+function markButton(label: string, title: string | undefined, onPress: () => void): HTMLElement {
   const button = document.createElement('button')
   button.type = 'button'
   button.className = 'folio-mark'
   button.setAttribute('contenteditable', 'false')
   button.setAttribute('aria-label', label)
+  if (title) button.title = title
   button.dataset.folioMark = ''
   button.addEventListener('mousedown', (e) => e.preventDefault())
   button.addEventListener('click', (e) => { e.preventDefault(); onPress() })

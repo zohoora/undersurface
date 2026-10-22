@@ -643,13 +643,14 @@ export function AdminSettings() {
         </div>
         {([
           ['folioBetween', 'The between (writing in the space a distance opens)'],
-          ['folioDistance', 'Closer and Farther (the five distances)'],
-          ['folioLiftToday', 'Lift into today\'s page (from a kept thing)'],
-          ['folioAsk', 'Ask (a companion note in the margin)'],
-          ['folioStepInside', 'Step inside'],
-          ['folioStepInsideSound', 'Sound in Step inside (web only)'],
+          ['folioDistance', 'Move apart and Move closer (the five distances)'],
+          ['folioLiftToday', 'Write beneath it again today (from a kept thing)'],
+          ['folioAsk', 'Ask the companion (a note in the margin)'],
+          ['folioStepInside', 'Read it alone (Step inside: the piece alone, full screen)'],
+          ['folioStepInsideSound', 'Sound in Read it alone (web only)'],
           ['folioReturn', 'Let kept things come back on their own (each writer still opts in)'],
           ['folioInvolvement', 'Companion involvement (the writer\'s slider, levels 2–5; off: everyone at level 1)'],
+          ['folioGuides', 'First-moment guides (the write-beneath corner and first-time lines)'],
         ] as const).map(([key, label]) => (
           <ToggleRow
             key={key}

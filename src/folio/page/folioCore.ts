@@ -6,12 +6,15 @@ import type { Node as PMNode } from '@tiptap/pm/model'
 import type { EditorView } from '@tiptap/pm/view'
 import { Beneath, Between, Fold, ParagraphId, Underside } from './schema'
 import { foldViewPlugin, undersideNodeView } from './foldView'
+import type { GripOptions } from './foldView'
 import { integrityPlugin } from './integrity'
 import { hiddenWritingPlugin, historyGuardPlugin, inputGuardPlugin } from './protect'
 import type { ProtectOptions } from './protect'
 import { ENGLISH_STRINGS } from './strings'
 import { folioKeyHandlers } from './keys'
 import { placeholderPlugin } from './placeholder'
+import { guidePlugin } from './guide'
+import type { GuideOptions } from './guide'
 import { CompanionText, takeOverPlugin } from '../companion/companionText'
 import { presencePlugin } from '../companion/presence'
 import type { PresenceOptions } from '../companion/presence'
@@ -43,8 +46,12 @@ export interface FolioCoreOptions {
   /** H2: how companion notes are drawn beside their paragraphs (absent: not drawn). */
   notes?: () => NoteRender | null
   locale?: () => string | undefined
-  /** Builds the open underside's controls (Close/Unlift, Closer, Farther, Keep). */
+  /** Builds the open underside's controls (Fold away/Cancel, Keep a copy, Read it alone, Move apart, Move closer). */
   controls?: (args: { view: EditorView; getPos: () => number | undefined; node: PMNode }) => HTMLElement | null
+  /** The first moment: the corner and the first-fold line (absent: neither). */
+  guide?: GuideOptions
+  /** Dragging the beneath's corner to move it apart or closer (absent: no drag). */
+  grip?: GripOptions
 }
 
 export function folioExtensions(options: FolioCoreOptions = {}): AnyExtension[] {
@@ -81,6 +88,7 @@ export function folioExtensions(options: FolioCoreOptions = {}): AnyExtension[] 
         notesPlugin(options.notes ?? (() => null)),
         placeholderPlugin(options.placeholder),
         presencePlugin(options.presence),
+        ...(options.guide ? [guidePlugin(options.guide)] : []),
         takeOverPlugin(),
       ]
     },
@@ -88,7 +96,7 @@ export function folioExtensions(options: FolioCoreOptions = {}): AnyExtension[] 
 
   const UndersideWithView = Underside.extend({
     addNodeView() {
-      const factory = undersideNodeView({ strings, controls: options.controls })
+      const factory = undersideNodeView({ strings, controls: options.controls, grip: options.grip })
       return ({ node, view, getPos, decorations }) => factory(node, view, getPos as () => number | undefined, decorations)
     },
   })

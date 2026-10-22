@@ -164,7 +164,7 @@ export function TraceView({ uid, trace, kept, switches, onNavigate, onAnnounce, 
         <div className="folio-trace__body">
           <div className="folio-trace__composition">
             {composition
-              ? <CompositionView composition={composition} labels={{ line: tr['folio.lift'], between: tr['folio.between'], beneath: tr['folio.beneath'] }} />
+              ? <CompositionView composition={composition} labels={{ line: tr['folio.line'], between: tr['folio.between'], beneath: tr['folio.beneath'] }} />
               : <p className="folio-line">{trace.surface}</p>}
           </div>
           <div className="folio-trace__entries">

@@ -49,13 +49,18 @@ function rangeHasFold(state: EditorState, from: number, to: number): boolean {
   return has
 }
 
-export function lift(state: EditorState, opts: { locale?: string; now?: number } = {}): CommandResult {
-  const sel = state.selection
+/**
+ * Lift the selection, or with no selection the sentence around the caret, or
+ * with `range` exactly that range (the corner: the sentence it showed).
+ */
+export function lift(state: EditorState, opts: { locale?: string; now?: number; range?: { from: number; to: number } } = {}): CommandResult {
+  const sel = opts.range ?? state.selection
   const para = topParagraphAt(state, sel.from)
-  if (!para || (!sel.empty && topParagraphAt(state, sel.to)?.pos !== para.pos)) return { ok: false, reason: 'notInPage' }
+  const empty = sel.from === sel.to
+  if (!para || (!empty && topParagraphAt(state, sel.to)?.pos !== para.pos)) return { ok: false, reason: 'notInPage' }
   let from = sel.from
   let to = sel.to
-  if (sel.empty) {
+  if (empty) {
     const text = para.node.textContent
     if (text.trim() === '') return { ok: false, reason: 'empty' }
     const r = sentenceAround(text, sel.from - para.pos - 1, opts.locale)

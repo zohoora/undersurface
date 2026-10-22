@@ -30,6 +30,7 @@ const FEATURE_KEYS = new Set([
   'folioEnabled', 'folioBetween', 'folioDistance', 'folioLiftToday',
   'folioAsk', 'folioStepInside', 'folioStepInsideSound', 'folioReturn',
   'folioInvolvement',
+  'folioGuides',
 ])
 
 // Feature keys that no longer control anything. An update that still carries

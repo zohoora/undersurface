@@ -23,6 +23,8 @@ export interface FolioSwitches {
   returnOn: boolean
   /** The companion-involvement slider; off: every writer is at level 1. */
   involvement: boolean
+  /** The first-moment guides: the corner and the first-time lines (2026-10-22). */
+  guides: boolean
 }
 
 /** Every sub-switch is on unless explicitly false (build plan §3.1). */
@@ -37,6 +39,7 @@ export function folioSwitches(features: Features): FolioSwitches {
     stepInsideSound: on(features?.folioStepInsideSound),
     returnOn: on(features?.folioReturn),
     involvement: on(features?.folioInvolvement),
+    guides: on(features?.folioGuides),
   }
 }
 
