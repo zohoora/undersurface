@@ -125,7 +125,7 @@ const password = () => execFileSync('security', ['find-generic-password', '-s', 
     // ---- level 5: arrival from the last page
     ok('level5Set', await setLevel(5))
     await newPage()
-    const arrived = notice.filter({ hasText: /The companion (lifted a line from|began the page)/ })
+    const arrived = notice.filter({ hasText: /The companion (brought back a line from|began the page)/ })
     ok('l5Arrived', await arrived.waitFor({ timeout: 60000 }).then(() => true, () => false))
     out.seen.arrival = await arrived.innerText().catch(() => null)
     out.seen.companionText = await page.locator('.folio-page .folio-companion-text').allInnerTexts().catch(() => [])
