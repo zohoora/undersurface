@@ -121,6 +121,7 @@ Fable suggested moving it below the page. It stays above, so it's seen before wr
 - **The save status:** "Saved on this device" shows only once that state has lasted 2 s, so the status doesn't flicker between two words while writing.
 - **The ••• menu:** New page comes first and Find help last on every view, so no item moves under the pointer. A blind tester opened the help card by accident when the items shifted.
 - **New page** also sits beside the Pages title, where two testers looked for it.
+- **Kept's Add** shows the new entry at once, with its Undo on its own row. Before, the page jumped twice (an "Added · Undo" line, then the entry arriving from the store), and two testers' next clicks missed.
 
 ### 3.9 Keys, findable
 
@@ -161,7 +162,6 @@ The second and later runs were told to act at a human pace: one action at a time
 Moving the first-visit line below the page was declined (§3.7).
 
 **Left for the owner:**
-- Kept's Add makes the layout jump, so the next click misses; two testers hit it. This was already there before this change.
 - "Sessions" means nothing to a Folio-first writer, even with its tooltip.
 - An Ask note once called a typo "gently suspended"; Ask's voice is unchanged by design.
 - Native review of the 16 translations.
