@@ -169,7 +169,6 @@ export function guidePlugin(options: GuideOptions): Plugin<GuideState> {
   const hoverMs = options.hoverMs ?? { over: CORNER_HOVER_MS, leave: CORNER_HOVER_LEAVE_MS }
   const show = (v: EditorView, c: Corner) => v.dispatch(v.state.tr.setMeta(guideKey, { type: 'corner', corner: { from: c.from, to: c.to } } satisfies GuideMeta).setMeta('addToHistory', false))
   const hover = {
-    fine: typeof window !== 'undefined' && (() => { try { return window.matchMedia('(hover: hover) and (pointer: fine)').matches } catch { return false } })(),
     para: null as number | null,
     overTimer: null as ReturnType<typeof setTimeout> | null,
     leaveTimer: null as ReturnType<typeof setTimeout> | null,
@@ -255,11 +254,14 @@ export function guidePlugin(options: GuideOptions): Plugin<GuideState> {
     },
     props: {
       handleDOMEvents: {
-        // On a fine pointer the corner also comes where the pointer rests on
-        // a written line: exploring with the mouse finds it without a pause
-        // in the typing (the fresh-eyes test, 2026-10-22).
-        mousemove(view, event) {
-          if (!hover.fine || event.buttons !== 0) return false
+        // Where a pointer hovers, the corner also comes where it rests on a
+        // written line: exploring with the mouse finds it without a pause in
+        // the typing (the fresh-eyes test, 2026-10-22). Read from the event,
+        // not a media query: some touch laptops and headless browsers report
+        // no hover while a mouse is plainly moving. Only a finger is left out
+        // (a touch never hovers; it rests the caret instead).
+        pointermove(view, event) {
+          if ((event as PointerEvent).pointerType === 'touch' || event.buttons !== 0) return false
           const target = event.target as HTMLElement | null
           if (target?.closest?.('[data-folio-corner]')) { hover.cancelLeave(); return false }
           const paraPos = paragraphAtPoint(view, event.clientX, event.clientY)

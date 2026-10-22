@@ -31,7 +31,7 @@ Built in two passes. The first pass was then judged three ways: two blind usabil
 A faint page corner and the words *write beneath this* appear after the last sentence of a written page paragraph, in three cases:
 - **The caret rests** in that paragraph: after 1.2 s if the sentence is finished, 3 s mid-sentence (a pause to think shouldn't flash anything).
 - **The caret rests on the empty line** just after it (Enter is a natural pause).
-- **The mouse rests on the line** for 350 ms (fine pointers). The first blind tester typed and reached for the mouse at once, so it never paused. Exploring with the mouse now finds the corner.
+- **The mouse rests on the line** for 350 ms. Any hovering pointer counts, read from `pointermove`; a finger never does. The first blind tester typed and reached for the mouse at once, so it never paused. Exploring with the mouse now finds the corner.
 
 **What it does:**
 - Hovering the corner underlines, dashed, the sentence it will lift. Pressing it lifts exactly that sentence: the sheet swings down under the line and the caret waits beneath.
