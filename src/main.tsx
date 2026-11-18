@@ -11,6 +11,7 @@ import { installBackButton } from './native/backButton'
 import { auth } from './firebase'
 import { installGroundingPersistence } from './store/groundingPersistence'
 import { reloadOnce } from './utils/lazyWithRetry'
+import { installStaleShellReload } from './utils/staleShell'
 import { removeConnectionBanner, showConnectionBanner } from './utils/connectionBanner'
 import { applyWebViewport } from './utils/viewport'
 
@@ -139,6 +140,9 @@ installGroundingPersistence()
 // Register service worker — failure is non-critical (app works without it).
 // Skip on native: the bundle ships on-device, and a SW can stale Cloud Function calls.
 if ('serviceWorker' in navigator && !Capacitor.isNativePlatform()) {
+  // Before anything renders: a page the old worker served must notice the
+  // new worker taking over (src/utils/staleShell.ts).
+  installStaleShellReload()
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' })
       .then((registration) => registration.update())
