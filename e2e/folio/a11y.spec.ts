@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
-import { axeSummary } from './axeSummary'
+import { atRest, axeSummary } from './axe'
 
 // Folio's automated accessibility acceptance (build plan step 6; draft 4
 // §3.10): axe on rendered pixels with the app's real styles, on both papers
@@ -51,7 +51,7 @@ for (const theme of ['light', 'dark'] as const) {
       await page.locator('button.folio-crease').first().click()
       await expect(page.locator('[data-folio-between]')).toContainText('The drive home.')
       // Let the settle transition finish so contrast is read at rest.
-      await page.waitForTimeout(700)
+      await atRest(page)
       const results = await new AxeBuilder({ page }).withTags(WCAG).analyze()
       const summary = axeSummary(results)
       expect(summary).toEqual([])

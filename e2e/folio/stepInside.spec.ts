@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
-import { axeSummary } from './axeSummary'
+import { axeSummary } from './axe'
 
 // Step inside (build plan §4, H1), keyboard only, with the real editor, hook,
 // dialog and the app's CSS: Mod+Alt+Enter enters; focus is trapped inside;
