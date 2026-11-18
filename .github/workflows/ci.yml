@@ -69,7 +69,11 @@ jobs:
         run: npm run build
 
   browsers:
-    runs-on: ubuntu-latest
+    # Pinned for speed: the ubuntu-latest (26.04) image lacks the browsers'
+    # system packages, so `install --with-deps` apt-fetches 185 of them
+    # (139 MB, ~30-40 min; measured 2026-11-18). 24.04 ships most of them and
+    # the whole job takes ~5 min. Playwright itself (≥ 1.65) supports 26.04.
+    runs-on: ubuntu-24.04
 
     # The Folio editor's automated device matrix (docs/vision/folio-build-plan.md,
     # decision 6): Chromium, WebKit and Firefox, desktop and phone emulation.
