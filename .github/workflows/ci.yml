@@ -69,9 +69,11 @@ jobs:
         run: npm run build
 
   browsers:
-    # Pinned: ubuntu-latest moved to 26.04, where Playwright 1.57 cannot install
-    # its browsers. Unpin when @playwright/test supports the newer image.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    # `playwright install --with-deps` apt-fetches ~180 packages (~130 MB) on
+    # every run. That takes seconds normally, but the Ubuntu mirror has been
+    # seen at ~200 kB/s (30-40 min); cap the job instead of GitHub's 6 h.
+    timeout-minutes: 60
 
     # The Folio editor's automated device matrix (docs/vision/folio-build-plan.md,
     # decision 6): Chromium, WebKit and Firefox, desktop and phone emulation.

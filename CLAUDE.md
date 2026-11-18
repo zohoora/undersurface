@@ -46,7 +46,7 @@ Live evals (each needs `OPENAI_API_KEY`): `test:crisis`, `test:signals`, `test:p
 
 ## CI/CD
 
-`.github/workflows/ci.yml` runs on push/PR to main: functions type-check + tests, lint, frontend type-check, test, emulator tests (Firestore indexes + Firestore rules + Storage rules, Java 21), build; and a `browsers` job running the Playwright suite (Chromium, WebKit, Firefox, Pixel 7 and iPhone 14 emulation, on Linux; pinned to `ubuntu-24.04` because Playwright 1.57 can't install browsers on the `ubuntu-latest` 26.04 image). Uses Node 22 and dummy `VITE_FIREBASE_*` env vars (Firebase config is public, only needed at runtime — never use the dummy values for production deploys). `.github/workflows/release-evals.yml` is the scheduled/manual/reusable behavioral gate and archives its prompt hash, model snapshot, results, latency, and logs for 90 days.
+`.github/workflows/ci.yml` runs on push/PR to main: functions type-check + tests, lint, frontend type-check, test, emulator tests (Firestore indexes + Firestore rules + Storage rules, Java 21), build; and a `browsers` job running the Playwright suite (Chromium, WebKit, Firefox, Pixel 7 and iPhone 14 emulation, on Linux; `ubuntu-latest` is Ubuntu 26.04, which needs `@playwright/test` ≥ 1.65. Its `--with-deps` install apt-fetches ~180 packages on every run: seconds normally, 30–40 min when the Ubuntu mirror is slow, so the job has `timeout-minutes: 60`). Uses Node 22 and dummy `VITE_FIREBASE_*` env vars (Firebase config is public, only needed at runtime — never use the dummy values for production deploys). `.github/workflows/release-evals.yml` is the scheduled/manual/reusable behavioral gate and archives its prompt hash, model snapshot, results, latency, and logs for 90 days.
 
 ## Deploying Changes
 

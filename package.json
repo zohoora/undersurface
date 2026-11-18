@@ -62,7 +62,7 @@
     "@capacitor/cli": "^8.3.3",
     "@eslint/js": "^9.39.1",
     "@firebase/rules-unit-testing": "^5.0.0",
-    "@playwright/test": "1.57.0",
+    "@playwright/test": "1.65.1",
     "@tailwindcss/vite": "^4.3.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
