@@ -1,8 +1,9 @@
 import { lazy, type LazyExoticComponent } from 'react'
 
 // After a deploy, the new service worker claims open tabs and cleans the old
-// precache; Hosting rewrites every unknown path to index.html. A tab still
-// running the previous bundle then fails to import an old-hash chunk. Retry
+// precache, and Hosting answers a missing /assets/ chunk with a 404. A tab
+// still running the previous bundle then fails to import an old-hash chunk
+// (staleShell.ts reloads most such tabs at the takeover, before this). Retry
 // the import once (transient network), then reload the page once per chunk so
 // it picks up the new build. The reload guard lives in sessionStorage so a
 // genuinely broken chunk cannot cause a reload loop; after that the error
