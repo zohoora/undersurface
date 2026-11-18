@@ -4,6 +4,7 @@ import { CRISIS_CLASSIFIER_PROMPT } from './crisisClassifierPrompt'
 import { SIGNAL_CLASSIFIER_PROMPT } from './signalClassifierPrompt'
 import { engineLog } from '../services/diagnostics'
 import { fitToServerLimits } from './requestLimits'
+import { crisisWindows } from './crisisWindows'
 import type { AmbientTurnAssessment } from '../types'
 
 export type CrisisRisk = 0 | 1 | 2
@@ -546,12 +547,26 @@ export async function checkCrisisRisk(
   }
 }
 
+const WINDOW_CONCURRENCY = 3
+const RATE_LIMIT_RETRIES = 3
+const RATE_LIMIT_BACKOFF_MS = 20_000
+
+export interface ClassifyDeps {
+  check?: typeof checkCrisisRisk
+  wait?: (ms: number) => Promise<void>
+}
+
 /**
- * The shared fail-open form of `checkCrisisRisk`: a classified result passes
- * through, and every unavailable cause becomes `{ risk: 0 }`. The L1 regex
- * layer has already run by the time anything calls this, so falling open
- * leaves the deterministic floor intact; bricking a send on a transient API
- * failure would be worse.
+ * The shared fail-open form of `checkCrisisRisk`, over every window of the
+ * text (crisisWindows: at most 1,000 characters each, newest first, so the
+ * first is the last-1,000-character sample this always read). Windows go three
+ * at a time and stop at the first risk 2; the highest risk wins. Each
+ * unavailable window counts as risk 0. The L1 regex layer has already run by
+ * the time anything calls this, so falling open leaves the deterministic floor
+ * intact; bricking a send on a transient API failure would be worse. A long
+ * turn's own windows can trip the classifier's 20/min limit, so a
+ * rate-limited window is retried after a pause; a single window fails open at
+ * once, as it always has.
  *
  * Used by partOrchestrator for Journal-mode crisis classification and by the
  * session's standalone L2 race. In session mode, L2 is also folded into the
@@ -560,11 +575,33 @@ export async function checkCrisisRisk(
 export async function classifyCrisisRisk(
   text: string,
   language?: string,
+  deps: ClassifyDeps = {},
 ): Promise<CrisisRiskResult> {
-  const result = await checkCrisisRisk(text, language)
-  return result.status === 'classified'
-    ? { risk: result.risk, reason: result.reason }
-    : { risk: 0 }
+  const check = deps.check ?? checkCrisisRisk
+  const windows = crisisWindows(text)
+  if (windows.length === 1) {
+    const result = await check(windows[0], language)
+    return result.status === 'classified' ? { risk: result.risk, reason: result.reason } : { risk: 0 }
+  }
+
+  const wait = deps.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
+  const classifyWindow = async (sample: string): Promise<CrisisRiskResult | null> => {
+    for (let attempt = 0; ; attempt++) {
+      const result = await check(sample, language)
+      if (result.status === 'classified') return { risk: result.risk, reason: result.reason }
+      if (result.cause !== 'rate_limited' || attempt >= RATE_LIMIT_RETRIES) return null
+      await wait(RATE_LIMIT_BACKOFF_MS * (attempt + 1))
+    }
+  }
+
+  let highest: CrisisRiskResult = { risk: 0 }
+  for (let i = 0; i < windows.length && highest.risk < 2; i += WINDOW_CONCURRENCY) {
+    const results = await Promise.all(windows.slice(i, i + WINDOW_CONCURRENCY).map(classifyWindow))
+    for (const result of results) {
+      if (result && result.risk > highest.risk) highest = result
+    }
+  }
+  return highest
 }
 
 export type SignalLevel = 0 | 1 | 2

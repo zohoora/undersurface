@@ -938,3 +938,68 @@ describe('requests stay inside the chat function limits', () => {
     expect(sent[1].content).toContain('characters left out')
   })
 })
+
+describe('classifyCrisisRisk over a long turn', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.restoreAllMocks()
+  })
+
+  type Check = (text: string, language?: string) => Promise<
+    { status: 'classified'; risk: 0 | 1 | 2; reason?: string } | { status: 'unavailable'; cause: 'rate_limited' | 'network' | 'http' | 'timeout' | 'malformed' }
+  >
+  const SENTENCE = 'Some nights I think everyone would be better off without me.'
+  const longTurn = () => `${SENTENCE} ${'Then I went to work and the day was ordinary. '.repeat(90)}`
+  const noWait = async () => {}
+
+  it('finds distress that only an earlier window holds', async () => {
+    const { classifyCrisisRisk } = await loadOpenrouter()
+    const seen: string[] = []
+    const check = vi.fn<Check>(async (sample) => {
+      seen.push(sample)
+      return { status: 'classified', risk: sample.includes(SENTENCE) ? 2 : 0, reason: 'r' }
+    })
+    const text = longTurn()
+    expect(text.slice(-1000).includes(SENTENCE)).toBe(false)
+    expect(await classifyCrisisRisk(text, 'en', { check, wait: noWait })).toEqual({ risk: 2, reason: 'r' })
+    expect(seen[0]).toBe(text.slice(-1000))
+  })
+
+  it('stops sending windows once one is risk 2', async () => {
+    const { classifyCrisisRisk } = await loadOpenrouter()
+    const check = vi.fn<Check>(async () => ({ status: 'classified', risk: 2 }))
+    await classifyCrisisRisk('x'.repeat(10_000), 'en', { check, wait: noWait })
+    expect(check).toHaveBeenCalledTimes(3)
+  })
+
+  it('takes the highest risk and fails open on an unavailable window', async () => {
+    const { classifyCrisisRisk } = await loadOpenrouter()
+    let n = 0
+    const check = vi.fn<Check>(async () => (++n === 2 ? { status: 'classified', risk: 1, reason: 'one' } : { status: 'unavailable', cause: 'network' }))
+    expect(await classifyCrisisRisk('x'.repeat(3_000), 'en', { check, wait: noWait })).toEqual({ risk: 1, reason: 'one' })
+  })
+
+  it('retries a window the classifier rate-limited, then reads it', async () => {
+    const { classifyCrisisRisk } = await loadOpenrouter()
+    const wait = vi.fn(async () => {})
+    const limited = new Set<string>()
+    const check = vi.fn<Check>(async (sample) => {
+      if (sample.includes(SENTENCE) && !limited.has(sample)) {
+        limited.add(sample)
+        return { status: 'unavailable', cause: 'rate_limited' }
+      }
+      return { status: 'classified', risk: sample.includes(SENTENCE) ? 2 : 0 }
+    })
+    expect((await classifyCrisisRisk(longTurn(), 'en', { check, wait })).risk).toBe(2)
+    expect(wait).toHaveBeenCalled()
+  })
+
+  it('reads a short turn once and fails open at once, exactly as before', async () => {
+    const { classifyCrisisRisk } = await loadOpenrouter()
+    const wait = vi.fn(async () => {})
+    const check = vi.fn<Check>(async () => ({ status: 'unavailable', cause: 'rate_limited' }))
+    expect(await classifyCrisisRisk('a short turn', 'en', { check, wait })).toEqual({ risk: 0 })
+    expect(check).toHaveBeenCalledTimes(1)
+    expect(wait).not.toHaveBeenCalled()
+  })
+})
