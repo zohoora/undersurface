@@ -69,9 +69,7 @@ jobs:
         run: npm run build
 
   browsers:
-    # Pinned: ubuntu-latest moved to 26.04, where Playwright 1.57 cannot install
-    # its browsers. Unpin when @playwright/test supports the newer image.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     # The Folio editor's automated device matrix (docs/vision/folio-build-plan.md,
     # decision 6): Chromium, WebKit and Firefox, desktop and phone emulation.
