@@ -1,7 +1,8 @@
 // Production check: the signed-in Sessions shell is axe-clean (WCAG 2.2 AA +
 // best practice) on both papers, by day and by night (the palette follows the
 // writer-local hour), with a Talk exchange on screen so the "end session"
-// control is enabled. Test account only (password from the macOS Keychain,
+// control is enabled; then the Journal surface, the open sidebar and the
+// settings sheet. Test account only (password from the macOS Keychain,
 // never printed); prints each violation with axe's reason.
 // Added 2026-11-18 after this scan found the in-session cards' ghost text at
 // 2.4-3.1:1, no landmarks, and a 2.1:1 end-session control.
@@ -40,12 +41,23 @@ const password = () => execFileSync('security', ['find-generic-password', '-s', 
         await page.keyboard.press('Enter')
         await page.locator('.session-end-btn:not([disabled])').waitFor({ timeout: 60000 })
         await page.waitForTimeout(12000) // the reply streams in and its fades settle
-        const result = await new AxeBuilder({ page }).withTags(TAGS).analyze()
-        for (const v of result.violations) for (const n of v.nodes) {
-          const why = (n.failureSummary || '').replace(/\s+/g, ' ').trim()
-          problems.push(`${label}: ${v.id} ${n.target.join(' ')} (${why})`)
+        const scan = async (view) => {
+          await page.waitForTimeout(1500)
+          const result = await new AxeBuilder({ page }).withTags(TAGS).analyze()
+          for (const v of result.violations) for (const n of v.nodes) {
+            const why = (n.failureSummary || '').replace(/\s+/g, ' ').trim()
+            problems.push(`${label} ${view}: ${v.id} ${n.target.join(' ')} (${why})`)
+          }
+          console.log(`${label} ${view}: ${result.violations.length} rule(s) violated`)
         }
-        console.log(`${label}: ${result.violations.length} rule(s) violated`)
+        await scan('talk')
+        await page.getByRole('button', { name: 'Journal', exact: true }).click()
+        await scan('journal')
+        await page.getByRole('button', { name: 'Talk', exact: true }).click()
+        await page.getByRole('button', { name: 'Expand navigation' }).click()
+        await scan('sidebar open')
+        await page.getByRole('button', { name: 'Open settings' }).click()
+        await scan('settings sheet')
       } catch (err) {
         problems.push(`${label}: ${String(err && err.message || err).split('\n')[0].slice(0, 200)}`)
       }

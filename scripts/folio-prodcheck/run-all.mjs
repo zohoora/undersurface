@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url'
 const here = dirname(fileURLToPath(import.meta.url))
 const checks = [
   ['Sessions (Talk reply, crisis_check)', 'sessions-check.cjs'],
-  ['Sessions: accessibility (axe, both papers, day + night)', 'sessions-a11y-check.cjs'],
+  ['Sessions: accessibility (axe: Talk, Journal, sidebar, settings; both papers, day + night)', 'sessions-a11y-check.cjs'],
   ['Folio: write, lift, save, shore, Quiet', 'folio-check.cjs'],
   ['Folio: accessibility (axe, keyboard path)', 'folio-a11y-check.cjs'],
   ['Folio: Kept (step 7)', 'folio-kept-check.cjs'],
