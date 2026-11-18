@@ -61,7 +61,7 @@
         "function": "smsApi"
       },
       {
-        "source": "**",
+        "source": "!/assets/**",
         "destination": "/index.html"
       }
     ]

@@ -27,7 +27,7 @@ import { t, useTranslation } from './i18n'
 import { getSettings, updateSettings } from './store/settings'
 import { canOpenFolio, loadFolioClaim, useFolioClaim } from './folio/access'
 import type { InnerWeather as InnerWeatherType } from './types'
-import { lazyWithRetry } from './utils/lazyWithRetry'
+import { importWithRetry, lazyWithRetry } from './utils/lazyWithRetry'
 
 import { isAdmin } from './admin/isAdmin'
 import { hasRequiredConsent } from './auth/consentGate'
@@ -252,10 +252,12 @@ function App() {
     if (!isReady) return
     ;(async () => {
       if (!ritualEngineRef.current) {
-        const { RitualEngine } = await import('./engine/ritualEngine')
+        // A separate chunk loaded at boot, so it can be gone when an old
+        // build was served; importWithRetry reloads onto the new one.
+        const { RitualEngine } = await importWithRetry(() => import('./engine/ritualEngine'), 'ritual-engine')
         ritualEngineRef.current = new RitualEngine()
       }
-    })()
+    })().catch(console.error)
     return () => {
       // No content available post-LivingEditor; log as a 0-word session.
       // RitualEngine still tracks the session boundary which is what matters.
