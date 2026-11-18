@@ -318,6 +318,7 @@ const esBase = {
   'session.bottomBar.surfaces': 'Espacios de la sesión',
   'session.bottomBar.more': 'Más',
   'session.bottomBar.options': 'Opciones de la sesión',
+  'session.end': 'terminar la sesión',
   'common.on': 'Activado',
   'common.off': 'Desactivado',
   'landing.previewLabel': 'Vista previa de una sesión de UnderSurface',

@@ -149,6 +149,7 @@ export function EntriesList({ navigateTo, currentPath, onOpenFolio }: Props) {
 
       <div
         className={`entries-sidebar ${isOpen ? 'open' : ''}`}
+        role="navigation"
         aria-label={t['sidebar.navigation']}
       >
         <button className="rail-brand" onClick={toggleNavigation} aria-label={isOpen ? t['sidebar.collapse'] : t['sidebar.expand']}>

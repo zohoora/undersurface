@@ -8,12 +8,17 @@ export const CARD_TAP_TARGET = 44
 
 export const CARD_FONT = "'Inter', sans-serif"
 
-/** Secondary card copy (hints, notes, timestamps). */
+/**
+ * Secondary card copy (hints, notes, timestamps) and, through cardLabelStyle,
+ * the labels of card inputs. `--text-secondary`, not `--text-ghost`: ghost
+ * text is 2.4–3.1:1 on the papers (axe, 2026-11-18, Field Mosaic labels and
+ * dates); secondary is 5.0–6.4:1 in both themes, still muted.
+ */
 export const cardNoteStyle: CSSProperties = {
   fontFamily: CARD_FONT,
   fontSize: 12,
   lineHeight: 1.5,
-  color: 'var(--text-ghost)',
+  color: 'var(--text-secondary)',
 }
 
 /** Primary card copy. */
@@ -49,7 +54,8 @@ export const cardQuietButtonStyle: CSSProperties = {
   border: 0,
   borderRadius: 999,
   background: 'transparent',
-  color: 'var(--text-ghost)',
+  // A control's label must meet 4.5:1 too (see cardNoteStyle).
+  color: 'var(--text-secondary)',
   fontFamily: CARD_FONT,
   fontSize: 12,
   cursor: 'pointer',

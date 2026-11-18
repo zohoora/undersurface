@@ -17,6 +17,7 @@ export const personalScienceEnglish = {
   'session.bottomBar.surfaces': 'Session surfaces',
   'session.bottomBar.more': 'More',
   'session.bottomBar.options': 'Session options',
+  'session.end': 'end session',
   'common.on': 'On',
   'common.off': 'Off',
   'landing.previewLabel': 'A preview of an UnderSurface session',

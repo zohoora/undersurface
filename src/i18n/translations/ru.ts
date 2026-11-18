@@ -318,6 +318,7 @@ const ruBase = {
   'session.bottomBar.surfaces': 'Пространства сессии',
   'session.bottomBar.more': 'Ещё',
   'session.bottomBar.options': 'Параметры сессии',
+  'session.end': 'завершить сессию',
   'common.on': 'Вкл.',
   'common.off': 'Выкл.',
   'landing.previewLabel': 'Пример сессии UnderSurface',

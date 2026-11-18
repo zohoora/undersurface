@@ -318,6 +318,7 @@ const deBase = {
   'session.bottomBar.surfaces': 'Bereiche der Sitzung',
   'session.bottomBar.more': 'Mehr',
   'session.bottomBar.options': 'Sitzungsoptionen',
+  'session.end': 'Sitzung beenden',
   'common.on': 'An',
   'common.off': 'Aus',
   'landing.previewLabel': 'Vorschau einer UnderSurface-Sitzung',

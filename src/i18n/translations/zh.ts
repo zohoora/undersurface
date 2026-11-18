@@ -318,6 +318,7 @@ const zhBase = {
   'session.bottomBar.surfaces': '会话空间',
   'session.bottomBar.more': '更多',
   'session.bottomBar.options': '会话选项',
+  'session.end': '结束会话',
   'common.on': '开',
   'common.off': '关',
   'landing.previewLabel': 'UnderSurface 会话预览',

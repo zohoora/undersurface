@@ -318,6 +318,7 @@ const jaBase = {
   'session.bottomBar.surfaces': 'セッションの画面',
   'session.bottomBar.more': 'その他',
   'session.bottomBar.options': 'セッションのオプション',
+  'session.end': 'セッションを終える',
   'common.on': 'オン',
   'common.off': 'オフ',
   'landing.previewLabel': 'UnderSurfaceセッションのプレビュー',

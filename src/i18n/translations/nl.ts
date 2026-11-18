@@ -318,6 +318,7 @@ const nlBase = {
   'session.bottomBar.surfaces': 'Onderdelen van de sessie',
   'session.bottomBar.more': 'Meer',
   'session.bottomBar.options': 'Sessieopties',
+  'session.end': 'sessie beëindigen',
   'common.on': 'Aan',
   'common.off': 'Uit',
   'landing.previewLabel': 'Voorbeeld van een UnderSurface-sessie',

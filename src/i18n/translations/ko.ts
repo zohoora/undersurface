@@ -318,6 +318,7 @@ const koBase = {
   'session.bottomBar.surfaces': '세션 화면',
   'session.bottomBar.more': '더 보기',
   'session.bottomBar.options': '세션 옵션',
+  'session.end': '세션 끝내기',
   'common.on': '켬',
   'common.off': '끔',
   'landing.previewLabel': 'UnderSurface 세션 미리보기',

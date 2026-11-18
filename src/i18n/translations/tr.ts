@@ -318,6 +318,7 @@ const trBase = {
   'session.bottomBar.surfaces': 'Oturum alanları',
   'session.bottomBar.more': 'Daha fazla',
   'session.bottomBar.options': 'Oturum seçenekleri',
+  'session.end': 'oturumu bitir',
   'common.on': 'Açık',
   'common.off': 'Kapalı',
   'landing.previewLabel': 'Bir UnderSurface oturumundan önizleme',

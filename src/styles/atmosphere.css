@@ -439,12 +439,14 @@
 
 .session-end-btn {
   font-family: 'Inter', sans-serif;
-  font-size: 11px;
+  /* Session controls: text at least 12px, a 44px target (cardControls.ts). */
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
   background: none;
   border: none;
   cursor: pointer;
+  min-height: 44px;
   padding: 12px 20px;
   letter-spacing: 0.04em;
   border-radius: 8px;

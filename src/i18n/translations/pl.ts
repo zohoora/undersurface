@@ -318,6 +318,7 @@ const plBase = {
   'session.bottomBar.surfaces': 'Przestrzenie sesji',
   'session.bottomBar.more': 'Więcej',
   'session.bottomBar.options': 'Opcje sesji',
+  'session.end': 'zakończ sesję',
   'common.on': 'Wł.',
   'common.off': 'Wył.',
   'landing.previewLabel': 'Podgląd sesji UnderSurface',

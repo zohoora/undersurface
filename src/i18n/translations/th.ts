@@ -318,6 +318,7 @@ const thBase = {
   'session.bottomBar.surfaces': 'พื้นที่ของเซสชัน',
   'session.bottomBar.more': 'เพิ่มเติม',
   'session.bottomBar.options': 'ตัวเลือกเซสชัน',
+  'session.end': 'จบเซสชัน',
   'common.on': 'เปิด',
   'common.off': 'ปิด',
   'landing.previewLabel': 'ตัวอย่างเซสชันของ UnderSurface',

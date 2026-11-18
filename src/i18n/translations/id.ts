@@ -318,6 +318,7 @@ const idBase = {
   'session.bottomBar.surfaces': 'Mode sesi',
   'session.bottomBar.more': 'Lainnya',
   'session.bottomBar.options': 'Opsi sesi',
+  'session.end': 'akhiri sesi',
   'common.on': 'Aktif',
   'common.off': 'Nonaktif',
   'landing.previewLabel': 'Pratinjau sesi UnderSurface',

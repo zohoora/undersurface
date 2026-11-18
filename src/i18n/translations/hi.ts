@@ -318,6 +318,7 @@ const hiBase = {
   'session.bottomBar.surfaces': 'सत्र के स्थान',
   'session.bottomBar.more': 'और',
   'session.bottomBar.options': 'सत्र विकल्प',
+  'session.end': 'सत्र समाप्त करें',
   'common.on': 'चालू',
   'common.off': 'बंद',
   'landing.previewLabel': 'UnderSurface सत्र की एक झलक',

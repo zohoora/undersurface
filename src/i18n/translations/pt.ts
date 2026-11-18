@@ -318,6 +318,7 @@ const ptBase = {
   'session.bottomBar.surfaces': 'Espaços da sessão',
   'session.bottomBar.more': 'Mais',
   'session.bottomBar.options': 'Opções da sessão',
+  'session.end': 'encerrar a sessão',
   'common.on': 'Ativado',
   'common.off': 'Desativado',
   'landing.previewLabel': 'Uma prévia de uma sessão do UnderSurface',

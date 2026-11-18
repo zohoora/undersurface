@@ -978,7 +978,8 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
     {/* While a full-screen overlay (Room or Speak) is open, the Talk composer
         and controls behind it are inert: not tabbable, not clickable, hidden
         from assistive tech. */}
-    <div className="session-container" inert={overlayOpen || undefined}>
+    {/* The page's main landmark (axe `region`): the transcript, composer and surface bar. */}
+    <div className="session-container" role="main" inert={overlayOpen || undefined}>
       {onBack && (
         <button onClick={onBack} className="session-back-btn" style={backButtonStyle} aria-label="Back">
           ←
@@ -1220,11 +1221,13 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
             onClick={handleEndSession}
             disabled={!canEnd}
             style={{
-              opacity: canEnd ? 0.5 : 0.2,
+              // Enabled, it's a control: full --text-secondary (5.4:1 light,
+              // 6.4:1 dark). At the old 0.5 it was 2.1:1 / 2.6:1.
+              opacity: canEnd ? 1 : 0.3,
               cursor: canEnd ? 'pointer' : 'default',
             }}
           >
-            end session
+            {tr['session.end']}
           </button>
         </div>
       )}

@@ -318,6 +318,7 @@ const viBase = {
   'session.bottomBar.surfaces': 'Các không gian của phiên',
   'session.bottomBar.more': 'Thêm',
   'session.bottomBar.options': 'Tùy chọn phiên',
+  'session.end': 'kết thúc phiên',
   'common.on': 'Bật',
   'common.off': 'Tắt',
   'landing.previewLabel': 'Xem trước một phiên UnderSurface',

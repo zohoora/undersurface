@@ -318,6 +318,7 @@ const frBase = {
   'session.bottomBar.surfaces': 'Espaces de la séance',
   'session.bottomBar.more': 'Plus',
   'session.bottomBar.options': 'Options de la séance',
+  'session.end': 'terminer la séance',
   'common.on': 'Activé',
   'common.off': 'Désactivé',
   'landing.previewLabel': 'Aperçu d’une séance UnderSurface',

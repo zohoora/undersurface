@@ -318,6 +318,7 @@ const itBase = {
   'session.bottomBar.surfaces': 'Spazi della sessione',
   'session.bottomBar.more': 'Altro',
   'session.bottomBar.options': 'Opzioni della sessione',
+  'session.end': 'termina la sessione',
   'common.on': 'Attivo',
   'common.off': 'Disattivo',
   'landing.previewLabel': 'Anteprima di una sessione UnderSurface',
