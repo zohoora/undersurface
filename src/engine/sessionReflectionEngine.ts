@@ -367,12 +367,19 @@ export async function reflectOnSession(
     // 6f. Prune old memories
     await pruneMemories(parts)
 
-    // 6g. Check for part growth (every 5 reflections)
+    // 6g. Check for part growth (every 5 reflections). Best-effort: growth is
+    // a separate chunk, and a tab left open across a deploy can no longer load
+    // it. Skip it (it comes round again in five) rather than fail the rest of
+    // the reflection. No reload here, as it would cut this pass off midway.
     const totalSummaryCount = await db.entrySummaries.count()
     if (totalSummaryCount > 0 && totalSummaryCount % 5 === 0) {
-      const { PartGrowthEngine } = await import('./partGrowthEngine')
-      const growthEngine = new PartGrowthEngine()
-      await growthEngine.growParts(parts, profile ?? null)
+      try {
+        const { PartGrowthEngine } = await import('./partGrowthEngine')
+        const growthEngine = new PartGrowthEngine()
+        await growthEngine.growParts(parts, profile ?? null)
+      } catch (error) {
+        console.error('[reflect] part growth error:', error)
+      }
     }
 
     // 6h. Check for letters — keyed to closed-session count (entrySummaries,

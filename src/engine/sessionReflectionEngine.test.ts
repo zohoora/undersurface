@@ -45,8 +45,20 @@ vi.mock('../store/db', () => ({
 vi.mock('../store/globalConfig', () => ({
   getGlobalConfig: vi.fn(() => ({ features: { ruptureRepair: true, ruminationPivot: true, userParts: true } })),
 }))
+const later = vi.hoisted(() => ({
+  checkForLetter: vi.fn(async () => null),
+  growParts: vi.fn(async () => {}),
+  // Set to make the growth chunk unloadable, as in a tab left open across a deploy.
+  growthImportError: null as Error | null,
+}))
 vi.mock('./letterEngine', () => ({
-  LetterEngine: class { checkForLetter = vi.fn(async () => null) },
+  LetterEngine: class { checkForLetter = later.checkForLetter },
+}))
+vi.mock('./partGrowthEngine', () => ({
+  get PartGrowthEngine() {
+    if (later.growthImportError) throw later.growthImportError
+    return class { growParts = later.growParts }
+  },
 }))
 
 import { reflectOnSession, updateCompanionSignals, updateUserPartsAndLexicon, updateSessionIntentions, updateStance } from './sessionReflectionEngine'
@@ -156,6 +168,40 @@ describe('reflectOnSession', () => {
       reflectionStatus: 'complete',
       reflectedAt: expect.any(Number),
     }))
+  })
+
+  describe('part growth (every fifth reflection)', () => {
+    const messages: SessionMessage[] = [
+      makeMessage({ id: '1', speaker: 'therapist', content: 'What brings you here today?' }),
+      makeMessage({ id: '2', speaker: 'user', content: 'I keep circling the same argument with my brother, and tonight I finally noticed what I do in the middle of it.' }),
+    ]
+    const reply = JSON.stringify({
+      entrySummary: { themes: ['family'], emotionalArc: 'tense to clearer', keyMoments: ['noticed the pattern'] },
+      partMemories: { open: 'Writer noticed their part in a recurring argument' },
+    })
+
+    beforeEach(() => {
+      later.growthImportError = null
+      mockChatCompletion.mockResolvedValue(reply)
+      vi.mocked(db.entrySummaries.count).mockResolvedValueOnce(5)
+    })
+
+    it('grows the parts on the fifth reflection', async () => {
+      const parts = [makePart()]
+      await reflectOnSession('session-5', messages, parts)
+      expect(later.growParts).toHaveBeenCalledWith(parts, null)
+      expect(db.sessions.update).toHaveBeenCalledWith('session-5', expect.objectContaining({ reflectionStatus: 'complete' }))
+    })
+
+    it('finishes the reflection when the growth chunk cannot load', async () => {
+      later.growthImportError = new TypeError('Failed to fetch dynamically imported module: /assets/partGrowthEngine-old.js')
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      await reflectOnSession('session-5', messages, [makePart()])
+      expect(later.growParts).not.toHaveBeenCalled()
+      expect(later.checkForLetter).toHaveBeenCalledWith(5, expect.any(Array))
+      expect(db.sessions.update).toHaveBeenCalledWith('session-5', expect.objectContaining({ reflectionStatus: 'complete' }))
+      expect(db.sessions.update).not.toHaveBeenCalledWith('session-5', { reflectionStatus: 'failed' })
+    })
   })
 
   it('stores only exact writer quotes as field moments', async () => {
