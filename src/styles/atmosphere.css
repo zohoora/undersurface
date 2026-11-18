@@ -41,6 +41,10 @@
 
   /* Warm amber accent — Real Talk and inline recommendations */
   --accent-warm: rgba(181, 109, 72, 0.9);
+  /* The same accent as text (recommendation phrases, Real Talk on, Retry):
+     deep enough for 4.5:1 (5.1:1 on the paper, 4.7:1 on a card). The
+     accent itself is 3.2:1 as text; borders and outlines keep it. */
+  --accent-warm-text: #985A39;
 }
 
 /* ── Warm Dark Theme ────────────────────────────────────── */
@@ -81,6 +85,7 @@
 
   /* Warm amber accent — dark mode */
   --accent-warm: rgba(212, 130, 90, 0.9);
+  --accent-warm-text: rgba(212, 130, 90, 0.9); /* 5.1:1 on the dark paper */
 }
 
 /* ── Breathing Background ───────────────────────────────── */
@@ -2197,7 +2202,7 @@ body {
   background: transparent;
   cursor: pointer;
   font-size: 12px;
-  color: var(--text-ghost);
+  color: var(--text-secondary);
   padding: 10px 12px;
   display: flex;
   align-items: center;
@@ -2245,7 +2250,7 @@ body {
 
 .session-option-state {
   font-size: 10px;
-  color: var(--text-ghost);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -2257,7 +2262,7 @@ body {
 }
 
 .session-bottom-bar__realtalk[aria-checked="true"] {
-  color: var(--accent-warm);
+  color: var(--accent-warm-text);
 }
 
 /* Inner voices uses --text-primary so it's visually distinct from Real
@@ -2637,7 +2642,7 @@ body {
   font-style: italic;
   font-family: inherit;
   font-size: inherit;
-  color: var(--accent-warm);
+  color: var(--accent-warm-text);
   cursor: pointer;
   text-decoration: none;
   display: inline-flex;

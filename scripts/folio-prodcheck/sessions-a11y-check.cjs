@@ -1,8 +1,8 @@
 // Production check: the signed-in Sessions shell is axe-clean (WCAG 2.2 AA +
 // best practice) on both papers, by day and by night (the palette follows the
 // writer-local hour), with a Talk exchange on screen so the "end session"
-// control is enabled; then the Journal surface, the open sidebar and the
-// settings sheet. Test account only (password from the macOS Keychain,
+// control is enabled; then the Journal surface, the open sidebar, the
+// settings sheet, the ••• menu (Real Talk off and on) and Room's choices. Test account only (password from the macOS Keychain,
 // never printed); prints each violation with axe's reason.
 // Added 2026-11-18 after this scan found the in-session cards' ghost text at
 // 2.4-3.1:1, no landmarks, and a 2.1:1 end-session control.
@@ -58,6 +58,20 @@ const password = () => execFileSync('security', ['find-generic-password', '-s', 
         await scan('sidebar open')
         await page.getByRole('button', { name: 'Open settings' }).click()
         await scan('settings sheet')
+        await page.getByRole('button', { name: 'Close settings' }).first().click()
+        await page.getByRole('button', { name: 'Collapse navigation' }).click()
+        // The ••• menu, then with Real Talk on (this test session only).
+        await page.locator('summary.session-bottom-bar__options').click()
+        await scan('options menu')
+        await page.locator('.session-bottom-bar__realtalk').click()
+        await page.waitForTimeout(1200)
+        if (!(await page.locator('.session-options').evaluate((d) => d.open))) await page.locator('summary.session-bottom-bar__options').click()
+        await scan('options menu, Real Talk on')
+        await page.locator('summary.session-bottom-bar__options').click()
+        // Room's choices (no voice starts until the writer begins).
+        await page.getByRole('button', { name: 'Room', exact: true }).click()
+        await page.getByRole('dialog').waitFor({ timeout: 15000 })
+        await scan('room choices')
       } catch (err) {
         problems.push(`${label}: ${String(err && err.message || err).split('\n')[0].slice(0, 200)}`)
       }

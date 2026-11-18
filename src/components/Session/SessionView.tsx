@@ -1113,7 +1113,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
                   border: '1px solid var(--accent-warm)',
                   borderRadius: 4,
                   background: 'transparent',
-                  color: 'var(--accent-warm)',
+                  color: 'var(--accent-warm-text)',
                   cursor: 'pointer',
                   fontSize: 12,
                 }}
