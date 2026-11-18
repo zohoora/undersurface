@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
+import { axeSummary } from './axeSummary'
 
 // The first moment (docs/vision/2026-10-22-folio-first-moment.md) in every
 // browser of the matrix: the corner after the sentence the caret rests at,
@@ -180,7 +181,7 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.locator('[data-folio-corner]')).toBeVisible()
     await page.waitForTimeout(500)
     const results = await new AxeBuilder({ page }).withTags(WCAG).analyze()
-    const summary = results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
+    const summary = axeSummary(results)
     expect(summary).toEqual([])
   })
 }

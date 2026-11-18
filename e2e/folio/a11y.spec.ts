@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
+import { axeSummary } from './axeSummary'
 
 // Folio's automated accessibility acceptance (build plan step 6; draft 4
 // §3.10): axe on rendered pixels with the app's real styles, on both papers
@@ -52,7 +53,7 @@ for (const theme of ['light', 'dark'] as const) {
       // Let the settle transition finish so contrast is read at rest.
       await page.waitForTimeout(700)
       const results = await new AxeBuilder({ page }).withTags(WCAG).analyze()
-      const summary = results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
+      const summary = axeSummary(results)
       expect(summary).toEqual([])
     })
   }
