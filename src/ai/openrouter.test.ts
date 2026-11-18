@@ -895,3 +895,46 @@ describe('streamChatCompletion — risk preamble parsing', () => {
     expect(warnCalls.length).toBeGreaterThanOrEqual(1)
   })
 })
+
+describe('requests stay inside the chat function limits', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.restoreAllMocks()
+  })
+
+  const long = `Dear Dad, ${'I keep going back over that summer. '.repeat(600)}`
+  const sentMessages = (fetchMock: ReturnType<typeof vi.fn>) => {
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    return (JSON.parse(init.body as string) as { messages: { role: string; content: string }[] }).messages
+  }
+
+  it('chatCompletion trims an over-long user message before sending', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ choices: [{ message: { content: 'ok' } }] }),
+      text: () => Promise.resolve(''),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { chatCompletion } = await loadOpenrouter()
+    await chatCompletion([{ role: 'system', content: 'sys' }, { role: 'user', content: long }])
+    const sent = sentMessages(fetchMock)
+    expect(long.length).toBeGreaterThan(8_000)
+    expect(sent[1].content.length).toBeLessThanOrEqual(8_000)
+    expect(sent[1].content.startsWith('Dear Dad,')).toBe(true)
+  })
+
+  it('streamChatCompletion trims an over-long user message before sending', async () => {
+    const fetchMock = vi.fn(() => Promise.reject(new Error('captured')))
+    vi.stubGlobal('fetch', fetchMock)
+    const { streamChatCompletion } = await loadOpenrouter()
+    const onError = vi.fn()
+    await streamChatCompletion(
+      [{ role: 'system', content: 'sys' }, { role: 'user', content: long }],
+      { onToken: vi.fn(), onComplete: vi.fn(), onError },
+    )
+    const sent = sentMessages(fetchMock)
+    expect(sent[1].content.length).toBeLessThanOrEqual(8_000)
+    expect(sent[1].content).toContain('characters left out')
+  })
+})

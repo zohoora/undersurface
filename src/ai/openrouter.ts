@@ -3,6 +3,7 @@ import { getAuthToken } from '../api/authedFetch'
 import { CRISIS_CLASSIFIER_PROMPT } from './crisisClassifierPrompt'
 import { SIGNAL_CLASSIFIER_PROMPT } from './signalClassifierPrompt'
 import { engineLog } from '../services/diagnostics'
+import { fitToServerLimits } from './requestLimits'
 import type { AmbientTurnAssessment } from '../types'
 
 export type CrisisRisk = 0 | 1 | 2
@@ -114,7 +115,7 @@ export async function chatCompletion(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        messages,
+        messages: fitToServerLimits(messages),
         max_tokens: maxTokens,
         temperature: 0.9,
         ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
@@ -172,7 +173,7 @@ export async function streamChatCompletion(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages,
+          messages: fitToServerLimits(messages),
           max_tokens: maxTokens,
           temperature: 0.9,
           stream: true,
