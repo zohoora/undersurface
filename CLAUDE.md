@@ -400,7 +400,7 @@ npm run smoke-test       # Post-deploy smoke test against live site
 - **Reactive stores** — `useSettings()` / `useGlobalConfig()` via `useSyncExternalStore`; `getSettings()` / `getGlobalConfig()` for non-React
 - **Colors via CSS variables** — never hardcode hex for themed colors; inline styles use `var(--bg-primary)` etc.
 - **Admin components** — inline styles, warm muted palette, light-only
-- **Session cards** — 44px targets and ≥ 12px text via the shared `src/components/Session/cardControls.ts`
+- **Session cards** — 44px targets, ≥ 12px text and ≥ 4.5:1 contrast via the shared `src/components/Session/cardControls.ts` (secondary copy and labels use `--text-secondary`; `--text-ghost` is 2.4–3.1:1, decoration only). The live Sessions shell is axe-checked on both papers by day and night by `scripts/folio-prodcheck/sessions-a11y-check.cjs` (part of `npm run prodcheck:folio`)
 
 ## Common Tasks
 
