@@ -319,6 +319,8 @@ const idBase = {
   'session.bottomBar.more': 'Lainnya',
   'session.bottomBar.options': 'Opsi sesi',
   'session.end': 'akhiri sesi',
+  'session.composer.label': 'Pesan untuk pendamping',
+  'session.composer.placeholder': 'Ketik di sini…',
   'common.on': 'Aktif',
   'common.off': 'Nonaktif',
   'landing.previewLabel': 'Pratinjau sesi UnderSurface',

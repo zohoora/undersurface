@@ -72,7 +72,10 @@ export const SessionMessageBubble = memo(function SessionMessageBubble({
           margin: '24px 0',
         }} />
       )}
-      <div style={{ marginBottom: 20, opacity: isUser ? 1 : 0.88 }}>
+      {/* No extra opacity on the companion's words: italic --text-secondary
+          already sets its voice apart, and 0.88 on top was 4.18:1 on light
+          paper for 19px text (axe, 2026-11-18); at full it is 5.4:1. */}
+      <div style={{ marginBottom: 20 }}>
         {!isUser && message.partName && (
           <div style={{
             fontSize: 11,

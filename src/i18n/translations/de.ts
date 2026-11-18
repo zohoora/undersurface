@@ -319,6 +319,8 @@ const deBase = {
   'session.bottomBar.more': 'Mehr',
   'session.bottomBar.options': 'Sitzungsoptionen',
   'session.end': 'Sitzung beenden',
+  'session.composer.label': 'Nachricht an deinen Begleiter',
+  'session.composer.placeholder': 'Schreib hier…',
   'common.on': 'An',
   'common.off': 'Aus',
   'landing.previewLabel': 'Vorschau einer UnderSurface-Sitzung',

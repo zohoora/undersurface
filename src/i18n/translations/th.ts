@@ -319,6 +319,8 @@ const thBase = {
   'session.bottomBar.more': 'เพิ่มเติม',
   'session.bottomBar.options': 'ตัวเลือกเซสชัน',
   'session.end': 'จบเซสชัน',
+  'session.composer.label': 'ข้อความถึงเพื่อนร่วมทาง',
+  'session.composer.placeholder': 'พิมพ์ที่นี่…',
   'common.on': 'เปิด',
   'common.off': 'ปิด',
   'landing.previewLabel': 'ตัวอย่างเซสชันของ UnderSurface',

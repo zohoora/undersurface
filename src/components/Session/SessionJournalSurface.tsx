@@ -79,7 +79,13 @@ export function SessionJournalSurface({
     autofocus: 'end',
     editorProps: {
       attributes: {
+        // The skip link targets #editor; Talk's composer is unmounted while
+        // the Journal is open, so the Journal page takes the id (axe).
+        id: 'editor',
         class: 'tiptap session-journal-editor',
+        role: 'textbox',
+        'aria-multiline': 'true',
+        'aria-label': tr['session.bottomBar.journal'],
         spellcheck: 'false',
       },
       // Closures capture recordKeystroke / fadeVisibleThoughts at first

@@ -319,6 +319,8 @@ const ruBase = {
   'session.bottomBar.more': 'Ещё',
   'session.bottomBar.options': 'Параметры сессии',
   'session.end': 'завершить сессию',
+  'session.composer.label': 'Сообщение твоему собеседнику',
+  'session.composer.placeholder': 'Пиши здесь…',
   'common.on': 'Вкл.',
   'common.off': 'Выкл.',
   'landing.previewLabel': 'Пример сессии UnderSurface',

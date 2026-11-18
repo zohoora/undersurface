@@ -319,6 +319,8 @@ const trBase = {
   'session.bottomBar.more': 'Daha fazla',
   'session.bottomBar.options': 'Oturum seçenekleri',
   'session.end': 'oturumu bitir',
+  'session.composer.label': 'Yol arkadaşına mesaj',
+  'session.composer.placeholder': 'Buraya yaz…',
   'common.on': 'Açık',
   'common.off': 'Kapalı',
   'landing.previewLabel': 'Bir UnderSurface oturumundan önizleme',

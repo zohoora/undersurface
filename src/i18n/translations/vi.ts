@@ -319,6 +319,8 @@ const viBase = {
   'session.bottomBar.more': 'Thêm',
   'session.bottomBar.options': 'Tùy chọn phiên',
   'session.end': 'kết thúc phiên',
+  'session.composer.label': 'Tin nhắn gửi người đồng hành',
+  'session.composer.placeholder': 'Nhập ở đây…',
   'common.on': 'Bật',
   'common.off': 'Tắt',
   'landing.previewLabel': 'Xem trước một phiên UnderSurface',

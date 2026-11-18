@@ -128,7 +128,7 @@ export function FieldWindowSettings({ isOpen }: { isOpen: boolean }) {
   return (
     <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 10, marginTop: 2 }}>
       <div style={{ fontSize: 11, color: 'var(--text-primary)' }}>{tr['ps.field.title']}</div>
-      <div style={{ fontSize: 10, color: 'var(--text-ghost)', lineHeight: 1.45, marginTop: 3 }}>
+      <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.45, marginTop: 3 }}>
         {tr['ps.field.description']}
       </div>
       <label style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 8, color: 'var(--text-secondary)', fontSize: 11 }}>
@@ -208,7 +208,7 @@ export function FieldWindowSettings({ isOpen }: { isOpen: boolean }) {
                 ))}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 7 }}>
-                <label style={{ color: 'var(--text-ghost)', fontSize: 9 }}>
+                <label style={{ color: 'var(--text-secondary)', fontSize: 9 }}>
                   {tr['ps.field.from']}
                   <input type="time" value={minuteToTime(window.startMinute)} onChange={event => {
                     const minute = timeToMinute(event.target.value)
@@ -216,7 +216,7 @@ export function FieldWindowSettings({ isOpen }: { isOpen: boolean }) {
                     if (next) updateWindow(window.id, next)
                   }} style={{ ...inputStyle, marginTop: 2 }} />
                 </label>
-                <label style={{ color: 'var(--text-ghost)', fontSize: 9 }}>
+                <label style={{ color: 'var(--text-secondary)', fontSize: 9 }}>
                   {tr['ps.field.to']}
                   <input type="time" min={minuteToTime(Math.min(window.startMinute + MIN_FIELD_WINDOW_MINUTES, 23 * 60 + 59))} value={minuteToTime(window.endMinute)} onChange={event => {
                     const minute = timeToMinute(event.target.value)
@@ -231,7 +231,7 @@ export function FieldWindowSettings({ isOpen }: { isOpen: boolean }) {
                 <option value="act">{tr['ps.field.act']}</option>
               </select>
               {preferences.windows.length > 1 && (
-                <button type="button" onClick={() => save(current => ({ ...current, windows: current.windows.filter(item => item.id !== window.id) }))} style={{ border: 0, background: 'none', color: 'var(--text-ghost)', fontSize: 9, padding: '6px 0 0', cursor: 'pointer' }}>
+                <button type="button" onClick={() => save(current => ({ ...current, windows: current.windows.filter(item => item.id !== window.id) }))} style={{ border: 0, background: 'none', color: 'var(--text-secondary)', fontSize: 9, padding: '6px 0 0', cursor: 'pointer' }}>
                   {tr['ps.field.remove']}
                 </button>
               )}
@@ -248,7 +248,7 @@ export function FieldWindowSettings({ isOpen }: { isOpen: boolean }) {
               )}
             </div>
           ))}
-          <div style={{ fontSize: 9, color: 'var(--text-ghost)', lineHeight: 1.4 }}>{tr['ps.field.note']}</div>
+          <div style={{ fontSize: 9, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{tr['ps.field.note']}</div>
         </div>
       )}
     </div>

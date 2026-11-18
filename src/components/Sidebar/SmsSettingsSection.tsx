@@ -120,13 +120,13 @@ export function SmsSettingsSection({ isOpen }: { isOpen: boolean }) {
       )}
 
       {loading && !status ? (
-        <div style={{ fontSize: 11, color: 'var(--text-ghost)' }}>{t['settings.sms.loading']}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{t['settings.sms.loading']}</div>
       ) : status?.linked ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 11, color: 'var(--color-still)' }}>
             {interpolate(t['settings.sms.connected'], { last4: status.phoneLast4 ?? '' })}
           </div>
-          <div style={{ fontSize: 10, color: 'var(--text-ghost)', lineHeight: 1.5 }}>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
             {t['settings.sms.guidance']}
           </div>
           <FieldWindowSettings isOpen={isOpen} />

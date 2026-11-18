@@ -1017,7 +1017,7 @@
   font: 600 9px 'Inter', sans-serif;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--text-ghost);
+  color: var(--text-secondary);
 }
 
 .settings-sheet-close {
@@ -1052,7 +1052,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-ghost);
+  color: var(--text-secondary);
   padding: 0 8px;
   margin-bottom: 4px;
 }
@@ -1121,7 +1121,7 @@
 
 .settings-slider-label {
   font-size: 9px;
-  color: var(--text-ghost);
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 

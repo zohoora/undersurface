@@ -34,12 +34,13 @@ const dataButtonBase = {
   width: '100%',
 } as const
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button
       className="settings-toggle"
       role="switch"
       aria-checked={checked}
+      aria-label={label}
       onClick={() => onChange(!checked)}
     >
       <span className={`settings-toggle-knob ${checked ? 'on' : ''}`} />
@@ -232,7 +233,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
                   onClick={signOut}
                   style={{
                     fontSize: 10,
-                    color: 'var(--text-ghost)',
+                    color: 'var(--text-secondary)',
                     background: 'none',
                     border: '1px solid var(--border-light)',
                     borderRadius: 4,
@@ -264,6 +265,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
             <div className="settings-section-label">{t['settings.language']}</div>
             <SettingRow label={t['settings.language']}>
               <select
+                aria-label={t['settings.language']}
                 value={settings.language}
                 onChange={(e) => set('language', e.target.value)}
                 style={{
@@ -290,6 +292,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
             <div className="settings-section-label">{t['settings.timezone']}</div>
             <SettingRow label={t['settings.timezone']}>
               <select
+                aria-label={t['settings.timezone']}
                 value={settings.timezone}
                 onChange={(e) => set('timezone', e.target.value)}
                 style={{
@@ -336,6 +339,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
                 <input
                   type="range"
                   className="settings-slider"
+                  aria-label={t['settings.responseSpeed']}
                   min="0.5"
                   max="2"
                   step="0.1"
@@ -351,7 +355,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
           {globalConfig?.features?.bilateralStimulation === true && (
             <div className="settings-section">
               <SettingRow label={t['settings.bilateralStimulation']}>
-                <Toggle checked={settings.bilateralStimulation} onChange={(v) => set('bilateralStimulation', v)} />
+                <Toggle label={t['settings.bilateralStimulation']} checked={settings.bilateralStimulation} onChange={(v) => set('bilateralStimulation', v)} />
               </SettingRow>
             </div>
           )}
@@ -360,7 +364,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
           <div className="settings-section">
             <div className="settings-section-label">{t['settings.autocorrect']}</div>
             <SettingRow label={t['settings.autocorrect']}>
-              <Toggle checked={settings.autocorrect} onChange={(v) => { set('autocorrect', v); set('autoCapitalize', v) }} />
+              <Toggle label={t['settings.autocorrect']} checked={settings.autocorrect} onChange={(v) => { set('autocorrect', v); set('autoCapitalize', v) }} />
             </SettingRow>
           </div>
 
@@ -368,7 +372,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
           <div className="settings-section">
             <div className="settings-section-label">Developer</div>
             {apiKeyLoading ? (
-              <div style={{ fontSize: 11, color: 'var(--text-ghost)', padding: '4px 0' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '4px 0' }}>
                 Loading...
               </div>
             ) : generatedKey ? (
@@ -419,7 +423,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
                   style={{
                     fontSize: 11,
                     fontFamily: "'Inter', sans-serif",
-                    color: 'var(--text-ghost)',
+                    color: 'var(--text-secondary)',
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
@@ -449,7 +453,7 @@ export function SettingsPanel({ isOpen, onToggle }: SettingsPanelProps) {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ fontSize: 11, color: 'var(--text-ghost)', lineHeight: 1.4 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
                   Generate an API key to connect AI agents to your diary via MCP.
                 </div>
                 <button

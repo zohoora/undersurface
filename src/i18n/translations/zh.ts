@@ -319,6 +319,8 @@ const zhBase = {
   'session.bottomBar.more': '更多',
   'session.bottomBar.options': '会话选项',
   'session.end': '结束会话',
+  'session.composer.label': '给陪伴者的消息',
+  'session.composer.placeholder': '在这里输入…',
   'common.on': '开',
   'common.off': '关',
   'landing.previewLabel': 'UnderSurface 会话预览',

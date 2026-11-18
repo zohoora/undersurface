@@ -319,6 +319,8 @@ const koBase = {
   'session.bottomBar.more': '더 보기',
   'session.bottomBar.options': '세션 옵션',
   'session.end': '세션 끝내기',
+  'session.composer.label': '동반자에게 보내는 메시지',
+  'session.composer.placeholder': '여기에 입력하세요…',
   'common.on': '켬',
   'common.off': '끔',
   'landing.previewLabel': 'UnderSurface 세션 미리보기',

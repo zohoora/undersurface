@@ -319,6 +319,8 @@ const nlBase = {
   'session.bottomBar.more': 'Meer',
   'session.bottomBar.options': 'Sessieopties',
   'session.end': 'sessie beëindigen',
+  'session.composer.label': 'Bericht aan je metgezel',
+  'session.composer.placeholder': 'Typ hier…',
   'common.on': 'Aan',
   'common.off': 'Uit',
   'landing.previewLabel': 'Voorbeeld van een UnderSurface-sessie',

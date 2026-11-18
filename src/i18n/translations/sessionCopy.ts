@@ -18,6 +18,8 @@ export const personalScienceEnglish = {
   'session.bottomBar.more': 'More',
   'session.bottomBar.options': 'Session options',
   'session.end': 'end session',
+  'session.composer.label': 'Message to your companion',
+  'session.composer.placeholder': 'Type here...',
   'common.on': 'On',
   'common.off': 'Off',
   'landing.previewLabel': 'A preview of an UnderSurface session',

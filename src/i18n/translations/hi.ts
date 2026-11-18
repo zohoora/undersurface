@@ -319,6 +319,8 @@ const hiBase = {
   'session.bottomBar.more': 'और',
   'session.bottomBar.options': 'सत्र विकल्प',
   'session.end': 'सत्र समाप्त करें',
+  'session.composer.label': 'आपके साथी के लिए संदेश',
+  'session.composer.placeholder': 'यहां लिखें…',
   'common.on': 'चालू',
   'common.off': 'बंद',
   'landing.previewLabel': 'UnderSurface सत्र की एक झलक',

@@ -319,6 +319,8 @@ const frBase = {
   'session.bottomBar.more': 'Plus',
   'session.bottomBar.options': 'Options de la séance',
   'session.end': 'terminer la séance',
+  'session.composer.label': 'Message pour ton compagnon',
+  'session.composer.placeholder': 'Écris ici…',
   'common.on': 'Activé',
   'common.off': 'Désactivé',
   'landing.previewLabel': 'Aperçu d’une séance UnderSurface',

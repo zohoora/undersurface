@@ -118,7 +118,7 @@ export function LettersSection({ isOpen }: { isOpen: boolean }) {
         </article>
       ) : (
         <>
-          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, lineHeight: 1.5, color: 'var(--text-ghost)', marginBottom: 6 }}>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)', marginBottom: 6 }}>
             {t['letters.description']}
           </div>
           <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
@@ -151,7 +151,7 @@ export function LettersSection({ isOpen }: { isOpen: boolean }) {
                     <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: letter.isRead ? 400 : 500 }}>
                       {byline(signatories)}
                     </span>
-                    <span style={{ color: 'var(--text-ghost)', flexShrink: 0 }}>{formatDate(letter.createdAt)}</span>
+                    <span style={{ color: 'var(--text-secondary)', flexShrink: 0 }}>{formatDate(letter.createdAt)}</span>
                     <span
                       data-testid={letter.isRead ? undefined : 'letter-unread-dot'}
                       aria-hidden="true"

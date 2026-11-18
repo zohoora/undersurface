@@ -123,7 +123,7 @@ function MemoryLedger() {
         }}
         style={{ width: '100%', resize: 'vertical', border: 0, background: 'transparent', color: 'var(--text-primary)', font: "11px/1.45 'Inter', sans-serif", padding: 0 }}
       />
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, color: 'var(--text-ghost)', fontSize: 9 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, color: 'var(--text-secondary)', fontSize: 9 }}>
         <span>{source} · {date ? new Date(date).toLocaleDateString() : tr['companionMemory.dateUnavailable']}</span>
         <button onClick={onForget} style={{ border: 0, background: 'none', color: 'var(--text-secondary)', fontSize: 9, cursor: 'pointer' }}>{tr['companionMemory.forget']}</button>
       </div>
@@ -137,7 +137,7 @@ function MemoryLedger() {
       </button>
       {open && (
         <div style={{ marginTop: 8 }}>
-          <div style={{ color: 'var(--text-ghost)', fontSize: 10, lineHeight: 1.4, marginBottom: 8 }}>{tr['companionMemory.note']}</div>
+          <div style={{ color: 'var(--text-secondary)', fontSize: 10, lineHeight: 1.4, marginBottom: 8 }}>{tr['companionMemory.note']}</div>
           {profile && (['recurringThemes', 'emotionalPatterns', 'avoidancePatterns', 'growthSignals'] as const).flatMap(key =>
             profile[key].map((value, index) => row(`profile-${key}-${index}`, tr['companionMemory.source.inferred'], value, profile.lastUpdated, next => void updateProfileItem(key, index, next), () => void updateProfileItem(key, index, null))),
           )}
@@ -161,7 +161,7 @@ function MemoryLedger() {
             setMemories(list => list.filter(item => item.id !== memory.id))
             void db.memories.delete(memory.id)
           }))}
-          {!profile && !facts && memories.length === 0 && sessions.length === 0 && <div style={{ fontSize: 11, color: 'var(--text-ghost)' }}>{tr['companionMemory.empty']}</div>}
+          {!profile && !facts && memories.length === 0 && sessions.length === 0 && <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{tr['companionMemory.empty']}</div>}
         </div>
       )}
     </div>
@@ -203,7 +203,7 @@ export function CompanionPreferencesSection({ isOpen }: { isOpen: boolean }) {
       <MemoryLedger />
       <div style={{ borderTop: '1px solid var(--border-light)', marginTop: 12, paddingTop: 11 }}>
         <div style={{ color: 'var(--text-primary)', fontSize: 11, marginBottom: 4 }}>{tr['ps.alliance.title']}</div>
-        <div style={{ color: 'var(--text-ghost)', fontSize: 10, lineHeight: 1.45 }}>{tr['ps.alliance.description']}</div>
+        <div style={{ color: 'var(--text-secondary)', fontSize: 10, lineHeight: 1.45 }}>{tr['ps.alliance.description']}</div>
         <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 8, color: 'var(--text-secondary)', fontSize: 11 }}>
           {tr['ps.alliance.comfort']}
           <input type="checkbox" checked={preferences.alliance?.comfortBeforeChallenge !== false} onChange={event => changeAlliance('comfortBeforeChallenge', event.target.checked)} />

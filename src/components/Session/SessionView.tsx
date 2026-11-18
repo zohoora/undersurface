@@ -726,7 +726,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         hardBreak: false,
       }),
       InkWeight,
-      Placeholder.configure({ placeholder: 'Type here...' }),
+      Placeholder.configure({ placeholder: tr['session.composer.placeholder'] }),
     ],
     content: '',
     editorProps: {
@@ -734,7 +734,7 @@ export function SessionView({ sessionId, openingMethod, initialMode, onSessionCr
         id: 'editor',
         class: 'session-input',
         role: 'textbox',
-        'aria-label': 'Session message',
+        'aria-label': tr['session.composer.label'],
         spellcheck: 'false',
       },
       handleKeyDown: (_view, event) => {

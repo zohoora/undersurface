@@ -319,6 +319,8 @@ const jaBase = {
   'session.bottomBar.more': 'その他',
   'session.bottomBar.options': 'セッションのオプション',
   'session.end': 'セッションを終える',
+  'session.composer.label': '伴走者へのメッセージ',
+  'session.composer.placeholder': 'ここに入力してください…',
   'common.on': 'オン',
   'common.off': 'オフ',
   'landing.previewLabel': 'UnderSurfaceセッションのプレビュー',

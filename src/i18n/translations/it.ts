@@ -319,6 +319,8 @@ const itBase = {
   'session.bottomBar.more': 'Altro',
   'session.bottomBar.options': 'Opzioni della sessione',
   'session.end': 'termina la sessione',
+  'session.composer.label': 'Messaggio per il tuo compagno',
+  'session.composer.placeholder': 'Scrivi qui…',
   'common.on': 'Attivo',
   'common.off': 'Disattivo',
   'landing.previewLabel': 'Anteprima di una sessione UnderSurface',

@@ -319,6 +319,8 @@ const esBase = {
   'session.bottomBar.more': 'Más',
   'session.bottomBar.options': 'Opciones de la sesión',
   'session.end': 'terminar la sesión',
+  'session.composer.label': 'Mensaje para tu acompañante',
+  'session.composer.placeholder': 'Escribe aquí…',
   'common.on': 'Activado',
   'common.off': 'Desactivado',
   'landing.previewLabel': 'Vista previa de una sesión de UnderSurface',

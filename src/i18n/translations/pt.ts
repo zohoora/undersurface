@@ -319,6 +319,8 @@ const ptBase = {
   'session.bottomBar.more': 'Mais',
   'session.bottomBar.options': 'Opções da sessão',
   'session.end': 'encerrar a sessão',
+  'session.composer.label': 'Mensagem para a tua companheira',
+  'session.composer.placeholder': 'Escreve aqui…',
   'common.on': 'Ativado',
   'common.off': 'Desativado',
   'landing.previewLabel': 'Uma prévia de uma sessão do UnderSurface',

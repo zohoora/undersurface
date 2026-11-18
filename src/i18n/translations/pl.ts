@@ -319,6 +319,8 @@ const plBase = {
   'session.bottomBar.more': 'Więcej',
   'session.bottomBar.options': 'Opcje sesji',
   'session.end': 'zakończ sesję',
+  'session.composer.label': 'Wiadomość do twojego towarzysza',
+  'session.composer.placeholder': 'Pisz tutaj…',
   'common.on': 'Wł.',
   'common.off': 'Wył.',
   'landing.previewLabel': 'Podgląd sesji UnderSurface',
